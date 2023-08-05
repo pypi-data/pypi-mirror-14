@@ -1,0 +1,98 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+#  Copyright 2015 by Leipzig University Library, http://ub.uni-leipzig.de
+#                 by The Finc Authors, http://finc.info
+#                 by Martin Czygan, <martin.czygan@uni-leipzig.de>
+#
+# This file is part of some open source application.
+#
+# Some open source application is free software: you can redistribute
+# it and/or modify it under the terms of the GNU General Public
+# License as published by the Free Software Foundation, either
+# version 3 of the License, or (at your option) any later version.
+#
+# Some open source application is distributed in the hope that it will
+# be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+# of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
+#
+# @license GPL-3.0+ <http://spdx.org/licenses/GPL-3.0+>
+#
+
+"""
+Find the output of (most) tasks.
+"""
+
+from __future__ import print_function
+from luigi.task import Register
+from siskin.utils import get_task_import_cache
+from siskin.utils import pairwise
+import collections
+import importlib
+import os
+import sys
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print('taskoutput TASKNAME', file=sys.stderr)
+        sys.exit(1)
+
+    taskname = sys.argv[1]
+
+    # fast access through a bit of caching
+    task_import_cache, path = get_task_import_cache()
+    if taskname in task_import_cache:
+        importlib.import_module(task_import_cache[taskname])
+    else:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+        from siskin.sources import *
+        from siskin.workflows import *
+
+    if not taskname in Register.task_names():
+        print('no such task: %s' % taskname, file=sys.stderr)
+        sys.exit(1)
+
+    # workaround for #1
+    ignore = ['--local-scheduler', '--no-lock', '--parallel-scheduling',
+              '--assistant', '--scheduler-record-task-history']
+    args = [arg for arg in sys.argv[2:] if not arg in ignore]
+
+    kwargs = dict((k.lstrip('--').replace('-', '_'), v) for k, v in pairwise(args))
+
+    # ignore global arguments
+    for param in ('local-scheduler', 'lock', 'lock-pid-dir', 'workers',
+                  'logging-conf-file', 'scheduler-host', 'scheduler-port'):
+        kwargs.pop(param, None)
+
+    task_klass = Register.get_task_cls(taskname)
+    typed_kwargs = dict()
+    for k, v in kwargs.iteritems():
+        try:
+            klass = getattr(task_klass, k).__class__
+            typed_kwargs[k] = klass().parse(v)
+        except AttributeError as err:
+            print('ignoring missed attribute {0}'.format(k))
+
+    task = task_klass(**typed_kwargs)
+    output = task.output()
+
+    if isinstance(output, collections.Iterable):
+        if isinstance(output, dict):
+            for key, target in output.iteritems():
+                print(target.fn, file=sys.stdout)
+        else:
+            for op in output:
+                try:
+                    print(op.path, file=sys.stdout)
+                except AttributeError:
+                    print(op, file=sys.stdout)
+    else:
+        print(output.path, file=sys.stdout)
