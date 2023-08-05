@@ -1,0 +1,136 @@
+#!/usr/bin/env python
+#coding=utf-8
+
+import sys
+import re
+import os
+sys.path.append(".")
+sys.path.append("..")
+import zoomlinkmap
+import argparse
+from zoomlinkmap import *
+
+GlobalSegmentLength = 0
+GlobalDataLength = 0
+
+def getSegmentRecord(line, linkMapFile):
+    reg  = re.compile('^(?P<address>0x[\S]+)\s(?P<size>0x[\S]+)\s__(?P<hash>[^ ]+)\s(?P<name>.+)')
+    regMatch = reg.match(line)
+    if regMatch != None:
+        linebits = regMatch.groupdict()
+        size = linebits["size"]
+        address = linebits["address"]
+        hashKey = linebits["hash"]
+        name = linebits["name"]
+        global GlobalSegmentLength
+        GlobalSegmentLength += int(size, 16)
+        return True
+    else:
+        return False
+
+
+def getInfoRecord(line, linkMapFile):
+    reg  = re.compile('^(?P<address>[^ ]*)\s(?P<size>[^ ]*)\s\[ *(?P<hash>[\d]+)\]\s(?P<name>.+)')
+    regMatch = reg.match(line)
+    if regMatch != None:
+        linebits = regMatch.groupdict()
+        size = linebits["size"]
+        address = linebits["address"]
+        hashKey = linebits["hash"]
+        name = linebits["name"]
+        global GlobalDataLength
+        rSize = int(size, 16)
+        func = ObjInfoRecordFactory(hashKey, name, address, size)
+        if func != None:
+            objFile = linkMapFile.objFileCached(func.owner)
+            objsize = objFile.size
+            if objFile == None:
+                objFile = ObjFile()
+                objFile.haskKey = func.owner
+                linkMapFile.cacheObjFile(objFile, objFile.haskKey)
+                pass
+            GlobalDataLength +=  rSize
+            objFile.appendFunction(func)
+            if (objFile.size - objsize) != rSize:
+                print "not right"
+            int
+        else:
+            print "not func", line
+        pass
+
+        return True
+    else:
+        return False
+    pass
+
+def getFileRecord(line , linkMapFile):
+    reg  = re.compile('^\[ *(?P<hashKey>[\d]+)\]\s(?P<path>.+)')
+    regMatch = reg.match(line)
+    if regMatch == None:
+        return False
+        pass
+    else:
+        hashKey = regMatch.groupdict()["hashKey"]
+        path = regMatch.groupdict()["path"]
+        objFile = linkMapFile.objFileCached(int(hashKey, 16))
+        if objFile == None:
+            objFile = ObjFile()
+            objFile.haskKey = hashKey
+            objFile.path = path
+            linkMapFile.cacheObjFile(objFile, hashKey)
+
+        baseName = os.path.basename(path)
+        fileNameReg = re.compile(r'^(?P<moduleName>.+)\((?P<filename>.+)\)')
+        fileMatch = fileNameReg.match(baseName)
+        if fileMatch != None:
+            filename = fileMatch.groupdict()["filename"]
+            moduleName = fileMatch.groupdict()["moduleName"]
+            objFile.name = filename
+            objFile.moduleName = moduleName
+        else:
+            objFile.name = baseName
+            objFile.moduleName = "Project"
+        return True
+        pass
+
+def anamap(filePath):
+    f = open(filePath)
+    line = f.readline()
+    linkMapFile = LinkMapFile()
+    while line:
+        line = f.readline()
+        getInfoRecord(line, linkMapFile)
+        getFileRecord(line, linkMapFile)
+        getSegmentRecord(line, linkMapFile)
+        pass
+    pass
+    i = 0
+    moduleSizeMap = {}
+    for x in linkMapFile.files.values():
+        size = 0
+        if moduleSizeMap.has_key(x.moduleName):
+            size += moduleSizeMap[x.moduleName]
+            pass
+        size += x.size
+        moduleSizeMap[x.moduleName] = size
+        i += x.size
+        print "The Object File %s \t size is %d" % (x.name, x.size)
+
+    if GlobalSegmentLength != i:
+        print "命中了32KB安装包大小偏移量"
+    print "总大小为:", i
+    for (k,v) in moduleSizeMap.items():
+        print "module %s \t\t\t\t\t\t\t size is %d \t 占比 %f" % (k, v ,v/float(i)*100)
+    print "total size is ", i
+    f.close()
+    pass
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="analisy link map file")
+    parser.add_argument("path", type=str, help="the path for link file map")
+    args = parser.parse_args()
+    if args.path == None:
+        print "please assign the path for link map file"
+        exit(1)
+    else:
+        anamap(args.path)
