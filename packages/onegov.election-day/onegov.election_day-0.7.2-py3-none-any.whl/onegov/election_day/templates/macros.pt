@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:tal="http://xml.zope.org/namespaces/tal">
+<body>
+
+<metal:navigation define-macro="answer" i18n:domain="onegov.election_day">
+    <span tal:condition="answer == 'accepted'" class="answer accepted" i18n:translate="">
+        Accepted
+    </span>
+    <span tal:condition="answer == 'rejected'" class="answer rejected" i18n:translate="">
+        Rejected
+    </span>
+    <span tal:condition="answer == 'proposal'" class="answer accepted" i18n:translate="">
+        Proposal
+    </span>
+    <span tal:condition="answer == 'counter-proposal'" class="answer rejected" i18n:translate="">
+        Counter Proposal
+    </span>
+</metal:navigation>
+
+<metal:navigation define-macro="progress" i18n:domain="onegov.election_day">
+    <tal:block i18n:translate condition="progress[1]">
+        <span tal:replace="progress[0]" i18n:name='counted' />
+            of
+        <span tal:replace="progress[1]" i18n:name='total' />
+    </tal:block>
+</metal:navigation>
+
+<metal:navigation define-macro="progress_vote" i18n:domain="onegov.election_day">
+    <tal:block i18n:translate condition="progress[1]">
+        <span tal:replace="int(progress[0] / (len(vote.ballots) or 1))" i18n:name='counted' />
+            of
+        <span tal:replace="int(progress[1] / (len(vote.ballots) or 1))" i18n:name='total' />
+    </tal:block>
+</metal:navigation>
+
+<metal:navigation define-macro="ballot-type" i18n:domain="onegov.election_day">
+    <span tal:condition="ballot_type == 'proposal'" i18n:translate="">
+        Proposal
+    </span>
+    <span tal:condition="ballot_type == 'counter-proposal'" i18n:translate="">
+        Counter-Proposal
+    </span>
+    <span tal:condition="ballot_type == 'tie-breaker'" i18n:translate="">
+        Tie-Breaker
+    </span>
+</metal:navigation>
+
+<metal:archive define-macro="archive" i18n:domain="onegov.election_day">
+    <div class="row archive" tal:define="years layout.archive.get_years()" tal:condition="years">
+        <div class="columns small-12 small-centered">
+            <h2 i18n:translate>Archive</h2>
+            <ul>
+                <li tal:repeat="date years">
+                    <a href="${request.link(layout.archive.for_date(date))}">${date}</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</metal:archive>
+
+<metal:search define-macro="form" i18n:domain="onegov.election_day">
+    <form tal:attributes="action form.action" method="POST" enctype="multipart/form-data">
+        <tal:block repeat="fieldset form.fieldsets">
+            <fieldset tal:condition="fieldset.is_visible" id="fieldset-${fieldset.label.lower()}">
+                <legend>${fieldset.label}</legend>
+                <div class="formfields">
+                    <metal:fields use-macro="layout.macros['fields']" tal:define="fields fieldset.fields.values()" />
+                    <div class="clearfix"></div>
+                </div>
+            </fieldset>
+            <tal:block condition="not:fieldset.is_visible">
+                <div class="formfields">
+                    <metal:fields use-macro="layout.macros['fields']" tal:define="fields fieldset.fields.values()" />
+                    <div class="clearfix"></div>
+                </div>
+            </tal:block>
+        </tal:block>
+        <tal:block condition="cancel|nothing">
+            <a class="button secondary cancel-button" href="${cancel}" i18n:translate>Cancel</a>
+        </tal:block>
+        <tal:block condition="not: button_text|nothing">
+            <input type="submit" value="Submit" class="button ${button_class|nothing}" i18n:attributes="value">
+        </tal:block>
+        <tal:block condition="button_text|nothing">
+            <input type="submit" value="${button_text}" class="button ${button_class|nothing}">
+        </tal:block>
+    </form>
+</metal:search>
+
+<metal:fields define-macro="fields" i18n:domain="onegov.election_day">
+    <tal:block repeat="field fields">
+        <div class="row"><div class="large-12 columns">
+        <tal:block define="input_type field.widget.input_type|None">
+            <tal:block condition="input_type == 'hidden'">
+                ${field()}
+                <small class="error" tal:repeat="error field.errors">${error}</small>
+            </tal:block>
+            <tal:block condition="input_type != 'hidden'">
+                <label tal:attributes="class field.errors and 'error' or None">
+                    <!--! render the label after the field if it's a boolean field -->
+                    <tal:block condition="field.type == 'BooleanField'">
+                        ${field(placeholder=request.translate(field.description))}
+                        <span class="label-text">${field.label.text}</span>
+                        <span class="label-required" tal:condition="field.flags.required|nothing">*</span>
+                    </tal:block>
+                    <tal:block condition="field.type != 'BooleanField'">
+                        <span class="label-text">${field.label.text}</span>
+                        <span class="label-required" tal:condition="field.flags.required|nothing">*</span>
+                        ${field(placeholder=request.translate(field.description))}
+                    </tal:block>
+                </label>
+                <small class="error" tal:repeat="error field.errors">${error}</small>
+            </tal:block>
+        </tal:block>
+    </div></div>
+    </tal:block>
+</metal:fields>
+
+<metal:fields define-macro="archive_listing" i18n:domain="onegov.election_day">
+    <tal:block condition="not:archive_items">
+        <h2 i18n:translate="">There are no elections or votes defined yet.</h2>
+    </tal:block>
+    <tal:block condition="archive_items">
+        <tal:block repeat="(group, items) archive_items">
+            <tal:block define="(type, domain, date) group">
+                <tal:block condition="type == 'election'">
+                    <tal:block condition="domain == 'federation'">
+                        <h2 i18n:translate="">
+                            Federal Elections on <a href="${request.link(layout.archive.for_date(date))}" tal:content="layout.format_date(date, 'date_long')" i18n:name='date' />
+                        </h2>
+                    </tal:block>
+                    <tal:block condition="domain == 'canton'">
+                        <h2 i18n:translate="">
+                            Cantonal Elections on <a href="${request.link(layout.archive.for_date(date))}" tal:content="layout.format_date(date, 'date_long')" i18n:name='date' />
+                        </h2>
+                    </tal:block>
+                </tal:block>
+                <tal:block condition="type == 'vote'">
+                    <tal:block condition="domain == 'federation'">
+                        <h2 i18n:translate="">
+                            Federal Votes on <a href="${request.link(layout.archive.for_date(date))}" tal:content="layout.format_date(date, 'date_long')" i18n:name='date' />
+                        </h2>
+                    </tal:block>
+                    <tal:block condition="domain == 'canton'">
+                        <h2 i18n:translate="">
+                            Cantonal Votes on <a href="${request.link(layout.archive.for_date(date))}" tal:content="layout.format_date(date, 'date_long')" i18n:name='date' />
+                        </h2>
+                    </tal:block>
+                </tal:block>
+
+                <table class="overview stackable" tal:condition="type == 'election'">
+                    <thead>
+                        <tr>
+                            <th i18n:translate="">Election</th>
+                            <th i18n:translate="" class="right-aligned">Reported</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr tal:repeat="election items">
+                            <td><a href="${request.link(election)}">${election.title}</a></td>
+                            <td class="right-aligned">
+                                <div metal:use-macro="layout.macros['progress']" tal:define="progress (election.counted_municipalities, election.total_municipalities)" />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <table class="overview stackable" tal:condition="type == 'vote'">
+                    <thead>
+                        <tr>
+                            <th i18n:translate="">Vote</th>
+                            <th i18n:translate="">Result</th>
+                            <th i18n:translate="" class="right-aligned">Yes %</th>
+                            <th i18n:translate="" class="right-aligned">No %</th>
+                            <th i18n:translate="" class="right-aligned">Reported</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr tal:repeat="vote items">
+                            <td><a href="${request.link(vote)}">${vote.title}</a></td>
+                            <td>
+                                <div metal:use-macro="layout.macros['answer']" tal:define="answer vote.answer" />
+                            </td>
+                            <td class="right-aligned">
+                                <tal:block tal:condition="vote.counted">
+                                    ${layout.format_number(vote.yeas_percentage)}
+                                </tal:block>
+                            </td>
+                            <td class="right-aligned">
+                                <tal:block tal:condition="vote.counted">
+                                    ${layout.format_number(vote.nays_percentage)}
+                                </tal:block>
+                            </td>
+                            <td class="right-aligned">
+                                <div metal:use-macro="layout.macros['progress_vote']" tal:define="progress vote.progress" />
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </tal:block>
+        </tal:block>
+    </tal:block>
+</metal:fields>
+
+<metal:related_link define-macro="related_link" i18n:domain="onegov.election_day">
+    <div class="row" tal:condition="meta.get('related_link', '')|nothing">
+        <div class="columns small-12">
+            <h3 i18n:translate>Related link</h3>
+            <p tal:define="link meta.get('related_link', '')">
+                <a href="${link}">${link}</a>
+            </p>
+        </div>
+    </div>
+</metal:related_link>
+
+</body>
