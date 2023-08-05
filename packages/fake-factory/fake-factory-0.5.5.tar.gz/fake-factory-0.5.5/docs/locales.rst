@@ -1,0 +1,45 @@
+Locales
+=======
+.. toctree::
+   :maxdepth: 2
+
+   locales/bg_BG
+   locales/bs_BA
+   locales/cs_CZ
+   locales/de_AT
+   locales/de_DE
+   locales/dk_DK
+   locales/el_GR
+   locales/en
+   locales/en_AU
+   locales/en_CA
+   locales/en_GB
+   locales/en_US
+   locales/es
+   locales/es_ES
+   locales/es_MX
+   locales/fa_IR
+   locales/fi_FI
+   locales/fr_FR
+   locales/hi_IN
+   locales/hr_HR
+   locales/it_IT
+   locales/ja_JP
+   locales/ko_KR
+   locales/la
+   locales/lt_LT
+   locales/lv_LV
+   locales/ne_NP
+   locales/nl_NL
+   locales/no_NO
+   locales/pl_PL
+   locales/pt_BR
+   locales/pt_PT
+   locales/ru_RU
+   locales/sk_SK
+   locales/sl_SI
+   locales/sv_SE
+   locales/tr_TR
+   locales/uk_UA
+   locales/zh_CN
+   locales/zh_TW
