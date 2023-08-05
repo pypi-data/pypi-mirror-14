@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+
+{% block bodydata %}
+data-project-id="{{ project.id }}"
+data-project-locked="{{ project.islocked }}"
+{% endblock %}
+
+{% block title %} | Project: {{ project.name }} - Web resources{% endblock %}
+
+{% block main %}
+{% include 'snippets/wr_header.html' %}
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <h3 class="header">
+                {% if project.islocked %}<span class="glyphicon glyphicon-lock text-warning" aria-hidden="true"></span>{% endif %}
+                <span>Web resources</span>
+
+                {% if project.webresources.all and not project.islocked %}
+                    <a role="button" href="{% url 'geokey_webresources:webresource_add' project.id %}" class="btn btn-sm btn-success pull-right">
+                        <span class="glyphicon glyphicon-plus"></span>
+                        <span>Add new web resource</span>
+                    </a>
+                {% endif %}
+            </h3>
+
+            {% for webresource in project.webresources.all %}
+                {% if forloop.first %}
+                    <ul id="sortable" class="list-unstyled overview-list">
+                {% endif %}
+
+                <li class="{% if not project.islocked %}sort-item{% endif %}" data-item-id="{{ webresource.id }}">
+                    <h4>
+                        {% if project.islocked %}
+                            <span class="glyphicon glyphicon-lock text-warning" aria-hidden="true"></span>
+                        {% else %}
+                            <small><span class="glyphicon glyphicon-sort"></span></small>
+                        {% endif %}
+
+                        <a href="{% url 'geokey_webresources:single_webresource' project.id webresource.id %}">{{ webresource.name }}</a>
+                        {% if webresource.status == 'inactive' %}<small><span class="label label-default">Inactive</span></small>{% endif %}
+                    </h4>
+
+                    <p class="meta" style="padding-bottom: 10px">
+                        <span class="lower-case">{{ webresource.data_format }}</span>
+                        <span>URL:</span>
+                        <a href="{{ webresource.url }}" target="_blank"><span class="lower-case">{{ webresource.url }}</span></a>
+                    </p>
+
+                    {% if webresource.description %}<p class="description">{{ webresource.description }}</p>{% endif %}
+
+                    <p class="meta">Added by {{ webresource.creator }} {{ webresource.created|timesince }} ago</p>
+                </li>
+
+                {% if forloop.last %}
+                    </ul>
+                {% endif %}
+            {% empty %}
+                <div class="well empty-list">
+                    <p class="lead">We couldn't find any web resources for this project.</p>
+
+                    {% if project.islocked %}
+                        <p>Unfortunately, you cannot add new web resources when the project is locked.</p>
+                    {% else %}
+                        <a href="{% url 'geokey_webresources:webresource_add' project.id %}" class="btn btn-success">Add new web resource</a>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block libraries %}
+<script type="text/javascript" src="/static/lib/jquery/jquery-ui.min.js"></script>
+
+<script type="text/javascript" src="/static/js/admin.control.ajax.js"></script>
+
+<script type="text/javascript">
+    var url = 'projects/' + $('body').attr('data-project-id') + '/webresources/reorder/';
+
+    // Initialise drag'n'drop ordering
+    var list = $('#sortable');
+
+    if (!JSON.parse($('body').attr('data-project-locked').toLowerCase())) {
+        list.sortable({
+            placeholder: 'ui-state-highlight',
+            stop: sortWebResources,
+            revert: true
+        });
+        list.disableSelection();
+    }
+
+    /**
+     * Gets the new sorting and requests to save it.
+     */
+    function sortWebResources() {
+        var sorting = [], fields = list.children();
+
+        for (var i = 0; i < fields.length; i++) {
+            sorting.push($(fields[i]).attr('data-item-id'));
+        }
+
+        Control.Ajax.post(url, handleSuccess, handleError, {'order': sorting});
+    }
+
+    /**
+     * Displays the message to the user.
+     * @param {String} type Message type ('success' or 'danger').
+     * @param {String} message Message to display.
+     */
+    function displayMessage(type, message) {
+        var html, icon;
+
+        if (type === 'success') {
+            icon = 'ok';
+        } else if (type === 'danger') {
+            icon = 'remove';
+        }
+
+        html = $('<div class="bg-' + type + ' text-' + type + ' message"><span class="glyphicon glyphicon-' + icon + '"></span> ' + message + '</div>');
+        $('.message').remove();
+        list.before(html);
+        setTimeout(function () { html.remove(); }, 5000);
+    }
+
+    /**
+     * Handles the successful response of the request to update the sorting of web resources.
+     * @param {Object} response JSON object of the successful response.
+     */
+    function handleSuccess(response) {
+        var message = 'The order of web resources has been saved successfully.';
+        displayMessage('success', message);
+    }
+
+    /**
+     * Handles the errored response of the request to update the sorting of web resources.
+     * @param {Object} response JSON object of the errored response.
+     */
+    function handleError(response) {
+        var message = 'An error occurred while saving the order of web resources.';
+
+        if (response.responseJSON) {
+            message += ' Error text was: ' + response.responseJSON.error;
+        }
+
+        displayMessage('danger', message);
+        list.sortable('cancel');
+    }
+</script>
+{% endblock %}
