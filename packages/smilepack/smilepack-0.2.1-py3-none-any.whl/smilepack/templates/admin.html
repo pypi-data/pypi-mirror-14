@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <title>{{ _("Smilepack administration") }}</title>
+    {{ favicon_link_tag() }}
+    {{ stylesheet_tag("base_css") | safe }}
+    {{ stylesheet_tag("widget_collection_css") | safe }}
+    {{ stylesheet_tag("admin_css") | safe }}
+    <meta name="csrf_token" content="{{ csrf_token() }}" />
+</head>
+<body>
+
+<div class="top">
+    <div class="header">
+        <div class="actions-menu">
+            {{ _("Other actions") }} ▼
+            <ul class="actions-list">
+                <li id="action-edit-icons">{{ _("Icon management") }}</li>
+                {% if current_user.is_superadmin %}<li id="action-edit-users">{{ _("User management") }}</li>
+                {% endif -%}
+                <li><a href="{{ url_for('settings.settings_page') }}" target="_blank">{{ _("Profile settings") }}</a></li>
+                <li id="action-toggle-dark">{{ _("Change background") }}</li>
+            </ul>
+        </div>
+        <div class="header-right">
+            {% if config['ISSUE_REPORT_LINK'] -%}
+                <a href="{{ config['ISSUE_REPORT_LINK'] }}" target="_blank" class="report-link">{{ _("Report an issue") }}</a>
+            {%- endif %}
+        </div>
+        <div class="page-title"><a href="{{ url_for('pages.index') }}" id="index_link">{{ _("Smilepack administration") }}</a></div>
+    </div>
+</div>
+
+<div class="container">
+<div class="widget-collection container-left" id="collection">
+    <div style="text-align: center" class="temporary"><img src="{{ asset_url_for('images/loading.gif') }}" alt="" /></div>
+    <div class="collection-title">{{ _("Collection of smiles") }}</div>
+    <div class="tabs-wrapper"></div>
+
+    <div class="collection-message">{{ _("Choose a section to view and edit smiles in collection") }}</div>
+    <div class="additional">
+        <button class="button action-upload">{{ _("Upload new smile") }}</button>
+    </div>
+    <div class="collection-smiles"></div>
+
+</div><div class="widget-collection container-right" id="suggestions">
+    <div style="text-align: center" class="temporary"><img src="{{ asset_url_for('images/loading.gif') }}" alt="" /></div>
+    <div class="collection-tabs-title">{{ _('Suggestions and unpublished smiles') }}</div>
+    <ul class="collection-tabs">
+        <li data-tab="all">{{ _("All") }}</li>
+        <li data-tab="categories">{{ _("With categories") }}</li>
+        <li data-tab="nocategories">{{ _("Without categories") }}</li>
+        <li data-tab="nonsuggestions">{{ _("Non-suggestions") }}</li>
+        <li data-tab="hidden">{{ _("Hidden") }}</li>
+    </ul>
+    <div class="tabs-wrapper"></div>
+
+    <div class="collection-message">{{ _("Choose a tab to view unpublished smiles") }}</div>
+    <div class="collection-smiles"></div>
+
+    <div class="additional"><a href="#" class="action-more-nonapproved">{{ _("Load more smiles") }}</a></div>
+</div>
+</div><!-- /container -->
+
+<div class="container-actions">
+<div class="container-actions-left smiles-actions-panel" id="collection-action-panel" style="display: none;">
+    <div>{{ _("Selected smiles:") }} <span class="smiles-actions-count">N/A</span></div>
+    <div class="smiles-actions-list">
+        <button class="button smiles-action-edit">{{ _("Edit selected smiles") }}</button>
+        <button class="button smiles-action-remove">{{ _("Remove selected smiles from collection") }}</button>
+    </div>
+</div><div class="container-actions-right smiles-actions-panel" id="suggestions-action-panel" style="display: none;">
+    <div>{{ _("Selected smiles:") }} <span class="smiles-actions-count">N/A</span></div>
+    <div class="smiles-actions-list">
+        <button class="button smiles-action-edit">{{ _("Edit selected smiles") }}</button>
+        <button class="button smiles-action-add">{{ _("Add selected smiles to current category") }}</button>
+    </div>
+</div>
+</div>
+
+<div id="dialog-background" class="dialog-background hidden"></div>
+
+<div id="dialog-new-category" class="dialog hidden mode-add">
+    <div class="dialog-title"><a class="dialog-close"></a> <span class="mode-add">{{ _("Adding a category") }}</span><span class="mode-edit">{{ _("Changing a category") }}</span></div>
+
+    <form action="#">
+        <label for="name">{{ _("Category name") }}:</label><br/>
+        <input name="name" class="text input-width-full" /><br/>
+
+        <div class="subsection-container">
+            <label for="subsection">{{ _("Move to another subsection") }}:</label><br/>
+            <select class="input-width-full" name="subsection"></select><br/>
+        </div>
+
+        <label for="before">{{ _("Move before") }}:</label><br/>
+        <select class="input-width-full" name="before"></select><br/>
+
+        <label for="icon">{{ _("Icon") }}:</label><br/>
+        {% if icons %}
+        <div class="icon-container">
+        {%- for icon in icons %}
+            <label>
+                <input type="radio" name="icon" data-value-url="{{ icon.url }}" value="{{ icon.id }}"{{ ' checked' if loop.first else '' }} />
+                <img src="{{ icon.url }}" alt="" class="dialog-category-icon" />
+            </label>
+        {%- endfor %}
+        </div>
+        <em>{{ _("If you edit icons, refresh the page") }}</em><br/>
+        {% else %}
+        <em>{{ _('Please open "Other actions -> Icon management", add at least one published icon and refresh the page before creating a category') }}</em><br/>
+        {% endif %}
+
+        <input type="hidden" name="level" value="" />
+        <input type="hidden" name="parent" value="" />
+        <input type="hidden" name="category" value="" />
+
+        <label for="description">{{ _("Description") }}:</label><br/>
+        <textarea name="description" cols="3" class="textarea input-width-full"></textarea><br/>
+
+        <span class="mode-add">
+            <em>{{ _('Added category will be immediately visible to all users.') }}</em><br/>
+            <input type="submit" class="button button-primary" value="{{ _('Add') }}" />
+        </span>
+        <span class="mode-edit"><input type="submit" class="button button-primary" value="{{ _('Save') }}" /></span>
+    </form>
+</div>
+
+<div id="dialog-new-smile" class="dialog hidden">
+    <div class="dialog-title"><a class="dialog-close"></a> {{ _("Adding a smile") }}</div>
+
+    <form action="#" method="POST" enctype="multipart/form-data">
+        {% if config.UPLOAD_METHOD != None -%}
+        <div class="uploader-choice">
+            <label><input type="radio" name="uploader" value="link" autocomplete="off" checked> {{ _("From link") }}</label>
+            <label><input type="radio" name="uploader" value="file" autocomplete="off"> {{ _("From computer") }}</label>
+        </div>
+
+        <div class="file-uploader" style="display: none">
+            <input name="file" type="file" class="input-width-full" multiple accept="image/jpeg,image/png,image/gif" /><br/>
+            <select class="smile-preview-select"></select>
+        </div>
+        {% endif -%}
+
+        <div class="link-uploader">
+            <label for="url">{{ _("Link") }}:</label><br/>
+            <input name="url" class="text input-width-full" /><br/>
+        </div>
+
+        <div class="smile-preview-block">
+            {{ _("Smile size") }}:
+            <input name="w" type="number" style="width: 6em;" value="" placeholder="{{ _('Width') }}" class="text" />
+            x
+            <input name="h" type="number" style="width: 6em;" value="" placeholder="{{ _('Height') }}" class="text" />
+            <button class="action-reset" title="{{ _('Reset smile size') }}">X</button>
+            <label><input type="checkbox" name="keep-aspect" checked />{{ _("Keep aspect ratio") }}</label><br/>
+            {%- if config['UPLOAD_METHOD'] and config['COMPRESSION'] and not config['FORCE_COMPRESSION'] %}
+            <label><input type="checkbox" name="compress" checked />{{ _("Compress if possible (lossless)") }}</label>
+            <br/>
+            {%- endif %}
+            <div class="dialog-notice">{{ _("Image will not be resized.") }}  {{ _("If possible, it's best to compress it yourself in a graphics editor.") }}</div>
+
+            <div class="smile-preview-area">
+                <img class="smile-preview" src="data:image/gif;base64,R0lGODdhAQABAIABAP///+dubiwAAAAAAQABAAACAkQBADs=" width="0" height="0" />
+            </div>
+        </div>
+
+        <div class="smile-progress-block" style="display: none;">
+            {{ _('Create a smile') }} <span class="smile-progress-current">%d</span> / <span class="smile-progress-count">%d</span>...</span>
+        </div>
+
+        <input type="submit" class="button button-primary" value="{{ _('Upload and edit') }}" disabled />
+        <button class="button upload-action-cancel" style="display: none">{{ _('Cancel') }}</button>
+    </form>
+</div>
+
+<div id="dialog-edit-smile" class="dialog hidden">
+    <div class="dialog-title"><a class="dialog-close"></a>{{ _("Smile editing") }}</div>
+
+    <form action="#">
+        <input type="hidden" name="smile" value="" />
+        <div class="smile-preview-block">
+            {{ _("Smile size") }}:
+            <input name="w" type="number" style="width: 6em;" value="" placeholder="{{ _('Width') }}" class="text" />
+            x
+            <input name="h" type="number" style="width: 6em;" value="" placeholder="{{ _('Height') }}" class="text" />
+            <button class="action-reset" title="{{ _('Reset smile size') }}">X</button>
+            <label><input type="checkbox" name="keep-aspect" checked />{{ _("Keep aspect ratio") }}</label>
+            <br/>
+            <div class="smile-preview-notice">{{ _("Image will not be resized.") }}</div>
+
+            <div class="smile-preview-area">
+                <img class="smile-preview" src="data:image/gif;base64,R0lGODdhAQABAIABAP///+dubiwAAAAAAQABAAACAkQBADs=" width="0" height="0" />
+            </div>
+        </div>
+
+        <label for="tags">{{ _("Tags (separated by comma)") }}:</label><br/>
+        <input name="tags" class="text input-width-full" /><br/>
+
+        <label for="category">{{ _("Category") }}:</label><br/>
+        <select class="input-width-full" name="category"></select><br/>
+
+        <label for="description">{{ _("Description") }}:</label><br/>
+        <textarea rows="3" class="textarea input-width-full" name="description"></textarea><br/>
+
+        <label>
+            <input type="checkbox" name="approved"> {{ _("Publish in collection (only if category is specified)") }}
+        </label><br/>
+
+        <label>
+            <input type="checkbox" name="hidden"> {{ _("Hide from list of unapproved smiles") }}
+        </label><br/>
+
+        <input type="submit" class="button button-primary" value="{{ _('Save') }}" />
+    </form>
+</div>
+
+<div id="dialog-edit-many-smiles" class="dialog hidden">
+    <div class="dialog-title"><a class="dialog-close"></a>{{ _("Smile editing") }}</div>
+
+    <form action="#">
+        <input type="hidden" name="smile-ids" value="" />
+
+        <label for="add-tags">{{ _("Add tags (separated by comma)") }}:</label><br/>
+        <input name="add-tags" class="text input-width-full" /><br/>
+
+        <label for="remove-tags">{{ _("Remove tags (separated by comma)") }}:</label><br/>
+        <input name="remove-tags" class="text input-width-full" /><br/>
+
+        <label>
+            <input type="checkbox" name="change-category"> {{ _("Change category") }}:
+        </label><br/>
+        <select class="input-width-full" name="category"></select><br/>
+
+        <label>
+            <input type="checkbox" name="change-description"> {{ _("Change description") }}:
+        </label><br/>
+        <textarea rows="3" class="textarea input-width-full" name="description"></textarea><br/>
+
+        {{ _('Published?') }}<br/>
+        <label><input type="radio" name="approved" value="" checked /> {{ _("Don't change") }}</label><br/>
+        <label><input type="radio" name="approved" value="yes" /> {{ _("Publish in collection (only if category is specified)") }}</label><br/>
+        <label><input type="radio" name="approved" value="no" /> {{ _("Don't publish") }}</label><br/>
+
+        {{ _('Hide from list of unapproved smiles') }}:<br/>
+        <label><input type="radio" name="hidden" value="" checked /> {{ _("Don't change") }}</label><br/>
+        <label><input type="radio" name="hidden" value="yes" /> {{ _("Hide") }}</label><br/>
+        <label><input type="radio" name="hidden" value="no" /> {{ _("Don't hide") }}</label><br/>
+
+        <input type="submit" class="button button-primary" value="{{ _('Save') }}" />
+    </form>
+</div>
+
+<div id="dialog-icons" class="dialog hidden">
+    <div class="dialog-title"><a class="dialog-close"></a> {{ _("Icon management") }}</div>
+
+    <div class="admin-icons-list">
+    {%- for icon in admin_icons %}
+        <div class="admin-icon-item">
+            <label>
+                <input type="checkbox" data-id="{{ icon.id }}" title="{{ _('Tick for publication') }}" class="admin-icon-publish"{{ ' checked' if icon.approved_at else '' }} />
+                <img class="admin-icon-img" src="{{ icon.url }}" alt="{{ icon.id }}" title="{{ icon.id }}" />
+            </label>
+        </div>
+    {%- endfor %}
+    </div>
+    <div class="admin-icon-upload">
+        <form action="#">
+            <label for="file">{{ _('Upload new icon') }}:</label><br/>
+
+            <label><input type="radio" name="icon_type" value="file" checked />{{ _('From computer') }}</label><br/>
+            <input type="file" name="file" class="input-width-full" /><br/>
+
+            <label><input type="radio" name="icon_type" value="url" />{{ _('From link') }}</label><br/>
+            <input type="text" name="url" class="text input-width-full" placeholder="{{ _('Link to icon') }}" /><br/>
+
+            <span class="dialog-notice">{{ _('Icon resolution must be {w}x{h} pixels').format(w=icon_size[0], h=icon_size[1]) }}</span><br/>
+            <input type="submit" class="button button-primary" value="{{ _('Upload') }}" />
+        </form>
+    </div>
+</div>
+
+{% if current_user.is_superadmin -%}
+<div id="dialog-users" class="dialog hidden">
+    <div class="dialog-title"><a class="dialog-close"></a> {{ _("User management") }}</div>
+
+    <form action="#">
+        <input type="text" name="username" class="text input-width-full" placeholder="{{ _('Username') }}"><br/>
+        <button class="users-action-search button button-primary">{{ _('Search') }}</button>
+        <input type="submit" class="button button-primary" value="{{ _('Create') }}" />
+    </form>
+
+    <ul class="users-list"></ul>
+
+    <img src="{{ asset_url_for('images/loading.gif') }}" class="users-loading" />
+    <a class="users-action-more" href="#">{{ _('Load more') }}</a>
+</div>
+
+<div id="dialog-user" class="dialog hidden">
+    <div class="dialog-title"><a class="dialog-close"></a> {{ _("User management") }}</div>
+
+    <form action="#">
+        <input type="hidden" name="id" value="" />
+
+        <label for="username">{{ _('Username') }}:</label><br/>
+        <input name="username" type="text" class="text input-width-full" /><br/>
+
+        {{ _('Registered at') }}: <span class="user-created-at">N/A</span><br/>
+        {{ _('Last login at') }}: <span class="user-last-login-at">N/A</span><br/>
+
+        <label><input type="checkbox" name="is_active" /> {{ _('Is active') }}</label><br/>
+        <label><input type="checkbox" name="is_admin" /> {{ _('Is admin') }}</label><br/>
+        <label><input type="checkbox" name="is_superadmin" /> {{ _('Is superadmin') }}</label><br/>
+
+        <label for="password1">{{ _('New password') }}:</label><br/>
+        <input name="password1" type="password" class="text input-width-full" /><br/>
+
+        <label for="password2">{{ _('Confirm new password') }}:</label><br/>
+        <input name="password2" type="password" class="text input-width-full" /><br/>
+
+        <input type="submit" class="button button-primary" value="{{ _('Apply') }}" />
+    </form>
+</div>
+{%- endif %}
+
+{{ javascript_tag("admin_js") | safe }}
+</body>
+</html>
