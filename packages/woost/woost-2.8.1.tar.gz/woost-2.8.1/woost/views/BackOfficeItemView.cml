@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail.schema import Collection
+from woost.models import Item
+?>
+
+<py:woost.views.BackOfficeLayout
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    selected_action = None
+    ?>
+
+    <py:ready>
+        <?py
+        self.set_client_param("edit_stack", self.edit_stack.to_param())
+        self.set_client_param("closingItemRequiresConfirmation", self.cms.closing_item_requires_confirmation)
+
+        # Add CSS classes matching the item's content types
+        for cls in self.edited_content_type.descend_inheritance(include_self = True):
+            if cls is not Item:
+                self.add_class(cls.name)
+
+        # Pending changes warning
+        self.add_resource("/resources/scripts/BackOfficeItemView.js")
+        self.set_client_param("hasPendingChanges", bool(self.changes))
+        self.add_client_translation("woost.views.BackOfficeItemView pending changes warning")
+        ?>
+    </py:ready>
+
+    <!-- Item heading -->
+    <div py:def="page_title">
+        <py:ready>
+            <py:new
+                py:tag="div"
+                py:element="loader.new(self.edited_item.backoffice_card_view)"
+                py:index="0"
+                py:item="${self.edited_item}">
+                <py:with py:element="element.item_heading" py:tag="h2"/>
+            </py:new>
+        </py:ready>
+    </div>
+
+    <!-- Turn the central content into a form -->
+    <py:with
+        py:element="self.body"
+        py:tag="form"
+        method="post"
+        autocomplete="off"
+        novalidate="novalidate">
+
+        <!-- Default button (hidden) -->
+        <button
+            py:index="0"
+            type="submit"
+            name="item_action" value="save"
+            style="position: absolute; left: -1000px; top: -1000px"/>
+
+        <!-- Actions -->
+        <py:woost.views.ActionBar
+            py:id="item_buttons"
+            py:action_target="@{self.edited_item}"
+            py:submit_action_target="${False}"
+            class="toolbar">
+            <?py
+            element.action_context.add("item_buttons")
+            ?>
+            <py:binding>
+                <?py
+                element.action_context.update(self.action_context)
+                if self.edited_item.is_inserted:
+                    element.action_context.add("existing_item")
+                else:
+                    element.action_context.add("new_item")
+
+                if self.changes:
+                    element.action_context.add("changed")
+                else:
+                    element.action_context.add("unchanged")
+                ?>
+            </py:binding>
+            <py:with
+                py:def="action_button"
+                py:args="action, extra, action_context"
+                name="item_action">
+                <?py
+                if action is self.selected_action:
+                    element.add_class("selected")
+                ?>
+            </py:with>
+        </py:woost.views.ActionBar>
+
+        <div py:id="item_body"/>
+
+    </py:with>
+
+</py:woost.views.BackOfficeLayout>

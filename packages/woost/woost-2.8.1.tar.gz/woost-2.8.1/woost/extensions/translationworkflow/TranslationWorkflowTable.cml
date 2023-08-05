@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail import schema
+from cocktail.html.datadisplay import DataDisplay
+from woost import app
+from woost.models import ReadMemberPermission
+?>
+
+<table
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    py:mixins="DataDisplay">
+
+    <?py
+    self.add_resource("/resources/styles/TranslationWorkflowTable.css")
+    ?>
+
+    <py:ready>
+        <?py
+        user = app.user
+        self._translation_request = getattr(self, "persistent_object", None) or self.data
+        self._translated_item = schema.get(self._translation_request, "translated_item")
+        self._translated_model = type(self._translated_item)
+        adapter = schema.Adapter()
+        adapter.implicit_copy = False
+        adapter.copy(
+            [
+                member.name
+                for member in self._translated_model.iter_members()
+                if (
+                    member.translated
+                    and member.visible
+                    and member.included_in_translation_workflow
+                    and user.has_permission(
+                        ReadMemberPermission,
+                        member = member
+                    )
+                )
+            ],
+            properties = {"translated": False}
+        )
+        self.translation_schema = adapter.export_schema(self._translated_model)
+        self.translation_schema.name = "TranslationWorkflowTable"
+        ?>
+        <py:new
+            py:element="self.create_row(member)"
+            py:for="member in self.translation_schema.ordered_members()"/>
+    </py:ready>
+
+    <tr py:def="row" py:args="member">
+        <py:new
+            py:local_id="header_cell"
+            py:element="self.create_header_cell(member)"/>
+        <py:new
+            py:local_id="source_cell"
+            py:element="self.create_source_cell(member)"/>
+        <py:new
+            py:local_id="translation_cell"
+            py:element="self.create_translation_cell(member)"/>
+    </tr>
+
+    <th py:def="header_cell" py:args="member">
+        ${self.get_member_label(member)}:
+    </th>
+
+    <td py:def="source_cell" py:args="member">
+        <py:new
+            py:local_id="display"
+            py:element="self.create_source_display(member)"/>
+    </td>
+
+    <td py:def="translation_cell" py:args="member">
+        <py:new
+            py:local_id="display"
+            py:element="self.create_translation_display(member)"/>
+    </td>
+
+    <?py-class
+    def create_source_display(self, member):
+        return self.create_member_display(
+            self._translated_item,
+            member,
+            self.get_member_value(
+                self._translated_item,
+                member,
+                language = self._translation_request.source_language
+            )
+        )
+
+    def create_translation_display(self, member):
+        translation = self.get_member_value(self.value, member)
+        if translation:
+            return self.create_member_display(
+                self.value,
+                member,
+                translation
+            )
+        else:
+            return self.create_missing_translation_notice(member)
+    ?>
+
+    <span py:def="missing_translation_notice" py:args="member">
+        ${translations("woost.extensions.translationworkflow.TranslationWorkflowTable.missing_translation_notice")}
+    </span>
+
+</table>
+

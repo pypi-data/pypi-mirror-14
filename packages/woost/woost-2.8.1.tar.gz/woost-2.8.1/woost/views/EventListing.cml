@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.translations import DATE_STYLE_TEXT
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    events = None
+    pagination = None
+    name_prefix = None
+    name_suffix = None
+    date_style = DATE_STYLE_TEXT
+
+    def create_entry(self, event, event_index):
+        raise TypeError("%s doesn't implement the create_entry() method" % self)
+
+    def translate_event_dates(self, event):
+        """Obtain the translation for an event's date range.
+
+        Offered as a convenience for subclasses of the EventListing view.
+        """
+        if not event.event_start:
+            return ""
+        elif event.event_end and event.event_end.date() != event.event_start.date():
+            return translations("date range", start = event.event_start, end = event.event_end)
+        else:
+            return translations(event.event_start.date(), style = self.date_style)
+    ?>
+
+    <py:ready>
+        <?py
+        if not self.events and not self.pagination:
+            self.visible = False
+        ?>
+    </py:ready>
+
+    <div py:id="events_list">
+        <py:ready>
+            <?py
+            if self.pagination:
+                sequence = self.pagination.current_page_items
+            else:
+                sequence = self.events
+
+            event_index = 0
+            ?>
+            <py:new
+                py:element="self.create_entry(event, event_index)"
+                py:for="event in sequence">
+                <?py
+                event_index += 1
+                ?>
+            </py:new>
+        </py:ready>
+    </div>
+
+    <py:cocktail.html.Pager
+        py:id="pager"
+        py:pagination="@{self.pagination}"
+        py:name_prefix="@{self.name_prefix}"
+        py:name_suffix="@{self.name_suffix}"/>
+
+    <py:woost.views.Link
+        py:def="event_link" py:args="event"
+        py:value="${event}"
+        py:content_check="${element.NO_CHECK}"/>
+
+</div>
+

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost import app
+?>
+
+<ul
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    role="navigation">
+
+    <?py-class
+    value = None
+    autohide = True
+
+    def get_path(self, item):
+        path = list(
+            item
+            for item in item.ascend_tree(include_self = True)
+            if self.should_include_item(item)
+        )
+        path.reverse()
+        return path
+
+    def should_include_item(self, item):
+        return not item.hidden
+
+    def get_item_label(self, item):
+        return translations(item)
+    ?>
+
+    <py:ready>
+        <?py
+        path = None
+        tip = self.value or app.navigation_point
+
+        if tip is not None:
+            path = self.get_path(tip)
+
+        if self.autohide and (not path or len(path) == 1):
+            element.visible = False
+        elif path:
+            for item in path:
+                element.append(self.create_breadcrumbs_entry(item))
+        ?>
+    </py:ready>
+
+    <li py:def="breadcrumbs_entry" py:args="item">
+        <py:new
+            py:local_id="link"
+            py:element="self.create_breadcrumbs_entry_link(item)"/>
+    </li>
+
+    <py:woost.views.Link
+        py:def="breadcrumbs_entry_link" py:args="item"
+        py:value="${item}"
+        py:content_check="${element.NO_CHECK}">
+        <py:new
+            py:local_id="label"
+            py:element="self.create_breadcrumbs_entry_label(item)"/>
+    </py:woost.views.Link>
+
+    <span py:def="breadcrumbs_entry_label" py:args="item">
+        ${self.get_item_label(item)}
+    </span>
+
+</ul>
+

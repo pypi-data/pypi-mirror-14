@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost.models.rendering import ImageFactory
+?>
+
+<table
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    cellpadding="0"
+    cellspacing="0"
+    border="0">
+
+    <?py-class
+    heading = None
+    heading_position = "top"
+    text = None
+    link = None
+    linked_text = False
+    image = None
+    image_alignment = "image_top"
+    image_factory = None
+    image_rendering_test = True
+    autohide = True
+    ?>
+
+    <py:ready>
+        <?py
+        # Determine the layout for the block
+        layout = None
+        has_text = self.text or self.heading
+
+        if has_text and self.image:
+            layout = self.image_alignment
+        elif has_text:
+            layout = "text_only"
+        elif self.image:
+            layout = "image_only"
+        elif self.autohide:
+            self.visible = True
+            return
+
+        # Hide images that can't be rendered by the seleted image factory
+        if self.image and self.image_rendering_test:
+
+            image_factory = self.image_factory
+            if isinstance(image_factory, basestring):
+                image_factory = ImageFactory.require_instance(identifier = image_factory)
+            elif image_factory is None:
+                image_factory = ImageFactory.require_instance(identifier = "default")
+
+            if not image_factory.can_render(self.image):
+                layout = "text_only"
+
+        # Add CSS classes based on the chosen attributes
+        self.add_class("heading_position_" + self.heading_position)
+
+        if self.heading:
+            self.add_class("with_heading")
+        else:
+            self.add_class("without_heading")
+
+        # Invoke the factory for the chosen layout
+        if layout:
+            layout_factory = getattr(self, "create_" + layout + "_layout")
+            self.content_cell.append(layout_factory())
+        else:
+            self.visible = False
+        ?>
+    </py:ready>
+
+    <!-- Top structure -->
+    <py:new
+        py:id="top_heading_row"
+        py:element="self.create_heading_row()"
+        py:visible="@{self.heading and self.heading_position == 'top'}"/>
+
+    <tr py:id="content_row">
+        <td py:id="content_cell"/>
+    </tr>
+
+    <!-- Fragments -->
+    <tr py:def="heading_row">
+        <td py:id="heading_cell">
+            <py:new py:element="self.create_content_link()">
+                <py:ready>
+                    <?py
+                    element.append(self.heading)
+                    ?>
+                </py:ready>
+            </py:new>
+        </td>
+    </tr>
+
+    <a py:def="content_link">
+        <?py
+        if self.link:
+            element["target"] = "_blank"
+            element["href"] = self.link.get_uri(host = "!")
+        else:
+            element.tag = None
+        ?>
+    </a>
+
+    <py:new py:def="content_image" py:element="self.create_content_link()">
+        <py:woost.views.Image
+            py:local_id="image"
+            py:image="${self.image}"
+            py:image_factory="${self.image_factory}"/>
+    </py:new>
+
+    <table
+        py:def="content_text"
+        cellpadding="0"
+        cellspacing="0"
+        border="0">
+
+        <py:new
+            py:id="inside_heading_row"
+            py:element="self.create_heading_row()"
+            py:visible="@{self.heading and self.heading_position == 'inside'}"/>
+
+        <tr py:id="content_text_row">
+            <td py:id="content_text_cell">
+                <?py
+                if self.text:
+                    if self.linked_text:
+                        link = self.create_content_link()
+                        link.append(self.text)
+                        element.append(link)
+                    else:
+                        element.append(self.text)
+                ?>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Layouts -->
+    <py:new py:def="text_only_layout" py:element="self.create_content_text()"/>
+
+    <py:new py:def="image_only_layout" py:element="self.create_content_image()"/>
+
+    <table
+        py:def="image_right_layout"
+        cellpadding="0"
+        cellspacing="0"
+        border="0">
+        <tr>
+            <td py:local_id="text_cell">
+                <py:new py:element="self.create_content_text()"/>
+            </td>
+            <td py:local_id="image_cell">
+                <py:new py:element="self.create_content_image()"/>
+            </td>
+        </tr>
+    </table>
+
+    <table
+        py:def="image_left_layout"
+        cellpadding="0"
+        cellspacing="0"
+        border="0">
+        <tr>
+            <td py:local_id="image_cell">
+                <py:new py:element="self.create_content_image()"/>
+            </td>
+            <td py:local_id="text_cell">
+                <py:new py:element="self.create_content_text()"/>
+            </td>
+        </tr>
+    </table>
+
+    <table
+        py:def="image_top_layout"
+        cellpadding="0"
+        cellspacing="0"
+        border="0">
+        <tr>
+            <td py:id="image_cell">
+                <py:new py:element="self.create_content_image()"/>
+            </td>
+        </tr>
+        <tr>
+            <td py:id="text_cell">
+                <py:new py:element="self.create_content_text()"/>
+            </td>
+        </tr>
+    </table>
+
+</table>
