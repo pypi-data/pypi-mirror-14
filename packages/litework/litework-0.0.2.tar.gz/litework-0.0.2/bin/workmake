@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# make sure script is being run as source
+if [ "${BASH_SOURCE[0]}" == "${0}" ]; then
+    echo "[-] You must source this script to run it."
+    exit
+fi
+
+########################################
+
+# make sure environment variables exist
+if [ -z "$VENVDIR" ]; then
+    echo "[!] Must define '\$VENVDIR' as environment variable (default ~/.venvs/)."
+fi
+
+if [ -z "$WORKDIR" ]; then
+    echo "[!] Must define '\$WORKDIR' as environment variable."
+fi
+
+if [ -z "$VENVLABEL" ]; then
+    echo "[!] Must define '\$VENVLABEL' as environment variable (default 'venv.txt')."
+fi
+
+if [ -z "$VENVDIR" ] || [ -z "$WORKDIR" ] || [ -z "$VENVLABEL" ]; then
+    return
+fi
+
+########################################
+
+if [ $# -ne 1 ]; then
+    echo "[-] Takes one (1) argument:"
+    echo "    <name> = name of virtualenv project folder to make (in current folder)"
+    return
+fi
+
+name=$1
+venv=$VENVDIR/$name
+
+if [ -d $venv ]; then
+    echo "[-] Venv '$name' already exists in '$VENVDIR'."
+    return
+fi
+
+make.py $name --root=$PWD \
+&& echo "[ ] Moving to project..." \
+&& cd $name \
+&& echo "[ ] Creating '$VENVLABEL'..." \
+&& echo "$name" > $VENVLABEL \
+&& echo "[ ] Creating virtualenv..." \
+&& mkdir $venv \
+&& virtualenv $venv \
+&& echo "[ ] Activating virtualenv..." \
+&& . $venv/bin/activate \
+&& echo "[+] Now working on '$name'." \
+&& ( (echo "[ ] Opening project..." && open -a "Sublime Text" . && echo "[+] Project opened in Sublime Text.") || (echo "[-] Opening in Sublime failed!") ) \
+|| (echo "[-] Something went wrong." && return)
