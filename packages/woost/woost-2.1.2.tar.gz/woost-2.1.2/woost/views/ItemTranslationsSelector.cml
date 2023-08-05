@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost.models import (
+    Configuration,
+    CreateTranslationPermission,
+    DeleteTranslationPermission,
+    get_current_user
+)
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    available_languages = None
+    item_translations = None
+    visible_translations = None
+    name = "visible_translations"
+
+    def _can_add_translation(self, language):
+        return (
+            get_current_user().has_permission(
+                CreateTranslationPermission,
+                language = language
+            )
+            and language not in self.item_translations
+        )
+
+    def _ready(self):
+
+        if self.available_languages is None:
+            self.available_languages = Configuration.instance.languages
+
+        Element._ready(self)
+    ?>
+
+    <?py
+    self.add_resource("/cocktail/scripts/searchable.js")
+    self.add_resource("/resources/scripts/ItemTranslationsSelector.js")
+    ?>
+
+    <div
+        py:id="search_controls"
+        py:client_model="woost.views.ItemTranslationsSelector.searchControls">
+        <input
+            py:id="search_box"
+            type="search"/>
+    </div>
+
+    <div
+        py:id="selection_controls"
+        py:client_model="woost.views.ItemTranslationsSelector.selectionControls">
+        <span py:id="selection_controls_label">
+            ${translations("woost.views.ItemTranslationsSelector.selection_controls_label")}
+        </span>
+        <a
+            py:id="select_all_link"
+            href="javascript:">
+            ${translations("woost.views.ItemTranslationsSelector.select_all_link")}
+        </a>
+        <a
+            py:id="select_none_link"
+            href="javascript:">
+            ${translations("woost.views.ItemTranslationsSelector.select_none_link")}
+        </a>
+    </div>
+
+    <div py:id="defined_languages_section">
+        <div py:local_id="heading">
+            ${translations("woost.views.ItemTranslationsSelector.defined_languages_section.heading")}
+        </div>
+        <div py:local_id="toolbar">
+            <button
+                py:local_id="show_translation_button"
+                type="submit"
+                name="translations_action"
+                value="show"
+                accesskey="${translations('woost.views.ItemTranslationsSelector.show_translation_button.shortcut')}">
+                ${translations("woost.views.ItemTranslationsSelector.show_translation_button")}
+            </button>
+            <button
+                py:local_id="hide_translation_button"
+                type="submit"
+                name="translations_action"
+                value="hide"
+                accesskey="${translations('woost.views.ItemTranslationsSelector.hide_translation_button.shortcut')}">
+                ${translations("woost.views.ItemTranslationsSelector.hide_translation_button")}
+            </button>
+            <button
+                py:local_id="delete_translation_button"
+                type="submit"
+                name="translations_action"
+                value="delete"
+                accesskey="${translations('woost.views.ItemTranslationsSelector.delete_translation_button.shortcut')}">
+                ${translations("woost.views.ItemTranslationsSelector.delete_translation_button")}
+            </button>
+        </div>
+        <py:new
+            py:element="self.create_language_list()"
+            py:name="translations"
+            py:items="@{self.item_translations}">
+            <py:with py:def="entry" py:args="locale, label, selected">
+                <?py
+                if locale in self.visible_translations:
+                    element.add_class("visible_translation")
+                else:
+                    element.add_class("hidden_translation")
+                ?>
+            </py:with>
+        </py:new>
+    </div>
+
+    <div py:id="available_languages_section">
+        <div py:local_id="heading">
+            ${translations("woost.views.ItemTranslationsSelector.available_languages_section.heading")}
+        </div>
+        <div py:local_id="toolbar">
+            <button
+                py:local_id="add_translation_button"
+                type="submit"
+                accesskey="${translations('woost.views.ItemTranslationsSelector.add_translation_button.shortcut')}">
+                ${translations("woost.views.ItemTranslationsSelector.add_translation_button")}
+            </button>
+        </div>
+        <py:new
+            py:element="self.create_language_list()"
+            py:name="new_translations"
+            py:items="@{[locale for locale in self.available_languages if self._can_add_translation(locale)]}"/>
+    </div>
+
+    <py:cocktail.html.CheckList py:def="language_list" py:exclusive_selection="${True}">
+        <?py
+        @extend(element)
+        def get_item_value(language_list, locale):
+            return locale
+
+        @extend(element)
+        def get_item_label(available_languages_list, locale):
+            return translations("locale", locale = locale)
+        ?>
+    </py:cocktail.html.CheckList>
+
+</div>
+

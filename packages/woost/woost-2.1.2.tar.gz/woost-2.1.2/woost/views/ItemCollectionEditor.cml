@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.iteration import first
+from cocktail.html.databoundcontrol import data_bound
+from cocktail.html.selectable import selectable, MULTIPLE_SELECTION
+from cocktail.controllers import context
+from woost.models import get_current_user, CreatePermission
+from woost.controllers.backoffice.useractions import add_view_action_context
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    value = ()
+    name = None
+
+    def __init__(self, *args, **kwargs):
+        Element.__init__(self, *args, **kwargs)
+        data_bound(self)
+
+    def content_type_is_instantiable(self, content_type):
+        return (
+            (
+                self._hidden_content_types is None
+                or content_type not in self._hidden_content_types
+            )
+            and content_type.visible
+            and content_type.instantiable
+            and self._user.has_permission(
+                CreatePermission,
+                target = content_type
+            )
+        )
+
+    def get_new_content_uri(self, content_type):
+
+        params = {
+            "item_type": content_type.full_name,
+            "edit_stack": self._edit_stack.to_param() if self._edit_stack else None
+        }
+
+        if self.member:
+            params["member"] = self.member.name
+
+        return self._cms.contextual_uri('content', 'new', **params)
+    ?>
+
+    <?py
+    selectable(
+        self,
+        mode = MULTIPLE_SELECTION,
+        entry_selector = "ul.entries li"
+    )
+
+    self.add_resource("/cocktail/scripts/jquery-ui.js")
+    self.add_resource("/resources/scripts/ItemCollectionEditor.js")
+    ?>
+
+    <py:ready>
+        <?py
+        add_view_action_context(self, "collection")
+        if self.member.integral:
+            add_view_action_context(self, "integral")
+
+        self._cms = context["cms"]
+        self._edit_stack = context["edit_stacks_manager"].current_edit_stack
+        self._user = get_current_user()
+        role = self._user.roles and self._user.roles[0]
+        self._hidden_content_types = role and getattr(role, "hidden_content_types", None)
+
+        self._instantiable_content_types = set(
+            content_type
+            for content_type in self.member.related_type.schema_tree()
+            if self.content_type_is_instantiable(content_type)
+        )
+        ?>
+    </py:ready>
+
+    <!-- Toolbar -->
+    <py:woost.views.ActionBar
+        py:id="toolbar"
+        py:action_context="toolbar"
+        py:action_target="@{self.member.related_type}"
+        py:action_parameter="@{'relation_action-' + self.member.name}"
+        py:empty_result_set="@{not self.value}">
+        <?py
+        @extend(toolbar)
+        def get_actions(toolbar, context):
+            actions = call_base(context)
+            if not self._instantiable_content_types:
+                actions = [action for action in actions if action.id not in ("new", "add_integral")]
+            return actions
+
+        @extend(toolbar)
+        def create_action_button(toolbar, action, extra):
+            if action.id in ("new", "add_integral"):
+                if len(self._instantiable_content_types) > 1:
+                    button = self.create_new_toolbar_button(action, extra)
+                else:
+                    button = call_base(action, extra)
+                    button.tag = "a"
+                    del button["name"]
+                    button["href"] = self.get_new_content_uri(list(self._instantiable_content_types)[0])
+            else:
+                button = call_base(action, extra)
+
+            button.set_client_param("minSelection", action.min)
+            button.set_client_param("maxSelection", action.max)
+            button.set_client_param("ignoresSelection", action.ignores_selection)
+            return button
+        ?>
+    </py:woost.views.ActionBar>
+
+    <div py:def="new_toolbar_button"
+        py:args="action, extra"
+        class="selector action_button action_new">
+        <span class="label">
+            <py:new
+                py:element="self.toolbar.create_action_image(action, extra)"
+                py:if="self.toolbar.button_images and not extra"/>
+            ${translations("Action " + action.id)}
+        </span>
+        <div class="selector_content">
+            <py:woost.views.ContentTypeTree
+                py:id="new_item_selector"
+                py:root="@{self.member.related_type}">
+
+                <?py
+                @refine(element)
+                def filter_item(new_item_selector, content_type):
+                    return content_type in self._instantiable_content_types
+
+                @refine(element)
+                def get_item_url(new_item_selector, content_type):
+                    return self.get_new_content_uri(content_type)
+                ?>
+            </py:woost.views.ContentTypeTree>
+        </div>
+    </div>
+
+    <ul py:id="entries">
+        <py:ready>
+            <py:new py:element="self.create_entry(item)" py:for="item in self.value"/>
+        </py:ready>
+    </ul>
+
+    <li py:def="entry" py:args="item">
+        <input
+            py:local_id="hidden"
+            type="hidden"
+            name="${self.name}"
+            value="${item.id}"/>
+
+        <input
+            py:local_id="checkbox"
+            type="checkbox"
+            name="relation_selection-${self.member.name}"
+            value="${item.id}"/>
+
+        <py:new
+            py:local_id="item_display"
+            py:element="self.create_item_display()"
+            py:item="${item}"
+            for="@{entry.checkbox.require_id()}"/>
+    </li>
+
+    <py:woost.views.ItemLabel
+        py:def="item_display"
+        py:tag="label"/>
+
+</div>
+

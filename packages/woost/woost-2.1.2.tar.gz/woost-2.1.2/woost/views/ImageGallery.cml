@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.controllers import context
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    labels_visible = True
+    footnotes_visible = True
+    original_link_visible = False
+    close_up_enabled = True
+    close_up_preload = True
+
+    images = ()
+    accessible_check = True
+
+    close_up_factory = "image_gallery_close_up"
+    thumbnail_factory = "image_gallery_thumbnail"
+
+    def get_footnote(self, image):
+        return getattr(image, "description", None)
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/ImageGallery.css")
+    self.add_resource("/resources/scripts/ImageGallery.js")
+    self.set_client_param("publishableActivationSelector", "a")
+    ?>
+
+    <py:ready>
+        <?py
+        if not self.images:
+            self.visible = False
+
+        if self.thumbnail_factory:
+            if isinstance(self.thumbnail_factory, basestring):
+                factory_name = self.thumbnail_factory
+            else:
+                factory_name = self.thumbnail_factory.identifier
+
+            if factory_name:
+                self.add_class("thumbnail_factory-" + factory_name)
+
+        self.set_client_param("closeUpPreload", self.close_up_preload)
+        ?>
+    </py:ready>
+
+    <ul py:id="image_list">
+        <py:ready>
+            <?py
+            images = self.images
+            if self.accessible_check:
+                images = (img for img in self.images if img.is_accessible())
+            ?>
+            <py:new
+                py:element="self.create_image_entry(image)"
+                py:for="image in images"/>
+        </py:ready>
+    </ul>
+
+    <li py:def="image_entry" py:args="image">
+        <?py
+        cms = context["cms"]
+        title = image.title or ""
+
+        if self.footnotes_visible:
+            footnote = self.get_footnote(image)
+            if footnote:
+                element.set_client_param("footnote", footnote)
+
+        if self.original_link_visible:
+            element.set_client_param(
+                "originalImage",
+                image.get_uri(parameters = {"disposition": "attachment"})
+            )
+        ?>
+        <a py:local_id="image_link"
+            href="${image.get_image_uri(self.close_up_factory)}"
+            target="blank_">
+
+            <?py
+            if not self.close_up_enabled:
+                element.tag = None
+            ?>
+
+            <py:woost.views.Image
+                py:local_id="image"
+                py:image="${image}"
+                py:image_factory="${self.thumbnail_factory}"
+                py:accessible_check="${False}"/>
+
+            <span py:local_id="image_label"
+                py:visible="${self.labels_visible}"
+                py:collapsible="${True}">${title}</span>
+        </a>
+    </li>
+
+    <py:woost.views.Dialog
+        py:id="image_dialog"
+        py:client_model="woost.views.ImageGallery.image_dialog">
+        <?py
+        element.add_class("ImageGallery-dialog")
+        ?>
+        <py:with py:element="element.dialog_header">
+            <span py:local_id="index" py:index="0"/>
+        </py:with>
+        <py:with py:element="element.dialog_content">
+            <img py:local_id="image"/>
+            <button
+                py:local_id="previous_button"
+                title="${translations('woost.views.ImageGallery.previous_button')}">
+                <img src="/resources/images/ImageGallery-previous_button.png" alt=""/>
+            </button>
+            <button
+                py:local_id="next_button"
+                title="${translations('woost.views.ImageGallery.next_button')}">
+                <img src="/resources/images/ImageGallery-next_button.png" alt=""/>
+            </button>
+            <div py:local_id="footnote"/>
+            <div py:local_id="original_image_link">
+                <a py:local_id="link">${translations("woost.views.ImageGallery.original_image_link")}</a>
+            </div>
+        </py:with>
+    </py:woost.views.Dialog>
+
+    <div py:id="loading_sign"
+        py:client_model="woost.views.ImageGallery.loading_sign"
+        class="ImageGallery-loading_sign">
+        ${translations("woost.views.ImageGallery.loading_sign")}
+    </div>
+
+</div>
+

@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.controllers import Location
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    block = None
+    text = None
+    images = None
+    image_alignment = None
+    image_thumbnail_factory = None
+    image_close_up_factory = None
+    image_close_up_enabled = True
+    image_close_up_preload = False
+    image_labels_visible = False
+    image_original_link_visible = False
+    link_destination = None
+    link_parameters = None
+    link_opens_in_new_window = False
+
+    alignments_with_text_above = ["column_right", "center_bottom", "bottom_left"]
+    enable_ie_table_layout_workaround = True
+
+    def insert_heading(self, heading):
+        self.block_link.insert(0, heading)
+    ?>
+
+    <py:ready>
+        <?py
+        self.add_class(self.image_alignment)
+        self._images = [image for image in self.images if image.is_accessible()]
+        self._column_layout = (self.image_alignment in ("column_left", "column_right"))
+
+        if not self._images:
+            self.add_class("no_images")
+        elif len(self._images) == 1:
+            self.add_class("single_image")
+
+        if not self.text:
+            self.add_class("no_text")
+
+        if self._column_layout:
+            self.content_wrapper.tag = "div"
+            self.content_wrapper.add_class("columns_wrapper")
+
+        if self._images and self.image_alignment == "background":
+            image_uri = self._images[0].get_image_uri(self.image_thumbnail_factory)
+            element.set_style("background-image", "url(%s)" % image_uri)
+
+        if self.link_destination:
+
+            uri = self.link_destination.get_uri()
+
+            # Add additional parameters
+            if self.link_parameters:
+                location = Location(uri)
+                for chunk in self.link_parameters.split("\n"):
+                    parts = chunk.split("=")
+                    if len(parts) == 2:
+                        location.query_string[parts[0].strip()] = parts[1].strip()
+                uri = unicode(location)
+
+            self.block_link.tag = "a"
+            self.block_link["href"] = uri
+
+            if self.link_opens_in_new_window:
+                self.block_link["target"] = "_blank"
+        ?>
+    </py:ready>
+
+    <py:block py:id="block_link">
+        <py:block py:id="content_wrapper">
+            <py:woost.views.ImageGallery
+                py:id="image_gallery"
+                py:images="@{self._images}"
+                py:accessible_check="${False}"
+                py:visible="@{self._images and self.image_alignment != 'background'}"
+                py:thumbnail_factory="@{self.image_thumbnail_factory}"
+                py:close_up_enabled="@{self.image_close_up_enabled}"
+                py:close_up_factory="@{self.image_close_up_factory}"
+                py:close_up_preload="@{self.image_close_up_preload}"
+                py:labels_visible="@{self.image_labels_visible}"
+                py:original_link_visible="@{self.image_original_link_visible}"/>
+
+            <div py:id="text_container" py:visible="@{bool(self.text)}">
+                @{self.text}
+            </div>
+        </py:block>
+    </py:block>
+
+    <py:ready>
+        <?py
+        if self.text and self._images:
+
+            if self.image_alignment in self.alignments_with_text_above:
+                self.image_gallery.place_after(self.text_container)
+
+            if self._column_layout and self.enable_ie_table_layout_workaround:
+                self.insert(0, self.create_ie_table_layout_workaround("<table class='ie_layout_workaround'><tr>"))
+                self.create_ie_table_layout_workaround("<td class='image_gallery_cell' valign='top'>").place_before(self.image_gallery)
+                self.create_ie_table_layout_workaround("</td>").place_after(self.image_gallery)
+                self.create_ie_table_layout_workaround("<td class='text_container_cell' valign='top'>").place_before(self.text_container)
+                self.create_ie_table_layout_workaround("</td>").place_after(self.text_container)
+                self.append(self.create_ie_table_layout_workaround("</tr></table>"))
+
+        alignment = self.image_alignment
+
+        if alignment in ("inline", "heading_icon"):
+            if self.content_wrapper.tag != "dd":
+                self.content_wrapper.tag = None
+
+            self.text_container.tag = "span"
+            self.image_gallery.tag = None
+            self.image_gallery.image_list.tag = None
+
+            if alignment == "heading_icon":
+                heading = getattr(self, "heading", None)
+                if heading is None:
+                    heading = Element()
+                    heading.add_class("heading")
+                    self.insert(0, heading)
+                heading.insert(0, self.image_gallery)
+
+            @extend(self.image_gallery)
+            def create_image_entry(image_gallery, *args, **kwargs):
+                entry = call_base(*args, **kwargs)
+                entry.tag = None
+                return entry
+        ?>
+    </py:ready>
+
+    <py:cocktail.html.IEConditionalComment
+        py:def="ie_table_layout_workaround" py:args="html"
+        py:condition="lt IE 9">
+        ${html}
+    </py:cocktail.html.IEConditionalComment>
+
+</div>
+
