@@ -1,0 +1,79 @@
+from libc.stdint cimport *
+from libc.string cimport *
+from cpython.ref cimport PyObject
+
+from pyrobuf_list cimport *
+from pyrobuf_util cimport *
+
+import json
+
+{%- for import in imports %}
+from {{ import }}_proto cimport *
+{%- endfor %}
+
+{%- macro classdef(name, message) %}
+cdef class {{ name }}:
+
+{% for field in message.fields|sort(attribute='index') -%}
+    {%- if field.modifier == 'repeated' %}
+    cdef {{ field.list_type }} _{{ field.name }}
+    {%- elif field.type in ('string', 'bytes') %}
+    cdef str _{{ field.name }}
+    {%- elif field.type == 'message' %}
+    cdef {% if field.is_nested %}{{ name }}{% endif %}{{ field.message_name }} _{{ field.name }}
+    {%- elif field.type == 'enum' %}
+    cdef {% if field.is_nested %}{{ name }}{% endif %}{{ field.enum_name }} _{{ field.name }}
+    {%- else %}
+    cdef {{ field.c_type }} _{{ field.name }}
+    {%- endif %}
+
+    {%- if field.modifier != 'repeated' and field.type != 'message' %}
+    cdef bint _{{ field.name}}_isSet
+    {%endif%}
+{%- endfor %}
+
+    cdef public bint _is_present_in_parent
+
+    cdef PyObject *_listener
+
+    cpdef void reset(self)
+
+    cpdef void Clear(self)
+    cpdef void ClearField(self, field_name)
+    cpdef void CopyFrom(self, {{ name }} other_msg)
+    cpdef bint HasField(self, field_name) except -1
+    cpdef bint IsInitialized(self)
+    cpdef void MergeFrom(self, {{ name }} other_msg)
+    cpdef int MergeFromString(self, data, size=*) except -1
+    cpdef int ParseFromString(self, data, size=*, bint reset=*) except -1
+    cpdef bytearray SerializePartialToString(self)
+
+    cdef int _protobuf_deserialize(self, const unsigned char *memory, int size)
+
+    cdef void _protobuf_serialize(self, bytearray buf)
+
+    cpdef void _Modified(self)
+
+    {%- for message_name, message_message in message.messages.items() %}
+{{ classdef(name + message_name, message_message) }}
+    {%- endfor %}
+
+    {%- for enum_name, enum in message.enums.items() %}
+{{ enumdef(name + enum_name, enum) }}
+    {%- endfor %}
+{%- endmacro %}
+
+{%- macro enumdef(name, enum) %}
+cdef enum {{ name }}:
+    {%- for field in enum.fields %}
+    _{{ field.name }} = {{ field.value }}
+    {%- endfor %}
+{%- endmacro %}
+
+{%- for enum in enums %}
+{{ enumdef(enum.name, enum) }}
+{%- endfor %}
+
+{%- for message in messages %}
+{{ classdef(message.name, message) }}
+{%- endfor %}
