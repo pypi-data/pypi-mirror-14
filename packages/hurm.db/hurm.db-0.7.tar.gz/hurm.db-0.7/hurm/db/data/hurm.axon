@@ -1,0 +1,1000 @@
+{ ID: "activities table"
+  depends: ["domains@2"]
+  language: "sql"
+  revision: 2
+  script: "create table activities (
+  idactivity integer_t not null,
+  description description_t not null,
+  allowoverlappedduties boolean_t not null default false,
+  note text_t,
+
+  constraint pk_activities primary key (idactivity),
+  constraint uk_activities unique (description)
+)"}
+{ ID: "activitypayloads table"
+  depends: ["domains@2"]
+  language: "sql"
+  revision: 1
+  script: "create table activitypayloads (
+  idactivitypayload integer_t not null,
+  idactivity integer_t not null,
+  description description_t not null,
+  note text_t,
+  unitcost money_t,
+
+  constraint pk_activitypayloads primary key (idactivitypayload),
+  constraint uk_activitypayloads unique (description, idactivitypayload)
+)"}
+{ ID: "add allowoverlappedduties to activities table"
+  brings: ["activities table@2"]
+  depends: ["activities table@1" "domains@2"]
+  language: "sql"
+  revision: 1
+  script: "alter table activities
+  add column allowoverlappedduties boolean_t not null default false"}
+{ ID: "availabilities table"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create table availabilities (
+  idavailability integer_t not null,
+  idedition integer_t not null,
+  idperson integer_t not null,
+  date date_t not null,
+  starttime time_t,
+  endtime time_t,
+  note text_t,
+
+  constraint pk_availabilities primary key (idavailability),
+  constraint availability_valid_time_range
+    check ((starttime is not null and endtime is not null and starttime < endtime)
+           or (starttime is null or endtime is null))
+)"}
+{ ID: "check availability validity function"
+  depends: ["availabilities table" "duties table" "editions table"]
+  language: "sql"
+  revision: 1
+  script: "-- -*- sql-product: postgres; coding: utf-8 -*-
+-- :Project:   hurm -- Function to check an availability record validity
+-- :Created:   mar 19 gen 2016 13:15:37 CET
+-- :Author:    Lele Gaifax <lele@metapensiero.it>
+-- :License:   GNU General Public License version 3 or later
+-- :Copyright: © 2016 Lele Gaifax
+--
+
+create or replace function check_availability_validity()
+returns trigger as $$
+
+declare
+  v_startdate date_t;
+  v_enddate date_t;
+
+begin
+  if tg_op <> 'DELETE'
+  then
+    select startdate, enddate
+    into v_startdate, v_enddate
+    from editions e
+    where e.idedition = new.idedition;
+
+    if not new.date between v_startdate and v_enddate
+    then
+      raise exception 'availability date outside allowed period';
+    end if;
+
+    if exists (select *
+               from availabilities a
+               where (new.idavailability is null or a.idavailability <> new.idavailability)
+                 and a.date = new.date
+                 and a.idperson = new.idperson
+                 and (coalesce(new.starttime, '00:00'), coalesce(new.endtime, '24:00'))
+                     overlaps
+                     (coalesce(a.starttime, '00:00'), coalesce(a.endtime, '24:00')))
+    then
+      raise exception 'overlapped availability';
+    end if;
+  else
+    if exists (select *
+               from duties d join tasks t on t.idtask = d.idtask
+                 where t.idedition = old.idedition
+                   and t.date = old.date
+                   and d.idperson = old.idperson
+                   and d.starttime >= coalesce(old.starttime, '00:00')
+                   and d.endtime <= coalesce(old.endtime, '24:00'))
+    then
+      raise exception 'duties outside person availability';
+    end if;
+  end if;
+
+  if tg_op = 'UPDATE'
+     and
+     exists (select *
+             from duties d join tasks t on t.idtask = d.idtask
+             where t.idedition = new.idedition
+               and t.date = new.date
+               and not exists (select *
+                               from availabilities a
+                               where a.idedition = t.idedition
+                                 and a.idperson = d.idperson
+                                 and a.date = t.date
+                                 and d.starttime >= coalesce(a.starttime, '00:00')
+                                 and d.endtime <= coalesce(a.endtime, '24:00')))
+  then
+    raise exception 'duties outside person availability';
+  end if;
+
+  return null;
+end;
+
+$$ language plpgsql;
+"}
+{ ID: "check availability validity trigger"
+  depends: ["check availability validity function"]
+  language: "sql"
+  revision: 1
+  script: "create constraint trigger trg_check_availability_validity
+  after insert or update or delete
+  on availabilities
+  for each row execute procedure check_availability_validity();"}
+{ ID: "check duty validity function"
+  depends: ["availabilities table" "domains@2" "duties table" "tasks table"]
+  language: "sql"
+  revision: 2
+  script: "-- -*- sql-product: postgres; coding: utf-8 -*-
+-- :Project:   hurm -- Function to check a duty record validity
+-- :Created:   sab 16 gen 2016 20:32:00 CET
+-- :Author:    Lele Gaifax <lele@metapensiero.it>
+-- :License:   GNU General Public License version 3 or later
+-- :Copyright: © 2016 Lele Gaifax
+--
+
+create or replace function check_duty_validity()
+returns trigger as $$
+
+declare
+  v_idedition integer_t;
+  v_idactivity integer_t;
+  v_date date_t;
+  v_starttime time_t;
+  v_endtime time_t;
+  v_allowoverlappedduties boolean_t;
+
+begin
+  select idedition, date, idactivity, coalesce(starttime, '00:00'), coalesce(endtime, '24:00')
+  into v_idedition, v_date, v_idactivity, v_starttime, v_endtime
+  from tasks t
+  where t.idtask = new.idtask;
+
+  if new.starttime < v_starttime or new.starttime >= v_endtime
+     or new.endtime < v_starttime or new.endtime > v_endtime
+  then
+    raise exception 'duty time outside task time';
+  end if;
+
+  if not exists (select *
+                 from availabilities a
+                 where a.idedition = v_idedition
+                   and a.idperson = new.idperson
+                   and a.date = v_date
+                   and new.starttime >= coalesce(a.starttime, '00:00')
+                   and new.starttime < coalesce(a.endtime, '24:00')
+                   and new.endtime > coalesce(a.starttime, '00:00')
+                   and new.endtime <= coalesce(a.endtime, '24:00'))
+  then
+    raise exception 'duty time outside person availability';
+  end if;
+
+  select allowoverlappedduties
+  into v_allowoverlappedduties
+  from activities a
+  where a.idactivity = v_idactivity;
+
+  if not v_allowoverlappedduties
+     and exists (select *
+                 from duties d join tasks t on d.idtask = t.idtask
+                 where (new.idduty is null or d.idduty <> new.idduty)
+                   and t.date = v_date
+                   and d.idperson = new.idperson
+                   and (new.starttime, new.endtime) overlaps (d.starttime, d.endtime))
+  then
+    raise exception 'overlapped duty';
+  end if;
+
+  return null;
+end;
+
+$$ language plpgsql;
+"}
+{ ID: "check duty validity trigger"
+  depends: ["check duty validity function"]
+  language: "sql"
+  revision: 1
+  script: "create constraint trigger trg_check_duty_validity
+  after insert or update
+  on duties
+  for each row execute procedure check_duty_validity();"}
+{ ID: "check edition validity function"
+  depends: ["availabilities table" "editions table" "tasks table"]
+  language: "sql"
+  revision: 1
+  script: "-- -*- sql-product: postgres; coding: utf-8 -*-
+-- :Project:   hurm -- Function to check an edition record validity
+-- :Created:   sab 23 gen 2016 19:22:30 CET
+-- :Author:    Lele Gaifax <lele@metapensiero.it>
+-- :License:   GNU General Public License version 3 or later
+-- :Copyright: © 2016 Lele Gaifax
+--
+
+create or replace function check_edition_validity()
+returns trigger as $$
+
+begin
+  if exists (select *
+             from availabilities a
+             where a.idedition = new.idedition
+               and a.date not between new.startdate and new.enddate)
+  then
+    raise exception 'availabilities outside edition period';
+  end if;
+
+  if exists (select *
+             from tasks t
+             where t.idedition = new.idedition
+               and t.date not between new.startdate and new.enddate)
+  then
+    raise exception 'tasks outside edition period';
+  end if;
+
+  return null;
+end;
+
+$$ language plpgsql;
+"}
+{ ID: "check edition validity trigger"
+  depends: ["check edition validity function"]
+  language: "sql"
+  revision: 1
+  script: "create constraint trigger trg_check_edition_validity
+  after update
+  on editions
+  for each row execute procedure check_edition_validity();"}
+{ ID: "check task date trigger"
+  depends: ["check task validity function"]
+  language: "sql"
+  revision: 1
+  script: "create constraint trigger trg_check_task_validity
+  after insert or update
+  on tasks
+  for each row execute procedure check_task_validity();"}
+{ ID: "check task validity function"
+  depends: ["duties table" "editions table" "tasks table"]
+  language: "sql"
+  revision: 1
+  script: "-- -*- sql-product: postgres; coding: utf-8 -*-
+-- :Project:   hurm -- Function to check a task record validity
+-- :Created:   mar 19 gen 2016 13:20:28 CET
+-- :Author:    Lele Gaifax <lele@metapensiero.it>
+-- :License:   GNU General Public License version 3 or later
+-- :Copyright: © 2016 Lele Gaifax
+--
+
+create or replace function check_task_validity()
+returns trigger as $$
+declare
+  v_startdate date_t;
+  v_enddate date_t;
+begin
+  select startdate, enddate
+  into v_startdate, v_enddate
+  from editions e
+  where e.idedition = new.idedition;
+
+  if (not new.date between v_startdate and v_enddate) then
+    raise exception 'task date outside allowed period';
+  end if;
+
+  if exists (select *
+             from tasks t
+             where (new.idtask is null or t.idtask <> new.idtask)
+               and t.date = new.date
+               and t.idactivity = new.idactivity
+               and t.idlocation = new.idlocation
+               and (new.starttime, coalesce(new.endtime, '24:00'))
+                   overlaps
+                   (t.starttime, coalesce(t.endtime, '24:00')))
+  then
+    raise exception 'overlapped task';
+  end if;
+
+  if tg_op <> 'INSERT'
+     and
+     exists (select *
+             from duties d
+             where d.idtask = old.idtask
+               and (d.starttime < coalesce(new.starttime, '00:00')
+                    or
+                    d.endtime > coalesce(new.endtime, '24:00')))
+  then
+    raise exception 'duties outside task time range';
+  end if;
+
+  return null;
+end;
+$$ language plpgsql;
+"}
+{ ID: "create boolean domain"
+  brings: ["domains@2"]
+  depends: ["domains@1"]
+  language: "sql"
+  revision: 1
+  script: "create domain boolean_t boolean
+;;
+create domain money_t numeric(10,4)"}
+{ ID: "domains"
+  language: "sql"
+  revision: 2
+  script: "create domain boolean_t boolean
+;;
+create domain country_t char(2)
+;;
+create domain date_t date
+;;
+create domain description_t varchar(100)
+;;
+create domain email_t varchar(50)
+;;
+create domain integer_t integer
+;;
+create domain latlng_t numeric(10,6)
+;;
+create domain money_t numeric(10,4)
+;;
+create domain name_t varchar(50)
+;;
+create domain password_t varchar(60)
+;;
+create domain phone_t varchar(20)
+;;
+create domain province_t varchar(6)
+;;
+create domain shortcode_t varchar(10)
+;;
+create domain text_t text
+;;
+create domain time_t time
+;;
+create domain timestamp_t timestamp"}
+{ ID: "duties table"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create table duties (
+  idduty integer_t not null,
+  idperson integer_t not null,
+  idtask integer_t not null,
+  starttime time_t not null,
+  endtime time_t not null,
+  note text_t,
+
+  constraint pk_duties primary key (idduty),
+  constraint duty_valid_time_range check (starttime < endtime)
+)"}
+{ ID: "dutypayloads table"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create table dutypayloads (
+  iddutypayload integer_t not null,
+  idduty integer_t not null,
+  idactivitypayload integer_t not null,
+  value integer_t not null,
+  note text_t,
+
+  constraint pk_dutypayloads primary key (iddutypayload),
+  constraint uk_dutypayloads unique (idduty, idactivitypayload)
+)"}
+{ ID: "editions table"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create table editions (
+  idedition integer_t not null,
+  description description_t not null,
+  startdate date_t not null,
+  enddate date_t not null,
+  note text,
+
+  constraint pk_editions primary key (idedition),
+  constraint uk_editions unique (description),
+  constraint edition_valid_period check (startdate < enddate)
+)"}
+{ ID: "fk activitypayloads->activities"
+  depends: ["activities table" "personactivities table"]
+  language: "sql"
+  revision: 1
+  script: "alter table activitypayloads
+  add constraint fk_activitypayloads_idactivity
+      foreign key (idactivity) references activities (idactivity)
+                               on delete cascade"}
+{ ID: "fk availabilities->editions"
+  depends: ["availabilities table" "editions table"]
+  language: "sql"
+  revision: 1
+  script: "alter table availabilities
+  add constraint fk_availabilities_idedition
+      foreign key (idedition) references editions (idedition)"}
+{ ID: "fk availabilities->persons"
+  depends: ["availabilities table" "persons table"]
+  language: "sql"
+  revision: 1
+  script: "alter table availabilities
+  add constraint fk_availabilities_idperson
+      foreign key (idperson) references persons (idperson)"}
+{ ID: "fk duties->persons"
+  depends: ["duties table" "persons table"]
+  language: "sql"
+  revision: 1
+  script: "alter table duties
+  add constraint fk_duties_idperson
+      foreign key (idperson) references persons (idperson)"}
+{ ID: "fk duties->tasks"
+  depends: ["duties table" "tasks table"]
+  language: "sql"
+  revision: 1
+  script: "alter table duties
+  add constraint fk_duties_idtask
+      foreign key (idtask) references tasks (idtask)"}
+{ ID: "fk dutypayloads->activitypayloads"
+  depends: ["activitypayloads table" "dutypayloads table"]
+  language: "sql"
+  revision: 1
+  script: "alter table dutypayloads
+  add constraint fk_dutypayloads_idactivitypayload
+      foreign key (idactivitypayload) references activitypayloads (idactivitypayload)
+                                      on delete cascade"}
+{ ID: "fk dutypayloads->duties"
+  depends: ["duties table" "dutypayloads table"]
+  language: "sql"
+  revision: 1
+  script: "alter table dutypayloads
+  add constraint fk_dutypayloads_idduty
+      foreign key (idduty) references duties (idduty)
+                           on delete cascade"}
+{ ID: "fk personactivities->activities"
+  depends: ["activities table" "personactivities table"]
+  language: "sql"
+  revision: 2
+  script: "alter table personactivities
+  drop constraint if exists fk_personactivities_idactivity
+;;
+alter table personactivities
+  add constraint fk_personactivities_idactivity
+      foreign key (idactivity) references activities (idactivity)"}
+{ ID: "fk personactivities->persons"
+  depends: ["personactivities table" "persons table"]
+  language: "sql"
+  revision: 2
+  script: "alter table personactivities
+  drop constraint if exists fk_personactivities_idperson
+;;
+alter table personactivities
+  add constraint fk_personactivities_idperson
+      foreign key (idperson) references persons (idperson)"}
+{ ID: "fk tasks->activities"
+  depends: ["activities table" "tasks table"]
+  language: "sql"
+  revision: 1
+  script: "alter table tasks
+  add constraint fk_tasks_idactivity
+      foreign key (idactivity) references activities (idactivity)"}
+{ ID: "fk tasks->editions"
+  depends: ["editions table" "tasks table"]
+  language: "sql"
+  revision: 1
+  script: "alter table tasks
+  add constraint fk_tasks_idedition
+      foreign key (idedition) references editions (idedition)"}
+{ ID: "fk tasks->locations"
+  depends: ["locations table" "tasks table"]
+  language: "sql"
+  revision: 1
+  script: "alter table tasks
+  add constraint fk_tasks_idlocation
+      foreign key (idlocation) references locations (idlocation)"}
+{ ID: "grant activities table permissions"
+  depends: ["activities table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on activities to public"}
+{ ID: "grant activitypayloads table permissions"
+  depends: ["activitypayloads table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on activitypayloads to public"}
+{ ID: "grant availabilities table permissions"
+  depends: ["availabilities table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on availabilities to public"}
+{ ID: "grant duties table permissions"
+  depends: ["duties table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on duties to public"}
+{ ID: "grant dutypayloads table permissions"
+  depends: ["dutypayloads table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on dutypayloads to public"}
+{ ID: "grant editions table permissions"
+  depends: ["editions table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on editions to public"}
+{ ID: "grant idactivity generator permissions"
+  depends: ["idactivity generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_idactivity to public"}
+{ ID: "grant idactivitypayload generator permissions"
+  depends: ["idactivitypayload generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_idactivitypayload to public"}
+{ ID: "grant idavailability generator permissions"
+  depends: ["idavailability generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_idavailability to public"}
+{ ID: "grant idduty generator permissions"
+  depends: ["idduty generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_idduty to public"}
+{ ID: "grant iddutypayload generator permissions"
+  depends: ["iddutypayload generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_iddutypayload to public"}
+{ ID: "grant idedition generator permissions"
+  depends: ["idedition generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_idedition to public"}
+{ ID: "grant idlocation generator permissions"
+  depends: ["idlocation generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_idlocation to public"}
+{ ID: "grant idperson generator permissions"
+  depends: ["idperson generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_idperson to public"}
+{ ID: "grant idtask generator permissions"
+  depends: ["idtask generator"]
+  language: "sql"
+  revision: 1
+  script: "grant usage on gen_idtask to public"}
+{ ID: "grant locations table permissions"
+  depends: ["locations table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on locations to public"}
+{ ID: "grant personactivities table permissions"
+  depends: ["tasks table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on tasks to public"}
+{ ID: "grant persons table permissions"
+  depends: ["persons table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on persons to public"}
+{ ID: "grant tasks table permissions"
+  depends: ["tasks table"]
+  language: "sql"
+  revision: 1
+  script: "grant select, insert, delete, update on tasks to public"}
+{ ID: "idactivity generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_idactivity"}
+{ ID: "idactivitypayload generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_idactivitypayload"}
+{ ID: "idavailability generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_idavailability"}
+{ ID: "idduty generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_idduty"}
+{ ID: "iddutypayload generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_iddutypayload"}
+{ ID: "idedition generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_idedition"}
+{ ID: "idlocation generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_idlocation"}
+{ ID: "idperson generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_idperson"}
+{ ID: "idtask generator"
+  language: "sql"
+  revision: 1
+  script: "create sequence gen_idtask"}
+{ ID: "initialize activity record function"
+  depends: ["activities table" "idactivity generator"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_activity_record()
+returns trigger as $$
+begin
+  if new.idactivity is null or new.idactivity = 0 then
+    new.idactivity := nextval('gen_idactivity');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize activity record trigger"
+  depends: ["activities table" "initialize activity record function"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_activities
+  before insert
+  on activities
+  for each row execute procedure init_activity_record();"}
+{ ID: "initialize activitypayload record function"
+  depends: ["activitypayloads table" "idactivitypayload generator"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_activitypayload_record()
+returns trigger as $$
+begin
+  if new.idactivitypayload is null or new.idactivitypayload = 0 then
+    new.idactivitypayload := nextval('gen_idactivitypayload');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize activitypayload record trigger"
+  depends: ["activitypayloads table" "initialize activitypayload record function"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_activities
+  before insert
+  on activitypayloads
+  for each row execute procedure init_activitypayload_record();"}
+{ ID: "initialize availability record function"
+  depends: ["availabilities table" "idavailability generator"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_availability_record()
+returns trigger as $$
+begin
+  if new.idavailability is null or new.idavailability = 0
+  then
+    new.idavailability := nextval('gen_idavailability');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize availability record trigger"
+  depends: ["availabilities table" "initialize availability record function"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_availabilities
+  before insert
+  on availabilities
+  for each row execute procedure init_availability_record();"}
+{ ID: "initialize duty record function"
+  depends: ["duties table" "idduty generator"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_duty_record()
+returns trigger as $$
+begin
+  if new.idduty is null or new.idduty = 0
+  then
+    new.idduty := nextval('gen_idduty');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize duty record trigger"
+  depends: ["duties table" "initialize duty record function"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_duties
+  before insert
+  on duties
+  for each row execute procedure init_duty_record();"}
+{ ID: "initialize dutypayload record function"
+  depends: ["dutypayloads table" "iddutypayload generator"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_dutypayload_record()
+returns trigger as $$
+begin
+  if new.iddutypayload is null or new.iddutypayload = 0 then
+    new.iddutypayload := nextval('gen_iddutypayload');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize dutypayload record trigger"
+  depends: ["dutypayloads table" "initialize dutypayload record function"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_activities
+  before insert
+  on dutypayloads
+  for each row execute procedure init_dutypayload_record();"}
+{ ID: "initialize edition record function"
+  depends: ["editions table" "idedition generator"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_edition_record()
+returns trigger as $$
+begin
+  if new.idedition is null or new.idedition = 0 then
+    new.idedition := nextval('gen_idedition');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize edition record trigger"
+  depends: ["editions table" "initialize edition record function"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_editions
+  before insert
+  on editions
+  for each row execute procedure init_edition_record();"}
+{ ID: "initialize location record function"
+  depends: ["idlocation generator" "locations table"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_location_record()
+returns trigger as $$
+begin
+  if new.idlocation is null or new.idlocation = 0 then
+    new.idlocation := nextval('gen_idlocation');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize location record trigger"
+  depends: ["initialize location record function" "locations table"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_locations
+  before insert
+  on locations
+  for each row execute procedure init_location_record();"}
+{ ID: "initialize person record function"
+  depends: ["idperson generator" "persons table"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_person_record()
+returns trigger as $$
+begin
+  if new.idperson is null or new.idperson = 0 then
+    new.idperson := nextval('gen_idperson');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize persons record trigger"
+  depends: ["initialize person record function" "persons table"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_persons
+  before insert
+  on persons
+  for each row execute procedure init_person_record();"}
+{ ID: "initialize task record function"
+  depends: ["idtask generator" "tasks table"]
+  language: "sql"
+  revision: 1
+  script: "create or replace function init_task_record()
+returns trigger as $$
+begin
+  if new.idtask is null or new.idtask = 0 then
+    new.idtask := nextval('gen_idtask');
+  end if;
+  return new;
+end;
+$$ language plpgsql;"}
+{ ID: "initialize task record trigger"
+  depends: ["initialize task record function" "tasks table"]
+  language: "sql"
+  revision: 1
+  script: "create trigger trg_ins_tasks
+  before insert
+  on tasks
+  for each row execute procedure init_task_record();"}
+{ ID: "locations table"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create table locations (
+  idlocation integer_t not null,
+  description description_t not null,
+  address description_t,
+  city description_t,
+  province province_t,
+  zip shortcode_t,
+  country country_t,
+  latitude latlng_t,
+  longitude latlng_t,
+  phone phone_t,
+  mobile phone_t,
+  email email_t,
+  note text_t,
+
+  constraint pk_locations primary key (idlocation),
+  constraint uk_locations unique (description)
+)"}
+{ ID: "personactivities table"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create table personactivities (
+  idperson integer_t not null,
+  idactivity integer_t not null,
+
+  constraint pk_personactivities primary key (idperson, idactivity)
+)"}
+{ ID: "persons table"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create table persons (
+  idperson integer_t not null,
+  firstname name_t not null,
+  lastname name_t not null,
+  role description_t,
+  birthdate date_t,
+  phone phone_t,
+  mobile phone_t,
+  email email_t,
+  password password_t,
+  note text_t,
+
+  constraint pk_persons primary key (idperson),
+  constraint uk_persons unique (email)
+)"}
+{ ID: "public schema permissions"
+  description: "Public schema permissions"
+  language: "sql"
+  revision: 1
+  script: "GRANT USAGE ON SCHEMA public TO PUBLIC"}
+{ ID: "task events function"
+  depends: ["tasks table"]
+  language: "sql"
+  revision: 1
+  script: "-- -*- sql-product: postgres; coding: utf-8 -*-
+-- :Project:   hurm -- Helper function to generate task's timeline
+-- :Created:   sab 16 gen 2016 20:01:21 CET
+-- :Author:    Lele Gaifax <lele@metapensiero.it>
+-- :License:   GNU General Public License version 3 or later
+-- :Copyright: © 2016 Lele Gaifax
+--
+
+create or replace function task_events(p_idtask integer_t)
+returns setof time_t as $$
+
+declare
+  v_date date_t;
+  v_starttime time_t;
+  v_endtime time_t;
+
+begin
+  select starttime, coalesce(endtime, '24:00')
+  into v_starttime, v_endtime
+  from tasks
+  where idtask = p_idtask;
+
+  return next v_starttime;
+  return next v_endtime;
+
+  for v_starttime, v_endtime in select starttime, endtime
+                                from duties
+                                where idtask = p_idtask
+  loop
+    return next v_starttime;
+    return next v_endtime;
+  end loop;
+end;
+
+$$ language plpgsql stable
+"}
+{ ID: "task timeline function"
+  depends: ["task timeline type"]
+  language: "sql"
+  revision: 1
+  script: "-- -*- sql-product: postgres; coding: utf-8 -*-
+-- :Project:   hurm -- Task's timeline generator
+-- :Created:   sab 16 gen 2016 20:21:03 CET
+-- :Author:    Lele Gaifax <lele@metapensiero.it>
+-- :License:   GNU General Public License version 3 or later
+-- :Copyright: © 2016 Lele Gaifax
+--
+
+create or replace function task_timeline(p_idtask integer_t)
+returns setof task_timeline_t as $$
+
+declare
+  v_date date_t;
+  v_event time_t;
+  v_time time_t;
+  v_result task_timeline_t;
+
+begin
+  select date
+  into v_date
+  from tasks
+  where idtask = p_idtask;
+
+  v_time := null;
+  for v_event in select distinct e.t
+                 from task_events(p_idtask) as e(t)
+                 order by t
+  loop
+    if v_time is not null
+    then
+      v_result.starttime := v_time;
+      v_result.endtime := v_event;
+      select count(d.idperson)
+      into v_result.npersons
+      from duties d
+      where d.idtask = p_idtask
+        and d.starttime <= v_time
+        and d.endtime > v_time;
+      return next v_result;
+    end if;
+    v_time := v_event;
+  end loop;
+end;
+
+$$ language plpgsql stable
+"}
+{ ID: "task timeline type"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create type task_timeline_t as (
+  starttime time_t,
+  endtime time_t,
+  npersons integer_t
+)"}
+{ ID: "tasks table"
+  depends: ["domains"]
+  language: "sql"
+  revision: 1
+  script: "create table tasks (
+  idtask integer_t not null,
+  idedition integer_t not null,
+  idlocation integer_t not null,
+  date date_t not null,
+  starttime time_t not null,
+  endtime time_t,
+  idactivity integer_t not null,
+  npersons integer_t not null,
+  note text_t,
+
+  constraint pk_tasks primary key (idtask),
+  constraint task_valid_time_range
+    check (endtime is null
+           or endtime is not null and starttime < endtime)
+)"}
