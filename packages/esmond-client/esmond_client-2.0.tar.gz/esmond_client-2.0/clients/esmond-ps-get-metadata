@@ -1,0 +1,85 @@
+#!/usr/bin/env python
+
+"""
+esmond-ps-get-metadata - get the tests stored in a Perfsonar esmond instance.
+"""
+
+# for the script name:
+# pylint: disable=invalid-name
+
+import collections
+import copy
+
+from esmond_client.perfsonar.query import ApiConnect
+from esmond_client.perfsonar.util import (
+    DEFAULT_FIELDS,
+    HostnameConversion,
+    output_factory,
+    perfsonar_client_filters,
+    perfsonar_client_opts,
+)
+
+
+class MetadataDataObject(object):  # pylint: disable=too-few-public-methods
+    """Wrapper/encapsulation object to put the _data payload from a Metadata
+    object into to sanitize dashes and create an alpha key ordered dict. """
+    def __init__(self, initial=None):
+        self.__dict__['_data'] = collections.OrderedDict()
+
+        if hasattr(initial, 'items'):
+            # sanitize dashes to underscores
+            for k in initial.keys():
+                initial[k.replace('-', '_')] = initial.pop(k)
+            # load it into a sorted dictionary in alpha key order
+            self.__dict__['_data'] = \
+                collections.OrderedDict(sorted(initial.items(), key=lambda t: t[0]))
+
+    def __getattr__(self, name):
+        return self._data.get(name, None)
+
+    def __setattr__(self, name, value):
+        self.__dict__['_data'][name] = value
+
+    def to_dict(self):
+        """Return internal payload as a dict."""
+        return self._data
+
+EXCLUDE_FIELDS = ['event-types', 'uri', 'metadata-key']
+
+
+def main():
+    """Parse args and execute query."""
+    options, _ = perfsonar_client_opts()
+
+    ip_convert = HostnameConversion(options)
+
+    filters = perfsonar_client_filters(options)
+    conn = ApiConnect(options.url, filters)
+
+    data = list()
+
+    for meta in conn.get_metadata():
+        if not options.metadata:
+            # just show the default fields.
+            row = dict(
+                source=meta.source,
+                destination=meta.destination,
+                measurement_agent=meta.measurement_agent,
+                input_source=meta.input_source,
+                input_destination=meta.input_destination,
+                tool_name=meta.tool_name,
+            )
+            data.append(ip_convert.convert(row))
+        else:
+            # show defaults and extended per-tool fields as well.
+            dat = copy.copy(meta._data)  # pylint: disable=protected-access
+            for ex in EXCLUDE_FIELDS:
+                dat.pop(ex, None)
+            row = MetadataDataObject(dat)  # pylint: disable=redefined-variable-type
+            data.append(ip_convert.convert(row.to_dict()))
+
+    output = output_factory(options, data, copy.copy(DEFAULT_FIELDS))
+    print output.get_output()
+
+if __name__ == '__main__':
+    main()
