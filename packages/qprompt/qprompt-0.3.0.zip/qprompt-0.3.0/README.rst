@@ -1,0 +1,66 @@
+Introduction
+============
+
+This project provides a Python 2.7/3.x library that allows the user to
+quickly create CLI prompts for user input. The main features are the
+following:
+
+-  Simple multi-entry menus.
+
+-  Prompt for yes/no response.
+
+-  Prompt for integer response.
+
+-  Prompt for float response.
+
+-  Optional default value.
+
+-  Optional validity check.
+
+-  Should work on any platform without additional dependencies.
+
+Status
+======
+
+Currently, this project is **under active development**. The contents of
+the repository should be considered unstable during active development.
+
+Requirements
+============
+
+Qprompt should run on any Python 2.7/3.x interpreter without additional
+dependencies.
+
+Installation
+============
+
+Qprompt can be installed with pip using the following command:
+``pip install qprompt``
+
+Additional, Qprompt can be installed from source by running:
+``python setup.py install``
+
+Usage
+=====
+
+The following are basic examples of Qprompt (all examples can be found
+`here <https://github.com/jeffrimko/Qprompt/tree/master/examples>`__):
+
+-  `examples/ask\_1.py <https://github.com/jeffrimko/Qprompt/blob/master/examples/ask_1.py>`__
+   - Basic info prompting.
+
+-  `examples/menu\_1.py <https://github.com/jeffrimko/Qprompt/blob/master/examples/menu_1.py>`__
+   - Basic menu usage.
+
+Similar
+=======
+
+The following projects are similar and may be worth checking out:
+
+-  `cliask <https://github.com/Sleft/cliask>`__
+
+-  `Promptly <https://github.com/aventurella/promptly>`__
+
+-  `prompter <https://github.com/tylerdave/prompter>`__
+
+-  `python-inquirer <https://github.com/magmax/python-inquirer>`__
