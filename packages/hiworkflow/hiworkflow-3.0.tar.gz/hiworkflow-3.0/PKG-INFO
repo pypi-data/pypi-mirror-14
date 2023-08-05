@@ -1,0 +1,202 @@
+Metadata-Version: 1.1
+Name: hiworkflow
+Version: 3.0
+Summary: A Django app to build and use custom Workflows.
+Home-page: http://www.hashedin.com/
+Author: Anshit
+Author-email: anshit.agarwal@hashedin.com
+License: MIT License
+Description: # **Welcome to hi-workflow!**
+        
+        Welcome to hiworkflow. The Django app aims to help you create powerful, fluid and dynamic workflows for your need. Let's get started with the installation.
+        
+        ## **Installation**
+        
+        Integrating hiworkflow to your project is easier than ever. Just use the pip command to get it running.
+        
+        ``` 
+        pip install hiworkflow
+        ```
+        
+        To add hiworkflow to your Django project, just add one line to the settings.py file.
+        ```
+         INSTALLED_APPS=[ 
+         ....
+         ....
+         ....,
+         'workflowapp',] 
+        ```
+        Also add this statement to settings.py. It will help include the library's static folder to your project.
+        ```
+        STATICFILES_DIRS = [os.path.join(BASE_DIR,"static")]
+        ```
+        In the same file settings.py, edit the TEMPLATE variable and add the following to the DIR'S. This will add the templates.
+        ```
+        'DIRS': ['templates']
+        ```
+        Finally, add an import statement to every file where you plan to use the hiworkflow.
+        
+        To finalize the installation and include the required Database tables, use the following commands.
+        ```
+        python manage.py makemigrations workflowapp
+        python manage.py migrate
+        
+        ```
+        Add these to every file where you need to use the functions.
+        ```
+        
+        from workflowapp.createflow import BuildWorkflow, BuildTask
+        ```
+        Congratulations, You are ready to use hi-workflow.
+        
+        ## **Defining a new Workflow**
+        
+        
+        ### **Create workflow**
+        A new workflow can either be created using
+        ```
+        new_workflow = BuildWorkflow("Timesheet Workflow")
+        ```
+        or,
+        ```
+        new_workflow = BuildWorkflow.create_workflow("Timesheet Workflow")
+        ```
+        
+        ### **Add States**
+        To add states to the workflow,
+        ```
+        .add_states(["new", "submitted", "pending_approval", "approved", "rejected", "done"])
+        ```
+        The add_states function takes a list as a parameter. Any number of states can be added at once. Moreover the function can be called again at any point to add more states. The only constraint is that we need the object of the workflow in which we need to add the states.
+        
+        ### **Type of States**
+        Each state is categorized into two types
+        
+        * Automated
+        * Manual
+         
+        Every state is defined as Manual by default. To make a state automated, we need to write this piece of code.
+        ```
+        .make_automated_state(["new","submitted","pending_approval","approved"]) 
+        ```
+        
+        Automated states transition automatically to the next state, if all the given conditions return true.
+        
+        ### **Add Transitions**
+        To add a transition from one state to another, we need to send 3 parameters- (from_state, event_name, to_state).  An object of workflow is required to run this command. On successful execution, it will create a link between the states.
+        ```
+        .add_transition("submitted", "Apply for Approval", "pending_approval")
+        ```
+        An optional parameter, a function name, can be a added which will ensure that the transition will only be successful if the function returned true.
+        
+        ```
+        .add_transition("submitted", "Apply for Approval", "pending_approval",check_timesheet_not_empty)
+        ```
+        In the above example check_timesheet_not_empty() is a function which returns boolean value. If the returned value is true, the state changes from submitted to pending_approval
+        
+        ### **Add Self Triggered Functions**
+        You can add your own set of functions that must be triggered as soon as a certain state is reached.
+        ```
+        .add_trigger('new' , test_another_callback)
+        ```
+        On reaching the 'new' state for any task, test_another_callback() is automatically invoked.
+        
+        ### **Define Start State and End State**
+        To define a start state and end state for the workflow, use the following syntax. Note: A workflow can have only one start state. It might have multiple end states depending on the requirements.
+        ```
+        .set_start_state("new")
+        .set_end_state("approved")
+        .set_end_state("rejected")
+        ```
+        
+        ### **Graphical Representation of Workflow**
+        To visualize a workflow, write the following code in views.
+        
+        ```
+        def visualize(request):
+            return visualize_workflow( <Workflow Object> )
+        
+        ```
+        ### **Get All Workflow Names**
+        Call the following function to receive a list containing the names of all workflows in the database.
+        
+        ```
+        list_all_workflows()
+        ```
+        
+        
+        ## **Defining a new Task**
+        
+        ### **Create Task**
+        To create a new task use the following syntax
+        ```
+        timesheet1 = BuildTask(approval_workflow, request.user, "Employee1")
+        ```
+        This syntax will create a task named "Employee1" which will use the schema of approval_workflow. The object timeshee1 will be used to refer to Employee1.
+        
+        ### **Initialize a task**
+        To initialize a task to it's start state, use the following syntax.
+        ```
+        timesheet1 = timesheet1.start()
+        ``` 
+        ### **To fetch details about the current state of a task**
+        The function is called using the object of BuildTask and returns the name of current state in a string.
+        ```
+        timesheet1.get_current_state()
+        ```
+        
+        ### **To fetch names of the possible states from current state**
+        The function is called using the object of BuildTask and returns a list of possible states
+        ```
+        timesheet1.get_possible_actions()
+        ```
+        
+        ### **Fetch a List of all Open Tasks**
+        Call the following function to receive a list containing the names of all tasks with is_active=True .
+        
+        ```
+        <workflow_object>.get_open_task_list()
+        ```
+        
+        ### **Fetch a List of all Closed Tasks**
+        Call the following function to receive a list containing the names of all tasks with is_active=False .
+        
+        ```
+        <workflow_object>.get_closed_task_list()
+        ```
+        
+        ## **Miscellaneous Functions to help development**
+        
+        ### **List all tasks assigned to a user**
+        The function is a global function and requires no object to be called. A parameter user_object is required. To send the currently logged in user's object, developers can use *request.user* . The function will return a list of strings.
+        ```
+        get_assigned_tasks(user_object)
+        ```
+        ### **List all tasks assigned by a user**
+        The function is a global function and requires no object to be called. A parameter user_object is required. To send the currently logged in user's object, developers can use *request.user* . The function will return a list of strings.
+        ```
+        tasks_assigned_by(user_object)
+        ```
+        ### **List all tasks created by a user**
+        The function is a global function and requires no object to be called. A parameter user_object is required. To send the currently logged in user's object, developers can use *request.user* . The function will return a list of strings.
+        
+        ```
+        user_tasks(user_object)
+        ```
+        
+        ## Thank You for using hiworkflow.
+        
+        ### Developed By: Anshit Agarwal, Vishal Sharma
+        ### At: HashedIn Technologies
+        
+Platform: UNKNOWN
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
