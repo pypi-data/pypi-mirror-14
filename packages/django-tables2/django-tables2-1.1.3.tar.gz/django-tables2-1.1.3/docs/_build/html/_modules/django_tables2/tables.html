@@ -1,0 +1,706 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>django_tables2.tables &mdash; django-tables2 1.1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="django-tables2 1.1.2 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for django_tables2.tables</h1><div class="highlight"><pre>
+<span class="c1"># coding: utf-8</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">django.core.paginator</span> <span class="kn">import</span> <span class="n">Paginator</span>
+<span class="kn">from</span> <span class="nn">django.db.models.fields</span> <span class="kn">import</span> <span class="n">FieldDoesNotExist</span>
+<span class="kn">from</span> <span class="nn">django.template.loader</span> <span class="kn">import</span> <span class="n">get_template</span>
+<span class="kn">from</span> <span class="nn">django.utils</span> <span class="kn">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">django.utils.functional</span> <span class="kn">import</span> <span class="n">cached_property</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">columns</span>
+<span class="kn">from</span> <span class="nn">.config</span> <span class="kn">import</span> <span class="n">RequestConfig</span>
+<span class="kn">from</span> <span class="nn">.rows</span> <span class="kn">import</span> <span class="n">BoundRows</span>
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="p">(</span><span class="n">Accessor</span><span class="p">,</span> <span class="n">AttributeDict</span><span class="p">,</span> <span class="n">OrderBy</span><span class="p">,</span> <span class="n">OrderByTuple</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span>
+                    <span class="n">computed_values</span><span class="p">,</span> <span class="n">segment</span><span class="p">)</span>
+
+<span class="n">QUERYSET_ACCESSOR_SEPARATOR</span> <span class="o">=</span> <span class="s1">&#39;__&#39;</span>
+
+
+<div class="viewcode-block" id="TableData"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.tables.TableData">[docs]</a><span class="k">class</span> <span class="nc">TableData</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Exposes a consistent API for :term:`table data`.</span>
+
+<span class="sd">    :param  data: iterable containing data for each row</span>
+<span class="sd">    :type   data: `~django.db.query.QuerySet` or `list` of `dict`</span>
+<span class="sd">    :param table: `.Table` object</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">table</span>
+        <span class="c1"># data may be a QuerySet-like objects with count() and order_by()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">callable</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">count</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;order_by&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">callable</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">order_by</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">queryset</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="c1"># otherwise it must be convertable to a list</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># do some light validation</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;__iter__&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;__len__&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;__getitem__&#39;</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">list</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;data must be QuerySet-like (have count and &#39;</span>
+                    <span class="s1">&#39;order_by) or support list(data) -- </span><span class="si">%s</span><span class="s1"> has &#39;</span>
+                    <span class="s1">&#39;neither&#39;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">__name__</span>
+                <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_length&quot;</span><span class="p">):</span>
+            <span class="c1"># Use the queryset count() method to get the length, instead of</span>
+            <span class="c1"># loading all results into memory. This allows, for example,</span>
+            <span class="c1"># smart paginators that use len() to perform better.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_length</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">queryset</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;queryset&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">list</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_length</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">queryset</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;queryset&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">list</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ordering</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the list of order by aliases that are enforcing ordering on the</span>
+<span class="sd">        data.</span>
+
+<span class="sd">        If the data is unordered, an empty sequence is returned. If the</span>
+<span class="sd">        ordering can not be determined, `None` is returned.</span>
+
+<span class="sd">        This works by inspecting the actual underlying data. As such it&#39;s only</span>
+<span class="sd">        supported for querysets.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;queryset&quot;</span><span class="p">):</span>
+            <span class="n">aliases</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">bound_column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="n">aliases</span><span class="p">[</span><span class="n">bound_column</span><span class="o">.</span><span class="n">order_by_alias</span><span class="p">]</span> <span class="o">=</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">order_by</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">next</span><span class="p">(</span><span class="n">segment</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">queryset</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">order_by</span><span class="p">,</span> <span class="n">aliases</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+<div class="viewcode-block" id="TableData.order_by"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.tables.TableData.order_by">[docs]</a>    <span class="k">def</span> <span class="nf">order_by</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aliases</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Order the data based on order by aliases (prefixed column names) in the</span>
+<span class="sd">        table.</span>
+
+<span class="sd">        :param aliases: optionally prefixed names of columns (&#39;-&#39; indicates</span>
+<span class="sd">                        descending order) in order of significance with</span>
+<span class="sd">                        regard to data ordering.</span>
+<span class="sd">        :type  aliases: `~.utils.OrderByTuple`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">accessors</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">aliases</span><span class="p">:</span>
+            <span class="n">bound_column</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">OrderBy</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span><span class="o">.</span><span class="n">bare</span><span class="p">]</span>
+            <span class="c1"># bound_column.order_by reflects the current ordering applied to</span>
+            <span class="c1"># the table. As such we need to check the current ordering on the</span>
+            <span class="c1"># column and use the opposite if it doesn&#39;t match the alias prefix.</span>
+            <span class="k">if</span> <span class="n">alias</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">order_by_alias</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="n">accessors</span> <span class="o">+=</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">order_by</span><span class="o">.</span><span class="n">opposite</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">accessors</span> <span class="o">+=</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">order_by</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;queryset&quot;</span><span class="p">):</span>
+            <span class="n">translate</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">accessor</span><span class="p">:</span> <span class="n">accessor</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">Accessor</span><span class="o">.</span><span class="n">SEPARATOR</span><span class="p">,</span> <span class="n">QUERYSET_ACCESSOR_SEPARATOR</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">accessors</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">queryset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">queryset</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">translate</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">accessors</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">list</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">OrderByTuple</span><span class="p">(</span><span class="n">accessors</span><span class="p">)</span><span class="o">.</span><span class="n">key</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TableData.__iter__"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.tables.TableData.__iter__">[docs]</a>    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        for ... in ... default to using this. There&#39;s a bug in Django 1.3</span>
+<span class="sd">        with indexing into querysets, so this side-steps that problem (as well</span>
+<span class="sd">        as just being a better way to iterate).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">iter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TableData.__getitem__"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.tables.TableData.__getitem__">[docs]</a>    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Slicing returns a new `.TableData` instance, indexing returns a</span>
+<span class="sd">        single record.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">]</span></div>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">verbose_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The full (singular) name for the data.</span>
+
+<span class="sd">        Queryset data has its model&#39;s `~django.db.Model.Meta.verbose_name`</span>
+<span class="sd">        honored. List data is checked for a ``verbose_name`` attribute, and</span>
+<span class="sd">        falls back to using ``&quot;item&quot;``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;queryset&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">queryset</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">verbose_name</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">list</span><span class="p">,</span> <span class="s2">&quot;verbose_name&quot;</span><span class="p">,</span> <span class="s2">&quot;item&quot;</span><span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">verbose_name_plural</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The full (plural) name of the data.</span>
+
+<span class="sd">        This uses the same approach as `TableData.verbose_name`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;queryset&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">queryset</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">verbose_name_plural</span>
+        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">list</span><span class="p">,</span> <span class="s2">&quot;verbose_name_plural&quot;</span><span class="p">,</span> <span class="s2">&quot;items&quot;</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">DeclarativeColumnsMetaclass</span><span class="p">(</span><span class="nb">type</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Metaclass that converts `.Column` objects defined on a class to the</span>
+<span class="sd">    dictionary `.Table.base_columns`, taking into account parent class</span>
+<span class="sd">    ``base_columns`` as well.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">mcs</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">attrs</span><span class="p">):</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;_meta&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">opts</span> <span class="o">=</span> <span class="n">TableOptions</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Meta&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">))</span>
+        <span class="c1"># extract declared columns</span>
+        <span class="n">cols</span><span class="p">,</span> <span class="n">remainder</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">columns</span><span class="o">.</span><span class="n">Column</span><span class="p">):</span>
+                <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">attr_name</span><span class="p">,</span> <span class="n">attr</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">remainder</span><span class="p">[</span><span class="n">attr_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">attr</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="n">remainder</span>
+
+        <span class="n">cols</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">creation_counter</span><span class="p">)</span>
+
+        <span class="c1"># If this class is subclassing other tables, add their fields as</span>
+        <span class="c1"># well. Note that we loop over the bases in *reverse* - this is</span>
+        <span class="c1"># necessary to preserve the correct order of columns.</span>
+        <span class="n">parent_columns</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">bases</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="s2">&quot;base_columns&quot;</span><span class="p">):</span>
+                <span class="n">parent_columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">base_columns</span><span class="o">.</span><span class="n">items</span><span class="p">())</span> <span class="o">+</span> <span class="n">parent_columns</span>
+        <span class="c1"># Start with the parent columns</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="n">parent_columns</span><span class="p">)</span>
+        <span class="c1"># Possibly add some generated columns based on a model</span>
+        <span class="k">if</span> <span class="n">opts</span><span class="o">.</span><span class="n">model</span><span class="p">:</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+            <span class="c1"># honor Table.Meta.fields, fallback to model._meta.fields</span>
+            <span class="k">if</span> <span class="n">opts</span><span class="o">.</span><span class="n">fields</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="c1"># Each item in opts.fields is the name of a model field or a</span>
+                <span class="c1"># normal attribute on the model</span>
+                <span class="k">for</span> <span class="n">field_name</span> <span class="ow">in</span> <span class="n">opts</span><span class="o">.</span><span class="n">fields</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">field</span> <span class="o">=</span> <span class="n">opts</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">get_field</span><span class="p">(</span><span class="n">field_name</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="n">FieldDoesNotExist</span><span class="p">:</span>
+                        <span class="n">extra</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">columns</span><span class="o">.</span><span class="n">Column</span><span class="p">()</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">extra</span><span class="p">[</span><span class="n">field_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">columns</span><span class="o">.</span><span class="n">library</span><span class="o">.</span><span class="n">column_for_field</span><span class="p">(</span><span class="n">field</span><span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">opts</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">fields</span><span class="p">:</span>
+                    <span class="n">extra</span><span class="p">[</span><span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">columns</span><span class="o">.</span><span class="n">library</span><span class="o">.</span><span class="n">column_for_field</span><span class="p">(</span><span class="n">field</span><span class="p">)</span>
+            <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra</span><span class="p">)</span>
+
+        <span class="c1"># Explicit columns override both parent and generated columns</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">(</span><span class="n">cols</span><span class="p">))</span>
+        <span class="c1"># Apply any explicit exclude setting</span>
+        <span class="k">for</span> <span class="n">exclusion</span> <span class="ow">in</span> <span class="n">opts</span><span class="o">.</span><span class="n">exclude</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">exclusion</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">]:</span>
+                <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">exclusion</span><span class="p">)</span>
+        <span class="c1"># Now reorder the columns based on explicit sequence</span>
+        <span class="k">if</span> <span class="n">opts</span><span class="o">.</span><span class="n">sequence</span><span class="p">:</span>
+            <span class="n">opts</span><span class="o">.</span><span class="n">sequence</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+            <span class="c1"># Table&#39;s sequence defaults to sequence declared in Meta</span>
+            <span class="c1"># attrs[&#39;_sequence&#39;] = opts.sequence</span>
+            <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(((</span><span class="n">x</span><span class="p">,</span> <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">][</span><span class="n">x</span><span class="p">])</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">opts</span><span class="o">.</span><span class="n">sequence</span><span class="p">))</span>
+
+        <span class="c1"># set localize on columns</span>
+        <span class="k">for</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">localize_column</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">if</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">opts</span><span class="o">.</span><span class="n">localize</span><span class="p">:</span>
+                <span class="n">localize_column</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="c1"># unlocalize gets higher precedence</span>
+            <span class="k">if</span> <span class="n">col_name</span> <span class="ow">in</span> <span class="n">opts</span><span class="o">.</span><span class="n">unlocalize</span><span class="p">:</span>
+                <span class="n">localize_column</span> <span class="o">=</span> <span class="bp">False</span>
+
+            <span class="k">if</span> <span class="n">localize_column</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">attrs</span><span class="p">[</span><span class="s2">&quot;base_columns&quot;</span><span class="p">][</span><span class="n">col_name</span><span class="p">]</span><span class="o">.</span><span class="n">localize</span> <span class="o">=</span> <span class="n">localize_column</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">DeclarativeColumnsMetaclass</span><span class="p">,</span> <span class="n">mcs</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">mcs</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">attrs</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">TableOptions</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extracts and exposes options for a `.Table` from a `.Table.Meta`</span>
+<span class="sd">    when the table is defined. See `.Table` for documentation on the impact of</span>
+<span class="sd">    variables in this class.</span>
+
+<span class="sd">    :param options: options for a table</span>
+<span class="sd">    :type  options: `.Table.Meta` on a `.Table`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TableOptions</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attrs</span> <span class="o">=</span> <span class="n">AttributeDict</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;attrs&quot;</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;default&quot;</span><span class="p">,</span> <span class="s2">&quot;—&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">empty_text</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;empty_text&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fields</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;fields&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exclude</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;exclude&quot;</span><span class="p">,</span> <span class="p">())</span>
+        <span class="n">order_by</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;order_by&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">order_by</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="n">order_by</span> <span class="o">=</span> <span class="p">(</span><span class="n">order_by</span><span class="p">,</span> <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order_by</span> <span class="o">=</span> <span class="n">OrderByTuple</span><span class="p">(</span><span class="n">order_by</span><span class="p">)</span> <span class="k">if</span> <span class="n">order_by</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="k">else</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order_by_field</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;order_by_field&quot;</span><span class="p">,</span> <span class="s2">&quot;sort&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">page_field</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;page_field&quot;</span><span class="p">,</span> <span class="s2">&quot;page&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">per_page</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;per_page&quot;</span><span class="p">,</span> <span class="mi">25</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">per_page_field</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;per_page_field&quot;</span><span class="p">,</span> <span class="s2">&quot;per_page&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;prefix&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">show_header</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;show_header&quot;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sequence</span> <span class="o">=</span> <span class="n">Sequence</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;sequence&quot;</span><span class="p">,</span> <span class="p">()))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">orderable</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;orderable&quot;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;model&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">template</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;template&quot;</span><span class="p">,</span> <span class="s2">&quot;django_tables2/table.html&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">localize</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;localize&quot;</span><span class="p">,</span> <span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unlocalize</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s2">&quot;unlocalize&quot;</span><span class="p">,</span> <span class="p">())</span>
+
+
+<span class="k">class</span> <span class="nc">TableBase</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A representation of a table.</span>
+
+
+<span class="sd">    .. attribute:: attrs</span>
+
+<span class="sd">        HTML attributes to add to the ``&lt;table&gt;`` tag.</span>
+
+<span class="sd">        :type: `dict`</span>
+
+<span class="sd">        When accessing the attribute, the value is always returned as an</span>
+<span class="sd">        `.AttributeDict` to allow easily conversion to HTML.</span>
+
+
+<span class="sd">    .. attribute:: columns</span>
+
+<span class="sd">        The columns in the table.</span>
+
+<span class="sd">        :type: `.BoundColumns`</span>
+
+
+<span class="sd">    .. attribute:: default</span>
+
+<span class="sd">        Text to render in empty cells (determined by `.Column.empty_values`,</span>
+<span class="sd">        default `.Table.Meta.default`)</span>
+
+<span class="sd">        :type: `unicode`</span>
+
+
+<span class="sd">    .. attribute:: empty_text</span>
+
+<span class="sd">        Empty text to render when the table has no data. (default</span>
+<span class="sd">        `.Table.Meta.empty_text`)</span>
+
+<span class="sd">        :type: `unicode`</span>
+
+
+<span class="sd">    .. attribute:: exclude</span>
+
+<span class="sd">        The names of columns that shouldn&#39;t be included in the table.</span>
+
+<span class="sd">        :type: iterable of `unicode`</span>
+
+
+<span class="sd">    .. attribute:: order_by_field</span>
+
+<span class="sd">        If not `None`, defines the name of the *order by* querystring field.</span>
+
+<span class="sd">        :type: `unicode`</span>
+
+
+<span class="sd">    .. attribute:: page</span>
+
+<span class="sd">        The current page in the context of pagination.</span>
+
+<span class="sd">        Added during the call to `.Table.paginate`.</span>
+
+
+<span class="sd">    .. attribute:: page_field</span>
+
+<span class="sd">        If not `None`, defines the name of the *current page* querystring</span>
+<span class="sd">        field.</span>
+
+<span class="sd">        :type: `unicode`</span>
+
+
+<span class="sd">    .. attribute:: paginator</span>
+
+<span class="sd">        The current paginator for the table.</span>
+
+<span class="sd">        Added during the call to `.Table.paginate`.</span>
+
+
+<span class="sd">    .. attribute:: per_page_field</span>
+
+<span class="sd">        If not `None`, defines the name of the *per page* querystring field.</span>
+
+<span class="sd">        :type: `unicode`</span>
+
+
+<span class="sd">    .. attribute:: show_header</span>
+
+<span class="sd">        If `False`, the table will not have a header (`&lt;thead&gt;`), default</span>
+<span class="sd">        value is `True`</span>
+
+<span class="sd">        :type: `bool`</span>
+
+
+<span class="sd">    .. attribute:: prefix</span>
+
+<span class="sd">        A prefix for querystring fields to avoid name-clashes when using</span>
+<span class="sd">        multiple tables on a single page.</span>
+
+<span class="sd">        :type: `unicode`</span>
+
+
+<span class="sd">    .. attribute:: rows</span>
+
+<span class="sd">        The rows of the table (ignoring pagination).</span>
+
+<span class="sd">        :type: `.BoundRows`</span>
+
+
+<span class="sd">    .. attribute:: sequence</span>
+
+<span class="sd">        The sequence/order of columns the columns (from left to right).</span>
+
+<span class="sd">        :type: iterable</span>
+
+<span class="sd">        Items in the sequence must be :term:`column names &lt;column name&gt;`, or</span>
+<span class="sd">        ``&quot;...&quot;`` (string containing three periods). ``...`` can be used as a</span>
+<span class="sd">        catch-all for columns that aren&#39;t specified.</span>
+
+
+<span class="sd">    .. attribute:: orderable</span>
+
+<span class="sd">        Enable/disable column ordering on this table</span>
+
+<span class="sd">        :type: `bool`</span>
+
+
+<span class="sd">    .. attribute:: template</span>
+
+<span class="sd">        The template to render when using ``{% render_table %}`` (default</span>
+<span class="sd">        ``&quot;django_tables2/table.html&quot;``)</span>
+
+<span class="sd">        :type: `unicode`</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">TableDataClass</span> <span class="o">=</span> <span class="n">TableData</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">orderable</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">empty_text</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">exclude</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">sequence</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">order_by_field</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">page_field</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">per_page_field</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">template</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">show_header</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TableBase</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exclude</span> <span class="o">=</span> <span class="n">exclude</span> <span class="ow">or</span> <span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sequence</span> <span class="o">=</span> <span class="n">sequence</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">TableDataClass</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">default</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">default</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="n">default</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rows</span> <span class="o">=</span> <span class="n">BoundRows</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="n">computed_values</span><span class="p">(</span><span class="n">attrs</span> <span class="k">if</span> <span class="n">attrs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">attrs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attrs</span> <span class="o">=</span> <span class="n">AttributeDict</span><span class="p">(</span><span class="n">attrs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">empty_text</span> <span class="o">=</span> <span class="n">empty_text</span> <span class="k">if</span> <span class="n">empty_text</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">empty_text</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">orderable</span> <span class="o">=</span> <span class="n">orderable</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span> <span class="o">=</span> <span class="n">prefix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order_by_field</span> <span class="o">=</span> <span class="n">order_by_field</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">page_field</span> <span class="o">=</span> <span class="n">page_field</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">per_page_field</span> <span class="o">=</span> <span class="n">per_page_field</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">show_header</span> <span class="o">=</span> <span class="n">show_header</span>
+        <span class="c1"># Make a copy so that modifying this will not touch the class</span>
+        <span class="c1"># definition. Note that this is different from forms, where the</span>
+        <span class="c1"># copy is made available in a ``fields`` attribute.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_columns</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">base_columns</span><span class="p">)</span>
+        <span class="c1"># Keep fully expanded ``sequence`` at _sequence so it&#39;s easily accessible</span>
+        <span class="c1"># during render. The priority is as follows:</span>
+        <span class="c1"># 1. sequence passed in as an argument</span>
+        <span class="c1"># 2. sequence declared in ``Meta``</span>
+        <span class="c1"># 3. sequence defaults to &#39;...&#39;</span>
+        <span class="k">if</span> <span class="n">sequence</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span> <span class="o">=</span> <span class="n">Sequence</span><span class="p">(</span><span class="n">sequence</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base_columns</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">sequence</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">sequence</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">fields</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span> <span class="o">=</span> <span class="n">Sequence</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;...&#39;</span><span class="p">,</span> <span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span> <span class="o">=</span> <span class="n">Sequence</span><span class="p">((</span><span class="s1">&#39;...&#39;</span><span class="p">,</span> <span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base_columns</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">columns</span><span class="o">.</span><span class="n">BoundColumns</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="c1"># `None` value for order_by means no order is specified. This means we</span>
+        <span class="c1"># `shouldn&#39;t touch our data&#39;s ordering in any way. *However*</span>
+        <span class="c1"># `table.order_by = None` means &quot;remove any ordering from the data&quot;</span>
+        <span class="c1"># (it&#39;s equivalent to `table.order_by = ()`).</span>
+        <span class="k">if</span> <span class="n">order_by</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">order_by</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">order_by</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">order_by</span>
+        <span class="k">if</span> <span class="n">order_by</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_order_by</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="c1"># If possible inspect the ordering on the data we were given and</span>
+            <span class="c1"># update the table to reflect that.</span>
+            <span class="n">order_by</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">ordering</span>
+            <span class="k">if</span> <span class="n">order_by</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">order_by</span> <span class="o">=</span> <span class="n">order_by</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">order_by</span> <span class="o">=</span> <span class="n">order_by</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">template</span> <span class="o">=</span> <span class="n">template</span>
+        <span class="c1"># If a request is passed, configure for request</span>
+        <span class="k">if</span> <span class="n">request</span><span class="p">:</span>
+            <span class="n">RequestConfig</span><span class="p">(</span><span class="n">request</span><span class="p">)</span><span class="o">.</span><span class="n">configure</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">as_html</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Render the table to a simple HTML table, adding `request` to the context.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">template</span> <span class="o">=</span> <span class="n">get_template</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">template</span><span class="p">)</span>
+
+        <span class="n">context</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;table&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="p">,</span>
+            <span class="s1">&#39;request&#39;</span><span class="p">:</span> <span class="n">request</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">template</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">attrs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_attrs</span>
+
+    <span class="nd">@attrs.setter</span>
+    <span class="k">def</span> <span class="nf">attrs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_attrs</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">show_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_show_header</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_show_header</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">show_header</span><span class="p">)</span>
+
+    <span class="nd">@show_header.setter</span>
+    <span class="k">def</span> <span class="nf">show_header</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_show_header</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">empty_text</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_empty_text</span>
+
+    <span class="nd">@empty_text.setter</span>
+    <span class="k">def</span> <span class="nf">empty_text</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_empty_text</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">order_by</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_by</span>
+
+    <span class="nd">@order_by.setter</span>
+    <span class="k">def</span> <span class="nf">order_by</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Order the rows of the table based on columns.</span>
+
+<span class="sd">        :param value: iterable of order by aliases.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># collapse empty values to ()</span>
+        <span class="n">order_by</span> <span class="o">=</span> <span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span> <span class="k">else</span> <span class="n">value</span>
+        <span class="c1"># accept string</span>
+        <span class="n">order_by</span> <span class="o">=</span> <span class="n">order_by</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">order_by</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">)</span> <span class="k">else</span> <span class="n">order_by</span>
+        <span class="n">valid</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># everything&#39;s been converted to a iterable, accept iterable!</span>
+        <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">order_by</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">OrderBy</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span><span class="o">.</span><span class="n">bare</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">orderable</span><span class="p">:</span>
+                <span class="n">valid</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_order_by</span> <span class="o">=</span> <span class="n">OrderByTuple</span><span class="p">(</span><span class="n">valid</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_order_by</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">order_by_field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_order_by_field</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_by_field</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">order_by_field</span><span class="p">)</span>
+
+    <span class="nd">@order_by_field.setter</span>
+    <span class="k">def</span> <span class="nf">order_by_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_order_by_field</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">page_field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_page_field</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_page_field</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">page_field</span><span class="p">)</span>
+
+    <span class="nd">@page_field.setter</span>
+    <span class="k">def</span> <span class="nf">page_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_page_field</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">paginate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">klass</span><span class="o">=</span><span class="n">Paginator</span><span class="p">,</span> <span class="n">per_page</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">page</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Paginates the table using a paginator and creates a ``page`` property</span>
+<span class="sd">        containing information for the current page.</span>
+
+<span class="sd">        :type     klass: Paginator class</span>
+<span class="sd">        :param    klass: a paginator class to paginate the results</span>
+<span class="sd">        :type  per_page: `int`</span>
+<span class="sd">        :param per_page: how many records are displayed on each page</span>
+<span class="sd">        :type      page: `int`</span>
+<span class="sd">        :param     page: which page should be displayed.</span>
+
+<span class="sd">        Extra arguments are passed to the paginator.</span>
+
+<span class="sd">        Pagination exceptions (`~django.core.paginator.EmptyPage` and</span>
+<span class="sd">        `~django.core.paginator.PageNotAnInteger`) may be raised from this</span>
+<span class="sd">        method and should be handled by the caller.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">per_page</span> <span class="o">=</span> <span class="n">per_page</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">per_page</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">paginator</span> <span class="o">=</span> <span class="n">klass</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rows</span><span class="p">,</span> <span class="n">per_page</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">page</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">paginator</span><span class="o">.</span><span class="n">page</span><span class="p">(</span><span class="n">page</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">per_page_field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_per_page_field</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_per_page_field</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">per_page_field</span><span class="p">)</span>
+
+    <span class="nd">@per_page_field.setter</span>
+    <span class="k">def</span> <span class="nf">per_page_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_per_page_field</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">prefix</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prefix</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prefix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+                <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">prefix</span><span class="p">)</span>
+
+    <span class="nd">@prefix.setter</span>
+    <span class="k">def</span> <span class="nf">prefix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prefix</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">prefixed_order_by_field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prefix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">order_by_field</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">prefixed_page_field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prefix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">page_field</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">prefixed_per_page_field</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prefix</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">per_page_field</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">sequence</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span>
+
+    <span class="nd">@sequence.setter</span>
+    <span class="k">def</span> <span class="nf">sequence</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">Sequence</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">value</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base_columns</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sequence</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">orderable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orderable</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orderable</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">orderable</span>
+
+    <span class="nd">@orderable.setter</span>
+    <span class="k">def</span> <span class="nf">orderable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orderable</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">template</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_template</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_template</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">template</span>
+
+    <span class="nd">@template.setter</span>
+    <span class="k">def</span> <span class="nf">template</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_template</span> <span class="o">=</span> <span class="n">value</span>
+
+<span class="c1"># Python 2/3 compatible way to enable the metaclass</span>
+<span class="n">Table</span> <span class="o">=</span> <span class="n">DeclarativeColumnsMetaclass</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="s1">&#39;Table&#39;</span><span class="p">),</span> <span class="p">(</span><span class="n">TableBase</span><span class="p">,</span> <span class="p">),</span> <span class="p">{})</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>
