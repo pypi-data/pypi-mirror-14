@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import shutil
+from optparse import OptionParser
+from socrates import socrates
+
+
+def main():
+    usage = "Usage: socrates.py [options] path"
+    parser = OptionParser(usage=usage)
+    parser.add_option('-i', '--init', action='store_true',
+                      help="Create a new blog.")
+
+    parser.add_option('-g', '--generate', action='store_true',
+                      help="Generate a static site.")
+
+    parser.add_option('-c', '--clear-cache', action='store_true',
+                      help="Clear the static site post cache.")
+
+    parser.add_option('-r', '--run', action='store_true',
+                      help="Run a simple server.")
+
+    parser.add_option('-s', '--silent', action='store_true',
+                      help="Keep output to a minimum")
+
+    options, args = parser.parse_args()
+
+    if len(args) > 1:
+        return
+    try:
+        path = args[0]
+        if not path.startswith(('/', '~/')):
+            path = os.path.join(os.getcwd(), path)
+    except IndexError:
+        path = os.getcwd()
+
+    if options.init:
+        temp_path = os.path.join(
+            os.path.dirname(
+                os.path.abspath(
+                    socrates.__file__
+                )
+            ), 'themes')
+        try:
+            shutil.copytree(os.path.join(temp_path, 'default'), path)
+        except OSError, e:
+            sys.stderr.write(str(e) + '\n')
+
+    if options.generate:
+        socrates.Generator(path, options.silent)
+
+    if options.clear_cache:
+        if os.path.exists(socrates.POST_CACHE_FILENAME):
+            os.remove(socrates.POST_CACHE_FILENAME)
+
+    if options.run:
+        import SimpleHTTPServer
+        import SocketServer
+
+        class FixRedirectHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+            def do_GET(self):
+                if self.path.endswith("/"):
+                    self.path += "index.html"
+                elif "." in self.path:
+                    self.path = self.path
+                else:
+                    self.path += ".html"
+                return SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
+
+        p = os.path.join(path, 'deploy')
+        if os.path.exists(p):
+            os.chdir('%s/deploy' % path)
+            PORT = 8000
+            Handler = FixRedirectHandler
+            httpd = SocketServer.TCPServer(("", PORT), Handler, False)
+
+            print "serving at port", PORT
+            try:
+                httpd.allow_reuse_address = True
+                httpd.server_bind()
+                httpd.server_activate()
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print '\nAll done!'
+        else:
+            sys.stderr.write("The '%s' directory doesn't exist.\n" % p)
+
+
+if __name__ == '__main__':
+    main()
