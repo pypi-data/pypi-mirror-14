@@ -1,0 +1,1 @@
+{"": "", "Time zone": "Tiids\u00f4ne", "Sync time from the Internet": "", "Time set": "Tiid ynstelle", "Date & Time": "Datum & tiid", "Change date and time": "", "ntpdate utility is not installed": "", "Time synchronized": "", "Failed": "", "Date & time": "Datum & tiid", "Synchronizing...": "", "Set time": "Tiid ynstelle"}
