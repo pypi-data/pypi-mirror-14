@@ -1,0 +1,190 @@
+#!/usr/bin/env python
+#
+#  (C) Catchoom Technologies S.L.
+#  Licensed under the MIT license.
+#  https://github.com/catchoom/craftar-python/blob/master/LICENSE
+#  All warranties and liabilities are disclaimed.
+
+"""%prog -a <api_key> -d <directory> [-c collection]
+
+Script to upload a set of reference images to CraftAR
+
+It iterates over the contents of the specified directory and
+uploads all the images to a new or an existing collection.
+
+Two different organizations of images are supported:
+ * Flat, where each image becomes a new item.
+ * Hierarchical, where each subdirectory of images becomes a new item.
+
+In both cases, item metadata can be provided via a file with extension .meta
+and the same basename as the image (flat) or the subdirectory (hierarchical).
+
+The metadata files should contain lists of key=value pairs with the following
+keys:
+ * name: The name of the item.
+ * url: The url related to the item.
+ * custom: Any string containing the custom metadata.
+Whenever metadata files are missing the item names are taken from image
+basenames (flat case) or subdirectory names (hierarchical case).
+"""
+import optparse
+import os
+import mimetypes
+import sys
+
+import craftar
+import craftar.settings
+
+
+def parse_metadata(metadata_path):
+    try:
+        content = open(metadata_path, "r").readlines()
+    except IOError:
+        content = []
+
+    metadata = dict()
+
+    for line in content:
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=")
+        metadata[key.strip()] = value.strip()
+
+    return metadata
+
+
+def is_image(path):
+    mtype = mimetypes.guess_type(path)[0]
+    return mtype and mtype.startswith("image")
+
+
+def upload(api_key, directory, collection_uuid):
+    directory = directory.rstrip("/")
+
+    if collection_uuid:
+        # Check if the specified collection exists
+        collection = craftar.get_collection(api_key, uuid=collection_uuid)
+    else:
+        collection_name = os.path.basename(directory)
+        try:
+            collection = craftar.create_collection(
+                api_key, name=collection_name)
+            print "--> Created collection '%s'" % collection_name
+        except Exception as e:
+            sys.stderr.write("Error: couldn't create the collection "
+                             "with name %s.\n" % collection_name)
+            sys.exit(-1)
+
+    if not collection:
+        # Error: couldn't get or create the collection
+        sys.stderr.write("Error: couldn't get or create the collection.\n")
+        sys.exit(-1)
+
+    item_count = 0
+    image_count = 0
+    image_error = []
+
+    for item in os.listdir(directory):
+
+        item_path = os.path.join(directory, item)
+
+        if os.path.isdir(item_path):
+            # The item is a directory so we will upload all the images inside
+            image_list = os.listdir(item_path)
+            # Append the item base path to the filenames
+            image_list = [os.path.join(item_path, f) for f in image_list]
+            # Keep just the files that are really an image
+            image_list = list(filter(is_image, image_list))
+        elif is_image(item_path):
+            # The item is just one image
+            image_list = [item_path]
+        else:
+            # This is neither an image or a directory, moving on...
+            continue
+
+        # Items may contain metadata inside a file with extension .meta and the
+        # same name as the item. The metadata is specified as key=value lines.
+        metadata = parse_metadata("%s.meta" % os.path.splitext(item_path)[0])
+
+        # The allowed metadata keys are: name, url and custom.
+        item_name = metadata.get("name", os.path.splitext(item)[0])
+        item_url = metadata.get("url", "")
+        item_custom = metadata.get("custom", "")
+
+        item = craftar.create_item(
+            api_key, collection=collection["uuid"],
+            name=item_name, url=item_url, custom=item_custom, trackable=False
+        )
+
+        print "(%s) -> Created item '%s'" % (item_count, item["name"])
+
+        images_before = image_count
+
+        # Iterate over all the images in the list and upload them to the item
+        for image in image_list:
+            try:
+                image = craftar.create_image(
+                    api_key, item=item["uuid"], filename=image
+                )
+                image_count = image_count + 1
+                print "    uploaded image '%s' " % image["name"]
+            except Exception as e:
+                image_error.append((image, str(e)))
+
+
+        if images_before == image_count:
+            craftar.delete_item(api_key, item["uuid"])
+            print("    errors uploading images - item deleted")
+        else:
+            item_count = item_count + 1
+
+    if image_error:
+        print("Upload finished with errors:")
+    else:
+        print("Upload finished successfully:")
+
+    print("%d items with %d images created" % (item_count, image_count))
+
+    if image_error:
+        print("%d images couldn't be uploaded:" % len(image_error))
+
+        for image, error in image_error:
+            path = (image[:-40] and "..") + image[-40:]
+            print(" * %-40s - %s" % (path, error))
+
+    if image_count > 0:
+        print(("\nThe images are available in collection "
+               "%s with tokens:" % collection["name"]))
+        tokens = craftar.get_token_list(
+            api_key, None, None, collection["uuid"]
+        )
+        for token in tokens:
+            print(" * %s" % token["token"])
+
+
+if __name__ == "__main__":
+    # parse command line arguments
+    parser = optparse.OptionParser(usage=__doc__, version="%prog 1.0")
+    parser.add_option("-a", "--api-key",
+                      dest="api_key",
+                      help="Management API key.")
+    parser.add_option("-d", "--directory",
+                      dest="directory",
+                      help="Directory of images to upload.")
+    parser.add_option("-c", "--collection",
+                      dest="collection",
+                      help="Collection uuid where to upload the new items.")
+
+    options, args = parser.parse_args()
+
+    if not options.directory:
+        parser.error("Image directory not provided.")
+
+    if not options.api_key:
+        parser.error("API key not provided.")
+
+    try:
+        # upload items from the givent directory
+        upload(options.api_key, options.directory, options.collection)
+    except KeyboardInterrupt:
+        print("Leaving...")
