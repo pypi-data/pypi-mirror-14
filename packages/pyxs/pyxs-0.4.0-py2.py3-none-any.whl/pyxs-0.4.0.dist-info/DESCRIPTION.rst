@@ -1,0 +1,40 @@
+.. -*- mode: rst -*-
+
+::
+
+        .---. .-..-..-.,-. .--.
+        : .; `: :; :`.  .'`._-.'
+        : ._.'`._. ;:_,._;`.__.'
+        : :    .-. :
+        :_;    `._.'       0.4.0
+
+        -- XenStore access the Python way!
+
+
+What is ``pyxs``?
+-----------------
+
+It's a pure Python XenStore client implementation, which covers all of
+the ``libxs`` features and adds some nice Pythonic sugar on top. Here's
+a shortlist:
+
+* ``pyxs`` supports both Python 2 and 3,
+* works over a Unix socket or XenBus,
+* has a clean and well-documented API,
+* is writen in easy to understand Python,
+* can be used with `gevent <http://www.gevent.org>`_ or
+  `eventlet <http://eventlet.net>`_.
+
+Installation
+------------
+
+If you have `pip <https://pip.pypa.io/en/stable>`_ you can do the usual::
+
+    pip install --user pyxs
+
+Otherwise, download the source from `GitHub <https://github.com/selectel/pyxs>`_
+and run::
+
+    python setup.py install
+
+
