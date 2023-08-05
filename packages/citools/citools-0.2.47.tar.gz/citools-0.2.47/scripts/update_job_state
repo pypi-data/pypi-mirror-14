@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+# coding=utf-8
+
+"""
+
+   Copyright 2015 Andreas Würl
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+"""
+
+from __future__ import print_function
+
+from optparse import OptionParser
+import os
+
+from citools.data import TestReport
+from citools.jenkins.report import Report
+from citools.persistence import Persistence
+from citools.jenkins import Jenkins
+
+if __name__ == '__main__':
+
+    parser = OptionParser()
+
+    (options, args) = parser.parse_args()
+
+    jenkins = Jenkins()
+    report = Report(jenkins)
+
+    for job_name in args:
+        test_report = report.get_report(job_name)
+
+        if test_report is not None:
+            with Persistence(job_name + '.db') as persistence:
+
+                previous_report = persistence.report
+
+                if previous_report is not None:
+                    job_info = persistence.job_info
+                    if job_name in job_info and job_info[job_name] == test_report.build_number:
+                        print("  " + job_name + ": skipping known build " + str(test_report.build_number))
+                        continue
+
+                if test_report.is_incremental and previous_report is not None:
+                    print("incremental update of " + str(previous_report))
+                    suites_by_module = previous_report.suites_by_module
+                    suites_by_module.update(test_report.suites_by_module)
+                    test_report = TestReport(test_report.name, suites_by_module, test_report.build_number, False)
+
+                persistence.report = test_report
+                persistence.add_job_info(job_name, test_report.build_number)
+
+                print("  " + job_name + ": " + str(test_report))
