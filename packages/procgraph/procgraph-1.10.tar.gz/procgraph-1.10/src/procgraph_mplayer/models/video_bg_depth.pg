@@ -1,0 +1,30 @@
+#!/usr/bin/env pg
+--- model video_bg_depth
+
+""" Animates the moving part of a video, using a z-buffer. """
+
+config video "Input video"
+config bg "Background to subtract"
+config out "Output video prefix"
+config every = 10
+config perc=98.75
+
+|mplayer file=$video| -> |sieve n=$every| -> rgb 
+|static_image file=$bg| -> bg
+
+rgb, bg -> |async| -> |bg_subtract perc=$perc weighted=True| -> rgba
+
+rgba -> |depth_buffer| -> rgba_depth, line, zbuffer
+
+rgba_depth -> |trans_avg| -> sub
+
+sub, bg -> |async| -> |alpha_add| -> out
+
+out -> |mencoder file="${out}.depth.result.mp4"|
+
+
+# Optional debug stuff
+# sub -> |to_rgb| -> |mencoder file="${out}.depth.sub.mp4"|
+# line -> |mencoder file="${out}.depth.line.mp4"|
+# zbuffer -> |scale| -> |mencoder file="${out}.depth.zbuffer.mp4"|
+# rgba_depth -> |to_rgb| -> |mencoder file="${out}.depth.rgba_depth.mp4"|
