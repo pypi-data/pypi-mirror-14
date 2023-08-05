@@ -1,0 +1,164 @@
+#!/usr/bin/env python
+
+"""
+Use cases
+
+codev init --template=[template]
+    -- create new project
+
+codev install [environment] [infrastructure] [version]
+    -- install project
+
+codev start [environment] [infrastructure] [version]
+    -- start installed project
+
+codev stop [environment] [infrastructure] [version]
+    -- stop installed project
+
+codev run [script] [environment] [infrastructure] [version]
+"""
+
+import click
+
+from codev.cli import command, main
+
+# import os.path
+#
+# from codev.configuration import YAMLConfigurationWriter
+# @main.command(
+#     help='Create .codev file with basic settings in current directory or in given file path.',
+#     short_help='Create .codev file with basic settings.'
+#               )
+# # TODO ?Merge with configuration option?
+# @click.option('-p', '--path', default='.codev', help='Path to configuration file.')
+# def init(path):
+#     """
+#     :param path:
+#     :type path: str
+#     :return:
+#     :rtype: bool
+#     """
+#     if os.path.isdir(path):
+#         path = os.path.join(path, '.codev')
+#
+#     if os.path.exists(path):
+#         if not click.confirm("A file '%(filepath)s' already exists. Overwrite?" % {'filepath': path}):
+#             raise click.Abort()
+#
+#     try:
+#         YAMLConfigurationWriter().save_to_file(path)
+#         return True
+#     except Exception as e:
+#         raise click.ClickException(e)
+
+
+@command(
+    help='Install project.',
+    confirmation="Install project '{project}' to '{environment}' environment with infrastructure '{infrastructure}' at installation '{installation_transition}'?",
+    perform=True
+)
+def install(deployment, perform):
+    """
+    Install project
+
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :param perform:
+    :type perform: bool
+    :return:
+    :rtype: bool
+    """
+    if perform:
+        return deployment.provision()
+    else:
+        return deployment.install()
+
+
+@command(help='Join the running command in isolation.')
+def join(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    :rtype: bool
+    """
+    return deployment.join()
+
+
+@command(help='Execute command in isolation.')
+@click.argument('command', nargs=-1)
+def execute(deployment, command):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :param command:
+    :type command: str
+    :return:
+    :rtype: bool
+    """
+    return deployment.execute(' '.join(command))
+
+
+@command(help='Stop the running command in isolation.')
+def stop(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    :rtype: bool
+    """
+    return deployment.stop()
+
+
+@command(help='Kill the running command in isolation.')
+def kill(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    :rtype: bool
+    """
+    return deployment.kill()
+
+
+@command(help='Invoke an isolation shell.')
+def shell(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    :rtype: bool
+    """
+    return deployment.shell()
+
+
+@command(
+    help='Destroy isolation.',
+    confirmation="Destroy isolation of project '{project}' in '{environment}' environment with infrastructure '{infrastructure}' at installation '{installation_transition}'?"
+)
+def destroy(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    :rtype: bool
+    """
+    deployment.destroy()
+
+
+@command(help='Show info about the deployment.')
+def info(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    :rtype: bool
+    """
+    click.echo(
+        '{project} {environment} {infrastructure} {installation_transition}'.format(**deployment.deployment_info())
+    )
+
+
+if __name__ == "__main__":
+    main()
+
