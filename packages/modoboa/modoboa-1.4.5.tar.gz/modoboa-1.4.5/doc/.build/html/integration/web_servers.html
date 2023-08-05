@@ -1,0 +1,402 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Web servers &mdash; Modoboa 1.3.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.3.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="Modoboa 1.3.1 documentation" href="../index.html" />
+    <link rel="next" title="Development recipes for Modoboa" href="../extending/getting_started.html" />
+    <link rel="prev" title="Dovecot and Postfix" href="imap_and_smtp.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../extending/getting_started.html" title="Development recipes for Modoboa"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="imap_and_smtp.html" title="Dovecot and Postfix"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../index.html">Modoboa 1.3.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="web-servers">
+<span id="webservers"></span><h1>Web servers<a class="headerlink" href="#web-servers" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="apache2">
+<span id="id1"></span><h2>Apache2<a class="headerlink" href="#apache2" title="Permalink to this headline">¶</a></h2>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The following instructions are meant to help you get your site up
+and running quickly. However it is not possible for the people
+contributing documentation to Modoboa to test every single
+combination of web server, wsgi server, distribution, etc. So it is
+possible that <strong>your</strong> installation of uwsgi or nginx or Apache or
+what-have-you works differently. Keep this in mind.</p>
+</div>
+<div class="section" id="mod-wsgi">
+<h3>mod_wsgi<a class="headerlink" href="#mod-wsgi" title="Permalink to this headline">¶</a></h3>
+<p>First, make sure that mod_wsgi is installed on your server.</p>
+<p>Create a new virtualhost in your Apache configuration and put the
+following content inside:</p>
+<div class="highlight-python"><div class="highlight"><pre>&lt;VirtualHost *:80&gt;
+  ServerName &lt;your value&gt;
+  DocumentRoot &lt;path to your site&#39;s dir&gt;
+
+  Alias /media/ &lt;path to your site&#39;s dir&gt;/media/
+  &lt;Directory &lt;path to your site&#39;s dir&gt;/media&gt;
+    Order deny,allow
+    Allow from all
+  &lt;/Directory&gt;
+
+  Alias /sitestatic/ &lt;path to your site&#39;s dir&gt;/sitestatic/
+  &lt;Directory &lt;path to your site&#39;s dir&gt;/sitestatic&gt;
+    Order deny,allow
+    Allow from all
+  &lt;/Directory&gt;
+
+  WSGIScriptAlias / &lt;path to your site&#39;s dir&gt;/wsgi.py
+&lt;/VirtualHost&gt;
+</pre></div>
+</div>
+<p>This is just one possible configuration.</p>
+<p>To use mod_wsgi daemon mode, add the two following directives just
+under <tt class="docutils literal"><span class="pre">WSGIScriptAlias</span></tt>:</p>
+<div class="highlight-python"><div class="highlight"><pre>WSGIDaemonProcess example.com python-path=&lt;path to your site&#39;s dir&gt;:&lt;virtualenv path&gt;/lib/python2.7/site-packages
+WSGIProcessGroup example.com
+</pre></div>
+</div>
+<p>Replace values between <tt class="docutils literal"><span class="pre">&lt;&gt;</span></tt> with yours. If you don&#8217;t use a
+<a class="reference external" href="http://virtualenv.readthedocs.org/en/latest/">virtualenv</a>, just
+remove the last part of the <tt class="docutils literal"><span class="pre">WSGIDaemonProcess</span></tt> directive.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">You will certainly need more configuration in order to launch
+Apache.</p>
+</div>
+</div>
+</div>
+<div class="section" id="nginx">
+<span id="nginx-label"></span><h2>Nginx<a class="headerlink" href="#nginx" title="Permalink to this headline">¶</a></h2>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The following instructions are meant to help you get your site up
+and running quickly. However it is not possible for the people
+contributing documentation to Modoboa to test every single
+combination of web server, wsgi server, distribution, etc. So it is
+possible that <strong>your</strong> installation of uwsgi or nginx or Apache or
+what-have-you works differently. Keep this in mind.</p>
+</div>
+<p>This section covers two different ways of running Modoboa behind
+<a class="reference external" href="http://nginx.org/">Nginx</a> using a WSGI application server. Choose
+the one you prefer between <a class="reference external" href="http://gunicorn.org/">Green Unicorn</a> or
+<a class="reference external" href="https://github.com/unbit/uwsgi">uWSGI</a>.</p>
+<p>In both cases, you&#8217;ll need to download and <a class="reference external" href="http://wiki.nginx.org/Install">install nginx</a>.</p>
+<div class="section" id="id3">
+<h3>Green Unicorn<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h3>
+<p>Firstly, <a class="reference external" href="http://gunicorn.org/install.html">Download and install gunicorn</a>. Then, use the following sample
+gunicorn configuration (create a new file named
+<tt class="file docutils literal"><span class="pre">gunicorn.conf.py</span></tt> inside Modoboa&#8217;s root dir):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">backlog</span> <span class="o">=</span> <span class="mi">2048</span>
+<span class="n">bind</span> <span class="o">=</span> <span class="s">&quot;unix:/var/run/gunicorn/modoboa.sock&quot;</span>
+<span class="n">pidfile</span> <span class="o">=</span> <span class="s">&quot;/var/run/gunicorn/modoboa.pid&quot;</span>
+<span class="n">daemon</span> <span class="o">=</span> <span class="bp">True</span>
+<span class="n">debug</span> <span class="o">=</span> <span class="bp">False</span>
+<span class="n">workers</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">logfile</span> <span class="o">=</span> <span class="s">&quot;/var/log/gunicorn/modoboa.log&quot;</span>
+<span class="n">loglevel</span> <span class="o">=</span> <span class="s">&quot;info&quot;</span>
+</pre></div>
+</div>
+<p>To start gunicorn, execute the following commands:</p>
+<div class="highlight-python"><div class="highlight"><pre>$ cd &lt;modoboa dir&gt;
+$ gunicorn -c gunicorn.conf.py &lt;modoboa dir&gt;.wsgi:application
+</pre></div>
+</div>
+<p>Now the nginx part. Just create a new virtual host and use the
+following configuration:</p>
+<div class="highlight-python"><div class="highlight"><pre>upstream modoboa {
+      server      unix:/var/run/gunicorn/modoboa.sock fail_timeout=0;
+}
+
+server {
+      listen 443 ssl;
+      ssl on;
+      keepalive_timeout 70;
+
+      server_name &lt;host fqdn&gt;;
+      root &lt;modoboa&#39;s root dir&gt;;
+
+      access_log  /var/log/nginx/&lt;host fqdn&gt;.access.log;
+      error_log /var/log/nginx/&lt;host fqdn&gt;.error.log;
+
+      ssl_certificate     &lt;ssl certificate for your site&gt;;
+      ssl_certificate_key &lt;ssl certificate key for your site&gt;;
+
+      location /sitestatic/ {
+              autoindex on;
+      }
+
+      location /media/ {
+              autoindex on;
+      }
+
+      location / {
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header Host $http_host;
+              proxy_redirect off;
+              proxy_set_header X-Forwarded-Protocol ssl;
+              proxy_pass http://modoboa;
+      }
+}
+</pre></div>
+</div>
+<p>If you do not plan to use SSL then change the listen directive to
+<tt class="docutils literal"><span class="pre">listen</span> <span class="pre">80;</span></tt> and delete each of the following directives:</p>
+<div class="highlight-python"><div class="highlight"><pre>ssl on;
+keepalive_timeout 70;
+ssl_certificate     &lt;ssl certificate for your site&gt;;
+ssl_certificate_key &lt;ssl certificate key for your site&gt;;
+proxy_set_header X-Forwarded-Protocol ssl;
+</pre></div>
+</div>
+<p>If you do plan to use SSL, you&#8217;ll have to generate a certificate and a
+key. <a class="reference external" href="http://wiki.nginx.org/HttpSslModule#Generate_Certificates">This article</a>
+contains information about how to do it.</p>
+<p>Paste this content to your configuration (replace values between
+<tt class="docutils literal"><span class="pre">&lt;&gt;</span></tt> with yours), restart nginx and enjoy a really fast
+application!</p>
+</div>
+<div class="section" id="id4">
+<h3>uWSGI<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h3>
+<p>The following setup is meant to get you started quickly. You should
+read the documentation of both nginx and uwsgi to understand how to
+optimize their configuration for your site.</p>
+<p>The Django documentation includes the following warning regarding
+uwsgi:</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">Some distributions, including Debian and Ubuntu, ship an outdated
+version of uWSGI that does not conform to the WSGI
+specification. Versions prior to 1.2.6 do not call close on the
+response object after handling a request. In those cases the
+request_finished signal isn’t sent. This can result in idle
+connections to database and memcache servers.</p>
+</div>
+<p>Use uwsgi 1.2.6 or newer. If you do not, you <em>will</em> run into
+problems. Modoboa will fail in obscure ways.</p>
+<p>To use this setup, first <a class="reference external" href="http://uwsgi-docs.readthedocs.org/en/latest/WSGIquickstart.html">download and install uwsgi</a>.</p>
+<p>Here is a sample nginx configuration:</p>
+<div class="highlight-python"><div class="highlight"><pre>server {
+    listen 443 ssl;
+    ssl on;
+    keepalive_timeout 70;
+
+    server_name &lt;host fqdn&gt;;
+    root &lt;modoboa&#39;s settings dir&gt;;
+
+    ssl_certificate     &lt;ssl certificate for your site&gt;;
+    ssl_certificate_key &lt;ssl certificate key for your site&gt;;
+
+    access_log  /var/log/nginx/&lt;host fqdn&gt;.access.log;
+    error_log /var/log/nginx/&lt;host fqdn&gt;.error.log;
+
+    location &lt;modoboa&#39;s root url&gt;/sitestatic/ {
+            autoindex on;
+            alias &lt;location of sitestatic on your file system&gt;;
+    }
+
+    # Whether or not Modoboa uses a media directory depends on how
+    # you configured Modoboa. It does not hurt to have this.
+    location &lt;modoboa&#39;s root url&gt;/media/ {
+            autoindex on;
+            alias &lt;location of media on your file system&gt;;
+    }
+
+    # This denies access to any file that begins with
+    # &quot;.ht&quot;. Apache&#39;s .htaccess and .htpasswd are such files. A
+    # Modoboa installed from scratch would not contain any such
+    # files, but you never know what the future holds.
+    location ~ /\.ht {
+        deny all;
+    }
+
+    location &lt;modoba&#39;s root url&gt;/ {
+        include uwsgi_params;
+        uwsgi_pass &lt;uwsgi port&gt;;
+        uwsgi_param UWSGI_SCRIPT &lt;modoboa instance name&gt;.wsgi:application;
+        uwsgi_param UWSGI_SCHEME https;
+    }
+}
+</pre></div>
+</div>
+<p><tt class="docutils literal"><span class="pre">&lt;modoboa</span> <span class="pre">instance</span> <span class="pre">name&gt;</span></tt> must be replaced by the value you used
+when <a class="reference internal" href="../getting_started/install.html#deployment"><em>you deployed your instance</em></a>.</p>
+<p>If you do not plan to use SSL then change the listen directive to
+<tt class="docutils literal"><span class="pre">listen</span> <span class="pre">80;</span></tt> and delete each of the following directives:</p>
+<div class="highlight-python"><div class="highlight"><pre>ssl on;
+keepalive_timeout 70;
+ssl_certificate     &lt;ssl certificate for your site&gt;;
+ssl_certificate_key &lt;ssl certificate key for your site&gt;;
+uwsgi_param UWSGI_SCHEME https;
+</pre></div>
+</div>
+<p>If you do plan to use SSL, you&#8217;ll have to generate a certificate and a
+key. <a class="reference external" href="http://wiki.nginx.org/HttpSslModule#Generate_Certificates">This article</a>
+contains information about how to do it.</p>
+<p>Make sure to replace the <tt class="docutils literal"><span class="pre">&lt;...&gt;</span></tt> in the sample configuration with
+appropriate values. Here are some explanations for the cases that may
+not be completely self-explanatory:</p>
+<dl class="docutils">
+<dt><tt class="docutils literal"><span class="pre">&lt;modoboa's</span> <span class="pre">settings</span> <span class="pre">dir&gt;</span></tt></dt>
+<dd>Where Modoboa&#8217;s <tt class="file docutils literal"><span class="pre">settings.py</span></tt> resides. This is also where the
+<tt class="file docutils literal"><span class="pre">sitestatic</span></tt> and <tt class="file docutils literal"><span class="pre">media</span></tt> directories reside.</dd>
+<dt><tt class="docutils literal"><span class="pre">&lt;modoboa's</span> <span class="pre">root</span> <span class="pre">url&gt;</span></tt></dt>
+<dd><p class="first">This is the URL which will be the root of your Modoboa site at your
+domain. For instance, if your Modoboa installation is reachable at
+at <tt class="docutils literal"><span class="pre">https://foo/modoboa</span></tt> then <tt class="docutils literal"><span class="pre">&lt;modoboa's</span> <span class="pre">root</span> <span class="pre">url&gt;</span></tt> is
+<tt class="docutils literal"><span class="pre">/modoboa</span></tt>.  In this case you probably also have to set the
+<tt class="docutils literal"><span class="pre">alias</span></tt> directives to point to where Modoboa&#8217;s sitestatic and
+media directories are because otherwise nginx won&#8217;t be able to find
+them.</p>
+<p class="last">If Modoboa is at the root of your domain, then <tt class="docutils literal"><span class="pre">&lt;modoboa</span> <span class="pre">root</span>
+<span class="pre">url&gt;</span></tt> is an empty string and can be deleted from the configuration
+above. In this case, you probably do not need the <tt class="docutils literal"><span class="pre">alias</span></tt>
+directives.</p>
+</dd>
+<dt><tt class="docutils literal"><span class="pre">&lt;uwsgi</span> <span class="pre">port&gt;</span></tt></dt>
+<dd><p class="first">The location where uwsig is listening. It could be a unix domain
+socket or an address:port combination. Ubuntu configures uwsgi so
+that the port is:</p>
+<div class="highlight-python"><div class="highlight"><pre>unix:/run/uwsgi/app/&lt;app name&gt;/socket
+</pre></div>
+</div>
+<p class="last">where <tt class="docutils literal"><span class="pre">&lt;app</span> <span class="pre">name&gt;</span></tt> is the name of the application.</p>
+</dd>
+</dl>
+<p>Your uwsgi configuration should be:</p>
+<div class="highlight-python"><div class="highlight"><pre>[uwsgi]
+# Not needed when using uwsgi from pip
+# plugins = python
+chdir = &lt;modoboa&#39;s top dir&gt;
+module = &lt;name&gt;.wsgi:application
+master = true
+harakiri = 60
+processes = 4
+vhost = true
+no-default-app = true
+</pre></div>
+</div>
+<p>The plugins directive should be turned on if you use a uwsgi
+installation that requires it. If uwsgi was installed from pip, it
+does not require it. In the configuration above:</p>
+<dl class="docutils">
+<dt><tt class="docutils literal"><span class="pre">&lt;modoboa's</span> <span class="pre">top</span> <span class="pre">dir&gt;</span></tt></dt>
+<dd>The directory where <tt class="file docutils literal"><span class="pre">manage.py</span></tt> resides. This directory is the
+parent of <tt class="docutils literal"><span class="pre">&lt;modoboa's</span> <span class="pre">settings</span> <span class="pre">dir&gt;</span></tt></dd>
+<dt><tt class="docutils literal"><span class="pre">&lt;name&gt;</span></tt></dt>
+<dd>The name that you passed to <tt class="docutils literal"><span class="pre">modoboa-admin.py</span> <span class="pre">deploy</span></tt> when you
+created your Modoboa instance.</dd>
+</dl>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Web servers</a><ul>
+<li><a class="reference internal" href="#apache2">Apache2</a><ul>
+<li><a class="reference internal" href="#mod-wsgi">mod_wsgi</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#nginx">Nginx</a><ul>
+<li><a class="reference internal" href="#id3">Green Unicorn</a></li>
+<li><a class="reference internal" href="#id4">uWSGI</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="imap_and_smtp.html"
+                        title="previous chapter">Dovecot and Postfix</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="../extending/getting_started.html"
+                        title="next chapter">Development recipes for Modoboa</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/integration/web_servers.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../extending/getting_started.html" title="Development recipes for Modoboa"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="imap_and_smtp.html" title="Dovecot and Postfix"
+             >previous</a> |</li>
+        <li><a href="../index.html">Modoboa 1.3.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Antoine Nguyen.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+    </div>
+  </body>
+</html>
