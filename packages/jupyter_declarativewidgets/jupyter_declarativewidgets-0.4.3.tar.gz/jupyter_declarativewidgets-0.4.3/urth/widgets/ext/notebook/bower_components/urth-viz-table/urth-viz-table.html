@@ -1,0 +1,358 @@
+<!--
+# Copyright (c) Jupyter Development Team.
+# Distributed under the terms of the Modified BSD License.
+-->
+<script src="../requirejs/require.js"></script>
+
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../urth-viz-col/urth-viz-col.html">
+<link rel="import" href="../urth-core-behaviors/error-display-behavior.html">
+<link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
+
+<!--
+Creates a Polymer element that displays a table with specified data and column headers.
+
+The table accepts data via attribute `datarows` and column headers via attribute `columns`:
+
+1. `datarows` should be of type Array of Arrays, representing list of rows.
+
+2. 'columns' should also be of type Array of strings, representing column headers. If undefined, table will not have column headers.
+
+@group Urth Viz
+@element urth-viz-table
+-->
+<dom-module id="urth-viz-table">
+    <link rel="import" type="css" href="../handsontable/dist/handsontable.full.css">
+
+    <template>
+        <link rel="stylesheet" type="text/css" href="../handsontable/dist/handsontable.full.css">
+        <style>
+        #tableContainer {
+            overflow: scroll;
+            border-spacing: 0;
+            border: 0;
+            display: block;
+        }
+
+        .handsontable td {
+            white-space: normal;
+        }
+
+        .handsontable .manualColumnResizer,
+        .handsontable .manualRowResizer,
+        .ht_clone_top, .ht_clone_left,
+        .ht_clone_top_left_corner, .ht_clone_bottom_left_corner,
+        .ht_clone_debug {
+            z-index: inherit;
+        }
+        </style>
+
+        <table id="tableContainer" style="width:100%; height:auto;"></table>
+        <content></content>
+    </template>
+    <script>
+    (function () {
+        'use strict';
+        var requireConfigured;
+
+        Polymer({
+            is: 'urth-viz-table',
+            properties: {
+                /**
+                 * Data rows for table. Must be an Array of Arrays.
+                 */
+                datarows: {
+                    type: Array
+                },
+
+                /**
+                 * Column headers for table. Must be an Array of String.
+                 */
+                columns: {
+                    type: Array
+                },
+
+                /**
+                 * For implementation only, to trigger code when dependent
+                 * attributes change.
+                 */
+                tableView: {
+                    type: Object,
+                    computed: 'computeTableView(datarows, columns)'
+                },
+
+                /**
+                 * The data based on the currently selected row.
+                 */
+                selection: {
+                    type: Array,
+                    readOnly: true,
+                    notify: true
+                },
+
+                /**
+                 * Number of rows user wants visible at a time,
+                 * (the rest is hidden in scrollable area)
+                 * If table is shorter in height this number, the shorter height
+                 * is rendered.
+                 */
+                rowsVisible: {
+                    type: Number,
+                    value: function () {return 15;},
+                    reflectToAttribute: true
+                },
+
+                /**
+                 * False by default to return 'selection' as an array of values.
+                 * If true, will return 'selection' as an object with key-value pairs (with column names as keys).
+                 */
+                selectionAsObject: {
+                    type: Boolean,
+                    value: function() { return false; },
+                    reflectToAttribute: true
+                }
+            },
+
+            behaviors: [
+                // Handsontable resizes itself based on document.onResize, but
+                // the dashboard also uses iron-resize events when changing layout
+                Polymer.IronResizableBehavior,
+                Urth.DisplayErrorBehavior
+            ],
+
+            listeners: {
+                'iron-resize': '_resizeTable'
+            },
+
+            ROW_HEIGHT: 25,
+            COL_OPTIONS: ["type", "format"],
+
+            _resizeTable: function() {
+                if (this.hot) {
+                    this.hot.view.wt.eventListeners.filter(function (listener) {
+                        return listener.event == 'resize';
+                    }).forEach(function(listener) {
+                        listener.callback.apply();
+                    });
+                }
+            },
+
+            _updateColumns: function (newColumns) {
+                if(!newColumns) { return; }
+
+                var columnSettings = this._parseColumns();
+                this.hot.updateSettings({
+                  colHeaders: newColumns,
+                  columns: columnSettings
+                });
+            },
+
+            _updateDatarows: function (newDataRows) {
+                if(!newDataRows) { return; }
+
+                // if data will not fit, we need to add a height to table to add scrollbar
+                if(!this._willDataFit(newDataRows)) {
+                    this.hot.loadData(newDataRows);
+
+                    this.hot.updateSettings({
+                        height: this._calcTableHeight(),
+                        rowHeights: this.ROW_HEIGHT
+                    });
+                } else /* data will fit */ {
+                    // if height was previously set, we need to create new table with no height defined
+                    if (this._isHeightSet()) {
+                        this._createTable(newDataRows);
+                    } else /* height wasn't set before, so we don't have to mess with height, just update data */ {
+                        this.hot.loadData(newDataRows);
+                    }
+                }
+            },
+
+            computeTableView: function(datarows, columns) {
+                var jName = "computeTableView";
+                if( this.isDebouncerActive(jName) ) {
+                    this.cancelDebouncer(jName);
+                }
+                this.debounce(jName, function () {
+                    if (!datarows || !columns) { 
+                        this.displayErrorMessage("urth-viz-table: invalid datarows or columns");
+                        return;
+                    }
+                    this._clearErrorMessages();
+                    if (this.hot) {
+                        this._updateColumns(columns);
+                        this._updateDatarows(datarows);
+
+                        this.fire('urth-viz-render');
+
+                        // reset selection to null if it was previously set
+                        if (this.selection) {
+                            this._setSelection(null);
+                            // deselect range that was previously highlighted
+                            this.hot.deselectCell();
+                        }
+                    } else {
+                        this._createTable(datarows);
+                    }
+                });
+            },
+
+            /*
+             * By setting the col to -1, this forces handson to think that the user clicked on a row header and it goes
+             * through the path of selecting the entire row.
+             */
+            _forceRowSelection: function (event, coords) {
+                coords.col = -1; //force row selection
+            },
+
+            /*
+             * Handle when selection has finished taking place on handson
+             */
+            _handleSelection: function (rowStart, colStart, rowEnd, colEnd) {
+                // if table has been sorted, we need to get physical index of the row in the datasource
+                // since rowStart is only the logical index of the table view
+                var physicalIndex = this.hot.sortIndex.length > 0 ?
+                                        this.hot.sortIndex[rowStart][0] : rowStart;
+                if(this.selectionAsObject) {
+                    var sel = {};
+                    var row = this.datarows[physicalIndex];
+                    this.columns.map(function(col, i) {
+                        col = col.replace(" ", "_");
+                        sel[col] = row[i];
+                    });
+                    this._setSelection(sel);
+                } else {
+                    this._setSelection(this.datarows[physicalIndex]);
+                }
+                this.selectedRow = rowStart; //storing index
+            },
+
+            _willDataFit: function(datarows) {
+                return (datarows.length < this.rowsVisible);
+            },
+
+            _isHeightSet: function() {
+                return this.hot.getSettings().height !== undefined;
+            },
+
+            _calcTableHeight: function() {
+                return (this.rowsVisible + 1) * this.ROW_HEIGHT;
+            },
+
+            _parseColumns: function() {
+                // parse columns using data's first row
+                // in case user provides missing column headers
+                console.assert(this.datarows);
+                var firstRow = this.datarows[0];
+
+                if(firstRow && firstRow.length > 0) {
+                    var columnSettings = firstRow.map(function (col) {
+                        return {
+                            editor: false
+                        };
+                    });
+
+                    for (var i = 0, iLen = this.childNodes.length; i < iLen; i++) {
+                        if (this.childNodes[i].nodeName === 'URTH-VIZ-COL') {
+                            var column = this.childNodes[i];
+                            var colIndex = column.getAttribute('index');
+                            if (colIndex && columnSettings[colIndex]) {
+                                this._parseColumn(column, columnSettings[colIndex]);
+                            } // else, user didn't provide colIndex --> ignore
+                        }
+                    }
+                    return columnSettings;
+                } else { // ignore if there is no data
+
+                }
+            },
+
+            _parseColumn: function(column, colSettings) {
+                this.COL_OPTIONS.forEach(function(opt) {
+                    var val = column.getAttribute(opt);
+                    if(val) { colSettings[opt] = val; }
+                });
+            },
+
+            _createTable: function (datarows) {
+                require(['handsontable'], function(Handsontable) {
+                    console.assert(datarows);
+
+                    var tableContainer = this.$.tableContainer;
+                    tableContainer.innerHTML = '';
+
+                    var columnSettings = this._parseColumns();
+
+                    var tableSettings = {
+                        data: datarows,
+                        colHeaders: this.columns,
+                        fillHandle: false,
+                        manualColumnResize: true,
+                        outsideClickDeselects: false,
+                        columnSorting: true,
+                        sortIndicator: true,
+                        columns: columnSettings,
+                        stretchH: 'all',
+                        beforeOnCellMouseDown: this._forceRowSelection.bind(this),
+                        afterSelectionEnd: this._handleSelection.bind(this),
+                        afterColumnSort: function() {
+                            this._handleSelection(0);
+                        }.bind(this),
+                        afterRender: function(isForced) {
+                            if (isForced && !this._rendered) {
+                                this._rendered = true;
+                                this.fire('urth-viz-render');
+                            }
+                        }.bind(this)
+                    };
+
+                    if (!this._willDataFit(datarows)) {
+                        tableSettings.height = this._calcTableHeight();
+                        tableSettings.rowHeights = this.ROW_HEIGHT;
+                    }
+
+                    this.hot = new Handsontable(tableContainer, tableSettings);
+                }.bind(this));
+            },
+
+            created: function() {
+                // Need the relative path for handsontable based on the
+                // location of this Polymer element. This has to be done
+                // inside the element to get the proper path. Calling
+                // resolveUrl outside of the element's methods returns
+                // the incorrect path. Only want to do this once and not
+                // for each instance so a global is used to track.
+                if (!requireConfigured) {
+                    requirejs.config({
+                        paths: {
+                            handsontable: this.resolveUrl('../handsontable/dist/handsontable.full'),
+                        },
+                        shim: {
+                            handsontable: {
+                                exports: 'Handsontable'
+                            }
+                        }
+                    });
+                    requireConfigured = true;
+                }
+            },
+
+            ready: function() {
+                this.async(function(){
+                    var display = window.getComputedStyle(this).display;
+                    if (display === 'none' || document.readyState !== 'complete') {
+                        this.async(this.ready, 200);
+                    } else {
+                        if (this.datarows) {
+                            this._createTable(this.datarows);
+                            this._clearErrorMessages();
+                        } else {
+                            this.displayErrorMessage("urth-viz-table: invalid datarows");
+                        }
+                    }
+                });
+            }
+        });
+    })();
+    </script>
+</dom-module>
