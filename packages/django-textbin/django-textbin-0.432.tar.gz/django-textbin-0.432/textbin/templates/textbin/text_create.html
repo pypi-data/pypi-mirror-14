@@ -1,0 +1,124 @@
+{% extends "textbin/base.html" %}
+{% load i18n %}
+{% load staticfiles %}
+{% load bootstrap3 %}
+{% load recaptcha2 %}
+
+{% block extrahead %}
+
+  <script type="text/javascript">
+     // setup limit of attachments (used in js below)
+     var max_attach = "{{ max_attach }}"
+  </script>
+
+  <!-- for Url`s formset -->
+  <script type="text/html" id="item-template">
+    <div class="item" id="item-__prefix__">
+      <div class="row">
+        <div class="col-xs-10">
+          {% bootstrap_form media_formset.empty_form show_label=False %}
+        </div>
+        <div class="col-xs-2">
+          <button type="button" class="btn btn-default delete-item">
+            <i class="glyphicon glyphicon-remove"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </script>
+  <script type="text/javascript" language="Javascript"
+          src="{% static 'textbin/js/jquery.formset_custom.js' %}">
+  </script>
+
+  {% recaptcha_init 'ru' %}
+
+{% endblock %}
+
+{% block title %}{% trans "Create post" %} | {% endblock %}
+
+
+{% block body %}
+
+<style>
+  .delete-item { margin-left: -8px; }
+</style>
+
+
+<div class="container">
+  <form class="form-horizontal" method="post" action="">{% csrf_token %}
+    <fieldset>
+
+      <div class="row">
+        <div class="col-xs-12">
+          <!-- Сообщение: "Введите текст сообщения или прикрепите ссылки"-->
+          {% if error_no_content %}
+            <p class="text-danger">{{ error_no_content }}</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Text: AutoFields -->
+        {# Display a form #}
+        <div class="col-md-4 col-sm-6 col-xs-12">
+          {% bootstrap_form text_form exclude="text" %}
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12">
+          <div class="text_form">
+            {% bootstrap_field text_form.text %}
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-5 col-sm-12">
+           <!-- URLs -->
+          <div class="row">
+            <label class="control-label">{% trans "Attach link to image or video:" %}</label>
+          </div>
+
+          {{ media_formset.management_form }}
+          <div id="items-form-container">
+            {% for item_form in media_formset %}
+              <div class="item" id="item-{{ forloop.counter0 }}">
+                <div class="row">
+                  <div class="col-xs-10">
+                    {% bootstrap_form item_form show_label=False %}
+                  </div>
+                  <div class="col-xs-2">
+                    <button type="button" class="btn btn-default delete-item">
+                      <i class="glyphicon glyphicon-remove"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+          <p><a href="#" id="add-item-button" class="add-item"><i class="glyphicon glyphicon-plus"></i> {% trans "Add another item" %}</a></p>
+        </div>
+
+        <div class="col-md-5 col-sm-8 ">
+          <!-- CAPTCHA -->
+          <div class="text-danger">
+            {% for err in captcha_form.errors.captcha %}
+              {{ err }}
+            {% endfor %}
+          </div>
+          {{ captcha_form.captcha }}
+        </div>
+
+        <!-- SUBMIT -->
+        <div class="col-md-2 col-sm-4" style="margin-top:10px">
+          {% bootstrap_button content=_("Submit") icon="glyphicon glyphicon-check" button_type="submit" button_class="btn-primary btn-lg pull-right" %}
+        </div>
+
+      </div>
+
+    </fieldset>
+
+  </form>
+</div>
+{% endblock %}

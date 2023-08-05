@@ -1,0 +1,141 @@
+{% extends "textbin/base.html" %}
+{% load i18n %}
+{% load staticfiles %}
+
+{% get_current_language as LANGUAGE_CODE %}
+
+{% block extrahead %}
+  {# lightbox gallery #}
+  <link href="{% static 'textbin/css/ekko-lightbox.min.css' %}" rel="stylesheet">
+{% endblock %}
+
+{% block title %}
+{% if text.text.strip|striptags %}
+{{ text.text|striptags|truncatechars:20 }} |
+{% endif %}
+{% endblock %}
+
+{% block body %}
+
+<div class="container">
+
+
+  <!--<p class="post-date">-->
+  <p class="text-muted">
+    {% trans "Posted by" %}
+    {% if text.author_url %}
+      <a rel="nofollow" target="_blank" href="{{ text.author_url }}"><ins>{{ text.author_name }}</ins></a>
+    {% else %}
+      <i>{{ text.author_name }}</i>
+    {% endif %}
+    {% trans "at" %}
+    {{ text.posted_at }}
+  </p>
+
+  {% if text.text.strip %}
+      <blockquote>{{ text.text|linebreaks|urlize }}</blockquote>
+  {% endif %}
+
+    <div class="row">
+
+      <!-- Unknown types -->
+      <div class="">
+        <ul>
+          {% for media in text.unknowns %}
+            <li class=""><a target="_blank" href="{{ media.url }}">{{ media.url }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- IMAGES -->
+      {% for media in text.images %}
+        <a href="{{ media.url }}" data-toggle="lightbox" data-gallery="multiimages" class="thumbnail col-lg-2 col-md-3 col-sm-4 col-xs-6">
+          <img src="{{ media.url }}" class="img-responsive">
+        </a>
+        <!-- Перед блоком, который должен начинаться с новой строки
+        при указанном размере экрана -->
+        {% if forloop.counter|divisibleby:6 %}
+          <div class="clearfix visible-lg-block"></div>
+        {% elif forloop.counter|divisibleby:4 %}
+          <div class="clearfix visible-md-block"></div>
+        {% elif forloop.counter|divisibleby:3 %}
+          <div class="clearfix visible-sm-block"></div>
+        {% elif forloop.counter|divisibleby:2 %}
+          <div class="clearfix visible-xs-block"></div>
+        {% endif %}
+      {% endfor %}
+
+      <div class="clearfix"></div>
+
+      <!-- VIDEOS -->
+      {% for media in text.videos %}
+        {% if media.type == video %}
+          <div align="center" class="embed-responsive embed-responsive-16by9">
+            <video controls class="embed-responsive-item">
+              <source src="{{ media.url }}" type=video/mp4>
+            </video>
+          </div>
+
+        {% elif media.type == youtube %}
+          <div align="center" class="embed-responsive embed-responsive-16by9">
+            <iframe allowfullscreen class="embed-responsive-item" src="{{ media.url }}"></iframe>
+          </div>
+
+        {% endif %}
+        <br>
+      {% endfor %}
+
+    </div>
+
+
+{% endblock %}
+
+
+{% block js %}
+
+  {# lightbox gallery #}
+  <script src="{% static 'textbin/js/ekko-lightbox.min.js' %}"></script>
+
+  <script type="text/javascript">
+    $(document).ready(function ($) {
+      // delegate calls to data-toggle="lightbox"
+      $(document).delegate('*[data-toggle="lightbox"]:not([data-gallery="navigateTo"])', 'click', function(event) {
+        event.preventDefault();
+        return $(this).ekkoLightbox({
+          onShown: function() {
+            if (window.console) {
+              return console.log('Checking our the events huh?');
+            }
+          },
+          onNavigate: function(direction, itemIndex) {
+            if (window.console) {
+              return console.log('Navigating '+direction+'. Current item: '+itemIndex);
+            }
+          }
+        });
+      });
+      //Programatically call
+      $('#open-image').click(function (e) {
+        e.preventDefault();
+        $(this).ekkoLightbox();
+      });
+      $('#open-youtube').click(function (e) {
+        e.preventDefault();
+        $(this).ekkoLightbox();
+      });// navigateTo
+      $(document).delegate('*[data-gallery="navigateTo"]', 'click', function(event) {
+        event.preventDefault();
+        var lb;
+        return $(this).ekkoLightbox({
+          onShown: function() {
+            lb = this;
+            $(lb.modal_content).on('click', '.modal-footer a', function(e) {
+              e.preventDefault();
+              lb.navigateTo(2);
+            });
+          }
+        });
+      });
+    });
+  </script>
+{% endblock %}
