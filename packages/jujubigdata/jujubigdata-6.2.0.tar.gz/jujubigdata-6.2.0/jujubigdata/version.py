@@ -1,0 +1,2 @@
+VERSION = '6.2.0'
+REVISION = '4cde6423656b08e9c31ebe7e0bd004b4e4ba143d+'
