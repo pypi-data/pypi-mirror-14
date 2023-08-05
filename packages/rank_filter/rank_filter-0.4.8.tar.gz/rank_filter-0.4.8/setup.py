@@ -1,0 +1,107 @@
+import os
+import sys
+from glob import glob
+from distutils.sysconfig import get_config_var, get_python_inc
+from distutils.version import LooseVersion
+
+import setuptools
+from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext as _build_ext
+
+import versioneer
+
+
+assert LooseVersion(setuptools.__version__) >= LooseVersion("18.0"), \
+        "Requires `setuptools` version 18.0 or higher."
+
+class build_ext(_build_ext):
+    def finalize_options(self):
+        _build_ext.finalize_options(self)
+        # Prevent numpy from thinking it is still in its setup process:
+        __builtins__.__NUMPY_SETUP__ = False
+        import numpy
+        self.include_dirs.append(numpy.get_include())
+
+def readme():
+    with open("README.rst", "r") as f:
+        return(f.read())
+
+
+version = versioneer.get_version()
+
+with open("src/version.pxi", "w") as f:
+     f.writelines([
+         "__version__ = " + "\"" + str(version) + "\""
+     ])
+
+cython_dep = ["cython >= 0.23"]
+numpy_dep = ["numpy >= 1.7"]
+boost_dep = ["boost >= 1.56"]
+boost_dep = (boost_dep if sys.argv[1] == "bdist_conda" else [])
+
+setup_requires = cython_dep + numpy_dep
+setup_requires = setup_requires if (sys.argv[1].startswith("bdist") or
+                                    sys.argv[1].startswith("build") or
+                                    sys.argv[1].startswith("install")) else []
+build_requires = cython_dep + numpy_dep + boost_dep
+install_requires = numpy_dep + boost_dep
+install_requires += [] if sys.argv[1] == "bdist_conda" else cython_dep
+tests_require = cython_dep + numpy_dep
+
+include_dirs = [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "include"),
+    os.path.dirname(get_python_inc()),
+    get_python_inc()
+]
+library_dirs = [get_config_var("LIBDIR")]
+sources = glob("src/*.pxd") + glob("src/*.pyx") + glob("src/*.cpp")
+libraries = ["boost_container"]
+extra_compile_args = []
+
+
+setup(
+    name="rank_filter",
+    version=version,
+    description="A simple python module containing an in-place linear rank"
+                " filter optimized in C++.",
+    long_description=readme(),
+    platforms=['Linux'],
+    classifiers=[
+        'Intended Audience :: Developers',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: BSD License',
+        'Operating System :: POSIX :: Linux',
+        'Operating System :: MacOS :: MacOS X',
+        'Programming Language :: C++',
+        'Programming Language :: Cython',
+        'Programming Language :: Python',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Software Development :: Libraries'
+    ],
+    author="John Kirkham",
+    author_email="kirkhamj@janelia.hhmi.org",
+    url="https://github.com/nanshe-org/rank_filter",
+    download_url="https://github.com/nanshe-org/rank_filter/archive/v%s.tar.gz"
+                 % version,
+    license="BSD",
+    cmdclass=dict(
+        list(versioneer.get_cmdclass().items()) +
+        [
+            ('build_ext', build_ext)
+        ]
+    ),
+    setup_requires=setup_requires,
+    build_requires=build_requires,
+    install_requires=install_requires,
+    tests_require=tests_require,
+    test_suite="test",
+    headers=glob("include/*.hxx"),
+    ext_modules=[Extension("rank_filter",
+                            sources=sources,
+                            include_dirs=include_dirs,
+                            library_dirs=library_dirs,
+                            libraries=libraries,
+                            extra_compile_args=extra_compile_args,
+                            language="c++")],
+    zip_safe=False
+)
