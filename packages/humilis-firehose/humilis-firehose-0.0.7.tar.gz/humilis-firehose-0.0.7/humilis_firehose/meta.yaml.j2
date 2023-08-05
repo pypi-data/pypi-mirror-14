@@ -1,0 +1,70 @@
+---
+meta:
+    description:
+        Creates Firehose delivery streams that deliver records to S3/Redshift
+    {% if dependencies %}
+    dependencies:
+        {% for dep in dependencies %}
+        - dep
+        {% endfor %}
+    {% endif %}
+    parameters:
+        firehose_resource_function_arn:
+            description:
+                The ARN of the Lambda function that backs the custom Firehose resource
+            value:
+                ref:
+                    parser: output
+                    parameters:
+                        layer_name: {{firehose_resource_layer or "firehose-resource"}}
+                        output_name: CustomResourceFunctionArn
+        s3_delivery:
+            description:
+                Common settings for all delivery stream(s)
+            value:
+                bucket_name:
+                    ref:
+                        parser: output
+                        parameters:
+                            layer_name: {{storage_layer or "storage"}}
+                            output_name: BucketName
+                buffer_mbs: 1
+                buffer_seconds: 60
+                compression: GZIP
+        redshift_delivery:
+            description:
+                Common Redshift delivery settings for all streams
+            value:
+                copy_options: EMPTYASNULL CSV GZIP
+        cluster_jdbc_url:
+            description: The JDBC URL of the cluster
+            value:
+                ref:
+                    parser: secret
+                    parameters:
+                        service: "{{secrets_namespace}}"
+                        key: jdbc_url
+        redshift_username:
+            description: Redshift username
+            value:
+                ref:
+                    parser: secret
+                    parameters:
+                        service: "{{secrets_namespace}}"
+                        key: username
+        redshift_password:
+            description: Redshift password
+            value:
+                ref:
+                    parser: secret
+                    parameters:
+                        service: "{{secrets_namespace}}"
+                        key: password
+        streams:
+            description:
+                The names of the streams and the associated S3 prefixes and, 
+                optionally, Redshift tables.
+            value:
+                - name: DeliveryStream
+                  prefix: stream/
+                  table: "_test.stream"
