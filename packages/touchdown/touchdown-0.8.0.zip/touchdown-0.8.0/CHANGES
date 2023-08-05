@@ -1,0 +1,782 @@
+Changelog for Touchdown
+=======================
+
+0.8.0 (2016-03-15)
+------------------
+
+- Add support for AWS Lambda security groups and subnets.
+
+- Support propagating tags for autoscaling groups and removing tags from ASG's.
+
+- Fix SSH on newer versions of ubuntu.
+
+- You can now set `evaluate_target_health` on a route53 alias target.
+
+- Support for an 'empty' serializer. Mostly when a field isn't set it shouldn't
+  have a value when serialized. CloudFront is an exception.
+
+Touchdown now requires botocore 1.3.26 or higher.
+
+
+0.7.4 (2016-02-09)
+------------------
+
+- Fix problems creating and copying AMI's
+
+This release is tested with botocore 1.3.24.
+
+
+0.7.3 (2016-02-08)
+------------------
+
+- Better diff rendering behaviour when a resource list has an item removed.
+
+
+0.7.2 (2016-02-05)
+------------------
+
+- Fix typo in error message.
+
+- Fix formatting error when diffing JSON payloads (such as for a `user_data`
+  attribute on a launch config). In this case the direction of the change could
+  be incorrect. (The actual change would be correct, however).
+
+
+0.7.1 (2016-02-05)
+------------------
+
+- Don't try and delete launch configurations that are still in use.
+
+- Better error messages when validating IAM certificate chains.
+
+- Fix compatibility with progressbar2 >= 3.6.0. Previously it would work but
+  there were some formatting issues.
+
+
+0.7.0 (2016-02-02)
+------------------
+
+- Support 'update by replacement' for IAM Server Certificates.
+
+- Validates that an IAM Server Certificate `private_key` belongs to its
+  `certificate_body`.
+
+- ELB attributes are now part of the load balancer object itself, so::
+
+          aws.add_load_balancer(
+              name="my-elb",
+              <snip>,
+      -       attributes={
+      -           "cross_zone_load_balancing": True,
+      -            "connection_draining": 30,
+      -       },
+      +       cross_zone_load_balancing=True,
+      +       connection_draining=30,
+          )
+
+
+
+0.6.1 (2016-01-27)
+------------------
+
+- Automatically cast strings to integers when assigning to an
+  `argument.Integer`.
+
+
+0.6.0 (2016-01-26)
+------------------
+
+- SSL certificate chains are now validated. This is not yet complete
+  verification, but should stop accidentally using entirely the wrong chain for
+  your cert.
+
+- CloudFront now supports updates. If you upload a new certificate, your
+  CloudFront distribution will be updated accordingly.
+
+- There is now much better diffing when generating plans - you can now diff
+  inside JSON blobs specified for autoscaling user data.
+
+
+0.5.3 (2016-01-19)
+------------------
+
+- Allow setting `ssl_policy` on custom origins.
+
+- Allow setting `compress` True/False on a behaviour.
+
+
+0.5.2 (2016-01-19)
+------------------
+
+- Fix network acl entry port validation and allow 'port' to be set to '*'.
+
+- Fix issue updating an Assume Role Policy.
+
+- Fix some issues diffing dicts.
+
+
+0.5.1 (2016-01-17)
+------------------
+
+- Touchdown now reports resource changes better, especially when attributes
+  transition from unset to set states.
+
+- Various diffing bug fixes.
+
+
+0.5.0 (2016-01-15)
+------------------
+
+- Add support for AWS NAT Gateway.
+
+- Add support for read and write operations against local files::
+
+    folder = workspace.add_local_folder(name=os.getcwd())
+    local_file = folder.add_file(name='production.cfg')
+
+- The contents of any file can be assigned to any string argument. For
+  example::
+
+      aws.add_keypair(
+          name='my-keypair',
+          public_key=folder.add_file(name='production.pub'),
+      )
+
+- Add support for GPG encryption. This layers upon the local file system
+  abstraction::
+
+    gpg = workspace.add_gpg()
+    local_file = gpg.add_cipher(file=local_file)
+
+- Add integration between Amazon KMS and the local file system abstraction::
+
+    kms = aws.add_key(name='my-deployment-key')
+    local_file = kms.add_cipher(file=local_file)
+
+- Add support for Amazon KMS Grants.
+
+- Add a ``touchdown edit`` command that can transparently decrypt, fire up
+  ``$EDITOR`` and then re-encrypt a file wrapped in GPG or KMS encryption.
+
+- Add a mechanism for ConfParser backed configuration that is mapped to
+  touchdowns resource system::
+
+    conf = local_file.add_config()
+    asg_min = conf.add_string(
+        name='scaling.web.min',
+        default=1,
+        min=0,
+        max=1,
+    )
+
+    web_asg = aws.add_auto_scaling_group(
+        name='web',
+        min=asg_min,
+    )
+
+- You can use S3 files anywhere you would use local files::
+
+    bucket = aws.add_bucket(name='mybucket')
+    conf = aws.add_config(file=bucket.add_file(name='test.cfg'))
+
+- Add new commands for managing tunable configuration values:
+
+    * ``touchdown get`` - see the current state of a variable
+    * ``touchdown set`` - set a new value for a variable
+    * ``touchdown refresh`` - reset a variable to its default (can be used to rotate a secret key)
+
+- EC2 KeyPair's can be created from a `private_key` or a `public_key` (in the
+  case where a private key is provided touchdown will generate a new public key
+  and use that directly). This is to make it easier for the key to be generated
+  and rotated by touchdown.
+
+
+0.4.0 (2016-01-08)
+------------------
+
+For end users:
+
+- This release begins to add support for AWS API Gateway. You can create a Rest
+  API and attach resources, models, stages, methods and deployments.
+
+- This release begins to add support for AWS Lambda. You can define a callable
+  inline in your `Touchdownfile` and have Touchdown manage synchronising it to
+  Amazon.
+
+- Touchdown can now configure an SNS Topic to invoke a lambda function.
+
+- Touchdown can now configure S3 notifications to lambda (however filtering is
+  not yet supported).
+
+- Lambda permissions are supported and can be managed manually, but S3 will
+  automatically be granted suitable access when using bucket notifications.
+
+- Network ACL's are now updated by replacement. Rather than syncing the order
+  of the rules, we just create an entirely new ACL and switch subnets to use it.
+  This avoids hitting API limits when an ACL with a large number of rules has
+  to be reordered. It also makes it easier to switch back to an older ACL if
+  something goes wrong with the deployment (as the previous ACL is still
+  available).
+
+For developers:
+
+ - There is now a `clean` hook on resources. This allows parameters to be
+   massaged before any validation is performed. This is currently used in
+   Network ACL's and allows:
+
+     * Creation of a port range from an integer:
+
+         vpc.add_network_acl(
+             name='test-acl',
+             inbound=[dict(
+                network='10.0.0.0/20',
+                protocol='tcp',
+                port=25,
+             )],
+         )
+
+     * Or by specifying a start and end of a range:
+
+         vpc.add_network_acl(
+             name='test-acl',
+             inbound=[dict(
+                network='10.0.0.0/20',
+                protocol='tcp',
+                port__start=8080,
+                port__end=8090,
+             )],
+         )
+
+ - There is a `can_delete` hook for destroyable AWS resources so that resources
+   can exclude themsevles from the destroy process.
+
+ - The diffing mechanism has been improved and can now recurse into
+   subresources.
+
+ - There are now read-only arguments that calculate their value or return a
+   serializer. This allows resources to expose an `arn` parameter consistently.
+
+This release has been tested with `botocore==1.3.12`.
+
+
+0.3.3 (2015-11-27)
+------------------
+
+- Add a timestamp to `touchdown tail foo.log`.
+
+
+0.3.2 (2015-11-24)
+------------------
+
+- Fix CloudFront for new versions of botocore. In the process we now support
+  setting the `default_ttl` and `max_ttl`.
+
+- SSH connections will retry more, to give instances time to fully boot.
+
+- Fix ASG SSH behavior. It was supposed to choose a random instance, but was
+  actually always picking the first instance.
+
+- Improve Windows support: Avoid using `progressbar2` on Windows. It blows up
+  if `signals.SIGWINCH` is not available.
+
+- Add some helpers to resources to help with serializer common cases. For example::
+
+      foo = aws.add_distribution(....)
+      bar = foo.identifier()
+
+  Now `bar` is `serializers.Identifier` that is bound to `foo`.
+
+
+0.3.1 (2015-10-29)
+------------------
+
+- Unicode handling fixes in output handlers.
+
+
+0.3.0 (2015-10-19)
+------------------
+
+- Support for notifying NewRelic after a deployment.
+
+- Avoid trying to SSH into terminating instances after an ASG rotation.
+
+- Fix progress bar newline glitches introduced by progressbar2 3.0.
+
+
+0.2.0 (2015-10-12)
+------------------
+
+- Add a new ``touchdown ssh`` and ``touchdown scp`` commands.
+
+- Change how SSH connection to an ASG is achieved (allows private ip addresses
+  to be used when on same network, even when using ``.get_auto_scaling_group``.
+
+- The names of resources used when building AMI's are now randomised (which
+  should enable parallelism).
+
+- Now uses ``botocore>=1.2.10`` and ``progressbar2>=3.0``.
+
+
+0.0.31 (2015-09-07)
+-------------------
+
+- Fix database rollback.
+
+
+0.0.30 (2015-09-07)
+-------------------
+
+- Add database snapshot goal and command::
+
+    touchdown snapshot DB_NAME SNAPSHOT_NAME
+
+
+0.0.29 (2015-08-27)
+-------------------
+
+- Now requires at least fuselage 0.0.10 to ensure that we don't hit corner
+  cases in streaming unicode output from execute resources.
+
+- Simplifies string handling in ssh client to avoid yet more unicode handling
+  edge cases.
+
+
+0.0.28 (2015-08-24)
+-------------------
+
+- Support streaming log output to CloudWatch logs instead of (or as well as) the console.
+
+- Output information about remaining tasks so that long running tasks don't
+  look like they are hung. This is useful in Travis CI where the silence causes
+  builds/deployments to be terminated.
+
+- Better error handling for parallel cases.
+
+
+0.0.27 (2015-07-31)
+-------------------
+
+- Fix planning phase of auto scaling policy creation for empty environments.
+
+- Fix tearing down autoscaling policies.
+
+- Fix tearing down log metric filters.
+
+
+0.0.26 (2015-07-27)
+-------------------
+
+- Add CloudWatch Logs MetricFilter resources. This allows metrics to be
+  creating from a log stream.
+
+- Drop the Metric resource.
+
+
+0.0.25 (2015-07-23)
+-------------------
+
+- Fix creating dummy metric.
+
+
+0.0.24 (2015-07-22)
+-------------------
+
+- Fix alarm changes not applying and fix finding alarms when dimensions are involved.
+
+- Wait longer to copy AMI's between regions.
+
+
+0.0.23 (2015-07-14)
+-------------------
+
+- Stop network ACLs applying every time
+
+
+0.0.22 (2015-06-29)
+-------------------
+
+- Add support for ICMP in Network ACLs
+
+
+0.0.21 (2015-06-26)
+-------------------
+
+- Add support for CloudTrail.
+
+- Add support for CloudWatch Alarms.
+
+- Add support for auto scaling policies.
+
+- Override waiters for cloudfront. Double the amount of time we will wait for a
+  distributiion to be 'Deployed' as 25 is too low in practice.
+
+
+0.0.20 (2015-06-23)
+-------------------
+
+- More graceful handling of KeyboardInterrupt.
+
+- Fix cache corruption issue.
+
+- Workaround some potential eventual consitency issues with RouteTable and
+  NetworkACL. Observed behaviour is that after creating them they arent visible
+  to the describe API. Then they are. Then they arent. Then they are.
+
+- Fix the Windows version of the local provider by runnign the bundle under an
+  interpreter.
+
+
+0.0.19 (2015-06-15)
+-------------------
+
+- Add AWS password policy management. This lets you enforce password complexity
+  for your IAM users.
+
+- Add a 'touchdown get-signin-url' command.
+
+- Better 'touchdown dot' output.
+
+- Fix ``Y/n`` confirmation so that ``Y`` really is the default.
+
+- #43 - Fix documentation and validation around Subnet ``cidr_block`` -
+  ``192.168.0.1/24`` isn't a valid cidr.
+
+- A resource acquired with ``Foo.get_bar`` will not be considered for deletion
+  by ``touchdown destroy``.
+
+
+0.0.18 (2015-06-11)
+-------------------
+
+- Fix a conflict between IAM policies and Resource policies. Resource policies
+  are now specified using ``ensure``::
+
+      aws.add_role(
+          name="myrole",
+          ensure=["never-destroy"],
+          assume_role_policy={...},
+          policies={
+              "mypolicy": {
+                  "Statement": [{
+                      "Effect": "Allow",
+                      "Action": "*",
+                      "Resource": "*",
+                  }],
+              },
+          },
+      )
+
+- Fix a conflict between ``Plan.validate`` and ``Rollback.validate`` which
+  caused a regression in the ``rollback`` command.
+
+
+0.0.17 (2015-06-10)
+-------------------
+
+- Fix an edge case where using mfa, cross account roles and image_copy.
+
+
+0.0.16 (2015-06-10)
+-------------------
+
+- Can now do use MFA and cross-account roles to do deployments in other
+  accounts. If you set up your Touchdownfile with::
+
+      aws = workspace.add_aws(
+          access_key_id="...",
+          secret_access_key="...",
+          mfa_serial="...",
+      )
+
+  Then touchdown will prompt you for an MFA code before starting the
+  deployment. Under the hood this uses the ``GetSessionToken`` API to
+  generate temporary AWS credentials. A bit like sudo, these are cached
+  so each action doesn't require a new MFA token.
+
+- Add a ``pre_restore`` and ``post_restore`` hook to database rollbacks. This
+  allows customizations to be run after initial validation but before the
+  restore starts. This is great for adding application specific policy like
+  emptying an ASG before the rollback.
+
+- Add ASCII table output for price estimation.
+
+
+0.0.15 (2015-06-03)
+-------------------
+
+- asg: If an ASG is connected to an ELB, consider the ELB health when
+  scaling/descaling during a deployment.
+
+- Add slack notification support.
+
+- Add basic price estimation.
+
+
+0.0.14 (2015-05-28)
+-------------------
+
+- Add support for AWS CloudWatch Logs. In this initial release you can
+  pre-create your log groups and manage the log retention period::
+
+      aws.add_log_group(
+          name="application.log",
+          retention=3,
+      )
+
+- Add a new tail command. This can grab events from any touchdown managed
+  CloudWatch log group. For the example above you could get the last 15m of
+  logs with::
+
+      touchdown tail application.log -s 15m
+
+  And stream all new logs to that group with::
+
+      touchdown tail application.log -f
+
+- Add a new rollback command. This can restore a snapshot or restore to a point
+  in time for any RDS database. For example to rewind your database ``foo`` to
+  an hour ago you could::
+
+      touchdown rollback foo 1h
+
+- Both of these commands are written to be pluggable. For example in future you
+  might be able to use the same ``tail`` command against a heroku app.
+
+- Touchdown no longer depends on click.
+
+
+0.0.13 (2015-05-22)
+-------------------
+
+- Avoid a case where SSHing into an ASG can actually log into a random instance
+  in the cluster. It looks like ``DescribeInstances(InstanceIds=[])`` is
+  interpreted as 'any instance'.
+
+- Make sure when bringing up an ASG for the first time it's metadata is updated
+  after at least one instance becomes healthy. This avoids cases where the ASG
+  looks empty to later steps of the deployment.
+
+- When syncing a folder to S3 use application/octet-stream if unable to guess
+  mimetype.
+
+
+0.0.12 (2015-05-14)
+-------------------
+
+- We now use botocore at least 0.107.0. This version changed the structure of
+  its metadata folders. In order to continue overriding some values we've had
+  to mirror that change, which breaks support for older versions.
+
+
+0.0.11 (2015-05-14)
+-------------------
+
+- The release merges the fuselage integration refactor. You no longer have to
+  import bits of fuselage to use it, you can use touchdown serializers and you
+  can use it against your local machine. This means you can generate a
+  ``local_settings.py`` for your Django dev environment with AWS resource
+  details in it!
+
+  A simple example is just::
+
+      from touchdown.core import serializers
+
+      provisioner = workspace.add_fuselage_bundle(
+          target=workspace.add_local(),
+      )
+
+      provisioner.add_file(
+          name="/home/john/hello",
+          contents=serializers.Const("HELLO!!"),
+      )
+
+  Thanks to @mitchellrj for this feature.
+
+- Print our resource ids after resource creation. This is particularly useful
+  for AMI creation and copying.
+
+- Better SSH connection retrying when tunneling.
+
+
+0.0.10 (2015-05-07)
+-------------------
+
+- The parallel resolver introduced in 0.0.7 is now enabled by default.
+
+- We've added more validation! Bucket names are now validated with the same
+  rules as the web console. You can only use storage_encrypted with a subset of
+  RDS instance sizes. We know capture that before making a single AWS call.
+
+- asg: We now wait for there to be at least one healthy instance when creating
+  a new auto scaling group.
+
+- asg: We now clean up old launch configs (you can only create a hundred, and
+  with 5 server types you can hit that in 20 deployments!).
+
+- kms: Add initial support for managing Key and Alias resources.
+
+- ssh: Fix streaming from paramiko channels. It was racy, and this meant that
+  short lived commands (such as ``whoami``) were prone to not returning all
+  their stdout. This mean that our connection health checks would fail.
+
+- ssh: When using ssh-over-ssh the inner connection might fail with
+  ChannelException. Assuming that an instance might still be booting we now
+  retry in this case.
+
+- elb: Fix failure in elb teardown.
+
+- cloudfront: If resuming a teardown touchdown will now resume waiting for
+  web distributions to enter the 'deployed' state before attempting to delete
+  them.
+
+- Of interested to developers: we've switched to stricter flake8 settings. We
+  are no longer inhibiting any of the default errors. Our ``max-line-length``
+  is 150 and our ``max-complexity`` is 11. We will be reducing these further in
+  the coming months.
+
+
+0.0.9 (2015-04-22)
+------------------
+
+- s3: Add very basic support for syncing entire folders to s3.
+
+- rds: Add point in time restore and snashot restore.
+
+- cloudfront: By setting cname to '' you can create a alias-less distribution.
+  [@mitchellrj]
+
+- Any field can now accept a serializer. This means any field can be set
+  dynamically based on other resources outputs.
+  [@mitchellrj]
+
+- We now run our tests on AppVeyor on python 2.7 (32 bit) and python 3.4
+  (32 bit and 64 bit).
+
+- elb: Now waits for Elastic Network Interfaces to go away before considering
+  an elb deleted.
+
+
+0.0.8 (2015-03-26)
+------------------
+
+- The s3 describe step now retrieves the location a bucket was created in.
+
+- S3 buckets are now created with a LocationConstraint based on the account
+  resource. For example::
+
+      aws = workspace.add_aws(region='eu-central-1')
+      aws.add_bucket(name='my-bucket')
+
+  Will now create the bucket in eu-central-1, like you would expect.
+
+- Add's support for copying images created with ``add_image`` to other regions.
+
+
+0.0.7 (2015-03-23)
+------------------
+
+- Add an experimental threaded resolver for deploying infrastructure in
+  parallel. If you are using the command line tool you can pass
+  ``--parallel``::
+
+    touchdown --parallel apply
+
+  Users consuming the python API can switch from the ``Runner`` class to
+  ``ThreadedRunner``.
+
+- StreamingDistribution should now work. It's API has been simplified too. You
+  can set one up with::
+
+      aws.add_streaming_distribution(
+          name="streaming.example.com",
+          bucket=mybucket,
+      )
+
+  Where ``mybucket`` was previously defined with ``aws.add_bucket``.
+
+- You can now create ``ALIAS`` records for Distribution and
+  StreamingDistribution resources::
+
+      aws.add_hosted_zone(
+          name="example.com",
+          records=[
+              {"name": "backend",   "type": "A", "alias": my_load_balancer},
+              {"name": "www",       "type": "A", "alias": my_distribution},
+              {"name": "streaming", "type": "A", "alias": my_streaming_distribution},
+          ],
+      )
+
+- You can now set CORS and policy for S3 buckets. You can also do simple file
+  uploads with the new file resource::
+
+      bucket = aws.add_bucket(name="my-test-bucket")
+      bucket.add_file(
+          name="crossdomain.xml",
+          contents=open("crossdomain.xml").read(),
+      )
+
+  You can set canned ACL's on the files as well.
+
+- You can now set the ``origin_path`` attribute of CloudFront.
+
+- Improved python 3 support.
+
+
+0.0.6 (2015-03-04)
+------------------
+
+- Fix python 3 release.
+
+
+0.0.5 (2015-03-04)
+------------------
+
+- More useful/verbose console output.
+
+- Timeouts when operations take longer than expected are handled more
+  gracefully. Fixes #6.
+
+- The dependency solver now sorts within batches, fixing #4.
+
+
+0.0.4 (2015-02-26)
+------------------
+
+- Brown paper bag.
+
+
+0.0.3 (2015-02-26)
+------------------
+
+- The CloudFront abstraction has been revisited to flatten and simplify the
+  structure (as the actual payload for CloudFront is quite complicated). The
+  docs have been updated accordingly.
+
+- Tearing down a CloudFront distribution now correctly refreshes the ETag after
+  disabling a distribution, allowing it to suceed.
+
+- The VPN Gateway handling has been improved. They are now correctly attached
+  and detached from a VPC when creating and destroying them.
+
+
+0.0.2 (2015-02-18)
+------------------
+
+- Basic support for Amazon SQS.
+
+- Basic support for Amazon SNS.
+
+- Basic support for Amazon CloudFront Streaming Distributions.
+
+- Pipeline sbould now be able to create one.
+
+- Strings fields are now validated against their annotations:
+
+    * `min` enforces a minimum length for a value
+    * `max` enforces a maximum length for a value
+    * `choices` enforces that the value is one of a pre-determined list
+    * `regex` enforces that the value matches a guard expression
+
+- More types now have proper ``signature`` annotations for their ``Apply``
+  policy. For example, you will now be warned at plan time if a
+  SecurityGroup doesn't have the required ``description`` field (#10).
