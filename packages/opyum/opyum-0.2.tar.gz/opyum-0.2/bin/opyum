@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+
+"""opyum (python scripts optimizer).
+
+Usage:
+  opyum show <path>
+  opyum diff <path> [-c | --console | --app=<app>]
+  opyum (-h | --help)
+  opyum --version
+
+Options:
+  -c --console  Output to the console instead of html
+  --app=<app>   The command to start the comparison (diff, for example).
+  -h --help     Show this screen.
+  --version     Show version.
+"""
+
+
+from docopt     import docopt
+from opyum      import __version__, get_source
+from subprocess import call
+from tempfile   import NamedTemporaryFile
+from difflib    import HtmlDiff, ndiff
+from webbrowser import open_new_tab
+
+
+def main(args):
+    """
+
+    :param args:
+    :return:
+    """
+    path = args['<path>']
+    if args['show'] or args['diff']:
+        if not path:
+            print("Not specified path")
+            return
+        with open(path) as file:
+            src_before = file.read()
+            src_after  = get_source(src_before, optimized=True)
+            if args.get('show'):
+                print(src_after)
+                return
+            elif args.get('diff') and args.get("--console"):
+                for line in ndiff(src_before.split("\n"), src_after.split("\n")):
+                    print(line)
+                return
+            elif args.get('diff'):
+                app = args.get('--app')
+                ext = ".py" if app else ".html"
+                with NamedTemporaryFile(mode="w", suffix=ext, delete=False) as tmp:
+                    if app:
+                        tmp.write(src_after)
+                        tmp.flush()
+                        call([app, path, tmp.name])
+                    else:
+                        diff = HtmlDiff(tabsize=4)
+                        diff = diff.make_file\
+                                    ( fromlines = src_before.split("\n")
+                                    , tolines   = src_after.split("\n")
+                                    , fromdesc  = "original"
+                                    , todesc    = "optimized"
+                                    )
+                        tmp.write(diff)
+                        tmp.flush()
+                        open_new_tab('file://{}'.format(tmp.name))
+                return
+
+
+if __name__ == "__main__":
+    version = 'opyum {}'.format('.'.join(map(str, __version__)))
+    main(docopt( __doc__, version = version))
