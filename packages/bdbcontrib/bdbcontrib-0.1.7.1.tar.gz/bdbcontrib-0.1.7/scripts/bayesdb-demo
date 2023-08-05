@@ -1,0 +1,158 @@
+#!/usr/bin/env python
+
+# -*- coding: utf-8 -*-
+
+#   Copyright (c) 2010-2016, MIT Probabilistic Computing Project
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+import getopt
+import os
+import shutil
+import StringIO
+import sys
+import bdbcontrib.version
+import bayeslite.version
+import crosscat.version
+
+def usage(out):
+    out.write('Usage: %s [options]\n' % (progname(),))
+    out.write('          Fetch if needed, then launch.\n')
+    out.write('       %s [options] fetch\n' % (progname(),))
+    out.write('          Copy demos to the destination directory.\n')
+    out.write('       %s [options] maybefetch\n' % (progname(),))
+    out.write('          Copy demos if they are not already present.\n')
+    out.write('       %s [options] launch\n' % (progname(),))
+    out.write('          Start an ipython notebook in the example directory.\n')
+
+def version(out):
+    out.write('Bayeslite distribution (bdbcontrib) version:\t%s\n' %
+              (bdbcontrib.version.__version__,))
+    out.write('   Bayeslite core version:\t%s\n' %
+              (bayeslite.version.__version__,))
+    out.write('   Default metamodel (CrossCat) version:\t%s\n' %
+              (crosscat.version.__version__,))
+    import inspect
+    out.write('   bdbcontrib from:\t%s\n' % (inspect.getfile(bdbcontrib),))
+    out.write('   bayeslite from:\t%s\n' % (inspect.getfile(bayeslite),))
+    out.write('   crosscat from:\t%s\n' % (inspect.getfile(crosscat),))
+
+def progname():
+    return os.path.basename(sys.argv[0])
+
+import fnmatch
+def oswalk_find(fnpattern, path):
+    excludedirs = (".ipynb_checkpoints", ".git")
+    for root, dirs, files in os.walk(path, followlinks=True):
+        dirs[:] = [d for d in dirs if d not in excludedirs]
+        for name in files:
+            if fnmatch.fnmatch(name, fnpattern):
+                yield os.path.join(root, name)
+
+def fetch(options):
+    if options.source is None:
+        lib_bdbcontrib = os.path.dirname(bdbcontrib.version.__file__)
+        venv_bdbcontrib = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "bdbcontrib")
+        path = [lib_bdbcontrib, venv_bdbcontrib]
+        found = False
+        for bdbcontribdir in path:
+            source = os.path.join(bdbcontribdir, "examples")
+            if os.path.exists(source):
+                options.source = source
+                found = True
+                break
+    else:
+        found = os.path.exists(options.source)
+    if not found:
+        raise ValueError("Did not find the bdbcontrib/examples directory in " +
+                         repr(path))
+    if os.path.exists(options.destination):
+        raise ValueError("Destination %s must not yet exist." %
+                         (options.destination,))
+    print "Copying", options.source, "to", options.destination
+    if (os.path.dirname(options.destination) and
+        not os.path.exists(os.path.dirname(options.destination))):
+        os.makedirs(os.path.dirname(options.destination))
+    shutil.copytree(options.source, options.destination)
+
+import subprocess
+def launch(options):
+    try:
+        if options.runipy:
+            for notebook in oswalk_find("*.ipynb", options.destination):
+                basename = notebook[:-6]
+                with open(basename + '-out_ipynb', 'wb') as outnb:
+                    with open(basename + '-err.log', 'wb') as errlog:
+                        print "Running", notebook, ">", outnb.name, "2>", errlog.name
+                        subprocess.check_call(
+                            ['runipy', '--stdout', '--matplotlib',
+                             '--', notebook],
+                            stdout=outnb, stderr=errlog, shell=False)
+        else:
+            os.execlp('ipython', 'ipython', 'notebook', '--',
+                      options.destination)
+    except Exception as e:
+        sys.stderr.write('%s: %s\n' % (progname(), str(e)))
+        sys.stderr.write('%s: failed.\n' % (progname(),))
+        sys.exit(1)
+
+
+def main():
+    import optparse
+    usage_text = StringIO.StringIO()
+    usage(usage_text)
+    parser = optparse.OptionParser(usage=usage_text.getvalue())
+    # -h or --help is automatic with usage= above.
+    parser.add_option('--runipy',
+                      help=("Instead of running an interactive notebook server,"
+                            + " run each notebook via runipy --stdout"),
+                      dest='runipy', default=False, action='store_true')
+    parser.add_option('-v', '--version',
+                      help='Print the software and component versions.',
+                      dest='version', default=False, action='store_true')
+    parser.add_option('-s', '--source',
+                      help="A directory that has the example sources.",
+                      dest='source', default=None)
+    parser.add_option('-d', '--destination',
+                      help=('Parent directory for the examples. '
+                            'If exists, a new version-labelled directory will '
+                            'be created inside.'),
+                      dest='destination', default='.', action='store')
+    options, args = parser.parse_args()
+
+    if options.version:
+        version(sys.stderr)
+        sys.exit(0)
+
+    if not args:
+        args = ("maybefetch", "launch")
+
+    bayesname = "Bayeslite-v%s" % (bdbcontrib.version.__version__,)
+    if (os.path.exists(options.destination) and
+        os.path.basename(options.destination) != bayesname):
+        options.destination = os.path.join(options.destination, bayesname)
+    for arg in args:
+        if arg == "maybefetch":
+            if not os.path.exists(options.destination):
+                fetch(options)
+        elif arg == "fetch":
+            fetch(options)
+        elif arg == "launch":
+            launch(options)
+        else:
+            usage(sys.stderr)
+            sys.exit(1)
+
+assert __name__ == '__main__'
+main()
