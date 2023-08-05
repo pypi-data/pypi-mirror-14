@@ -1,0 +1,1068 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dhtmlparser.htmlelement &mdash; pyDHTMLParser 2.0.8 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '2.0.8',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="pyDHTMLParser 2.0.8 documentation" href="../../index.html" />
+    <link rel="up" title="dhtmlparser" href="../dhtmlparser.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">pyDHTMLParser 2.0.8 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../dhtmlparser.html" accesskey="U">dhtmlparser</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for dhtmlparser.htmlelement</h1><div class="highlight"><pre>
+<span class="c">#! /usr/bin/env python</span>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#</span>
+<span class="c"># Interpreter version: python 2.7</span>
+<span class="c">#</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">HTMLElement class used in DOM representation.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="c"># Imports =====================================================================</span>
+<span class="kn">from</span> <span class="nn">quoter</span> <span class="kn">import</span> <span class="n">escape</span><span class="p">,</span> <span class="n">unescape</span>
+<span class="kn">from</span> <span class="nn">specialdict</span> <span class="kn">import</span> <span class="n">SpecialDict</span>
+
+
+<span class="c"># Variables ===================================================================</span>
+<span class="n">NONPAIR_TAGS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s">&quot;br&quot;</span><span class="p">,</span>
+    <span class="s">&quot;hr&quot;</span><span class="p">,</span>
+    <span class="s">&quot;img&quot;</span><span class="p">,</span>
+    <span class="s">&quot;input&quot;</span><span class="p">,</span>
+    <span class="c">#&quot;link&quot;,</span>
+    <span class="s">&quot;meta&quot;</span><span class="p">,</span>
+    <span class="s">&quot;spacer&quot;</span><span class="p">,</span>
+    <span class="s">&quot;frame&quot;</span><span class="p">,</span>
+    <span class="s">&quot;base&quot;</span>
+<span class="p">]</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">List of non-pair tags. Set this to blank list, if you wish to parse XML.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="c"># Functions &amp; objects =========================================================</span>
+<span class="k">def</span> <span class="nf">_rotate_buff</span><span class="p">(</span><span class="n">buff</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Rotate buffer (for each ``buff[i] = buff[i-1]``).</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        assert _rotate_buff([1, 2, 3, 4]) == [4, 1, 2, 3]</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        buff (list): Buffer which will be rotated.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list: Rotated buffer.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">buff</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span> <span class="o">+</span> <span class="n">buff</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_closeElements</span><span class="p">(</span><span class="n">childs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create `endtags` to elements which looks like openers, but doesn&#39;t have</span>
+<span class="sd">    proper :attr:`HTMLElement.endtag`.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        childs (list): List of childs (:class:`HTMLElement` obj) - typically</span>
+<span class="sd">               from :attr:`HTMLElement.childs` property.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        list: List of closed elements.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">o</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c"># close all unclosed pair tags</span>
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">childs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">isTag</span><span class="p">():</span>
+            <span class="n">o</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">isNonPairTag</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">isComment</span><span class="p">()</span> \
+           <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">endtag</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">e</span><span class="o">.</span><span class="n">childs</span> <span class="o">=</span> <span class="n">_closeElements</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">childs</span><span class="p">)</span>
+
+            <span class="n">o</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="n">o</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">HTMLElement</span><span class="p">(</span><span class="s">&quot;&lt;/&quot;</span> <span class="o">+</span> <span class="n">e</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;&gt;&quot;</span><span class="p">))</span>
+
+            <span class="c"># join opener and endtag</span>
+            <span class="n">e</span><span class="o">.</span><span class="n">endtag</span> <span class="o">=</span> <span class="n">o</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">o</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">openertag</span> <span class="o">=</span> <span class="n">e</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">o</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">o</span>
+
+
+<div class="viewcode-block" id="HTMLElement"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement">[docs]</a><span class="k">class</span> <span class="nc">HTMLElement</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class is used to represent single linked DOM (see</span>
+<span class="sd">    :func:`.makeDoubleLinked` for double linked).</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        childs (list): List of child nodes.</span>
+<span class="sd">        params (dict): :class:`.SpecialDict` instance holding tag parameters.</span>
+<span class="sd">        endtag (obj): Reference to the ending :class:`HTMLElement` or ``None``.</span>
+<span class="sd">        openertag (obj): Reference to the openning :class:`HTMLElement` or</span>
+<span class="sd">                         ``None``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="n">second</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">third</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__element</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isendtag</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__iscomment</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_container</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># used by .wfind()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">childs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">SpecialDict</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">openertag</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="c"># blah, constructor overloading in python sux :P</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">]</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">([</span><span class="n">second</span><span class="p">,</span> <span class="n">third</span><span class="p">]):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__init_tag</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">]</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">second</span><span class="p">)</span> <span class="o">==</span> <span class="nb">dict</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">third</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__init_tag_params</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="n">second</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">]</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">second</span><span class="p">)</span> <span class="o">==</span> <span class="nb">dict</span> <span class="ow">and</span> \
+             <span class="nb">type</span><span class="p">(</span><span class="n">third</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">]</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">third</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> \
+             <span class="nb">all</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">HTMLElement</span><span class="p">),</span> <span class="n">third</span><span class="p">)):</span>
+
+            <span class="c"># containers with childs are automatically considered as tags</span>
+            <span class="k">if</span> <span class="n">tag</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&quot;&lt;&quot;</span><span class="p">):</span>
+                    <span class="n">tag</span> <span class="o">=</span> <span class="s">&quot;&lt;&quot;</span> <span class="o">+</span> <span class="n">tag</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&quot;&gt;&quot;</span><span class="p">):</span>
+                    <span class="n">tag</span> <span class="o">+=</span> <span class="s">&quot;&gt;&quot;</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">__init_tag_params</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="n">second</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">childs</span> <span class="o">=</span> <span class="n">_closeElements</span><span class="p">(</span><span class="n">third</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span> <span class="o">=</span> <span class="n">HTMLElement</span><span class="p">(</span><span class="s">&quot;&lt;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;&gt;&quot;</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">]</span> <span class="ow">and</span> <span class="nb">type</span><span class="p">(</span><span class="n">second</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">]</span> <span class="ow">and</span> \
+             <span class="n">second</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">HTMLElement</span><span class="p">),</span> <span class="n">second</span><span class="p">)):</span>
+
+            <span class="c"># containers with childs are automatically considered as tags</span>
+            <span class="k">if</span> <span class="n">tag</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&quot;&lt;&quot;</span><span class="p">):</span>
+                    <span class="n">tag</span> <span class="o">=</span> <span class="s">&quot;&lt;&quot;</span> <span class="o">+</span> <span class="n">tag</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&quot;&gt;&quot;</span><span class="p">):</span>
+                    <span class="n">tag</span> <span class="o">+=</span> <span class="s">&quot;&gt;&quot;</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">__init_tag</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">childs</span> <span class="o">=</span> <span class="n">_closeElements</span><span class="p">(</span><span class="n">second</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span> <span class="o">=</span> <span class="n">HTMLElement</span><span class="p">(</span><span class="s">&quot;&lt;/&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()</span> <span class="o">+</span> <span class="s">&quot;&gt;&quot;</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">]</span> <span class="ow">and</span> <span class="n">tag</span> <span class="ow">and</span> \
+             <span class="nb">all</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">HTMLElement</span><span class="p">),</span> <span class="n">tag</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__init_tag</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">childs</span> <span class="o">=</span> <span class="n">_closeElements</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s">&quot;Unknown type &#39;</span><span class="si">%s</span><span class="s">&#39;!&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">tag</span><span class="p">))</span>
+
+    <span class="c">#==========================================================================</span>
+    <span class="c">#= Constructor overloading ================================================</span>
+    <span class="c">#==========================================================================</span>
+    <span class="k">def</span> <span class="nf">__init_tag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        True constructor, which really initializes the :class:`HTMLElement`.</span>
+
+<span class="sd">        This is the function where all the preprocessing happens.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tag (str): HTML tag as string.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__element</span> <span class="o">=</span> <span class="n">tag</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__parseIsTag</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__parseIsComment</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">__iscomment</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__parseTagName</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__iscomment</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__parseIsEndTag</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__parseIsNonPairTag</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span> <span class="ow">and</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__isendtag</span><span class="p">)</span> <span class="ow">or</span> <span class="s">&quot;=&quot;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__parseParams</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init_tag_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Alternative constructor used when the tag parameters are added to the</span>
+<span class="sd">        HTMLElement (HTMLElement(tag, params)).</span>
+
+<span class="sd">        This method just creates string and then pass it to the</span>
+<span class="sd">        :meth:`__init_tag`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tag (str): HTML tag as string.</span>
+<span class="sd">            params (dict): HTML tag parameters as dictionary.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__element</span> <span class="o">=</span> <span class="n">tag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__parseTagName</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isendtag</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__element</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span>
+
+<div class="viewcode-block" id="HTMLElement.find"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.find">[docs]</a>    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Same as :meth:`findAll`, but without `endtags`.</span>
+
+<span class="sd">        You can always get them from :attr:`endtag` property.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">filter</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">(),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">findAll</span><span class="p">(</span><span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="p">)</span>
+        <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.findB"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.findB">[docs]</a>    <span class="k">def</span> <span class="nf">findB</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Same as :meth:`findAllB`, but without `endtags`.</span>
+
+<span class="sd">        You can always get them from :attr:`endtag` property.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">filter</span><span class="p">(</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">(),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">findAllB</span><span class="p">(</span><span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="p">)</span>
+        <span class="p">)</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.findAll"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.findAll">[docs]</a>    <span class="k">def</span> <span class="nf">findAll</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Search for elements by their parameters using `Depth-first algorithm</span>
+<span class="sd">        &lt;http://en.wikipedia.org/wiki/Depth-first_search&gt;`_.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tag_name (str): Name of the tag you are looking for. Set to &quot;&quot; if</span>
+<span class="sd">                            you wish to use only `fn` parameter.</span>
+<span class="sd">            params (dict, default None): Parameters which have to be present</span>
+<span class="sd">                   in tag to be considered matching.</span>
+<span class="sd">            fn (function, default None): Use this function to match tags.</span>
+<span class="sd">               Function expects one parameter which is HTMLElement instance.</span>
+<span class="sd">            case_sensitive (bool, default False): Use case sensitive search.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list: List of :class:`HTMLElement` instances matching your criteria.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isAlmostEqual</span><span class="p">(</span><span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="p">):</span>
+            <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="n">tmp</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+            <span class="n">tmp</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">findAll</span><span class="p">(</span><span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">tmp</span><span class="p">:</span>
+                <span class="n">output</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.findAllB"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.findAllB">[docs]</a>    <span class="k">def</span> <span class="nf">findAllB</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Simple search engine using `Breadth-first algorithm</span>
+<span class="sd">        &lt;http://en.wikipedia.org/wiki/Breadth-first_search&gt;`_.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tag_name (str): Name of the tag you are looking for. Set to &quot;&quot; if</span>
+<span class="sd">                            you wish to use only `fn` parameter.</span>
+<span class="sd">            params (dict, default None): Parameters which have to be present</span>
+<span class="sd">                   in tag to be considered matching.</span>
+<span class="sd">            fn (function, default None): Use this function to match tags.</span>
+<span class="sd">               Function expects one parameter which is HTMLElement instance.</span>
+<span class="sd">            case_sensitive (bool, default False): Use case sensitive search.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list: List of :class:`HTMLElement` instances matching your criteria.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isAlmostEqual</span><span class="p">(</span><span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="p">):</span>
+            <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="n">breadth_search</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span>
+        <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="n">breadth_search</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">el</span><span class="o">.</span><span class="n">isAlmostEqual</span><span class="p">(</span><span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="p">):</span>
+                <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">el</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">el</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+                <span class="n">breadth_search</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">el</span><span class="o">.</span><span class="n">childs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.wfind"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.wfind">[docs]</a>    <span class="k">def</span> <span class="nf">wfind</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This methods works same as :meth:`find`, but only in one level of the</span>
+<span class="sd">        :attr:`childs`.</span>
+
+<span class="sd">        This allows to chain :meth:`wfind` calls::</span>
+
+<span class="sd">            &gt;&gt;&gt; dom = dhtmlparser.parseString(&#39;&#39;&#39;</span>
+<span class="sd">            ... &lt;root&gt;</span>
+<span class="sd">            ...     &lt;some&gt;</span>
+<span class="sd">            ...         &lt;something&gt;</span>
+<span class="sd">            ...             &lt;xe id=&quot;wanted xe&quot; /&gt;</span>
+<span class="sd">            ...         &lt;/something&gt;</span>
+<span class="sd">            ...         &lt;something&gt;</span>
+<span class="sd">            ...             asd</span>
+<span class="sd">            ...         &lt;/something&gt;</span>
+<span class="sd">            ...         &lt;xe id=&quot;another xe&quot; /&gt;</span>
+<span class="sd">            ...     &lt;/some&gt;</span>
+<span class="sd">            ...     &lt;some&gt;</span>
+<span class="sd">            ...         else</span>
+<span class="sd">            ...         &lt;xe id=&quot;yet another xe&quot; /&gt;</span>
+<span class="sd">            ...     &lt;/some&gt;</span>
+<span class="sd">            ... &lt;/root&gt;</span>
+<span class="sd">            ... &#39;&#39;&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; xe = dom.wfind(&quot;root&quot;).wfind(&quot;some&quot;).wfind(&quot;something&quot;).find(&quot;xe&quot;)</span>
+<span class="sd">            &gt;&gt;&gt; xe</span>
+<span class="sd">            [&lt;dhtmlparser.htmlelement.HTMLElement object at 0x8a979ac&gt;]</span>
+<span class="sd">            &gt;&gt;&gt; str(xe[0])</span>
+<span class="sd">            &#39;&lt;xe id=&quot;wanted xe&quot; /&gt;&#39;</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tag_name (str): Name of the tag you are looking for. Set to &quot;&quot; if</span>
+<span class="sd">                            you wish to use only `fn` parameter.</span>
+<span class="sd">            params (dict, default None): Parameters which have to be present</span>
+<span class="sd">                   in tag to be considered matching.</span>
+<span class="sd">            fn (function, default None): Use this function to match tags.</span>
+<span class="sd">               Function expects one parameter which is HTMLElement instance.</span>
+<span class="sd">            case_sensitive (bool, default False): Use case sensitive search.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            obj: Blank HTMLElement with all matches in :attr:`childs` property.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Returned element also have set :attr:`_container` property to True.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">childs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_container</span><span class="p">:</span>  <span class="c"># container object</span>
+            <span class="n">childs</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span>
+                <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">childs</span><span class="p">,</span>
+                <span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">childs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">childs</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">childs</span><span class="p">,</span> <span class="p">[])</span>  <span class="c"># flattern the list</span>
+
+        <span class="n">el</span> <span class="o">=</span> <span class="n">HTMLElement</span><span class="p">()</span>
+        <span class="n">el</span><span class="o">.</span><span class="n">_container</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">childs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">child</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">():</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">child</span><span class="o">.</span><span class="n">isAlmostEqual</span><span class="p">(</span><span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">fn</span><span class="p">,</span> <span class="n">case_sensitive</span><span class="p">):</span>
+                <span class="n">el</span><span class="o">.</span><span class="n">childs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">child</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">el</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.match"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.match">[docs]</a>    <span class="k">def</span> <span class="nf">match</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :meth:`wfind` is nice function, but still kinda long to use, because</span>
+<span class="sd">        you have to manually chain all calls together and in the end, you get</span>
+<span class="sd">        :class:`HTMLElement` instance container.</span>
+
+<span class="sd">        This function recursively calls :meth:`wfind` for you and in the end,</span>
+<span class="sd">        you get list of matching elements::</span>
+
+<span class="sd">            xe = dom.match(&quot;root&quot;, &quot;some&quot;, &quot;something&quot;, &quot;xe&quot;)</span>
+
+<span class="sd">        is alternative to::</span>
+
+<span class="sd">            xe = dom.wfind(&quot;root&quot;).wfind(&quot;some&quot;).wfind(&quot;something&quot;).wfind(&quot;xe&quot;)</span>
+
+<span class="sd">        You can use all arguments used in :meth:`wfind`::</span>
+
+<span class="sd">            dom = dhtmlparser.parseString(&#39;&#39;&#39;</span>
+<span class="sd">                &lt;root&gt;</span>
+<span class="sd">                    &lt;div id=&quot;1&quot;&gt;</span>
+<span class="sd">                        &lt;div id=&quot;5&quot;&gt;</span>
+<span class="sd">                            &lt;xe id=&quot;wanted xe&quot; /&gt;</span>
+<span class="sd">                        &lt;/div&gt;</span>
+<span class="sd">                        &lt;div id=&quot;10&quot;&gt;</span>
+<span class="sd">                            &lt;xe id=&quot;another wanted xe&quot; /&gt;</span>
+<span class="sd">                        &lt;/div&gt;</span>
+<span class="sd">                        &lt;xe id=&quot;another xe&quot; /&gt;</span>
+<span class="sd">                    &lt;/div&gt;</span>
+<span class="sd">                    &lt;div id=&quot;2&quot;&gt;</span>
+<span class="sd">                        &lt;div id=&quot;20&quot;&gt;</span>
+<span class="sd">                            &lt;xe id=&quot;last wanted xe&quot; /&gt;</span>
+<span class="sd">                        &lt;/div&gt;</span>
+<span class="sd">                    &lt;/div&gt;</span>
+<span class="sd">                &lt;/root&gt;</span>
+<span class="sd">            &#39;&#39;&#39;)</span>
+
+<span class="sd">            xe = dom.match(</span>
+<span class="sd">                &quot;root&quot;,</span>
+<span class="sd">                {&quot;tag_name&quot;: &quot;div&quot;, &quot;params&quot;: {&quot;id&quot;: &quot;1&quot;}},</span>
+<span class="sd">                [&quot;div&quot;, {&quot;id&quot;: &quot;5&quot;}],</span>
+<span class="sd">                &quot;xe&quot;</span>
+<span class="sd">            )</span>
+
+<span class="sd">            assert len(xe) == 1</span>
+<span class="sd">            assert xe[0].params[&quot;id&quot;] == &quot;wanted xe&quot;</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            *args: List of :meth:`wfind` parameters.</span>
+<span class="sd">            absolute (bool, default None): If true, first element will be</span>
+<span class="sd">                     searched from the root of the DOM. If None,</span>
+<span class="sd">                     :attr:`_container` attribute will be used to decide value</span>
+<span class="sd">                     of this argument. If False, :meth:`find` call will be run</span>
+<span class="sd">                     first to find first element, then :meth:`wfind` will be</span>
+<span class="sd">                     used to progress to next arguments.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            list: List of matching elements (blank if no matchin element found).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span>
+
+        <span class="c"># pop one argument from argument stack (tuples, so .pop() won&#39;t work)</span>
+        <span class="n">act</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+
+        <span class="c"># this is used to define relative/absolute root of the first element</span>
+        <span class="k">def</span> <span class="nf">wrap_find</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Find wrapper, to allow .wfind() to be substituted witřh .find()</span>
+<span class="sd">            call, which normally returns blank array instead of blank</span>
+<span class="sd">            `container` element.</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">el</span> <span class="o">=</span> <span class="n">HTMLElement</span><span class="p">()</span>
+            <span class="n">el</span><span class="o">.</span><span class="n">childs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">el</span>
+
+        <span class="c"># if absolute is not specified (ie - next recursive call), use</span>
+        <span class="c"># self._container, which is set to True by .wfind(), so next search will</span>
+        <span class="c"># be absolute from the given element</span>
+        <span class="n">absolute</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;absolute&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">absolute</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">absolute</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_container</span>
+
+        <span class="n">find_func</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wfind</span> <span class="k">if</span> <span class="n">absolute</span> <span class="k">else</span> <span class="n">wrap_find</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">act</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">]:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">find_func</span><span class="p">(</span><span class="o">*</span><span class="n">act</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">act</span><span class="p">)</span> <span class="o">==</span> <span class="nb">dict</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">find_func</span><span class="p">(</span><span class="o">**</span><span class="n">act</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">act</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">]:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">find_func</span><span class="p">(</span><span class="n">act</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+                <span class="s">&quot;Unknown parameter type &#39;</span><span class="si">%s</span><span class="s">&#39;: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">act</span><span class="p">),</span> <span class="n">act</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">match</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="c"># just to be sure return always blank array, when the match is</span>
+        <span class="c"># False/None and so on (it shouldn&#39;t be, but ..)</span>
+        <span class="k">return</span> <span class="n">match</span> <span class="k">if</span> <span class="n">match</span> <span class="k">else</span> <span class="p">[]</span>
+
+
+    <span class="c">#==========================================================================</span>
+    <span class="c">#= Parsers ================================================================</span>
+    <span class="c">#==========================================================================</span></div>
+    <span class="k">def</span> <span class="nf">__parseIsTag</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Detect whether the element is HTML tag or not.</span>
+
+<span class="sd">        Result is saved to the :attr:`__istag` property.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&quot;&lt;&quot;</span><span class="p">)</span> <span class="ow">and</span> \
+                       <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&quot;&gt;&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__parseIsEndTag</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Detect whether the element is `endtag` or not.</span>
+
+<span class="sd">        Result is saved to the :attr:`__isendtag` property.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isendtag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&quot;&lt;/&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__parseIsNonPairTag</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Detect whether the element is nonpair or not (ends with ``/&gt;``).</span>
+
+<span class="sd">        Result is saved to the :attr:`__isnonpairtag` property.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&quot;&lt;&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&quot;/&gt;&quot;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="c"># check listed nonpair tags</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">NONPAIR_TAGS</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">def</span> <span class="nf">__parseIsComment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Detect whether the element is HTML comment or not.</span>
+
+<span class="sd">        Result is saved to the :attr:`__iscomment` property.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__iscomment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&quot;&lt;!--&quot;</span><span class="p">)</span> <span class="ow">and</span> \
+                           <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&quot;--&gt;&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__parseTagName</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parse name of the tag.</span>
+
+<span class="sd">        Result is saved to the :attr:`__tagname` property.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">el</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">split</span><span class="p">():</span>
+            <span class="n">el</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&quot;/&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&quot;&lt;&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&quot;&gt;&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">el</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+                <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">__parseParams</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parse parameters from their string HTML representation to dictionary.</span>
+
+<span class="sd">        Result is saved to the :attr:`params` property.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># check if there are any parameters</span>
+        <span class="k">if</span> <span class="s">&quot; &quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span> <span class="ow">or</span> <span class="s">&quot;=&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c"># remove &#39;&lt;&#39; &amp; &#39;&gt;&#39;</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="o">.</span><span class="n">strip</span><span class="p">()[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="c"># remove tagname</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span>
+            <span class="n">params</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">getTagName</span><span class="p">())</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()):</span>
+        <span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+        <span class="c"># parser machine</span>
+        <span class="n">next_state</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+        <span class="n">end_quote</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+        <span class="n">buff</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="s">&quot;&quot;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">next_state</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>      <span class="c"># key</span>
+                <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">!=</span> <span class="s">&quot;&quot;</span><span class="p">:</span>  <span class="c"># safer than list space, tab and all</span>
+                    <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="s">&quot;=&quot;</span><span class="p">:</span>     <span class="c"># possible whitespaces in UTF</span>
+                        <span class="n">next_state</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">key</span> <span class="o">+=</span> <span class="n">c</span>
+
+            <span class="k">elif</span> <span class="n">next_state</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>    <span class="c"># value decisioner</span>
+                <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">!=</span> <span class="s">&quot;&quot;</span><span class="p">:</span>  <span class="c"># skip whitespaces</span>
+                    <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="s">&quot;&#39;&quot;</span> <span class="ow">or</span> <span class="n">c</span> <span class="o">==</span> <span class="s">&#39;&quot;&#39;</span><span class="p">:</span>
+                        <span class="n">next_state</span> <span class="o">=</span> <span class="mi">3</span>
+                        <span class="n">end_quote</span> <span class="o">=</span> <span class="n">c</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">next_state</span> <span class="o">=</span> <span class="mi">2</span>
+                        <span class="n">value</span> <span class="o">+=</span> <span class="n">c</span>
+
+            <span class="k">elif</span> <span class="n">next_state</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>    <span class="c"># one word parameter without quotes</span>
+                <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s">&quot;&quot;</span><span class="p">:</span>
+                    <span class="n">next_state</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">+=</span> <span class="n">c</span>
+
+            <span class="k">elif</span> <span class="n">next_state</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>    <span class="c"># quoted string</span>
+                <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="n">end_quote</span> <span class="ow">and</span> <span class="p">(</span><span class="n">buff</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s">&quot;</span><span class="se">\\</span><span class="s">&quot;</span> <span class="ow">or</span> <span class="p">(</span><span class="n">buff</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="s">&quot;</span><span class="se">\\</span><span class="s">&quot;</span> <span class="ow">and</span> <span class="n">buff</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;</span><span class="se">\\</span><span class="s">&quot;</span><span class="p">):</span>
+                    <span class="n">next_state</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">unescape</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">end_quote</span><span class="p">)</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+                    <span class="n">end_quote</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">+=</span> <span class="n">c</span>
+
+            <span class="n">buff</span> <span class="o">=</span> <span class="n">_rotate_buff</span><span class="p">(</span><span class="n">buff</span><span class="p">)</span>
+            <span class="n">buff</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+
+        <span class="k">if</span> <span class="n">key</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">end_quote</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">unescape</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">end_quote</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="k">if</span> <span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">==</span> <span class="s">&quot;/&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s">&quot;/&quot;</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="c">#* /Parsers ***************************************************************</span>
+
+    <span class="c">#==========================================================================</span>
+    <span class="c">#= Getters ================================================================</span>
+    <span class="c">#==========================================================================</span>
+<div class="viewcode-block" id="HTMLElement.isTag"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.isTag">[docs]</a>    <span class="k">def</span> <span class="nf">isTag</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if the element is considered to be HTML tag.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.isEndTag"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.isEndTag">[docs]</a>    <span class="k">def</span> <span class="nf">isEndTag</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if the element is end tag (``&lt;/endtag&gt;``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__isendtag</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.isNonPairTag"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.isNonPairTag">[docs]</a>    <span class="k">def</span> <span class="nf">isNonPairTag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">isnonpair</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        True if element is listed in nonpair tag table (``br`` for example) or</span>
+<span class="sd">        if it ends with ``/&gt;`` (``&lt;hr /&gt;`` for example).</span>
+
+<span class="sd">        You can also change state from pair to nonpair if you use this as</span>
+<span class="sd">        setter.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            isnonpair (bool, default None): If set, internal nonpair state is</span>
+<span class="sd">                      changed.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            book: True if tag is nonpair.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">isnonpair</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">isnonpair</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">childs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="o">=</span> <span class="n">isnonpair</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.isPairTag"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.isPairTag">[docs]</a>    <span class="k">def</span> <span class="nf">isPairTag</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if this is pair tag - ``&lt;body&gt; .. &lt;/body&gt;`` for example.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isComment</span><span class="p">()</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">isNonPairTag</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">True</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isOpeningTag</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.isOpeningTag"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.isOpeningTag">[docs]</a>    <span class="k">def</span> <span class="nf">isOpeningTag</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Detect whether this tag is opening or not.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if it is opening.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isTag</span><span class="p">()</span> <span class="ow">and</span> \
+           <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">isComment</span><span class="p">()</span> <span class="ow">and</span> \
+           <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">()</span> <span class="ow">and</span> \
+           <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">isNonPairTag</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">True</span>
+
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.isEndTagTo"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.isEndTagTo">[docs]</a>    <span class="k">def</span> <span class="nf">isEndTagTo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">opener</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            opener (obj): :class:`HTMLElement` instance.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True, if this element is endtag to `opener`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__isendtag</span> <span class="ow">and</span> <span class="n">opener</span><span class="o">.</span><span class="n">isOpeningTag</span><span class="p">()):</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="n">opener</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.isComment"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.isComment">[docs]</a>    <span class="k">def</span> <span class="nf">isComment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if this element is encapsulating HTML comment.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__iscomment</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.tagToString"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.tagToString">[docs]</a>    <span class="k">def</span> <span class="nf">tagToString</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get HTML element representation of the tag, but only the tag, not the</span>
+<span class="sd">        :attr:`childs` or :attr:`endtag`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: HTML representation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">isTag</span><span class="p">()</span> <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="ow">and</span> <span class="s">&quot;=&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="s">&quot;&lt;&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">+=</span> <span class="s">&quot; &quot;</span> <span class="o">+</span> <span class="n">key</span> <span class="o">+</span> <span class="s">&quot;=</span><span class="se">\&quot;</span><span class="s">&quot;</span> <span class="o">+</span> <span class="n">escape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="s">&#39;&quot;&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\&quot;</span><span class="s">&quot;</span>
+
+        <span class="k">return</span> <span class="n">output</span> <span class="o">+</span> <span class="s">&quot; /&gt;&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="k">else</span> <span class="n">output</span> <span class="o">+</span> <span class="s">&quot;&gt;&quot;</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.toString"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.toString">[docs]</a>    <span class="k">def</span> <span class="nf">toString</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns almost original string (use `original` = True if you want exact</span>
+<span class="sd">        copy).</span>
+
+<span class="sd">        If you want prettified string, try :meth:`prettify`.</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Complete representation of the element with childs, endtag \</span>
+<span class="sd">                 and so on.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">isOpeningTag</span><span class="p">():</span>
+            <span class="n">output</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">+=</span> <span class="n">c</span><span class="o">.</span><span class="n">toString</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">():</span>
+            <span class="n">output</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.getTagName"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.getTagName">[docs]</a>    <span class="k">def</span> <span class="nf">getTagName</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Tag name or while element in case of normal text \</span>
+<span class="sd">                 (``not isTag()``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.getContent"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.getContent">[docs]</a>    <span class="k">def</span> <span class="nf">getContent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Content of tag (everything between `opener` and `endtag`).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">isTag</span><span class="p">()</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__element</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s">&quot;&quot;</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">c</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">():</span>
+                <span class="n">output</span> <span class="o">+=</span> <span class="n">c</span><span class="o">.</span><span class="n">toString</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">output</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.prettify"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.prettify">[docs]</a>    <span class="k">def</span> <span class="nf">prettify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s">&quot;  &quot;</span><span class="p">,</span> <span class="n">last</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">pre</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                                                           <span class="n">inline</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Same as :meth:`toString`, but returns prettified element with content.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This method is partially broken, and can sometimes create unexpected</span>
+<span class="sd">            results.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            str: Prettified string.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()</span> <span class="o">!=</span> <span class="s">&quot;&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s">&quot;&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s">&quot;&quot;</span>
+
+        <span class="c"># if not inside &lt;pre&gt; and not inline, shift tag to the right</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">pre</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">inline</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">+=</span> <span class="p">(</span><span class="n">depth</span> <span class="o">*</span> <span class="n">separator</span><span class="p">)</span>
+
+        <span class="c"># for &lt;pre&gt; set &#39;pre&#39; flag</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s">&quot;pre&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">isOpeningTag</span><span class="p">():</span>
+            <span class="n">pre</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="n">separator</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+
+        <span class="n">output</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span>
+
+        <span class="c"># detect if inline - is_inline shows if inline was set by detection, or</span>
+        <span class="c"># as parameter</span>
+        <span class="n">is_inline</span> <span class="o">=</span> <span class="n">inline</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">isTag</span><span class="p">()</span> <span class="ow">or</span> <span class="n">c</span><span class="o">.</span><span class="n">isComment</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">inline</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="c"># don&#39;t shift if inside container (containers have blank tagname)</span>
+        <span class="n">original_depth</span> <span class="o">=</span> <span class="n">depth</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()</span> <span class="o">!=</span> <span class="s">&quot;&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">pre</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">inline</span><span class="p">:</span>  <span class="c"># inside &lt;pre&gt; doesn&#39;t shift tags</span>
+                <span class="n">depth</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">!=</span> <span class="s">&quot;&quot;</span><span class="p">:</span>
+                    <span class="n">output</span> <span class="o">+=</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span>
+
+        <span class="c"># prettify childs</span>
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">():</span>
+                <span class="n">output</span> <span class="o">+=</span> <span class="n">e</span><span class="o">.</span><span class="n">prettify</span><span class="p">(</span>
+                    <span class="n">depth</span><span class="p">,</span>
+                    <span class="n">last</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                    <span class="n">pre</span><span class="o">=</span><span class="n">pre</span><span class="p">,</span>
+                    <span class="n">inline</span><span class="o">=</span><span class="n">inline</span>
+                <span class="p">)</span>
+
+        <span class="c"># endtag</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">pre</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">inline</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">+=</span> <span class="p">((</span><span class="n">original_depth</span><span class="p">)</span> <span class="o">*</span> <span class="n">separator</span><span class="p">)</span>
+
+            <span class="n">output</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">is_inline</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">+=</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span>
+
+        <span class="k">return</span> <span class="n">output</span>
+
+    <span class="c">#* /Getters ***************************************************************</span>
+
+    <span class="c">#==========================================================================</span>
+    <span class="c">#= Operators ==============================================================</span>
+    <span class="c">#==========================================================================</span></div>
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">toString</span><span class="p">()</span>
+
+<div class="viewcode-block" id="HTMLElement.containsParamSubset"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.containsParamSubset">[docs]</a>    <span class="k">def</span> <span class="nf">containsParamSubset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Test whether this element contains at least all `params`, or more.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            params (dict/SpecialDict): Subset of parameters.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if all `params` are contained in this element.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">params</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">False</span>
+
+            <span class="k">if</span> <span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="n">key</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="k">return</span> <span class="bp">True</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.isAlmostEqual"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.isAlmostEqual">[docs]</a>    <span class="k">def</span> <span class="nf">isAlmostEqual</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tag_name</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">fn</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                                                   <span class="n">case_sensitive</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compare element with given `tag_name`, `params` and/or by lambda</span>
+<span class="sd">        function `fn`.</span>
+
+<span class="sd">        Lambda function is same as in :meth:`find`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            tag_name (str): Compare just name of the element.</span>
+<span class="sd">            params (dict, default None): Compare also parameters.</span>
+<span class="sd">            fn (function, default None): Function which will be used for</span>
+<span class="sd">                                         matching.</span>
+<span class="sd">            case_sensitive (default False): Use case sensitive matching of the</span>
+<span class="sd">                                            `tag_name`.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            bool: True if two elements are almost equal.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tag_name</span><span class="p">,</span> <span class="n">HTMLElement</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">isAlmostEqual</span><span class="p">(</span>
+                <span class="n">tag_name</span><span class="o">.</span><span class="n">getTagName</span><span class="p">(),</span>
+                <span class="n">tag_name</span><span class="o">.</span><span class="n">params</span> <span class="k">if</span> <span class="n">tag_name</span><span class="o">.</span><span class="n">params</span> <span class="k">else</span> <span class="bp">None</span>
+            <span class="p">)</span>
+
+        <span class="c"># search by lambda function</span>
+        <span class="k">if</span> <span class="n">fn</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">fn</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">case_sensitive</span> <span class="ow">and</span> <span class="n">tag_name</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="n">tag_name</span> <span class="o">=</span> <span class="n">tag_name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+        <span class="c"># compare tagname</span>
+        <span class="k">if</span> <span class="n">tag_name</span> <span class="ow">and</span> <span class="n">tag_name</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="c"># None params = don&#39;t use parameters to compare equality</span>
+        <span class="k">if</span> <span class="n">params</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+
+        <span class="c"># compare parameters</span>
+        <span class="k">if</span> <span class="n">params</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+
+        <span class="c"># test whether params dict is subset of self.params</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">containsParamSubset</span><span class="p">(</span><span class="n">params</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">False</span>
+
+        <span class="k">return</span> <span class="bp">True</span>
+
+    <span class="c">#* /Operators *************************************************************</span>
+
+    <span class="c">#==========================================================================</span>
+    <span class="c">#= Setters ================================================================</span>
+    <span class="c">#==========================================================================</span></div>
+<div class="viewcode-block" id="HTMLElement.replaceWith"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.replaceWith">[docs]</a>    <span class="k">def</span> <span class="nf">replaceWith</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">el</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Replace value in this element with values from `el`.</span>
+
+<span class="sd">        This useful when you don&#39;t want change all references to object.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            el (obj): :class:`HTMLElement` instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">childs</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">childs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">endtag</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">endtag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">openertag</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">openertag</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__tagname</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">getTagName</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__element</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">tagToString</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__istag</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">isTag</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isendtag</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">isEndTag</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__iscomment</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">isComment</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__isnonpairtag</span> <span class="o">=</span> <span class="n">el</span><span class="o">.</span><span class="n">isNonPairTag</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="HTMLElement.removeChild"><a class="viewcode-back" href="../../api/dhtmlparser.htmlelement.html#dhtmlparser.htmlelement.HTMLElement.removeChild">[docs]</a>    <span class="k">def</span> <span class="nf">removeChild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">child</span><span class="p">,</span> <span class="n">end_tag_too</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Remove subelement (`child`) specified by reference.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            This can&#39;t be used for removing subelements by value! If you want</span>
+<span class="sd">            to do such thing, try::</span>
+
+<span class="sd">                for e in dom.find(&quot;value&quot;):</span>
+<span class="sd">                    dom.removeChild(e)</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            child (obj): :class:`HTMLElement` instance which will be removed</span>
+<span class="sd">                         from this element.</span>
+<span class="sd">            end_tag_too (bool, default True): Remove also `child` endtag.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># if there are multiple childs, remove them</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">child</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">]:</span>
+            <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">removeChild</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">end_tag_too</span><span class="p">),</span> <span class="n">child</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">end_tag</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">end_tag_too</span><span class="p">:</span>
+            <span class="n">end_tag</span> <span class="o">=</span> <span class="n">child</span><span class="o">.</span><span class="n">endtag</span>
+
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e</span> <span class="o">!=</span> <span class="n">child</span><span class="p">:</span>
+                <span class="n">e</span><span class="o">.</span><span class="n">removeChild</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">end_tag_too</span><span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">end_tag_too</span> <span class="ow">and</span> <span class="n">end_tag</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">end_tag</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">childs</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+
+    <span class="c">#* /Setters ***************************************************************</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">pyDHTMLParser 2.0.8 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li>
+          <li><a href="../dhtmlparser.html" >dhtmlparser</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright Bystroushaak.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>
