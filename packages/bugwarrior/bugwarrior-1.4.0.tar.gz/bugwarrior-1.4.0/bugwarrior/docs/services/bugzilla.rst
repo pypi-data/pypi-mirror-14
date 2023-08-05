@@ -1,0 +1,78 @@
+Bugzilla
+=========================
+
+You can import tasks from your Bz instance using
+the ``bugzilla`` service name.
+
+Example Service
+---------------
+
+Here's an example of a bugzilla target.
+
+This will scrape every ticket that:
+
+1. Is not closed and
+2. rbean@redhat.com is either the owner, reporter or is cc'd on the issue.
+   
+Bugzilla instances can be quite different from one another so use this
+with caution and please report bugs so we can
+make bugwarrior support more robust!
+
+::
+
+    [my_issue_tracker]
+    service = bugzilla
+    bugzilla.base_uri = bugzilla.redhat.com
+    bugzilla.username = rbean@redhat.com
+    bugzilla.password = OMG_LULZ
+
+The above example is the minimum required to import issues from
+Bugzilla.  You can also feel free to use any of the
+configuration options described in :ref:`common_configuration_options`.
+Note, however, that the filtering options, including ``only_if_assigned``
+and ``also_unassigned``, do not work
+
+There is an option to ignore bugs that you are only cc'd on::
+
+    bugzilla.ignore_cc = True
+
+But this will continue to include bugs that you reported, regardless of
+whether they are assigned to you.
+
+If your bugzilla "actionable" bugs only include ON_QA, FAILS_QA, PASSES_QA, and POST::
+
+    bugzilla.open_statuses = ON_QA,FAILS_QA,PASSES_QA,POST
+
+This won't create tasks for bugs in other states. The default open statuses:
+"NEW,ASSIGNED,NEEDINFO,ON_DEV,MODIFIED,POST,REOPENED,ON_QA,FAILS_QA,PASSES_QA"
+
+If you're on a more recent Bugzilla install, the NEEDINFO status no longer
+exists, and has been replaced by the "needinfo?" flag. Set
+"bugzilla.include_needinfos" to "True" to have taskwarrior also add bugs where
+information is requested of you. The "bugzillaneedinfo" UDA will be filled in
+with the date the needinfo was set.
+
+To see all your needinfo bugs, you can use "task bugzillaneedinfo.any: list".
+
+If the filtering options are not sufficient to find the set of bugs you'd like,
+you can tell Bugwarrior exactly which bugs to sync by pasting a full query URL
+from your browser into the ``bugzilla.query_url`` option::
+
+    bugzilla.query_url = https://bugzilla.mozilla.org/query.cgi?bug_status=ASSIGNED&email1=myname%40mozilla.com&emailassigned_to1=1&emailtype1=exact
+
+Provided UDA Fields
+-------------------
+
++----------------------+---------------------+---------------------+
+| Field Name           | Description         | Type                |
++======================+=====================+=====================+
+| ``bugzillasummary``  | Summary             | Text (string)       |
++----------------------+---------------------+---------------------+
+| ``bugzillaurl``      | URL                 | Text (string)       |
++----------------------+---------------------+---------------------+
+| ``bugzillabugid``    | Bug ID              | Numeric (integer)   |
++----------------------+---------------------+---------------------+
+| ``bugzillastatus``   | Bugzilla Status     | Text (string)       |
++----------------------+---------------------+---------------------+
+| ``bugzillaneedinfo`` | Needinfo            | Date                |
++----------------------+---------------------+---------------------+
