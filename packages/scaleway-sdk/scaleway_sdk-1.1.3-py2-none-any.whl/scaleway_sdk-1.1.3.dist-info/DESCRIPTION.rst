@@ -1,0 +1,285 @@
+Scaleway SDK
+============
+
+This package provides tools to query the REST APIs of `Scaleway
+<https://scaleway.com/>`_.
+
+Stable release: |release| |license| |dependencies| |popularity|
+
+Development: |build| |quality| |coverage|
+
+.. |release| image:: https://img.shields.io/pypi/v/scaleway-sdk.svg?style=flat
+    :target: https://pypi.python.org/pypi/scaleway-sdk
+    :alt: Last release
+.. |license| image:: https://img.shields.io/pypi/l/scaleway-sdk.svg?style=flat
+    :target: http://opensource.org/licenses/BSD-2-Clause
+    :alt: Software license
+.. |popularity| image:: https://img.shields.io/pypi/dm/scaleway-sdk.svg?style=flat
+    :target: https://pypi.python.org/pypi/scaleway-sdk#downloads
+    :alt: Popularity
+.. |dependencies| image:: https://img.shields.io/requires/github/scaleway/python-scaleway/master.svg?style=flat
+    :target: https://requires.io/github/scaleway/python-scaleway/requirements/?branch=master
+    :alt: Requirements freshness
+.. |build| image:: https://img.shields.io/travis/scaleway/python-scaleway/develop.svg?style=flat
+    :target: https://travis-ci.org/scaleway/python-scaleway
+    :alt: Unit-tests status
+.. |coverage| image:: https://codecov.io/github/scaleway/python-scaleway/coverage.svg?branch=develop
+    :target: https://codecov.io/github/scaleway/python-scaleway?branch=develop
+    :alt: Coverage Status
+.. |quality| image:: https://img.shields.io/scrutinizer/g/scaleway/python-scaleway.svg?style=flat
+    :target: https://scrutinizer-ci.com/g/scaleway/python-scaleway/?branch=develop
+    :alt: Code Quality
+
+
+Installation
+------------
+
+The package is available on ``pip``. To install it in a virtualenv:
+
+.. code-block:: bash
+
+    $ virtualenv my_virtualenv
+    $ source my_virtualenv/bin/activate
+    $ pip install scaleway-sdk
+
+
+General principle
+-----------------
+
+If you're looking to send a ``GET`` HTTP request against our APIs, like:
+
+.. code-block:: http
+
+    GET <api_url>/foo/bar
+
+you only need to call the following pythonic code:
+
+.. code-block:: python
+
+    >>> from scaleway.apis import DummyAPI
+    >>> DummyAPI().query().foo.bar.get()
+
+The magic here lies in ``scaleway.apis.*API`` instances, which all have a
+``query`` method returning a ``slumber.API`` object. The latter handling all
+the excruciating details of the requests.
+
+
+Documentation
+-------------
+
+Even if this SDK is designed to be developer-friendly and aim for self-service
+discovery, it is still recommended to read the official `API documentation
+<https://scaleway.com/docs/>`_.
+
+And because most of the provided helpers takes the form of pre-configured
+``Slumber`` objects, a good read of `Slumber <http://slumber.readthedocs.org>`_
+documention is encouraged as well.
+
+
+Examples
+--------
+
+- List your organizations:
+
+.. code-block:: python
+
+    >>> from scaleway.apis import AccountAPI
+    >>> api = AccountAPI(auth_token='')  # Set your token here!
+    >>> print api.query().organizations.get()
+    {u'organizations': [...]}
+
+
+- List your servers:
+
+.. code-block:: python
+
+    >>> from scaleway.apis import ComputeAPI
+    >>> api = ComputeAPI(auth_token='')  # Set your token here!
+    >>> print api.query().servers.get()
+    {u'servers': [...]}
+
+
+- Get details of a server:
+
+.. code-block:: python
+
+    >>> from scaleway.apis import ComputeAPI
+    >>> api = ComputeAPI(auth_token='')  # Set your token here!
+    >>> server_id = ''  # Set a server ID here!
+    >>> print api.query().servers(server_id).get()
+    {u'server': {...}}
+
+
+- Check if your token has the permission ``servers:read`` for the service
+  ``compute`` for the organization ``9a096d36-6bf9-470f-91df-2398aa7361f7``:
+
+.. code-block:: python
+
+    >>> from scaleway.apis import AccountAPI
+    >>> api = AccountAPI(auth_token='')  # Set your token here!
+    >>> print api.has_perm(service='compute', name='servers:read',
+    ...     resource='9a096d36-6bf9-470f-91df-2398aa7361f7')
+    False
+
+
+Development
+-----------
+
+Assuming you are in a `virtualenv <http://virtualenv.readthedocs.org>`_:
+
+.. code-block:: bash
+
+    $ pip install -e .
+    $ python -c 'from scaleway.apis import AccountAPI'
+      # it works!
+
+
+Test
+----
+
+To submit a patch, you'll need to test your code against python2.7 and
+python3.4. To run tests:
+
+.. code-block:: bash
+
+    $ pip install nose coverage pep8 pylint
+    $ python setup.py nosetests --with-coverage
+      (...)
+    $ pep8 scaleway
+      (...)
+    $ pylint scaleway
+      (...)
+
+* Coverage score should never be lower than before your patch.
+* PEP8 should never return an error.
+* Pylint score should never be lower than before your patch.
+
+Alternatively, to run `nosetests` on both Python2.7 and Python3.4, you can run
+`tox`.
+
+
+Alternative libraries / clients
+-------------------------------
+
+We maintain a list of the current library/client implementations on the `api.scaleway.com repository <https://github.com/scaleway/api.scaleway.com/blob/master/README.md#clients--libraries>`_.
+
+License
+-------
+
+This software is licensed under a `BSD 2-Clause License
+<https://github.com/scaleway/python-scaleway/blob/develop/LICENSE.rst>`_.
+
+ChangeLog
+=========
+
+1.1.3 (2016-03-29)
+------------------
+
+* Do not flood the APIs in case of maintenance.
+
+1.1.2 (2015-11-23)
+------------------
+
+* Add bumpversion config.
+* Fix readme rendering.
+
+1.1.1 (2015-11-23)
+------------------
+
+* Switch from coveralls.io to codecov.io.
+
+1.1.0 (2015-10-13)
+------------------
+
+* Add Python3 support (#4).
+* Add an explicit error message when SNI fails (#8).
+* In an API endpoint is in maintenance (ie. it returns HTTP/503), keep trying
+  to make requests for 180 seconds.
+
+1.0.2 (2015-04-07)
+------------------
+
+* Fix Pypi mess.
+
+1.0.0 (2015-04-07)
+------------------
+
+* Rename OCS to Scaleway. ``import ocs`` becomes ``import scaleway``.
+
+0.4.2 (2015-04-02)
+------------------
+
+* Install packages to have TLS SNI support.
+
+0.4.1 (2015-04-02)
+------------------
+
+* Update APIs URLs from ``cloud.online.net`` to ``scaleway.com``.
+
+0.4.0 (2015-03-11)
+------------------
+
+* Add param ``include_locked`` to ``AccountAPI.get_resources()``. Useful if you
+  need to list all the permissions of a token, even if the owner's organization
+  is locked.
+* ``AccountAPI.has_perm()`` also accepts the param ``include_locked``.
+
+0.3.2 (2015-01-08)
+------------------
+
+* Raise ``BadToken`` if account API returns ``HTTP/400``.
+
+0.3.1 (2014-12-19)
+------------------
+
+* ``ocs_sdk.apis.API`` accepts the constructor param ``user_agent``. Defaults
+  to ``ocs-sdk Pythons/version Platform``.
+* Check code coverage thanks to coveralls.
+
+0.3.0 (2014-11-12)
+------------------
+
+* Add missing license files. Closes #1.
+* Create class ``MetadataAPI`` to get metadata of a running server.
+
+0.2.1 (2014-10-14)
+------------------
+
+* Add documentation.
+* Set production URLs as defaults in ``AccountAPI`` and ``ComputeAPI``.
+
+0.2.0 (2014-04-16)
+------------------
+
+* Added quota methods (``has_quota``, ``get_quotas``) & their tests.
+  Refs: AM-1, AM-11.
+
+0.1.3 (2014-03-07)
+------------------
+
+* Minor changes in ``AccountAPI.perm_matches`` (67f967d26d3).
+* ``base_url`` can be given to the constructor of ``API()``.
+* ``verify_ssl`` can be given to the constructor of ``API()``.
+
+0.1.2 (2014-02-28)
+------------------
+
+* Raise ``InvalidToken`` when ``get_resources`` is called with and invalid
+  token.
+
+0.1.1 (2014-02-28)
+------------------
+
+* Add missing files in source tarball.
+
+0.1.0 (2014-02-28)
+------------------
+
+* Initial release.
+
+0.0.0 (2013-06-24)
+------------------
+
+* First commit.
+
+
