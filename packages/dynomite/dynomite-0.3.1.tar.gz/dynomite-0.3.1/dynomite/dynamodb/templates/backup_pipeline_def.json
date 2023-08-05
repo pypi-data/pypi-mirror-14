@@ -1,0 +1,169 @@
+[
+  {
+    "fields": [
+      {
+        "key": "startAt",
+        "stringValue": "FIRST_ACTIVATION_DATE_TIME"
+      },
+      {
+        "key": "period",
+        "stringValue": "1 day"
+      },
+      {
+        "key": "type",
+        "stringValue": "Schedule"
+      },
+      {
+        "key": "occurrences",
+        "stringValue": "1"
+      }],
+      "id": "${table}_table_export_schedule",
+      "name": "ExportSchedule"
+    },
+    {
+    "fields": [
+      {
+        "key": "schedule",
+        "refValue": "${table}_table_export_schedule"
+      },
+      {
+        "key": "directoryPath",
+        "stringValue": "s3://${bucket_name}/data/${region}/${table}"
+      },
+      {
+        "key": "type",
+        "stringValue": "S3DataNode"
+      }
+    ],
+      "id": "s3_data_node",
+      "name": "${table}_table_s3_data"
+    },
+    {
+    "fields": [
+      {
+        "key": "schedule",
+        "refValue": "${table}_table_export_schedule"
+      },
+      {
+        "key": "tableName",
+        "stringValue": "${table}"
+      },
+      {
+        "key": "type",
+        "stringValue": "DynamoDBDataNode"
+      }],
+      "id": "dynamodb_data_node",
+      "name": "${table}_table_dynamodb_data"
+    },
+    {
+    "fields": [
+      {
+        "key": "schedule",
+        "refValue": "${table}_table_export_schedule"
+      },
+      {
+        "key": "resizeClusterMaxInstances",
+        "stringValue": "50"
+      },
+      {
+        "key": "maximumRetries",
+        "stringValue": "2"
+      },
+      {
+        "key": "runsOn",
+        "refValue": "export_cluster"
+      },
+      {
+        "key": "type",
+        "stringValue": "EmrActivity"
+      },
+      {
+        "key": "input",
+        "refValue": "dynamodb_data_node"
+      },
+      {
+        "key": "output",
+        "refValue": "s3_data_node"
+      },
+      {
+        "key": "myDynamoDBReadThroughputRatio",
+        "stringValue": "0.95"
+      },
+      {
+        "key": "step",
+        "stringValue": "s3://elasticmapreduce/libs/script-runner/script-runner.jar,s3://elasticmapreduce/libs/hive/hive-script,--run-hive-script,--hive-versions,latest,--args,-f,s3://elasticmapreduce/libs/hive/dynamodb/exportDynamoDBTableToS3,-d,DYNAMODB_INPUT_TABLE=${table},-d,S3_OUTPUT_BUCKET=#{output.directoryPath}/#{format(@scheduledStartTime,'YYYY-MM-dd_hh.mm')},-d,DYNAMODB_READ_PERCENT=#{myDynamoDBReadThroughputRatio},-d,DYNAMODB_ENDPOINT=dynamodb.${region}.amazonaws.com"
+      },
+      {
+        "key": "resizeClusterBeforeRunning",
+        "stringValue": "true"
+      }
+    ],
+      "id": "${table}_table_export_job",
+      "name": "${table}_table_export_job"
+    },
+    {
+    "fields": [
+      {
+        "key": "schedule",
+        "refValue": "${table}_table_export_schedule"
+      },
+      {
+        "key": "emrLogUri",
+        "stringValue": "s3://${bucket_name}/logs/export/${region}/${table}/#{format(@scheduledStartTime,'YYYY-MM-dd_hh.mm')}"
+      },
+      {
+        "key": "installHive",
+        "stringValue": "latest"
+      },
+      {
+        "key": "enableDebugging",
+        "stringValue": "true"
+      },
+      {
+        "key": "coreInstanceType",
+        "stringValue": "m1.medium"
+      },
+      {
+        "key": "coreInstanceCount",
+        "stringValue": "1"
+      },
+      {
+        "key": "masterInstanceType",
+        "stringValue": "m1.medium"
+      },
+      {
+        "key": "amiVersion",
+        "stringValue": "3.3.2"
+      },
+      {
+        "key": "type",
+        "stringValue": "EmrCluster"
+      }
+    ],
+      "id": "export_cluster",
+      "name": "export_cluster"
+    },
+  {
+    "fields": [
+      {
+        "key": "failureAndRerunMode",
+        "stringValue": "CASCADE"
+      },
+      {
+        "key": "resourceRole",
+        "stringValue": "DataPipelineDefaultResourceRole"
+      },
+      {
+        "key": "role",
+        "stringValue": "DataPipelineDefaultRole"
+      },
+      {
+        "key": "scheduleType",
+        "stringValue": "CRON"
+      }
+    ],
+      "id": "Default",
+      "name": "Default"
+    }
+
+]
