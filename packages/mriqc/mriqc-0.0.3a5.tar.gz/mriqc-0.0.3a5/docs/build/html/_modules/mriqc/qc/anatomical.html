@@ -1,0 +1,433 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mriqc.qc.anatomical &mdash; mriqc 0.1.0 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="mriqc 0.1.0 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> mriqc
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul class="simple">
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../index.html">mriqc</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      
+    <li>mriqc.qc.anatomical</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mriqc.qc.anatomical</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-</span>
+<span class="c1"># vi: set ft=python sts=4 ts=4 sw=4 et:</span>
+<span class="c1"># pylint: disable=no-member</span>
+<span class="c1">#</span>
+<span class="c1"># @Author: oesteban</span>
+<span class="c1"># @Date:   2016-01-05 11:29:40</span>
+<span class="c1"># @Email:  code@oscaresteban.es</span>
+<span class="c1"># @Last modified by:   oesteban</span>
+<span class="c1"># @Last Modified time: 2016-02-29 11:40:36</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Computation of the quality assessment measures on structural MRI</span>
+
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">six</span> <span class="kn">import</span> <span class="n">string_types</span>
+<span class="kn">import</span> <span class="nn">scipy.ndimage</span> <span class="kn">as</span> <span class="nn">nd</span>
+
+<span class="n">FSL_FAST_LABELS</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;csf&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;gm&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;wm&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;bg&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+<div class="viewcode-block" id="snr"><a class="viewcode-back" href="../../../mriqc.qc.html#mriqc.qc.anatomical.snr">[docs]</a><span class="k">def</span> <span class="nf">snr</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">seg</span><span class="p">,</span> <span class="n">fglabel</span><span class="p">,</span> <span class="n">bglabel</span><span class="o">=</span><span class="s1">&#39;bg&#39;</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the :abbr:`SNR (Signal-to-Noise Ratio)`</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \text{SNR} = \frac{\mu_F}{\sigma_B}</span>
+
+
+<span class="sd">    where :math:`\mu_F` is the mean intensity of the foreground and</span>
+<span class="sd">    :math:`\sigma_B` is the standard deviation of the background,</span>
+<span class="sd">    where the noise is computed.</span>
+
+<span class="sd">    :param numpy.ndarray img: input data</span>
+<span class="sd">    :param numpy.ndarray seg: input segmentation</span>
+<span class="sd">    :param str fglabel: foreground label in the segmentation data.</span>
+<span class="sd">    :param str bglabel: background label in the segmentation data.</span>
+
+<span class="sd">    :return: the computed SNR for the foreground segmentation</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fglabel</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+        <span class="n">fglabel</span> <span class="o">=</span> <span class="n">FSL_FAST_LABELS</span><span class="p">[</span><span class="n">fglabel</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bglabel</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+        <span class="n">bglabel</span> <span class="o">=</span> <span class="n">FSL_FAST_LABELS</span><span class="p">[</span><span class="n">bglabel</span><span class="p">]</span>
+
+    <span class="n">fg_mean</span> <span class="o">=</span> <span class="n">img</span><span class="p">[</span><span class="n">seg</span> <span class="o">==</span> <span class="n">fglabel</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">bg_std</span> <span class="o">=</span> <span class="n">img</span><span class="p">[</span><span class="n">seg</span> <span class="o">==</span> <span class="n">bglabel</span><span class="p">]</span><span class="o">.</span><span class="n">std</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fg_mean</span> <span class="o">/</span> <span class="n">bg_std</span></div>
+
+
+<div class="viewcode-block" id="cnr"><a class="viewcode-back" href="../../../mriqc.qc.html#mriqc.qc.anatomical.cnr">[docs]</a><span class="k">def</span> <span class="nf">cnr</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">seg</span><span class="p">,</span> <span class="n">lbl</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the :abbr:`CNR (Contrast-to-Noise Ratio)`</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \text{CNR} = \frac{|\mu_\text{GM} - \mu_\text{WM} |}{\sigma_B}</span>
+
+
+<span class="sd">    :param numpy.ndarray img: input data</span>
+<span class="sd">    :param numpy.ndarray seg: input segmentation</span>
+<span class="sd">    :return: the computed CNR</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">lbl</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">lbl</span> <span class="o">=</span> <span class="n">FSL_FAST_LABELS</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">img</span><span class="p">[</span><span class="n">seg</span> <span class="o">==</span> <span class="n">lbl</span><span class="p">[</span><span class="s1">&#39;gm&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">-</span> <span class="n">img</span><span class="p">[</span><span class="n">seg</span> <span class="o">==</span> <span class="n">lbl</span><span class="p">[</span><span class="s1">&#39;wm&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">/</span> \
+                  <span class="n">img</span><span class="p">[</span><span class="n">seg</span> <span class="o">==</span> <span class="n">lbl</span><span class="p">[</span><span class="s1">&#39;bg&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">std</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="fber"><a class="viewcode-back" href="../../../mriqc.qc.html#mriqc.qc.anatomical.fber">[docs]</a><span class="k">def</span> <span class="nf">fber</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">seg</span><span class="p">,</span> <span class="n">fglabel</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">bglabel</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the :abbr:`FBER (Foreground-Background Energy Ratio)`</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \text{FBER} = \frac{E[|F|^2]}{E[|B|^2]}</span>
+
+
+<span class="sd">    :param numpy.ndarray img: input data</span>
+<span class="sd">    :param numpy.ndarray seg: input segmentation</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">fglabel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">fgdata</span> <span class="o">=</span> <span class="n">img</span><span class="p">[</span><span class="n">seg</span> <span class="o">==</span> <span class="n">FSL_FAST_LABELS</span><span class="p">[</span><span class="n">fglabel</span><span class="p">]]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">fgdata</span> <span class="o">=</span> <span class="n">img</span><span class="p">[</span><span class="n">seg</span> <span class="o">!=</span> <span class="n">bglabel</span><span class="p">]</span>
+
+    <span class="n">fg_mu</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">fgdata</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="n">bg_mu</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">img</span><span class="p">[</span><span class="n">seg</span> <span class="o">==</span> <span class="n">bglabel</span><span class="p">])</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">fg_mu</span> <span class="o">/</span> <span class="n">bg_mu</span></div>
+
+
+
+<div class="viewcode-block" id="efc"><a class="viewcode-back" href="../../../mriqc.qc.html#mriqc.qc.anatomical.efc">[docs]</a><span class="k">def</span> <span class="nf">efc</span><span class="p">(</span><span class="n">img</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the :abbr:`EFC (Entropy Focus Criterion)` [Atkinson1997]_</span>
+
+<span class="sd">    The original equation is normalized by the maximum entropy, so that the</span>
+<span class="sd">    :abbr:`EFC (Entropy Focus Criterion)` can be compared across images with</span>
+<span class="sd">    different dimensions.</span>
+
+<span class="sd">    :param numpy.ndarray img: input data</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Calculate the maximum value of the EFC (which occurs any time all</span>
+    <span class="c1"># voxels have the same value)</span>
+    <span class="n">efc_max</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span> <span class="o">*</span> \
+                <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
+
+    <span class="c1"># Calculate the total image energy</span>
+    <span class="n">b_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">img</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+    <span class="c1"># Calculate EFC (add 1e-16 to the image data to keep log happy)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">/</span> <span class="n">efc_max</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">img</span> <span class="o">/</span> <span class="n">b_max</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">((</span><span class="n">img</span> <span class="o">+</span> <span class="mf">1e-16</span><span class="p">)</span> <span class="o">/</span> <span class="n">b_max</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="artifacts"><a class="viewcode-back" href="../../../mriqc.qc.html#mriqc.qc.anatomical.artifacts">[docs]</a><span class="k">def</span> <span class="nf">artifacts</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">seg</span><span class="p">,</span> <span class="n">calculate_qi2</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">bglabel</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Detect artifacts in the image using the method described in [Mortamet2009]_.</span>
+<span class="sd">    Calculates QI1, the fraction of total voxels that within artifacts.</span>
+
+<span class="sd">    Optionally, it also calculates QI2, the distance between the distribution</span>
+<span class="sd">    of noise voxel (non-artifact background voxels) intensities, and a</span>
+<span class="sd">    Rician distribution.</span>
+
+<span class="sd">    :param numpy.ndarray img: input data</span>
+<span class="sd">    :param numpy.ndarray seg: input segmentation</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">bg_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+    <span class="n">bg_mask</span><span class="p">[</span><span class="n">seg</span> <span class="o">==</span> <span class="n">bglabel</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">bg_img</span> <span class="o">=</span> <span class="n">img</span> <span class="o">*</span> <span class="n">bg_mask</span>
+
+    <span class="c1"># Find the background threshold (the most frequently occurring value</span>
+    <span class="c1"># excluding 0)</span>
+    <span class="n">hist</span><span class="p">,</span> <span class="n">bin_edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">bg_img</span><span class="p">[</span><span class="n">bg_img</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="mi">256</span><span class="p">)</span>
+    <span class="n">bg_threshold</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">bin_edges</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">hist</span><span class="p">)])</span>
+
+    <span class="c1"># Apply this threshold to the background voxels to identify voxels</span>
+    <span class="c1"># contributing artifacts.</span>
+    <span class="n">bg_img</span><span class="p">[</span><span class="n">bg_img</span> <span class="o">&lt;=</span> <span class="n">bg_threshold</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">bg_img</span><span class="p">[</span><span class="n">bg_img</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="c1"># Create a structural element to be used in an opening operation.</span>
+    <span class="n">struct_elmnt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="n">struct_elmnt</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">struct_elmnt</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">struct_elmnt</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">struct_elmnt</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="c1"># Perform an opening operation on the background data.</span>
+    <span class="n">bg_img</span> <span class="o">=</span> <span class="n">nd</span><span class="o">.</span><span class="n">binary_opening</span><span class="p">(</span><span class="n">bg_img</span><span class="p">,</span> <span class="n">structure</span><span class="o">=</span><span class="n">struct_elmnt</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+
+    <span class="c1"># Count the number of voxels that remain after the opening operation.</span>
+    <span class="c1"># These are artifacts.</span>
+    <span class="n">artifact_qi1</span> <span class="o">=</span> <span class="n">bg_img</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">bg_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="n">calculate_qi2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="k">return</span> <span class="n">artifact_qi1</span><span class="p">,</span> <span class="bp">None</span></div>
+
+<div class="viewcode-block" id="volume_fraction"><a class="viewcode-back" href="../../../mriqc.qc.html#mriqc.qc.anatomical.volume_fraction">[docs]</a><span class="k">def</span> <span class="nf">volume_fraction</span><span class="p">(</span><span class="n">pvms</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the :abbr:`ICV (intracranial volume)` fractions</span>
+<span class="sd">    corresponding to the (partial volume maps).</span>
+
+<span class="sd">    :param list pvms: list of :code:`numpy.ndarray` of partial volume maps.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tissue_vfs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">lid</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">FSL_FAST_LABELS</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">lid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">tissue_vfs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">pvms</span><span class="p">[</span><span class="n">lid</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">total</span> <span class="o">+=</span> <span class="n">tissue_vfs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">tissue_vfs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">tissue_vfs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">/=</span> <span class="n">total</span>
+
+    <span class="k">return</span> <span class="n">tissue_vfs</span></div>
+
+<div class="viewcode-block" id="rpve"><a class="viewcode-back" href="../../../mriqc.qc.html#mriqc.qc.anatomical.rpve">[docs]</a><span class="k">def</span> <span class="nf">rpve</span><span class="p">(</span><span class="n">pvms</span><span class="p">,</span> <span class="n">seg</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes the :abbr:`rPVe (residual partial voluming error)`</span>
+<span class="sd">    of each tissue class.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">pvfs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">lid</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">FSL_FAST_LABELS</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">lid</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">pvmap</span> <span class="o">=</span> <span class="n">pvms</span><span class="p">[</span><span class="n">lid</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="n">seg</span> <span class="o">==</span> <span class="n">lid</span><span class="p">]</span>
+        <span class="n">pvmap</span><span class="p">[</span><span class="n">pvmap</span> <span class="o">&lt;</span> <span class="mf">0.</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="n">pvmap</span><span class="p">[</span><span class="n">pvmap</span> <span class="o">&gt;=</span> <span class="mf">1.</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="n">upth</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">pvmap</span><span class="p">[</span><span class="n">pvmap</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">],</span> <span class="mi">98</span><span class="p">)</span>
+        <span class="n">loth</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">pvmap</span><span class="p">[</span><span class="n">pvmap</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">],</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">pvmap</span><span class="p">[</span><span class="n">pvmap</span> <span class="o">&lt;</span> <span class="n">loth</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">pvmap</span><span class="p">[</span><span class="n">pvmap</span> <span class="o">&gt;</span> <span class="n">upth</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">pvfs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">pvmap</span><span class="p">[</span><span class="n">pvmap</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">pvfs</span></div>
+
+<div class="viewcode-block" id="summary_stats"><a class="viewcode-back" href="../../../mriqc.qc.html#mriqc.qc.anatomical.summary_stats">[docs]</a><span class="k">def</span> <span class="nf">summary_stats</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">pvms</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Estimates the mean, the standard deviation, the 95\%</span>
+<span class="sd">    and the 5\% percentiles of each tissue distribution.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">stdv</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">p95</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">p05</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pvms</span><span class="p">)</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="n">pvms</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pvms</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pvms</span><span class="p">)</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">bgpvm</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">pvms</span><span class="p">)</span>
+        <span class="n">pvms</span> <span class="o">=</span> <span class="p">[</span><span class="n">bgpvm</span> <span class="o">-</span> <span class="n">pvms</span><span class="p">,</span> <span class="n">pvms</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s1">&#39;Incorrect image dimensions (</span><span class="si">%d</span><span class="s1">)&#39;</span> <span class="o">%</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pvms</span><span class="p">)</span><span class="o">.</span><span class="n">ndim</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pvms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">FSL_FAST_LABELS</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">pvms</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">labels</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">([</span><span class="s1">&#39;bg&#39;</span><span class="p">,</span> <span class="s1">&#39;fg&#39;</span><span class="p">],</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">lid</span> <span class="ow">in</span> <span class="n">labels</span><span class="p">:</span>
+        <span class="n">im_lid</span> <span class="o">=</span> <span class="n">pvms</span><span class="p">[</span><span class="n">lid</span><span class="p">]</span> <span class="o">*</span> <span class="n">img</span>
+        <span class="n">mean</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">im_lid</span><span class="p">[</span><span class="n">im_lid</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="n">stdv</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">im_lid</span><span class="p">[</span><span class="n">im_lid</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">std</span><span class="p">()</span>
+        <span class="n">p95</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">im_lid</span><span class="p">[</span><span class="n">im_lid</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">],</span> <span class="mi">95</span><span class="p">)</span>
+        <span class="n">p05</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">im_lid</span><span class="p">[</span><span class="n">im_lid</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">],</span> <span class="mi">5</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">mean</span><span class="p">,</span> <span class="n">stdv</span><span class="p">,</span> <span class="n">p95</span><span class="p">,</span> <span class="n">p05</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Oscar Esteban.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
