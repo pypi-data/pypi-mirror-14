@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% load nepali %}
+{% load datefilters %}
+{% load group_filters %}
+{% load bookFilters %}
+
+{% block content %}
+
+<div id="addNewField" class="modal fade" role="dialog">
+  <div class="modal-dialog">
+
+    <!-- Modal content-->
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal">
+          <span class="glyphicon glyphicon-remove"></span>
+        </button>
+        <h4 class="modal-title">{{ globals.text.add_new_field }}</h4>
+      </div>
+      <div class="modal-body">
+        <form action="{% url 'addNewField' %}" method="POST">
+          {% csrf_token %}
+          <div class="input-group">
+            <span class="input-group-addon" id="basic-addon1">{{ globals.text.field_name }} </span>
+            <input type="text" name="key" class="form-control" placeholder="{{ globals.text.field_name }}" aria-describedby="basic-addon1">
+          </div>
+          <input type="hidden" name="accNo" value="{{ book.accession_number }}">
+        </div>
+        <div class="modal-footer">
+          <input type="submit" value="Add" class="btn btn-primary">
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
+<div class="container-fluid">
+  <div class=" btn-group">
+    {% if book.is_discarded == False and user.is_authenticated == True and user|hasPerm:"head.change_book" and user|hasPerm:"head.delete_book" %}
+    <a class="btn btn-warning" href="{% url 'delete_book_confirm' book.get_accession_number %}">
+      <span class="glyphicon glyphicon-remove"></span> {{ globals.text.discard_book }}
+    </a>
+    <a class="btn btn-warning" data-toggle="modal" data-target="#addNewField" >
+      <span class="glyphicon glyphicon-plus"></span> {{ globals.text.add_new_field }}
+    </a>
+    <a class="btn btn-warning" href="{% url 'miscFieldsHome' %}" >
+      <span class="glyphicon glyphicon-book"></span> {{ globals.text.see_all_new_fields }}
+    </a>
+    <a class="btn btn-info" href="{% url 'editEntry' acc_no=book.get_accession_number %}">
+      <span class="glyphicon glyphicon-edit"></span> {{ globals.text.edit_book }}
+    </a>
+    {% elif book.is_discarded == False and user.is_authenticated == True and user|hasPerm:"head.change_book" and user|hasPerm:"head.delete_book" == 0 %}
+    <a class="btn btn-info" href="{% url 'editEntry' acc_no=book.get_accession_number %}">
+      <span class="glyphicon glyphicon-edit"></span> {{ globals.text.edit_book }}
+    </a>
+    {% elif book.is_discarded == False and user.is_authenticated == True and user|hasPerm:"head.change_book" == 0 and user|hasPerm:"head.delete_book" %}
+    <a class="btn btn-warning" href="{% url 'delete_book_confirm' book.get_accession_number %}">
+      <span class="glyphicon glyphicon-remove"></span> {{ globals.text.discard_book }}
+    </a>
+    {% elif book.is_discarded == True and user.is_authenticated == True %}
+    <a class="btn btn-info" href="{% url 'revive_book' accNo=book.get_accession_number %}">
+      <span class="glyphicon glyphicon-edit"></span> Revive Book
+    </a>
+    {% endif %}
+  </div>
+
+  <h3>
+    <div class="row">
+      <div class="col col-sm-1">
+                           <a {% if book.is_borrowed %}class="text-warning glyphicon glyphicon-info-sign" title="{{ globals.book_is_borrowed }}"{% elif book.is_discarded %}class="text-danger glyphicon glyphicon-remove-sign" title="{{ globals.text.book_is_discarded }}"{% else %} class="text-success glyphicon glyphicon-ok-sign" title="{{ globals.text.book_is_available }}"{% endif %}  ></a>
+      </div>
+      <div class="col col-sm-11">
+        <span class="text-info">
+          {% if book.get_authors %}{{ book.get_pretty_authors|title }}को {% endif %}
+        </span>
+        <i>
+          <span class="text-primary">
+            {{ book.get_pretty_title|title }}
+          </span>
+        </i>
+      </div>
+    </div>
+  </h3>
+  {% if book.is_borrowed %}
+  <div class="text-warning">
+    {{ globals.text.borrowed_by }} <a href="{% url 'profile' username=book.get_borrower.username %}">{{ book.get_borrower.get_name }}</a>
+  </div>
+  {% endif %}
+  <table class="table table-hover table-responsive">
+    {% for each in book.get_all_attr_for_spreadsheet %}
+    <tr> 
+      <td>{{ each.0|nepali }}</td>
+      {% if each.0 == "Author" %}
+      <td><a href="/head/search/book/?type={{ globals.text.author }}&search={{each.1}}">{{ each.1|title }}</a></td>
+      {% else %}
+      <td >{{each.1}}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    {% for field in genericFields %}
+    <tr>
+      <td>{{ field.0 }}</td>
+      <td>{{ field.1 }}</td>
+    </tr>
+    {% endfor %}
+    <tr>
+      <td>{{globals.text.is_book_available }}</td>
+      <td>
+	{% if book.is_borrowed == False %}
+  <span class="text-success"><b>{{globals.text.yes}}</b></span>
+	{% else %}
+  <span class="text-danger"><b>{{globals.text.no}}</b></span>
+	{% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td>
+	Is there any late fees?
+      </td>
+      <td>
+	{% if book.is_borrowed == False %}
+  <span class="text-success"> <b>{{globals.text.no}}</b></span>
+	{% elif late_fees != 0 %}
+  <span class="text-warning"><b>{{globals.text.yes}}</b>, {{ globals.text.late_fees }} :<i>{{ late_fees }}</i></span>
+	{% elif late_fees == 0 %}
+  <span class="text-success"><b>{{globals.text.no}}</b></span>
+	{% endif %}
+      </td>
+    </tr>
+  </table>
+
+  {% if request.user.is_staff and  book.saved_by.all|length > 0 %}
+  <hr>
+  <h4> किताब दर्ताको इतिहास</h4>
+  <table class="table table-condensed">
+    <thead>
+      <td>{{ globals.text.name }}</td>
+      <td>{{globals.text.date_and_time}}</td>
+    </thead>
+    {% for booksaver in book.saved_by.all %}
+    <tr>
+      <td><a href="{% url 'profile' booksaver.user.username %}">{{booksaver.user.get_name}}</a></td>
+      <td>{{booksaver.date|date:"d M Y"|nepali}}, {{ booksaver.date|date:"H:i A" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+    {% endif %}
+  </font>
+</div>
+{% endblock %}

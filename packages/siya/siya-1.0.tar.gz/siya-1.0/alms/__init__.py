@@ -1,0 +1,6 @@
+__description__ = "A Django Based Library Management Software written for Nepali reading users"
+__author__ = "Ayush Jha"
+__email__ = "ayushjha6@gmail.com"
+__license__ = "GNU GPL 3.0"
+__version__ = "1.0"
+__uri__ = "https://github.com/ayys/siya"
