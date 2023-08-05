@@ -1,0 +1,2 @@
+class PredataPythonClientExeception(Exception):
+    pass
