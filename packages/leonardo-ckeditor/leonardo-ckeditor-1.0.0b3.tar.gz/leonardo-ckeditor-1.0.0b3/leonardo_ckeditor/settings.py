@@ -1,0 +1,4 @@
+
+from ckeditor_uploader.widgets import CKEditorUploadingWidget
+
+LEONARDO_HTMLTEXT_WIDGET = CKEditorUploadingWidget
