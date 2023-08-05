@@ -1,0 +1,2 @@
+class BasePart(object):
+    pass
