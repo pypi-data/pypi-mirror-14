@@ -1,0 +1,2 @@
+class PyLimitException(Exception):
+    pass
