@@ -1,0 +1,1 @@
+Search.setIndex({envversion:47,filenames:["index"],objects:{},objnames:{},objtypes:{},terms:{about:0,featur:0,help:0,manag:0},titles:["Diacamma events"],titleterms:{content:0,diacamma:0,event:0}})
