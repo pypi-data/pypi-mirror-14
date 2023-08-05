@@ -1,0 +1,71 @@
+################################################################
+# xmldirector.dita
+# (C) 2016,  Andreas Jung, www.zopyx.com, Tuebingen, Germany
+################################################################
+
+
+import os
+import stat
+import tempfile
+import shutil
+import zipfile
+
+from clint.textui import progress
+import requests
+
+cwd = os.path.abspath(os.path.dirname(__file__))
+target_directory = os.path.join(cwd, 'converters')
+
+DITA = 'https://github.com/dita-ot/dita-ot/releases/download/2.2.1/dita-ot-2.2.1.zip'
+DITAC = 'http://www.xmlmind.com/ditac/_download/ditac-2_5_8_01.zip'
+
+
+def install_converter(converter='dita'):
+
+    url = DITA if converter == 'dita' else DITAC
+    print 'Downloading {}'.format(url)
+
+    out_fn = tempfile.mktemp(suffix='.zip')
+    r = requests.get(url, stream=True)
+    with open(out_fn, 'wb') as f:
+        total_length = int(r.headers.get('content-length'))
+        for chunk in progress.bar(r.iter_content(chunk_size=1024), expected_size=(total_length/1024) + 1): 
+            if chunk:
+                f.write(chunk)
+                f.flush()
+
+    print 'Installing {}'.format(url)
+    with zipfile.ZipFile(out_fn, 'r') as fp:
+        for name in fp.namelist():
+            if name.endswith('/'):
+                continue
+            name2 = '/'.join(name.split('/')[1:]) # chop of leading dirname
+            target_fn = os.path.join(target_directory, converter, name2)
+            target_dir = os.path.dirname(target_fn)
+            if not os.path.exists(target_dir):
+                os.makedirs(target_dir)
+            with open(target_fn, 'wb') as fp_out:
+                fp_out.write(fp.read(name))
+    
+    for dirpath, dirnames, filenames in os.walk(target_directory):
+        for filename in filenames:
+            filename = os.path.join(dirpath, filename)
+            if '/bin/' in filename:
+                st = os.stat(filename)
+                os.chmod(filename, st.st_mode | stat.S_IEXEC)
+
+    return out_fn
+
+
+def main():
+
+    shutil.rmtree(target_directory)
+    os.makedirs(target_directory)
+
+    install_converter('dita')
+    install_converter('ditac')
+
+    print 'Done'
+
+if __name__ == '__main__':
+    main()
