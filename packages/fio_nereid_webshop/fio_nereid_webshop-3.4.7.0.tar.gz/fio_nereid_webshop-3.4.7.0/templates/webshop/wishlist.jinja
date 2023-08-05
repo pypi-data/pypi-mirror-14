@@ -1,0 +1,177 @@
+{% extends 'account-base.jinja' %}
+{% block title %}{{ _('My wishlist') }} ({{ wishlist.name }}) {{ _('on') }} {{ super() }}{% endblock %}
+{% from '_helpers.jinja' import render_product_list %}
+{% block main %}
+<section class="my-account" id="specific-wishlist">
+  <div class="container">
+    <div class="col-md-12">
+      {{ account_header(_('My Account / Wishlist'), 'wishlist') }}
+      <div class="col-md-10">
+        <div class="row margin-left-0">
+          <div class="col-md-8">
+            <h4 class="wishlist-heading">{{ wishlist.name|title }}</h4>
+          </div>
+          {% if wishlist.is_public %}
+            <div id="wishlist-share-buttons" class="col-md-3">
+              <a href="#" class="envelope fa fa-envelope"></a>
+              <a href="#" class="sh-facebook fa fa-facebook"></a>
+              <a href="#" class="sh-twitter fa fa-twitter"></a>
+              <a href="#" class="sh-googleplus fa fa-google-plus"></a>
+              <a href="#" class="sh-pinterest fa fa-pinterest"></a>
+            </div>
+          {% else %}
+            <form method="post" action="">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="wishlist" value="{{ wishlist.id }}"/>
+              <input type="hidden" name="name" value="{{ wishlist.name }}"/>
+              <input type="hidden" name="is_public" value="on"/>
+              <div id="enable-share" class="col-md-2">
+                <button type="submit" class="btn btn-secondary pull-left" data-url="{{ url_for('wishlist.wishlist.render_wishlist', active_id=wishlist.id) }}" id="enable-share-btn">{{ _('Share') }}</button>
+              </div>
+            </form>
+          {% endif %}
+          {% if wishlist.nereid_user == current_user %}
+            <div class="col-md-1" id="wishlist-settings">
+              <button class="btn btn-primary pull-right" data-toggle="modal" data-target="#privacy-settings"> 
+                <i class="fa fa-cog"></i> &nbsp;&nbsp;{{ _('Settings') }}
+              </button>
+            </div>
+          {% endif %}
+          <div class="modal fade" id="privacy-settings" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">{{ _('Close') }}</span></button>
+                  <h4 class="modal-title" id="myModalLabel">{{ wishlist.name|title }} {{ _('Settings') }}</h4>
+                </div>
+                <div class="modal-body">
+                <form name="rename-wishlist" method="post" action="" id="rename-form" class="form-horizontal" autocomplete="off">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <input type="hidden" name="wishlist" value="{{ wishlist.id }}">
+                   <div class="form-group col-md-10 col-md-offset-1">
+                     <label>{{ _('Edit Wishlist Name:') }}</label>
+                    <input type="text" name="name" value="{{ wishlist.name }}" placeholder="Name" class="form-control" required >
+                    <div class="checkbox">
+                      <label>
+                        <input type="checkbox" {% if wishlist.is_public %} checked {% endif %}  name="is_public">&nbsp;&nbsp;{{ _('Public') }}
+                      </label>
+                    </div>
+                  </div>
+                </form>
+                </div>
+                <div class="modal-footer">
+                  <button type="submit" class="btn btn-danger pull-left" data-url="{{ url_for('wishlist.wishlist.render_wishlist', active_id=wishlist.id) }}" id="remove-wishlist-btn">{{ _('Remove this wishlist') }}</button>
+                  <button type="button" class="btn btn-primary" id="save-changes">{{ _('Save changes') }}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% if wishlist.products %}
+        <div class="row product-list margin-left-0">
+          {% for product in wishlist.products %}
+            <div class="product-image col-md-3 col-sm-4 col-xs-6 product-item">
+              <form action="{{ url_for('wishlist.wishlist.wishlist_product') }}" method="post" class="pull-right remove-product-icon" style="">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="product" value="{{ product.id }}"/>
+                <input type="hidden" name="wishlist" value="{{ wishlist.id }}"/>
+                <input type="hidden" name="action" value="remove" />
+                <button type="submit" class=" btn btn-link text-muted"><i class="fa fa-times"></i></button>
+              </form>
+              <a {% if product.active %}href="{{ url_for('product.product.render', uri=product.uri, tree_node=(tree_node and tree_node.uri + ',' + tree_node.name or None)) }}"{% endif %}>
+                <div>
+                  <img src="{{ CDN }}{{ product.default_image.transform_command().thumbnail(300, 300, 'a') }}" alt="{{ product.name }}" title="{{ product.name }}" class="img-responsive img-rounded"/>
+                </div>
+                <div class="text-center">
+                  <h4>{{ product.name|safe|truncate(50) }}
+                    <br>
+                    <span class="brand">{{ product.code|safe }}</span>
+                  </h4>
+                </div>
+                <div class="text-center">
+                  <h5 class="text-danger">{{ product.sale_price()|currencyformat(request.nereid_currency.code) }}</h5>
+                </div>
+              </a>
+              {% if product.active and product.salable and product.displayed_on_eshop %}
+                <div class="btn-block">
+                  <form action="{{ url_for("nereid.cart.add_to_cart") }}" method="post" id="product-buy-now" class="add-to-cart" data-ga-event-label="Add To Cart Wishlist Product" data-ga-product-name="{{ product.name }}" data-ga-product-category="{{ product.category and product.category.name or None }}" data-ga-product-price="{{ product.sale_price()|currencyformat(request.nereid_currency.code) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <input type="hidden" name="quantity" value="1"/>
+                    <input type="hidden" name="size" id="size-id"/>
+                    <input type="hidden" name="product" value="{{ product.id }}"/>
+                    <input type="hidden" name="action" value="add"/>
+                    <button class="btn btn-danger btn-block" type="submit" quantity="1" id="buy-now-btn"><i class="fa fa-shopping-cart"></i> {{ _('Add to cart') }}</button>
+                  </form>
+                </div>
+              {% elif not product.active or not product.displayed_on_eshop %}
+                <div style="padding-top:15px;">
+                  <span class="text-danger" id="product-not-for-sale"><i class="fa fa-warning"></i>{{ _('This product has been discontinued') }}</span>
+                </div>
+              {% else %}
+                <div style="padding-top:15px;">
+                  <span class="text-danger" id="product-not-for-sale"><i class="fa fa-warning"></i>{{ _('This product is not for sale') }}</span>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+        {% else %}
+          <h4 class="center text-muted"> {{ _('No products in this wishlist') }} </h4>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock main %}
+{% block script_tags %}
+{{ super() }}
+<script type="text/javascript">
+  $(document).ready(function(){
+    $('#save-changes').on('click', function(){
+      $('#rename-form').submit();
+    });
+    $('#remove-wishlist-btn').on('click', function(){
+      $.ajax({
+        type: "DELETE",
+        url: $(this).data('url'),
+      })
+        .done(function() {
+          $(location).attr('href',"{{ url_for('wishlist.wishlist.render_wishlists', _external=True) }}");
+      });
+    });
+    $('#wishlist-share-buttons').sharrre({
+        share: {
+          twitter: true,
+          facebook: true,
+          googlePlus: false,
+          pinterest: true
+        },
+        url: window.location.href,
+        urlCurl: '',
+        template: $("#wishlist-share-buttons").html(),
+        render: function(api, options){
+          $(api.element).on('click', '.envelope', function(){
+            var subject = encodeURIComponent(document.title);
+            var body = encodeURIComponent("Checkout my Wish List \n"+window.location);
+            var uri = "mailto:?subject="+subject+"&body="+body;
+            window.location.href = uri;
+          });
+          $(api.element).on('click', '.sh-twitter', function() {
+            api.openPopup('twitter');
+          });
+          $(api.element).on('click', '.sh-facebook', function() {
+            api.openPopup('facebook');
+          });
+          $(api.element).on('click', '.sh-googleplus', function() {
+            api.openPopup('googlePlus');
+          });
+          $(api.element).on('click', '.sh-pinterest', function() {
+            api.openPopup('pinterest');
+          });
+        },
+        enableHover: false,
+        enableTracking: true,
+    });
+  });
+</script>
+{% endblock script_tags %}
