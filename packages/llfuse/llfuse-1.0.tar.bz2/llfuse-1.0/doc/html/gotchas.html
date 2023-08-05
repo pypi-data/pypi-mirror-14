@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Common Gotchas &mdash; Python-LLFUSE 0.43 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.43',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="top" title="Python-LLFUSE 0.43 documentation" href="index.html" />
+    <link rel="next" title="Example File Systems" href="example.html" />
+    <link rel="prev" title="Utility Functions" href="util.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="example.html" title="Example File Systems"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="util.html" title="Utility Functions"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Python-LLFUSE 0.43 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="common-gotchas">
+<h1>Common Gotchas<a class="headerlink" href="#common-gotchas" title="Permalink to this headline">¶</a></h1>
+<p>This chapter lists some common gotchas that should be avoided.</p>
+<div class="section" id="removing-inodes-in-unlink-handler">
+<h2>Removing inodes in unlink handler<a class="headerlink" href="#removing-inodes-in-unlink-handler" title="Permalink to this headline">¶</a></h2>
+<p>If your file system is mounted at <tt class="file docutils literal"><span class="pre">mnt</span></tt>, the following code
+should complete without errors:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s">&#39;mnt/file_one&#39;</span><span class="p">,</span> <span class="s">&#39;w+&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh1</span><span class="p">:</span>
+    <span class="n">fh1</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;foo&#39;</span><span class="p">)</span>
+    <span class="n">fh1</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s">&#39;mnt/file_one&#39;</span><span class="p">,</span> <span class="s">&#39;a&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh2</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="s">&#39;mnt/file_one&#39;</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="s">&#39;file_one&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="s">&#39;mnt&#39;</span><span class="p">)</span>
+        <span class="n">fh2</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;bar&#39;</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">dup</span><span class="p">(</span><span class="n">fh1</span><span class="o">.</span><span class="n">fileno</span><span class="p">()))</span>
+    <span class="n">fh1</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">fh1</span><span class="o">.</span><span class="n">read</span><span class="p">()</span> <span class="o">==</span> <span class="s">&#39;foobar&#39;</span>
+</pre></div>
+</div>
+<p>If you&#8217;re getting an error, then you probably did a mistake when
+implementing the <a class="reference internal" href="operations.html#llfuse.Operations.unlink" title="llfuse.Operations.unlink"><tt class="xref py py-obj docutils literal"><span class="pre">unlink</span></tt></a> handler and are removing the
+file contents when you should be deferring removal to the
+<a class="reference internal" href="operations.html#llfuse.Operations.forget" title="llfuse.Operations.forget"><tt class="xref py py-obj docutils literal"><span class="pre">forget</span></tt></a> handler.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper"><h3><a href="index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="about.html">About</a></li>
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general.html">General Information</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fuse_api.html">FUSE API Functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data Structures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lock.html">The global lock</a></li>
+<li class="toctree-l1"><a class="reference internal" href="operations.html">Request Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="util.html">Utility Functions</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="">Common Gotchas</a></li>
+<li class="toctree-l1"><a class="reference internal" href="example.html">Example File Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changes.html">Changelog</a></li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="util.html"
+                        title="previous chapter">Utility Functions</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="example.html"
+                        title="next chapter">Example File Systems</a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="example.html" title="Example File Systems"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="util.html" title="Utility Functions"
+             >previous</a> |</li>
+        <li><a href="index.html">Python-LLFUSE 0.43 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2010-2015, Nikolaus Rath.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+    </div>
+  </body>
+</html>
