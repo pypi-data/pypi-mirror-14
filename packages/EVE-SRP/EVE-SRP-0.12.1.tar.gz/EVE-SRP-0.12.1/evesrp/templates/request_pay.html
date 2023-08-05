@@ -1,0 +1,59 @@
+{% extends "request_detail.html" %}
+
+{% block body %}
+<div class="modal fade" id="notesModal" tabindex="-1" role="dialog" aria-labelledby="notesModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        {# TRANS: A header for a modal window used to add and/or view notes about a specific user. The user's name and the authentication method they used to login (for example, Test Auth, Brave Core, or EVE SSO) are displayed. #}
+        <h3 class="modal-title" id="notesModalLabel">{% trans name=srp_request.submitter.name, authmethod=srp_request.submitter.authmethod %}Notes for '{{ name }}' from {{ authmethod }}{% endtrans %}</h3>
+      </div>
+      <div class="modal-body">
+        {% for note in srp_request.submitter.notes %}
+        {{ '<ul class="list-group">'|safe if loop.first }}
+          <li class="list-group-item">
+            <h5 class="list-group-item-heading">
+              {# TRANS: A small line of text showing who made a note, and the date and time that note was made. #}
+              {% trans name=note.noter.name, timestamp=note.timestamp|datetimeformat %}{{ name }} at {{ timestamp }}{% endtrans %}
+            </h5>
+            <p class="list-group-item-text">{{ note.content|safe|urlize(30) }}</p>
+          </li>
+        {{ '</ul>'|safe if loop.last }}
+        {% else %}
+        <p>{% trans %}This user doesn't have any notes.{% endtrans %}</p>
+        {% endfor %}
+      </div>
+      <form class="modal-footer" method="post">
+        {{ note_form.csrf_token() }}
+        {{ note_form.id_(value='note') }}
+        <div class="text-left">
+          {{ macros.render_input(note_form.note) }}
+        </div>
+        {# TRANS: Button that if clicked, will close the modal window for adding/viewing notes for a user. #}
+        <button type="button" class="btn btn-default" data-dismiss="modal">{% trans %}Close{% endtrans %}</button>
+        {# TRANS: Button that if clicked, will add a note to a user. #}
+        <button type="submit" class="btn btn-primary">{% trans %}Add{% endtrans %}</button>
+      </form>
+    </div>
+  </div>
+</div>
+{{ super() }}
+{% endblock body %}
+
+{% block info %}
+{{ super() }}
+{# TRANS: Label next to a button that shows the interface for adding/viewing notes about a user. #}
+<dt>{% trans %}User Notes{% endtrans %}</dt>
+<dd>
+  <button class="btn btn-default btn-xs" type="button" data-toggle="modal" data-target="#notesModal">
+  {% if not srp_request.submitter.notes|length %}
+  {# TRANS: A button that when clicked, will show the interface for adding a note to a user. #}
+  {% trans %}Add Note{% endtrans %}
+  {% else %}
+  {# TRANS: A button that when clicked, will show the notes a user already has. #}
+  {% trans %}View Notes{% endtrans %}
+  {% endif %}
+  </button>
+</dd>
+{% endblock info %}
