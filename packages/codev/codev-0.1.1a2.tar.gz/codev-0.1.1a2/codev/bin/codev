@@ -1,0 +1,166 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2016  Jan Češpivo <jan.cespivo@gmail.com>
+#
+#     This program is free software; you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation; either version 2 of the License, or
+#     (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License along
+#     with this program; if not, write to the Free Software Foundation, Inc.,
+#     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+
+"""
+Use cases
+
+codev init --template=[template]
+    -- create new project
+
+codev install [environment] [infrastructure] [version]
+    -- install project
+
+codev start [environment] [infrastructure] [version]
+    -- start installed project
+
+codev stop [environment] [infrastructure] [version]
+    -- stop installed project
+
+codev run [script] [environment] [infrastructure] [version]
+"""
+
+import click
+import os.path
+
+from codev.configuration import YAMLConfigurationWriter
+from codev.cli import command, main
+
+
+@main.command(
+    help='Create .codev file with basic settings in current directory or in given file path.',
+    short_help='Create .codev file with basic settings.'
+              )
+# TODO ?Merge with configuration option?
+@click.option('-p', '--path', default='.codev', help='Path to configuration file.')
+def init(path):
+    """
+    :param path:
+    :type path: str
+    :return:
+    """
+    if os.path.isdir(path):
+        path = os.path.join(path, '.codev')
+
+    if os.path.exists(path):
+        if not click.confirm('A file "%(filepath)s" already exists. Overwrite?' % {'filepath': path}):
+            raise click.Abort()
+
+    try:
+        YAMLConfigurationWriter().save_to_file(path)
+    except Exception as e:
+        raise click.ClickException(e)
+
+
+@command(
+    help='Install project',
+    confirmation='Install project "{deployment.project_name}" on environment "{deployment.environment_name}" with infrastructure "{deployment.infrastructure_name}" at installation "{deployment.installation_name}"',
+    perform=True
+)
+def install(deployment, perform):
+    """
+    Install project
+
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :param perform:
+    :type perform: bool
+    :return:
+    """
+    if perform:
+        return deployment.provision()
+    else:
+        return deployment.install()
+
+
+@command(help='Join the actual running command in isolation')
+def join(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    """
+    return deployment.join()
+
+
+@command(help='Execute command in isolation')
+@click.argument('command', nargs=-1)
+def execute(deployment, command):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :param command:
+    :type command: str
+    :return:
+    """
+    return deployment.execute(' '.join(command))
+
+
+@command(help='Stop the actual running command in isolation')
+def stop(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    """
+    if deployment.stop():
+        return deployment.join()
+    else:
+        return False
+
+
+@command(help='Kill the actual running command in isolation')
+def kill(deployment):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :return:
+    """
+    if deployment.kill():
+        return deployment.join()
+    else:
+        return False
+
+
+@command(
+    help='Run the script in isolation',
+    confirmation='Execute script "{script}" at project "{deployment.project_name}" on environment "{deployment.environment_name}" with infrastructure "{deployment.infrastructure_name}" at installation "{deployment.installation_name}"'
+)
+@click.argument('script')
+def run(deployment, script):
+    """
+    :param deployment:
+    :type deployment: codev.deployment.Deployment
+    :param script:
+    :return:
+    """
+    deployment.run(script)
+
+
+@command(help='Destroy isolation.')
+def destroy(deployment):
+    deployment.destroy()
+
+
+# @command(help='List isolation.')
+# def list():
+#
+
+if __name__ == "__main__":
+    main()
+
