@@ -1,0 +1,155 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dns_sprockets_lib.utils &mdash; dns_sprockets 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="dns_sprockets 1.0 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dns_sprockets_lib.utils</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">utils - &quot;dns_sprockets&quot; zone validation tool utility functions</span>
+<span class="sd">--------------------------------------------------------------</span>
+
+<span class="sd">.. Copyright (c) 2015 Neustar, Inc. All rights reserved.</span>
+<span class="sd">.. See COPYRIGHT.txt for full notice.  See LICENSE.txt for terms and conditions.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">pkgutil</span>
+
+
+<span class="n">_CC_TO_UND_REGEX</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">&#39;((?&lt;=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="camelcase_to_underscores"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.utils.camelcase_to_underscores">[docs]</a><span class="k">def</span> <span class="nf">camelcase_to_underscores</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    :param str name: Name to convert from camelcase to underscore style.</span>
+<span class="sd">    :return: Underscores-style string from camelcase-style.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">_CC_TO_UND_REGEX</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">r&#39;_\1&#39;</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="underscores_to_camelcase"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.utils.underscores_to_camelcase">[docs]</a><span class="k">def</span> <span class="nf">underscores_to_camelcase</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    :param str name: Name to convert from underscore to camelcase style.</span>
+<span class="sd">    :return: Camelcase-style string from underscores-style.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="c"># pylint: disable=bad-builtin</span>
+    <span class="k">return</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">capitalize</span><span class="p">,</span> <span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;_&#39;</span><span class="p">)))</span>
+
+</div>
+<div class="viewcode-block" id="public_modules_in_package"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.utils.public_modules_in_package">[docs]</a><span class="k">def</span> <span class="nf">public_modules_in_package</span><span class="p">(</span><span class="n">pkg</span><span class="p">,</span> <span class="n">excludes</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Scans a loaded package for &quot;public&quot; (i.e. no leading underscore) module names.</span>
+
+<span class="sd">    :param package pkg: The package to scan (e.g. sprocket_support.tests).</span>
+<span class="sd">    :param list excludes: List of names to exclude.</span>
+<span class="sd">    :return: List of module names in the package.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">excludes</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">excludes</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">pkg_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">__file__</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="n">pkgutil</span><span class="o">.</span><span class="n">iter_modules</span><span class="p">([</span><span class="n">pkg_path</span><span class="p">])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;_&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">excludes</span><span class="p">]</span>
+
+</div>
+<div class="viewcode-block" id="process_optargs"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.utils.process_optargs">[docs]</a><span class="k">def</span> <span class="nf">process_optargs</span><span class="p">(</span><span class="n">optargs</span><span class="p">,</span> <span class="n">receiver_name</span><span class="p">,</span> <span class="n">receiver</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Adds plugin-specific optional arguments as attributes to a receiver instance.</span>
+<span class="sd">    Arguments are pulled from the receiver&#39;s &#39;args&#39; attribute as fully-named</span>
+<span class="sd">    (e.g. rrsig_missing_now) and stored in the receiver in &quot;short form&quot; (e.g.</span>
+<span class="sd">    &quot;now&quot;).  If not present in &#39;args&#39;, the optarg&#39;s default value is used.</span>
+
+<span class="sd">    :param dict optargs: The optargs descriptor (e.g. {&#39;now&#39;: (None, &#39;Time to use for now&#39;)}</span>
+<span class="sd">    :param str receiver_name: The full name prefix (e.g. &quot;rrsig_missing&quot;).</span>
+<span class="sd">    :param obj receiver: The instance that has .args and receives short-named attributes.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">oname</span><span class="p">,</span> <span class="p">(</span><span class="n">opt_default</span><span class="p">,</span> <span class="n">_</span><span class="p">))</span> <span class="ow">in</span> <span class="n">optargs</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="n">opt_name</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">_</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">receiver_name</span><span class="p">,</span> <span class="n">oname</span><span class="p">)</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">receiver</span><span class="p">,</span> <span class="n">oname</span><span class="p">,</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">receiver</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">opt_name</span><span class="p">)</span> <span class="ow">and</span>
+                    <span class="nb">getattr</span><span class="p">(</span><span class="n">receiver</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">opt_name</span><span class="p">)</span> <span class="ow">or</span> <span class="n">opt_default</span><span class="p">)</span>
+
+<span class="c"># end of file</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/sprocket.jpeg" alt="Logo"/>
+            </a></p><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Neustar, Inc..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

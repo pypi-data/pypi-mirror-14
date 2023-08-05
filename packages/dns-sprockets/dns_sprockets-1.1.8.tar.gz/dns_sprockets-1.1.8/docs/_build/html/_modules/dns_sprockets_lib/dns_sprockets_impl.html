@@ -1,0 +1,233 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dns_sprockets_lib.dns_sprockets_impl &mdash; dns_sprockets 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="dns_sprockets 1.0 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dns_sprockets_lib.dns_sprockets_impl</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">dns_sprockets_impl - DNS Zone validation tool implementation class.</span>
+
+<span class="sd">.. Copyright (c) 2015 Neustar, Inc. All rights reserved.</span>
+<span class="sd">.. See COPYRIGHT.txt for full notice.  See LICENSE.txt for terms and conditions.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+
+<span class="kn">import</span> <span class="nn">time</span>
+
+<span class="kn">import</span> <span class="nn">dns_sprockets_lib.loader_classes</span> <span class="kn">as</span> <span class="nn">loader_classes</span>
+<span class="kn">import</span> <span class="nn">dns_sprockets_lib.validators</span> <span class="kn">as</span> <span class="nn">validators</span>
+<span class="kn">import</span> <span class="nn">dns_sprockets_lib.validator_classes</span> <span class="kn">as</span> <span class="nn">validator_classes</span>
+
+
+<div class="viewcode-block" id="DNSSprocketsImpl"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dns_sprockets_impl.DNSSprocketsImpl">[docs]</a><span class="k">class</span> <span class="nc">DNSSprocketsImpl</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="c"># pylint: disable=too-few-public-methods</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Performs zone validation.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="DNSSprocketsImpl.__init__"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dns_sprockets_impl.DNSSprocketsImpl.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">avail_loaders</span><span class="p">,</span> <span class="n">avail_tests</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Constructor.</span>
+<span class="sd">        @param avail_loaders List of loader module names.</span>
+<span class="sd">        @param avail_tests LIst of validator module names.</span>
+<span class="sd">        @param args The application&#39;s command-line args.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">avail_loaders</span> <span class="o">=</span> <span class="n">avail_loaders</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">avail_tests</span> <span class="o">=</span> <span class="n">avail_tests</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
+</div>
+<div class="viewcode-block" id="DNSSprocketsImpl.run"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dns_sprockets_impl.DNSSprocketsImpl.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the instance, which loads a zone with the specified loader, and</span>
+<span class="sd">        loads and runs the specified tests.</span>
+<span class="sd">        @return (loader_elapsed_time, test_count, error_count)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="c"># Create the zone loader instance:</span>
+        <span class="n">loader_classes</span><span class="o">.</span><span class="n">load_all</span><span class="p">()</span>
+        <span class="n">loader_class</span> <span class="o">=</span> <span class="n">loader_classes</span><span class="o">.</span><span class="n">ALL_CLASSES</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">loader</span><span class="p">]</span>
+        <span class="n">loader</span> <span class="o">=</span> <span class="n">loader_class</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="c"># Create the test instances:</span>
+        <span class="n">validator_classes</span><span class="o">.</span><span class="n">load_all</span><span class="p">()</span>
+        <span class="n">tests_pool</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">include_tests</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">avail_tests</span>
+        <span class="n">test_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tests_pool</span> <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">exclude_tests</span><span class="p">]</span>
+        <span class="n">tests</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">validators</span><span class="o">.</span><span class="n">ZONE_TEST</span><span class="p">:</span> <span class="p">[],</span>
+            <span class="n">validators</span><span class="o">.</span><span class="n">NODE_TEST</span><span class="p">:</span> <span class="p">[],</span>
+            <span class="n">validators</span><span class="o">.</span><span class="n">RRSET_TEST</span><span class="p">:</span> <span class="p">[],</span>
+            <span class="n">validators</span><span class="o">.</span><span class="n">REC_TEST</span><span class="p">:</span> <span class="p">[]}</span>
+        <span class="k">for</span> <span class="n">test_name</span> <span class="ow">in</span> <span class="n">test_names</span><span class="p">:</span>
+            <span class="n">test_class</span> <span class="o">=</span> <span class="n">validator_classes</span><span class="o">.</span><span class="n">ALL_CLASSES</span><span class="p">[</span><span class="n">test_name</span><span class="p">]</span>
+            <span class="n">test</span> <span class="o">=</span> <span class="n">test_class</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+            <span class="n">tests</span><span class="p">[</span><span class="n">test</span><span class="o">.</span><span class="n">TEST_TYPE</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">test</span><span class="p">)</span>
+
+        <span class="c"># Load the zone:</span>
+        <span class="n">load_start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+        <span class="n">zone_obj</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+        <span class="n">load_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">load_start_time</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">zone_obj</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s">&#39;No zone to validate!&#39;</span><span class="p">)</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="n">validators</span><span class="o">.</span><span class="n">Context</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">zone_obj</span><span class="p">)</span>
+
+        <span class="c"># Print some stats:</span>
+        <span class="k">print</span> <span class="s">&#39;# Checking zone:&#39;</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">zone_name</span>
+        <span class="k">print</span> <span class="s">&#39;# Loader: </span><span class="si">%s</span><span class="s"> from: </span><span class="si">%s</span><span class="s"> elapsed=</span><span class="si">%f</span><span class="s"> secs&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">loader</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">source</span><span class="p">,</span> <span class="n">load_time</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">force_dnssec_type</span> <span class="o">==</span> <span class="s">&#39;detect&#39;</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&#39;# Zone appears to be DNSSEC type:&#39;</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">dnssec_type</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&#39;# Forcing DNSSEC type for zone to:&#39;</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">dnssec_type</span>
+        <span class="k">print</span> <span class="s">&#39;# Extra defines:&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">defines</span>
+
+        <span class="c"># Filter tests based on zone&#39;s DNSSEC type:</span>
+        <span class="n">running_test_names</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tests_type</span> <span class="ow">in</span> <span class="n">tests</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">validators</span><span class="o">.</span><span class="n">dnssec_filter_tests_by_context</span><span class="p">(</span><span class="n">tests</span><span class="p">[</span><span class="n">tests_type</span><span class="p">],</span> <span class="n">context</span><span class="p">)</span>
+            <span class="n">running_test_names</span> <span class="o">+=</span> <span class="p">[</span><span class="n">test</span><span class="o">.</span><span class="n">TEST_NAME</span> <span class="k">for</span> <span class="n">test</span> <span class="ow">in</span> <span class="n">tests</span><span class="p">[</span><span class="n">tests_type</span><span class="p">]]</span>
+        <span class="k">print</span> <span class="s">&#39;# Running tests:&#39;</span><span class="p">,</span> <span class="n">running_test_names</span>
+
+        <span class="n">counts</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;tests&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s">&#39;errors&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+        <span class="c"># Run the zone tests:</span>
+        <span class="k">for</span> <span class="n">test</span> <span class="ow">in</span> <span class="n">tests</span><span class="p">[</span><span class="n">validators</span><span class="o">.</span><span class="n">ZONE_TEST</span><span class="p">]:</span>
+            <span class="n">DNSSprocketsImpl</span><span class="o">.</span><span class="n">_run_test</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">test</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">counts</span><span class="p">)</span>
+
+        <span class="c"># Run the node, rrset, and rec tests:</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">context</span><span class="o">.</span><span class="n">node_names</span><span class="p">:</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">get_node</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">node</span><span class="p">:</span>  <span class="c"># Not present for Empty Non-Terminals</span>
+
+                <span class="c"># Node tests:</span>
+                <span class="k">for</span> <span class="n">test</span> <span class="ow">in</span> <span class="n">tests</span><span class="p">[</span><span class="n">validators</span><span class="o">.</span><span class="n">NODE_TEST</span><span class="p">]:</span>
+                    <span class="n">test_node</span> <span class="o">=</span> <span class="n">validators</span><span class="o">.</span><span class="n">filter_node</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_RRTYPE</span><span class="p">)</span>
+                    <span class="n">DNSSprocketsImpl</span><span class="o">.</span><span class="n">_run_test</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">test</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">counts</span><span class="p">,</span>
+                        <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="n">test_node</span><span class="p">)</span>
+
+                <span class="c"># RRSet tests:</span>
+                <span class="k">for</span> <span class="n">rdataset</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">rdatasets</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">test</span> <span class="ow">in</span> <span class="n">tests</span><span class="p">[</span><span class="n">validators</span><span class="o">.</span><span class="n">RRSET_TEST</span><span class="p">]:</span>
+                        <span class="k">if</span> <span class="n">validators</span><span class="o">.</span><span class="n">test_covers_type</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="n">rdataset</span><span class="o">.</span><span class="n">rdtype</span><span class="p">):</span>
+                            <span class="n">DNSSprocketsImpl</span><span class="o">.</span><span class="n">_run_test</span><span class="p">(</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">test</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">counts</span><span class="p">,</span>
+                                <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">rdataset</span><span class="o">=</span><span class="n">rdataset</span><span class="p">)</span>
+
+                    <span class="c"># Rec tests:</span>
+                    <span class="k">for</span> <span class="n">rdata</span> <span class="ow">in</span> <span class="n">rdataset</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">test</span> <span class="ow">in</span> <span class="n">tests</span><span class="p">[</span><span class="n">validators</span><span class="o">.</span><span class="n">REC_TEST</span><span class="p">]:</span>
+                            <span class="k">if</span> <span class="n">validators</span><span class="o">.</span><span class="n">test_covers_type</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="n">rdata</span><span class="o">.</span><span class="n">rdtype</span><span class="p">):</span>
+                                <span class="n">DNSSprocketsImpl</span><span class="o">.</span><span class="n">_run_test</span><span class="p">(</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">test</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">counts</span><span class="p">,</span>
+                                    <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">ttl</span><span class="o">=</span><span class="n">rdataset</span><span class="o">.</span><span class="n">ttl</span><span class="p">,</span> <span class="n">rdata</span><span class="o">=</span><span class="n">rdata</span><span class="p">)</span>
+
+        <span class="k">print</span> <span class="s">&#39;# END RESULT: </span><span class="si">%d</span><span class="s"> ERRORS in </span><span class="si">%d</span><span class="s"> tests&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">counts</span><span class="p">[</span><span class="s">&#39;errors&#39;</span><span class="p">],</span> <span class="n">counts</span><span class="p">[</span><span class="s">&#39;tests&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">load_time</span><span class="p">,</span> <span class="n">counts</span><span class="p">[</span><span class="s">&#39;tests&#39;</span><span class="p">],</span> <span class="n">counts</span><span class="p">[</span><span class="s">&#39;errors&#39;</span><span class="p">])</span>
+</div>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_run_test</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">test</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">counts</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs an individual test.</span>
+<span class="sd">        @param args The application&#39;s command-line args.</span>
+<span class="sd">        @param test The validator instance to use.</span>
+<span class="sd">        @param context The testing context.</span>
+<span class="sd">        @param counts Dictionary of test and error counts.</span>
+<span class="sd">        @param kwargs Other parameters specific to the TEST_TYPE being run.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">suggested_tested</span> <span class="o">=</span> <span class="n">validators</span><span class="o">.</span><span class="n">make_suggested_tested</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="p">(</span><span class="n">tested</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span> <span class="o">=</span> <span class="n">test</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tested</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">counts</span><span class="p">[</span><span class="s">&#39;tests&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">good</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">result</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">good</span><span class="p">:</span>
+                <span class="n">counts</span><span class="p">[</span><span class="s">&#39;errors&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">good</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">args</span><span class="o">.</span><span class="n">errors_only</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&#39;TEST </span><span class="si">%s</span><span class="s">(</span><span class="si">%s</span><span class="s">) =&gt; </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="n">test</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">,</span>
+                    <span class="n">tested</span><span class="p">,</span>
+                    <span class="n">good</span> <span class="ow">and</span> <span class="s">&#39;OK&#39;</span> <span class="ow">or</span> <span class="s">&#39;FAIL: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">result</span><span class="p">))</span>
+
+<span class="c"># end of file</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/sprocket.jpeg" alt="Logo"/>
+            </a></p><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Neustar, Inc..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
