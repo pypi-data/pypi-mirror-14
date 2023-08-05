@@ -1,0 +1,1 @@
+from crashreporter import CrashReporter
