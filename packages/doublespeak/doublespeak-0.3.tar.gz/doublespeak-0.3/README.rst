@@ -1,0 +1,115 @@
+doublespeak
+===========
+
+Doublespeak lets you extract translateable messages in Javascript into
+separate PO files and then lets you compile them to JSON files that can
+for example be used with
+`gettext.js <https://pypi.python.org/pypi/gettextjs>`__
+
+Motivation
+==========
+
+Many modern Python web applications also include a significant amount of
+translatable strings in Javascript.
+
+Because this Javascript code runs in the browser, instead of on the
+server where the Python code runs, it's necessary to have its
+translateable messages in separate gettext PO files, from which you
+can then generate JSON/Javascript translation files to load in your
+browser.
+
+Unfortunately, `Babel <https://pypi.python.org/pypi/Babel>`__, which
+provides distutils commands to create messages catalogs, and extract and
+compile messages, doesn't allow you to create different catalogs for the
+same language in one package.
+
+**Doublespeak** lets you do this, by providing new Babel/distutils
+commands that you can use to extract translateable messages from
+Javascript, and keep them separatele from the rest of your application's
+translations.
+
+New distutils commands:
+-----------------------
+
+The new distutils commands made available by doublespeak, are:
+
+-  **init\_js\_catalog** - Initialize a new gettext catalog,
+   specifically for JS messages.
+-  **extract\_js\_messages** - Extract messages from JS and put them in
+   the catalog.
+-  **update\_js\_catalog** - Update an existing catalog with messages
+   from newer JS code.
+-  **compile\_js\_catalog** - Create the compiled .mo and JSON files
+   from the .po files
+
+Users of Babel, will notice that these commands are very similar to the
+ones provided by Babel:
+
+-  **init\_catalog**
+-  **extract\_messages**
+-  **update\_catalog**
+-  **compile\_catalog**
+
+Some of the doublespeak commands are simply wrappers around Babel
+commands. The benefit they provide is that you can configure them
+independently from the Babel commands, for example in your ``setup.cfg``
+file.
+
+Configuration
+-------------
+
+Here's an example setup.cfg file, which demonstrates how you can
+configure the standard Babel commands and the new Doublespeak commands:
+
+::
+
+    [compile_catalog]
+    # Change to a relevant domain
+    domain = mypackage
+    directory = src/mypackage/i18n/locales
+
+    [compile_js_catalog]
+    # Note that the Javascript files have a different domain. You'll need to use
+    # this domain in your Javascript code, instead of using the domain above,
+    # declared for the Python code.
+    domain = mypackagejs
+    # Contrary to compile_catalog, this commands takes both input and output
+    directories, so that you can write the JSON translation files to a separate
+    directory, where you might have the rest of your Javascript code.
+    input_dir = src/mypackage/i18n/locales
+    output_dir = src/mypackage/browser/resources/js/i18n
+
+    [extract_messages]
+    # Change to your organisation
+    copyright_holder = Acme Inc.
+    output_file = src/mypackage/i18n/locales/en/LC_MESSAGES/mypackage.po
+    charset = UTF-8
+    add-comments = i18n
+
+    [extract_js_messages]
+    keywords = __
+    no-default-keywords = True
+    copyright_holder = Acme Inc.
+    output_file = src/mypackage/i18n/locales/en/LC_MESSAGES/mypackagejs.po
+    charset = UTF-8
+    add-comments = i18n
+
+    [init_catalog]
+    domain = mypackage
+    input_file = src/mypackage/i18n/locales/en/LC_MESSAGES/mypackage.po
+    output_dir = src/mypackage/i18n/locales
+
+    [init_js_catalog]
+    domain = mypackagejs
+    input_file = src/mypackage/i18n/locales/en/LC_MESSAGES/mypackagejs.po
+    output_dir = src/mypackage/i18n/locales
+
+    [update_catalog]
+    domain = mypackage
+    input_file = src/mypackage/i18n/locales/en/LC_MESSAGES/mypackage.po
+    output_dir = src/mypackage/i18n/locales
+
+    [update_js_catalog]
+    domain = mypackagejs
+    input_file = src/mypackage/i18n/locales/en/LC_MESSAGES/mypackagejs.po
+    output_dir = src/mypackage/i18n/locales
