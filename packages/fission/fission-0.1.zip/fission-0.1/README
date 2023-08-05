@@ -1,0 +1,123 @@
+Fission
+========
+Fission is static job scheduling program designed to help you run 
+workloads across multiple machines you have ssh access to. while
+primarily aimed at container based workloads, arbitrary jobs can be
+run and managed using fission
+
+accompanying tools will be provided for firewall generation and 
+network setup as well as hooks to tie into existing ip allocation
+mechanisms
+
+Caveats
+-------
+the static nature of fission means it is unable to respond to
+events such as nodes going down in real time like other software
+in the same space (mesos, kerbernatues, docker swarm). this can 
+be mitigated to a degree by having your monitoring system invoke
+or trigger a run of fission on a remote machine. allowing the 
+state of the system to be recalculated and adjusted as required
+
+
+Features
+---------
+* Yaml files and symlinks
+* Static setup will not change things behind your back
+* great for small number of hosts or home setups
+* generate firewall policies
+* wire up networking
+* only requires ssh access
+* Audit existing setup and how it differs to desired setup
+
+Design Goals
+------------
+* Be simple in code, design and use
+* Only do what it should be doing
+* Be extensible
+* Be easy to introspect
+
+Terminology
+-----------
+Like all container software out there, fission makes a mediocre 
+attempt to stay in line with the terminology used by other solutions
+and invents new terms where appropriate to confuse users
+
+Nodes
+#####
+Nodes are simply hosts you have ssh access to that run jobs. Nodes
+themselves can also be created from jobs for simulating topologies
+
+Jobs
+####
+Jobs are the workload that fission is managing and running across
+multiple nodes for you. this is generally a container workload
+but may also be simple program
+
+Facts
+#####
+Facts are used for selecting which nodes are suitable candidates for
+a particular job, eg some nodes may export a HAS_SSD fact that a 
+high performance disk IO heavy job (eg mysql) may want to select on
+
+Extras
+######
+If you are using symlinks to templates that expand on the filename
+(eg collection of jobs) then there may be occasions where you want
+to override specific facts (eg code or machine upgrades). normally
+this would involve updating the config file but as this is symlinked
+you end up affecting all hosts. the solution for this is a '.extras'
+file containing additional information that is overplayed on the top
+of the config to allow further customization allowing you to override
+a subset or all hosts with information to complete the migration
+before updating the main template
+
+Tags
+####
+tags are used to limit or select a subset of nodes or jobs, eg for 
+listing purposes. tags can also be used for allocation in a similar
+manner to facts above however the use of facts is recommended. The
+exception to this rule being geographical placement (ie only allocate
+on rack37)
+
+if you need to negate a tag, prepending it with '-' can be used to 
+indicate that you want to remove an object from selection if it has
+this tag. for cli parsing, arguments starting with '-' are interpreted
+as flags and as such if you only need to specify negation an empty
+tag can be placed at the beginning of the list to prevent the 
+tag from being interpreted as a cli flag eg ",-physical,-slow"
+
+All jobs are tagged with the 'job' tag and all nodes with the 'node'
+tag to make selection easier (eg all nodes but a subset of jobs or 
+a subset of nodes and all jobs). this can also be used with negation
+to 'carve away' unwanted nodes instead of adding them in.
+
+All jobs and nodes are tagged with their hostname prepended with '@'
+this is to facilitate the selection of individual nodes that may
+not have a unique tag eg "@mymachine1,@mymachine2,@mymachine30"
+
+Filters
+#######
+Filters are the counterpart to the tag. These are used by jobs to
+limit placement decisions. This may be helpful for compliance 
+(credit card processing only on nodes tagged 'pci-compliant') or
+to limit jobs to geographical region
+
+Filters may or may not be used to select based on facts, this is
+currently undecided due to complexity (ie only on mem > 300MB)
+
+
+Testing
+-------
+fission uses py.test for testing and supports tox for building
+the environments. if py.test is not installed system-wide for 
+python 3 then build a virtual environment with the following commands
+(python 3.4 or newer)
+
+    $ python3.4 -m venv venv
+    $ . venv/bin/activate
+    $ pip install pytest
+
+running the tests is then as simple as
+
+    $ . venv/bin/activate
+    $ py.test
