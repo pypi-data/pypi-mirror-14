@@ -1,0 +1,182 @@
+# -*- coding: utf-8 -*-
+#
+# This file is part of Invenio.
+# Copyright (C) 2015 CERN.
+#
+# Invenio is free software; you can redistribute it
+# and/or modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 2 of the
+# License, or (at your option) any later version.
+#
+# Invenio is distributed in the hope that it will be
+# useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Invenio; if not, write to the
+# Free Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+# MA 02111-1307, USA.
+#
+# In applying this license, CERN does not
+# waive the privileges and immunities granted to it by virtue of its status
+# as an Intergovernmental Organization or submit itself to any jurisdiction.
+
+
+"""Module tests."""
+
+from __future__ import absolute_import, print_function
+
+import importlib
+
+import flask_admin
+import pkg_resources
+from flask import Flask
+from flask_admin.contrib.sqla import ModelView
+from invenio_access.permissions import DynamicPermission
+from invenio_db import db
+from mock import patch
+from pkg_resources import EntryPoint
+
+from invenio_admin import InvenioAdmin
+from invenio_admin.permissions import admin_permission_factory
+from invenio_admin.views import protected_adminview_factory
+
+
+def test_version():
+    """Test version import."""
+    from invenio_admin import __version__
+    assert __version__
+
+
+def test_init():
+    """Test extension initialization."""
+    app = Flask('testapp')
+    ext = InvenioAdmin(app)
+    assert 'invenio-admin' in app.extensions
+
+    app = Flask('testapp')
+    ext = InvenioAdmin()
+    assert 'invenio-admin' not in app.extensions
+    ext.init_app(app)
+    assert 'invenio-admin' in app.extensions
+
+
+def test_default_permission():
+    """Test loading of default permission class."""
+    with patch('pkg_resources.get_distribution') as get_distribution:
+        get_distribution.side_effect = pkg_resources.DistributionNotFound
+        assert not isinstance(
+            admin_permission_factory(None),
+            DynamicPermission)
+
+    assert isinstance(admin_permission_factory(None), DynamicPermission)
+
+
+def test_admin_view_authenticated(app):
+    """Test the authentication for the admin."""
+    with app.test_client() as client:
+        res = client.get("/admin/", follow_redirects=False)
+        # Assert redirect to login
+        assert res.status_code == 302
+
+    # Unauthenticated users are redirect to login page.
+    with app.test_client() as client:
+        res = client.get("/admin/testmodel/", follow_redirects=False)
+        assert res.status_code == 302
+        assert res.location.startswith('http://localhost/login')
+
+    # User 1 can access admin because it has ActioNeed(admin-access)
+    with app.test_client() as client:
+        res = client.get('/login/?user=1')
+        assert res.status_code == 200
+        res = client.get('/admin/')
+        assert res.status_code == 200
+        res = client.get('/admin/testmodel/')
+        assert res.status_code == 200
+
+    # User 2 is missing ActioNeed(admin-access) and thus can't access admin.
+    # 403 error returned.
+    with app.test_client() as client:
+        res = client.get('/login/?user=2')
+        res = client.get("/admin/")
+        assert res.status_code == 403
+        res = client.get("/admin/testmodel/")
+        assert res.status_code == 403
+
+
+def test_custom_permissions(app, testmodelcls):
+    """Test custom permissions."""
+    class CustomModel(testmodelcls):
+        pass
+
+    class CustomView(ModelView):
+        def is_accessible(self):
+            return False
+
+    protected_view = protected_adminview_factory(CustomView)
+    app.extensions['admin'][0].add_view(
+        protected_view(CustomModel, db.session))
+
+    with app.test_client() as client:
+        res = client.get('/login/?user=1')
+        assert res.status_code == 200
+        res = client.get('/admin/')
+        assert res.status_code == 200
+        res = client.get('/admin/testmodel/')
+        assert res.status_code == 200
+        res = client.get('/admin/custommodel/')
+        assert res.status_code == 403
+
+
+class MockEntryPoint(EntryPoint):
+    """Mock of EntryPoint."""
+
+    def load(self):
+        """Mock the load of entry point."""
+        mod = importlib.import_module(self.module_name)
+        obj = getattr(mod, self.name)
+        return obj
+
+
+def _mock_iter_entry_points(group=None):
+    data = {
+        'invenio_admin.views': [
+            MockEntryPoint('one', 'demo.onetwo'),
+            MockEntryPoint('two', 'demo.onetwo'),
+            MockEntryPoint('three', 'demo.three'),
+        ]
+    }
+    names = data.keys() if group is None else [group]
+    for key in names:
+        for entry_point in data[key]:
+            yield entry_point
+
+
+@patch('pkg_resources.iter_entry_points', _mock_iter_entry_points)
+def test_entry_points():
+    """Test admin views discovery through entry points."""
+    from flask_principal import Permission
+    app = Flask('testapp')
+    admin_app = InvenioAdmin(
+        app,
+        permission_factory=lambda x: Permission(),
+        view_class_factory=lambda x: x)
+    # Check if model views were added by checking the labels of menu items
+    menu_items = {str(item.name): item for item in admin_app.admin.menu()}
+    assert 'OneAndTwo' in menu_items  # Category for ModelOne and ModelTwo
+    assert 'Model One' not in menu_items  # ModelOne should go to a category
+    assert 'Model Two' not in menu_items  # ModelTwo should go to a category
+    assert 'Model Three' in menu_items  # ModelThree goes straight to menu
+    assert isinstance(menu_items['Model Three'], flask_admin.menu.MenuView)
+    assert isinstance(menu_items['OneAndTwo'], flask_admin.menu.MenuCategory)
+    assert menu_items['OneAndTwo'].is_category()
+    assert not menu_items['Model Three'].is_category()
+    submenu_items = {str(item.name): item for item in
+                     menu_items['OneAndTwo'].get_children()}
+    assert 'Model One' in submenu_items
+    assert 'Model Two' in submenu_items
+    assert not submenu_items['Model One'].is_category()
+    assert not submenu_items['Model Two'].is_category()
+    assert isinstance(submenu_items['Model One'], flask_admin.menu.MenuView)
+    assert isinstance(submenu_items['Model Two'], flask_admin.menu.MenuView)
