@@ -1,0 +1,381 @@
+{#
+== Form Helpers ==
+
+Macros to create form input, select, radio, checkbox, textarea compatible to BS3
+
+
+::Input: @value
+
+    {{ f.tag('input', 'name', value='John', data={"k":"v", "k":"v"}) }}
+    -> <input name='name' type='text' value='John' data-k='v' data-k='v' class="form-control" />
+
+    {{ f.tag('input', 'fileSelect', type='file') }}
+    -> <input name='fileSelect' type='file' class="form-control" />
+
+::Hidden: @value
+
+    {{ f.tag('hidden', 'name', value='John') }}
+    -> <input name='name' type='hidden' value='John' class="form-control" />
+
+::Textarea: @value
+
+    {{ f.tag('textarea', 'feedback', value='Irving') }}
+    -> <textarea name='feedback' class="form-control" >Irving</textarea>
+
+:: Button: @type, @name is the value of the form
+
+    {{ f.tag('button', 'Save', type='submit')}}
+    -> <button type="submit">Save</button>
+
+
+:: Checkbox: @options=[[k, v], [k, v]], @checked=[], @inline=bool
+
+    {{ f.tag('checkbox', 'test', options=[[1,'Male'], [2,'Female']], checked=[1]) }}
+     <div class='checkbox-group' >
+        <label for='1'  >Male</label>
+        <input name='test' type='checkbox' value='1' checked='checked' />
+     </div>
+    <div class='checkbox-group' >
+        <label for='2'  >Female</label>
+        <input name='test' type='checkbox' value='2'  />
+    </div>
+
+:: Radio: @options=[[k, v], [k, v]], @checked=[], @inline=bool
+
+    {{ f.tag('radio', 'test', options=[[1,'Male'], [2,'Female']], checked=[1]) }}
+     <div class='radio-group' >
+        <label for='1'  >Male</label>
+        <input name='test' type='radio' value='1' checked='checked' />
+     </div>
+    <div class='radio-group' >
+        <label for='2'  >Female</label>
+        <input name='test' type='radio' value='2'  />
+    </div>
+
+:: Select: @options=[[k, v], [k, v]], @selected, @multiple=bool, null_option=True
+
+    {{ f.tag('select', 'gender', options=[['m', 'Male'], ['f', 'Female']], selected='f') }}
+      <select name="gender">
+        <option value="m">Male</option>
+        <option value="f" selected="selected">Female</option>
+      </select>
+
+:: Select-optgroup: @options=[[k, v], [k, v]], @selected
+
+    {{ f.tag('select-optgroup', 'gender', options={"List of genders": [['m', 'Male'], ['f', 'Female']], ...}, selected='f') }}
+      <select name="gender">
+        <optgroup label="List of Genders">
+            <option value="m">Male</option>
+            <option value="f" selected="selected">Female</option>
+        </optgroup>
+      </select>
+
+#}
+
+{% macro tag(_tag, name) -%}
+    {% set _class = kwargs.pop('class', 'form-control') %}
+    {% set _data = kwargs.pop('data', {}) %}
+
+    {# input or hidden field #}
+    {%- if _tag == "input" or _tag == "hidden" -%}
+        {%- set _type = kwargs.pop('type', 'text') %}
+
+        {# Hidden field #}
+        {% if _tag == "hidden" %}
+           {% set _type = "hidden" %}
+        {% endif %}
+        <input name='{{name}}'
+               class="{{_class}}"
+               type='{{_type}}'
+               {% for key in _data %} data-{{ key }}="{{ _data[key] | safe }}"{% endfor %}
+               {% for key in kwargs %}{{key}}='{{kwargs[key]|safe}}'{% endfor %} />
+
+    {# textarea: @value #}
+    {% elif _tag == "textarea" -%}
+        {% set value = kwargs.pop('value', '') %}
+        <textarea name='{{name}}'
+                  class="{{_class}}"
+                  {% for key in _data %} data-{{ key }}="{{ _data[key] | safe }}"{% endfor %}
+                  {% for key in kwargs %}{{key}}='{{kwargs[key]|safe}}'{% endfor %} >{{value}}</textarea>
+
+    {# button: @name=value #}
+    {% elif _tag == "button" -%}
+        {% set _type = kwargs.pop('type', 'button') %}
+        {% set value = name %}
+        <button class="{{_class}}"
+                type='{{_type}}'
+                {% for key in _data %} data-{{ key }}="{{ _data[key] | safe }}"{% endfor %}
+                {% for key in kwargs %}{{key}}='{{kwargs[key]|safe}}'{% endfor %} >{{ value }}</button>
+
+    {# radio|checkbox: @checked=[], @options=[[k, v], [k,v]], @inline=bool #}
+    {% elif _tag in ['radio', 'checkbox'] -%}
+        {% set checked = kwargs.pop('checked', []) %}
+        {% set options = kwargs.pop('options', []) %}
+        {% set display_inline = kwargs.pop('inline', False) %}
+        {% for item in options %}
+            <div class='{{_tag}}-{% if display_inline %}inline{% else %}group{% endif %}' >
+                <label for="{{ item[0] }}">
+                    <input name='{{name}}' type='{{_tag}}' value='{{item[0]}}' {% if item[0] in checked %}checked='checked'{% endif %} {% for key in kwargs %}{{key}}='{{kwargs[key]|safe}}'{% endfor %}/>
+                    {{ item[1] }}
+                </label>
+            </div>
+        {% endfor %}
+
+
+    {# select: @options=[[k, v], [k, v]], @selected=str, @multiple=bool #}
+    {%- elif _tag == "select" -%}
+        {% set selected = kwargs.pop('selected', '') %}
+        {% set options = kwargs.pop('options', []) %}
+        {% set multiple = kwargs.pop('multiple', False) %}
+        {% set null_option = kwargs.pop('null_option', True) %}
+        <select name='{{name}}' {% if multiple %}multiple{% endif %}
+                class="{{_class}}"
+                {% for key in _data %} data-{{ key }}="{{ _data[key] | safe }}"{% endfor %}
+                {% for key in kwargs %}{{key}}='{{kwargs[key]|safe}}'{% endfor %} >
+            {% if null_option %}
+            <option></option>
+            {% endif %}
+
+            {% for item in options %}
+            <option value='{{item[0]|safe}}' {% if item[0] == selected %}selected='selected'{% endif %} >{{item[1] if item[1] is defined else item[0] }}</option>
+            {% endfor %}
+        </select>
+
+
+    {# select-optgroup: @options={"group_name":[[k, v], [k, v]], ... }, @selected=str #}
+    {%- elif _tag == "select-optgroup" -%}
+        {% set selected = kwargs.pop('selected', '') %}
+        {% set groups = kwargs.pop('options', {}) %}
+        <select name='{{name}}'
+                class="{{_class}}"
+                {% for key in _data %} data-{{ key }}="{{ _data[key] | safe }}"{% endfor %}
+                {% for key in kwargs %}{{key}}='{{kwargs[key]|safe}}'{% endfor %} >
+            <option></option>
+            {% for group_name, options in groups.items() -%}
+                <optgroup label="{{ group_name }}">
+                {% for item in options %}
+                    <option value='{{item[0]|safe}}' {% if item[0] == selected %}selected='selected'{% endif %} >{{item[1] if item[1] is defined else item[0] }}</option>
+                {% endfor %}
+                </optgroup>
+
+            {%- endfor %}
+        </select>
+
+    {%- endif -%}
+{%- endmacro %}
+
+{# -- Shortcuts for the above tags, with the option to wrap label around it #}
+{#  To wrap with a label, just add the label attributes #}
+{% macro input(name) %}
+    {% set _tag = "input" %}
+    {% if "label" in kwargs %}
+        {{ group_label(_tag, name, **kwargs) }}
+    {% else %}
+        {{ tag(_tag, name, **kwargs) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro textarea(name) %}
+    {% set _tag = "textarea" %}
+    {% if "label" in kwargs %}
+        {{ group_label(_tag, name, **kwargs) }}
+    {% else %}
+        {{ tag(_tag, name, **kwargs) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro checkbox(name) %}
+    {% set _tag = "checkbox" %}
+    {% if "label" in kwargs %}
+        {{ group_label(_tag, name, **kwargs) }}
+    {% else %}
+        {{ tag(_tag, name, **kwargs) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro radio(name) %}
+    {% set _tag = "radio" %}
+    {% if "label" in kwargs %}
+        {{ group_label(_tag, name, **kwargs) }}
+    {% else %}
+        {{ tag(_tag, name, **kwargs) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro select(name) %}
+    {% set _tag = "select" %}
+    {% if "label" in kwargs %}
+        {{ group_label(_tag, name, **kwargs) }}
+    {% else %}
+        {{ tag(_tag, name, **kwargs) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro select_optgroup(name) %}
+    {% set _tag = "select-optgroup" %}
+    {% if "label" in kwargs %}
+        {{ group_label(_tag, name) }}
+    {% else %}
+        {{ tag(_tag, name, **kwargs) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro hidden(name) %}
+    {{ tag("hidden", name, **kwargs) }}
+{% endmacro %}
+
+{% macro button(name) %}
+    {% set _class = "btn " + kwargs.pop("class", "btn") %}
+
+    <div class="form-group">
+        {{ tag("button", name, class=_class, **kwargs) }}
+    </div>
+{% endmacro %}
+
+{% macro recaptcha() %}
+    <div class="form-group">
+        {{ recaptcha }}
+    </div>
+{% endmacro %}
+
+{# ----- #}
+
+{#:: Label
+
+    {{ f.label('name', 'First name')  }}
+    -> <label for='name' >First name</label>
+
+    {{ f.label('name') }}
+    -> <label for='name'>Name</label>
+
+    {{ f.label('name', class='label', id='name-label') }}
+    -> <label for='name' class='label' id='name-label' >Name</label>
+#}
+{% macro label(for_name, title) %}
+    <label for='{{for_name}}' {% for key in kwargs %}{{key}}='{{kwargs[key]|safe}}'{% endfor %} >{{ (title) if (title is defined and title != "") else (for_name|capitalize()) }}</label>
+    <span class="clearfix"></span>
+{% endmacro %}
+
+{# ----- #}
+
+{#:: group_label
+
+    Wrap with form group and the label
+#}
+{% macro group_label(_tag, name) %}
+    {% set _label = kwargs.pop('label', '') %}
+    <div class='form-group'>
+        {{ label(name, _label) }}
+        {{ tag(_tag, name, **kwargs) }}
+    </div>
+{% endmacro %}
+
+
+{% macro group(class="") %}
+    <div class="form-group {{ class }}">
+        {{ caller() }}
+    </div>
+{% endmacro %}
+
+
+{#:: CSRF_FIELD
+    To secure post form by adding a csrf field in hit
+:#}
+{% macro csrf_field() %}
+    {{ tag('hidden', '_csrf_token', value=csrf_token() ) }}
+{% endmacro %}
+
+
+{#
+== Form Creation ==
+
+The macros below will wrap your form content in the <form> tag.
+
+These macros are callable macros, meaning you must use {% call %} {% endcall %}
+instead of your normal {% macro %}
+
+For POST and UPLOAD form, it will add the CSRF field in it.
+
+
+
+:: get : Create a simple GET form
+
+    {% call get('Index:info', id='my_id') %}
+        {{ tag('input', 'firstname', type='text') }}
+    {% endcall %}
+
+    ->
+
+    <form action='/info' id='my_id' method='GET'>
+        <input type='text' name='firstname'>
+    </form>
+
+
+:: post : To create a POST form that will have the CSRF id for security
+
+    {% call post('Index:info', id='my_id') %}
+        {{ tag('input', 'firstname', type='text') }}
+    {% endcall %}
+
+    ->
+
+    <form action='/info' id='my_id' method='POST'>
+        <input type='hidden' name="_csrf" value='7486849794fjkhefkh'>
+        <input type='text' name='firstname'>
+    </form>
+
+
+:: upload : Create an Upload form, which will be a POST and have the CSRF id
+
+    {% call upload('Index:info', id='my_id') %}
+        {{ tag('input', 'firstname', type='text') }}
+    {% endcall %}
+
+    ->
+
+    <form action='/info' id='my_id' method='POST' enctype="multipart/form-data">
+        <input type='hidden' name="_csrf" value='7486849794fjkhefkh'>
+        <input type='text' name='firstname'>
+    </form>
+
+#}
+
+{%  macro __form(endpoint=None) %}
+    {% set action = kwargs.pop("action", "") %}
+    {% if endpoint %}
+        {% set action = url_for(endpoint) %}
+    {% endif %}
+
+    <form action="{{ action }}" {% for key in kwargs %}{{key}}="{{kwargs[key]|safe}}" {% endfor %} >
+        {{ caller() }}
+    </form>
+
+{%  endmacro %}
+
+
+{# POST #}
+{%  macro post(endpoint=None) %}
+    {% set _ = caller() %}
+    {%  call __form(endpoint, method="POST", **kwargs) %}
+        {{ csrf_field() }}
+        {{ _ }}
+    {% endcall %}
+{%  endmacro %}
+
+{# GET #}
+{%  macro get(endpoint=None) %}
+    {% set _ = caller() %}
+    {%  call __form(endpoint, method="GET", **kwargs) %}
+        {{ _ }}
+    {% endcall %}
+{%  endmacro %}
+
+{# UPLOAD #}
+{%  macro upload(endpoint=None) %}
+    {% set _ = caller() %}
+    {%  call __form(endpoint, method="POST", enctype="multipart/form-data", **kwargs) %}
+        {{ csrf_field() }}
+        {{ _ }}
+    {% endcall %}
+{%  endmacro %}
+
