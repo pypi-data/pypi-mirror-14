@@ -1,0 +1,181 @@
+#!/usr/bin/env python2
+from __future__ import print_function
+import argparse
+import os
+import time
+from tempfile import mkdtemp
+from string import Template
+
+
+################
+# GET TEMPLATE #
+################
+
+
+def get_template(nappargs=0, cmd=False, vol=True):
+    # Template, first part
+    template = """apiVersion: extensions/v1beta1
+kind: Job
+metadata:
+  name: $jobname
+spec:
+  selector:
+    matchLabels:
+      app: $appname
+  template:
+    metadata:
+      name: $appname
+      labels:
+        app: $appname
+    spec:
+      containers:
+      - name: $contname
+        image: $complete_image_name
+"""
+    # image: $cimgrepos/$cimgowner/$cimgname:$cimgver
+    # Set arguments
+    if nappargs > 0:
+        if cmd:
+            template += "        command: ["
+            for i in range(nappargs):
+                template += '"$APPARG' + str(i) + '"'
+                if i < nappargs-1:
+                    template += ', '
+            template += "]\n"
+        else:
+            template += "        args:\n"
+            for i in range(nappargs):
+                template += '          - "$APPARG' + str(i) + '"' + "\n"
+
+    # Template, second part
+    if vol:
+        template += """        volumeMounts:
+               - name: $volname
+                 mountPath: $volpath
+"""
+    template += """      restartPolicy: Never
+"""
+
+    if vol:
+        template += """      volumes:
+         - name: $volname
+           glusterfs:
+               endpoints: glusterfs-cluster
+               path: $glusterfspath
+               readOnly: false"""
+    return Template(template)
+
+##############
+# PARSE ARGS #
+##############
+
+def parse_args():
+
+    # Parse arguments
+    parser = argparse.ArgumentParser(description='CLI to send jobs to a K8s cluster through a working kubectl in the path.'
+                                                 'This utility will wait until jobs finish (or fail) to exit.')
+    parser.add_argument('-j', '--jobname', help='Job name', dest='jobname', required=True)
+    parser.add_argument('-n', '--appname', help='Application name', dest='appname', required=True)
+    parser.add_argument('-c', '--contname', help='Container name', dest='contname', required=True)
+    parser.add_argument('--cimgrepos', help='Container image repository', dest='cimgrepos', required=False)
+    parser.add_argument('--cimgowner', help='Container image owner', dest='cimgowner', required=False)
+    parser.add_argument('--cimgname', help='Container image name', dest='cimgname', required=True)
+    parser.add_argument('--cimgver', help='Container image version', dest='cimgver', required=False)
+    parser.add_argument('--volpath', help='Volume path', dest='volpath', required=False)
+    parser.add_argument('--volname', help='Volume name', dest='volname', required=False)
+    parser.add_argument('--glusterfspath', help='Gluster fs path', dest='glusterfspath', required=False)
+    parser.add_argument('-w', '--helper_work_dir',
+                        help='Working directory for helper (ie. where job files and log files are created). '
+                             'This should normally be the directory where the output of the tool is expected.'
+                             'The default is the current working directory',
+                        dest='workdir', default=os.getcwd(), required=False)
+    parser.add_argument('--useCMD', action='store_true', dest='useCMD', default=False)
+    parser.add_argument('appargs', nargs=argparse.REMAINDER, help='Application arguments')
+    args = parser.parse_args()
+    return args
+
+
+def process_image_name(params):
+    if params['cimgrepos'] is not None and params['cimgowner'] is not None:
+        params['complete_image_name'] = params['cimgrepos']+"/"+params['cimgowner']+"/"+params['cimgname']
+    elif params['cimgowner'] is not None:
+        params['complete_image_name'] = params['cimgowner']+"/"+params['cimgname']
+    else:
+        params['complete_image_name'] = params['cimgname']
+    if params['cimgver'] is not None:
+        params['complete_image_name'] += ":"+params['cimgver']
+    del params['cimgrepos']
+    del params['cimgowner']
+    del params['cimgname']
+    return params
+
+########
+# MAIN #
+########
+
+args = parse_args()
+appargs = args.appargs
+if '--' in appargs:
+    appargs.remove('--')
+params = vars(args)
+del params['appargs']
+i = 0
+for arg in appargs:
+    params["APPARG" + str(i)] = arg
+    i += 1
+params = process_image_name(params)
+
+jobYaml = params['workdir']+os.sep+params['jobname']+".yaml"
+jy_fh = open(jobYaml, 'w')
+use_vol = params['volpath'] is not None
+jy_fh.write(get_template(len(appargs), cmd=params['useCMD'], vol=use_vol).substitute(params))
+jy_fh.close()
+
+from k8s.comm import K8SConnection
+from k8s.parser import K8sDefinitionParser
+
+conn = K8SConnection()
+conn.create(jobYaml)
+
+print("Job submitted to cluster... waiting 5 seconds")
+time.sleep(5)
+
+job = conn.describe()
+defParser = K8sDefinitionParser(path=jobYaml)
+expected_pods = defParser.get_num_pods()
+print("Pods in the job: "+str(expected_pods))
+
+desc_job = open(jobYaml.replace(".yaml",".k8s.desc.log"), 'w')
+
+print("")
+print("Pods running   : "+str(job.pods_running))
+print("Pods failed    : "+str(job.pods_failed))
+print("Pods succeeded : "+str(job.pods_succeeded))
+
+while job.pods_running > 0:
+    # this part could be optional, letting the cluster insist until
+    # it manages to run the job succesfully
+    if job.pods_failed > 0:
+        print("Detected failing pods... killing the job")
+        # we should write logs at this point
+        conn.describe(out_fh=desc_job)
+        conn.kill_job()
+        desc_job.close()
+        exit(0)
+
+    time.sleep(5)
+    print(".", end="")
+    job = conn.describe()
+
+print("")
+print("Pods running   : "+str(job.pods_running))
+print("Pods failed    : "+str(job.pods_failed))
+print("Pods succeeded : "+str(job.pods_succeeded))
+
+print("All jobs finished running")
+conn.describe(out_fh=desc_job)
+desc_job.close()
+conn.delete_job()
+
+
+
