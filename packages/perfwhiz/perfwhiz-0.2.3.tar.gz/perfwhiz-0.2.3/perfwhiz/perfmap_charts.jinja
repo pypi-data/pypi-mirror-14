@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+<link href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.6/flatly/bootstrap.min.css" rel="stylesheet" type="text/css" />
+<link href="https://cdn.datatables.net/1.10.10/css/jquery.dataTables.min.css" rel="stylesheet" type="text/css" />
+<script src="https://code.jquery.com/jquery.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.2/angular.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-bootstrap/1.1.1/ui-bootstrap.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.10/js/jquery.dataTables.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>perfwhiz {{info.label}}</title>
+<style type="text/css">
+body {
+  font: 12px sans-serif;
+  padding-top: 50px;
+}
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+.bar {
+  fill: steelblue;
+}
+div.tooltip {
+    position: absolute;
+    border: 0px;
+    pointer-events: none;
+}
+td {
+  text-align: right;
+}
+th {
+  text-align: right;
+}
+.legend {
+  font-size: 12px;
+}
+</style>
+</head>
+<body ng-app="pw" ng-controller="PwCtrl">
+
+<nav class="navbar navbar-default navbar-fixed-top">
+  <div class="container-fluid">
+      <div class="navbar-header">
+      </div>
+      <div class="collapse navbar-collapse">
+           <ul class="nav navbar-nav">
+                <li ng-repeat="mode in modes" ng-class="{active: current_index==$index}"
+                    ng-click="handleEvent($event, $index)">
+                    <a href="#"><span class="glyphicon glyphicon-{[mode.icon]}" aria-hidden="true"></span>&nbsp;{[mode.title]}</a>
+                </li>
+          </ul>
+      </div>
+  </div>
+</nav>
+
+<div class="container-fluid">
+    <h1>{[current_mode.title]}
+        <div class="btn-group" uib-dropdown keyboard-nav ng-show="(current_index==2) && (coremap_runs.length>1)">
+        <button id="simple-btn-keyboard-nav" type="button" class="btn btn-primary" uib-dropdown-toggle>
+            {[coremap_runs[coremap_index]]} <span class="caret"></span>
+        </button>
+        <ul uib-dropdown-menu role="menu" aria-labelledby="simple-btn-keyboard-nav">
+            <li ng-hide="coremap_index==$index" ng-repeat="run in coremap_runs" role="menuitem" ng-click="selectRun($event, $index)"><a href="#">{[run]}</a></li>
+        </ul>
+    </div>
+     <small>{{info.label}} ({{info.window}} msec window)</small></h1>
+</div>
+<div class="container-fluid" ng-show="current_index == 0">
+    <svg id="svg-cpu"></svg>
+</div>
+<div class="container-fluid" ng-show="current_index == 1">
+  <svg id="svg-kvm-exits"></svg>
+  <br><br>
+  <table id="table" class="table display compact table-bordered" cellspacing="50" width="100%"></table>
+</div>
+<div class="container-fluid" ng-show="current_index == 2">
+    <svg ng-repeat="run in coremap_runs" id="svg-coremap{[$index]}" ng-show="coremap_index==$index"></svg>
+</div>
+<br><br>
+<div class="container-fluid">
+  <small>
+    Crafted on {{info.date}} by <a href="https://github.com/cisco-oss-eng/perfwhiz">perfwhiz</a> {{info.version}}
+  </small>
+</div>
+
+<script>
+var max_cores = {{info.max_cores}};
+var reasonmap = {{exit_reason_list}};
+var colormap = {{colormap_list}};
+var task_data = [{% for task in task_list %}
+{task:"{{task.name}}",counts:{{task.exit_count}}, cpu:{{task.cpu}}, sw:{{task.sw}}}{% if not loop.last %},{% endif %}
+{% endfor %}];
+// [ { run:"run1", stats: [ { task:"vnf1", counts:[[1,10,21], [4,21,45]]},
+//                            { task:"vnf2", counts:[[31,45,12]]} ], extent: [12, 45]
+//   },
+// ]
+var coremaps = [{% for item in coremaps %}
+{run:"{{item.run}}", extent:{{item.extent}}, stats: [
+{% for coremap in item.coremap %}
+{task:"{{coremap.task}}", counts:{{coremap.counts}}}{% if not loop.last %},{% endif %}
+{% endfor %}]}
+{% if not loop.last %},{% endif %}
+{% endfor %}];
+
+var total_width = 1100;
+var grid_color = "#bbbbbb";
+
+// Generic code below
+
+function get_text_width(text_list) {
+    // a fake svg to calculate max rendered width
+    var tmp_svg = d3.select("body").append("svg").attr("width", 1000).attr("height", 1000);
+    var tmp_lg = tmp_svg.append("g").attr("class", "g");
+    var max_width = 0;
+    tmp_lg.selectAll("text")
+        .data(text_list)
+        .enter().append("text")
+        .text(function (d, i) { return d;});
+    tmp_lg.selectAll("text")
+        .each(function() {
+            max_width = Math.max(this.getBBox().width, max_width);
+        });
+    tmp_svg.remove();
+    return max_width;
+}
+
+// allow height of the chart to be a function of the number of horizontal bars
+function get_total_height(bar_count, margin, min_height) {
+    var height = 40 + (bar_count * 20) + margin.top + margin.bottom;
+    if (min_height) {
+        height = Math.max(min_height, height);
+    }
+    return height;
+}
+
+var div = d3.select("body").append("div")	
+    .attr("class", "tooltip")				
+    .style("opacity", 0);
+
+function draw_line(svg, x1, y1, x2, y2, color) {
+    svg.append("line")
+        .attr({
+            x1:x1,
+            y1:y1,
+            x2:x2,
+            y2:y2,
+            'stroke-width':1,
+            stroke:color
+        });
+}
+function draw_vert_line(svg, x, y1, y2, color) {
+    draw_line(svg, x, y1, x, y2, color);
+}
+function draw_hor_line(svg, x1, x2, y, color) {
+    draw_line(svg, x1, y, x2, y, color);
+}
+
+function draw_legend(svg, text_list, color_list, width, align, margin, columns) {
+    var inner_margin = 5;
+    var color_rect_size = 18;
+    var inner_gap = 2;
+    var row_height = color_rect_size + inner_gap;
+    // calculate the width of the legend box
+    var count = text_list.length;
+    var col_width = get_text_width(text_list) + color_rect_size + inner_gap * 2;
+    columns = Math.min(count, columns);
+    var lb_width = (col_width * columns) + 2 * inner_margin;
+    // calculate the x coordinates of the legend box based
+    if (align == "left") {
+        lb_x = margin;
+    } else if (align == "center") {
+        lb_x = width/2 - lb_width/2;
+    } else {
+        lb_x = width - margin - lb_width;
+    }
+    var count_per_column = Math.ceil(count / columns);
+    var lb_height = count_per_column * row_height + inner_margin * 2 - inner_gap;
+    var lbg = svg.append("g")
+        .attr("class", "g")
+        .attr("id", "legend_group")
+        .attr("transform", "translate(" + lb_x + ", 0)");
+    var legend_box = lbg.append("rect").
+        attr("id","legend_box")
+        .attr("height", lb_height)
+        .attr("width", lb_width)
+        .style("stroke-width", 1)
+        .style("stroke", "#bbbbbb")
+        .style("fill-opacity", 0.7)
+        .style("fill", "white");
+    var legend = lbg.selectAll(".legend")
+        .data(color_list)
+        .enter().append("g")
+        .attr("class", "legend")
+        .attr("transform", function(d, i) {
+            return "translate(" +
+                    (inner_margin + col_width * Math.floor(i/count_per_column)) +
+                    "," +
+                    (inner_margin + row_height * (i % count_per_column)) + ")"; });
+    legend.append("rect")
+        .attr("width", color_rect_size)
+        .attr("height", color_rect_size)
+        .style("opacity", 0.8)
+        .style("fill", function(d, i) { return d; });
+    legend.append("text")
+        .attr('class','legend')
+        .attr("x", row_height)
+        .attr("dy", "1.2em")
+        .style("text-anchor", "start")
+        .text(function(d, i) { return text_list[i]; });
+}
+
+// ----- KVM EXIT TYPES COUNT CHART
+
+function draw_kvm_exits(scope) {
+    var kvm_task_data = task_data.filter(function(d) {return d.counts.length;});
+    var task_list = kvm_task_data.map(function(d) { return d.task; });
+    var margin = {top: 30, right: 20, bottom: 40, left: get_text_width(task_list)+15};
+    var total_height = get_total_height(task_list.length, margin, 280);
+    var width = total_width - margin.left - margin.right;
+    var height = total_height - margin.top - margin.bottom;
+    var y = d3.scale.ordinal()
+        .rangeRoundBands([height, 0], 0.1)
+        .domain(task_list);
+    var yAxis = d3.svg.axis()
+        .scale(y)
+        .orient("left");
+    var x = d3.scale.linear()
+        .rangeRound([0, width]);
+    var xAxis = d3.svg.axis()
+        .scale(x)
+        .orient("bottom")
+        .tickFormat(d3.format(".2s"));
+    var svg = d3.select("#svg-kvm-exits")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    kvm_task_data.forEach(function(d) {
+        var y0 = 0;
+        var counts = d["counts"];
+        d.exit_desc = [];
+        counts.forEach(function(count, index, array) {
+            if (count > 0) {
+               d.exit_desc.push({name: reasonmap[index], y0: y0,
+                                 y1: y0 += +count,
+                                 task:d.task,
+                                 count:+count, color:colormap[index]})
+            }
+        });
+        d.total = d.exit_desc[d.exit_desc.length - 1].y1;
+    });
+
+    var max_x = d3.max(kvm_task_data, function(d) { return d.total; })
+    x.domain([0, max_x * 1.1]).nice();
+
+    svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xAxis)
+        .append("text")
+        .attr("x", width)
+        .attr("dy", "-0.2em")
+        .style("text-anchor", "end")
+        .text("Exit Count");
+
+    svg.append("g")
+        .attr("class", "y axis")
+        .call(yAxis);
+
+    var state = svg.selectAll(".state")
+        .data(kvm_task_data)
+        .enter().append("g")
+        .attr("class", "g")
+        .attr("transform", function(d) { return "translate(0, " + y(d.task) + ")"; });
+
+    state.selectAll("rect")
+      .data(function(d) { return d.exit_desc; })
+    .enter().append("rect")
+        .attr("height", y.rangeBand())
+        .attr("x", function(d) { return x(d.y0); })
+        .attr("width", function(d) { return x(d.y1) - x(d.y0); })
+        .style("opacity", 0.8)
+        .style("fill", function(d) { return d.color; })
+        .on("mouseover", function(d) {
+            div.transition()
+                .duration(200)
+                .style("opacity", 0.9);
+            var matrix = this.getScreenCTM()
+                .translate(+this.getAttribute("cx"),
+                           +this.getAttribute("cy"));
+            div	.html('<ul class="list-group"><li class="list-group-item"><b>' +  d.task + '</b><br>' +
+                      d.name + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="badge">'+ d.count +'</span></li></ul>')
+                .style("top", (window.pageYOffset + matrix.f + y.rangeBand()/2 - 30) + "px")
+                .style("left", (d3.event.pageX) + "px");
+            d3.select(this).style("opacity", 1);
+        })
+        .on("mousemove", function(d) {
+            div	.style("left", (d3.event.pageX) + "px");
+        })
+        .on("mouseout", function(d) {
+            div.transition()
+                .duration(500)
+                .style("opacity", 0);
+            d3.select(this).style("opacity", 0.8);
+        });
+    draw_legend(svg, reasonmap, colormap, width, "right", 0, 1);
+
+    var tcolumns = reasonmap.map(function(reason, index, array) { return {title:reason}; });
+    tcolumns.push({title:'Total'});
+    tcolumns.splice(0,0,{title:'Name'});
+    var tdata = kvm_task_data.map(function(elem, index, array) {
+      row = [ elem.task ].concat(elem["counts"]).concat(elem["total"])
+      return row;
+    });
+
+    $(document).ready(function() {
+        $('#table').DataTable({
+          autoWidth: true,
+          ordering: true,
+          paging: false,
+          searching: false,
+          data:tdata,
+          columns:tcolumns
+        });
+    } );
+}
+
+// ----- CPU Usage and Context Switches
+function draw_cpusw(scope) {
+    var task_list = task_data.map(function(d) { return d.task; });
+    var margin = {top: 30, right: 20, bottom: 40, left: get_text_width(task_list)+15};
+    var total_height = get_total_height(task_list.length, margin, 280);
+    var width = total_width - margin.left - margin.right;
+    var height = total_height - margin.top - margin.bottom;
+    var y = d3.scale.ordinal()
+        .rangeRoundBands([height, 0], 0.1).
+        domain(task_list);
+    var yAxis = d3.svg.axis()
+        .scale(y)
+        .orient("left");
+    var xcpu = d3.scale.linear()
+        .rangeRound([0, width - 120]);
+    var xsw = d3.scale.linear()
+        .rangeRound([0, width - 120]);
+    var xCpuAxis = d3.svg.axis()
+        .scale(xcpu)
+        .orient("top")
+        .tickFormat(d3.format("%"));
+    var xSwAxis = d3.svg.axis()
+        .scale(xsw)
+        .orient("bottom")
+        .tickFormat(d3.format(".2s"));
+    var svg = d3.select("#svg-cpu")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    var max_sw = d3.max(task_data, function(d) { return d.sw; });
+    var round_unit = Math.pow(10, Math.round(Math.log10(max_sw)));
+    max_sw = Math.max(10, Math.ceil(max_sw/round_unit)*round_unit);
+    xcpu.domain([0, 1]);
+    xsw.domain([0, max_sw]);
+    var sw_color = "#cb181d"; // red
+    // get a set of all starting (max) 3 letter strings for task names
+    var task_color_keys = task_list.map(function(d) { return d.substring(0, 3); })
+    var task_color_key = d3.scale.ordinal().domain(task_color_keys).range(d3.range(20));
+    var task_color = d3.scale.category20();
+    var axis = svg.append("g")
+        .attr("class", "x axis")
+        .call(xCpuAxis);
+    axis
+        .append("text")
+        .attr("x", width - 24)
+        .style("text-anchor", "end")
+        .text("% one core");
+    axis
+        .append("rect")
+        .attr("x", width - 20)
+        .attr("y", -18)
+        .attr("width", 20)
+        .attr("height", 20)
+        .style("opacity", 0.8)
+        .style("fill", task_color(0));
+    axis = svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xSwAxis);
+    axis
+        .append("text")
+        .attr("x", width - 24)
+        .style("text-anchor", "end")
+        .text("context switches");
+    axis
+        .append("circle")
+        .attr("r", 6)
+        .attr("cx", width - 14)
+        .attr("cy", -4)
+        .style("opacity", 0.6)
+        .style("fill", sw_color);
+    svg.append("g")
+        .attr("class", "y axis")
+        .call(yAxis);
+    [0.5, 1].forEach(function (pct) { draw_vert_line(svg, xcpu(pct), 0, height, grid_color); });
+
+    var state = svg.selectAll(".g")
+        .data(task_data)
+        .enter().append("g")
+        .attr("class", "g")
+        .attr("transform", function(d) { return "translate(0, " + y(d.task) + ")"; });
+    state
+        .append("rect")
+        .attr("height", y.rangeBand())
+        .attr("x", 0)
+        .attr("width", function(d) { return xcpu(d.cpu/100); })
+        .style("opacity", 0.4)
+        .style("fill", function(d) { return task_color(task_color_key(d.task.substring(0,3)));})
+        .on("mouseover", function(d) {
+            div.transition()
+                .duration(200)
+                .style("opacity", 0.8);
+            var matrix = this.getScreenCTM()
+                .translate(+this.getAttribute("cx"),
+                           +this.getAttribute("cy"));
+            div	.html('<ul class="list-group"><li class="list-group-item"><b>' +  d.task + '</b><br>one core usage&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="badge">'+ d.cpu + '%</span></li>')
+                .style("top", (window.pageYOffset + matrix.f + y.rangeBand()/2 - 40) + "px")
+                .style("left", (d3.event.pageX) + "px");
+            d3.select(this).style("opacity", 1);
+        })
+        .on("mousemove", function(d) {
+            div	.style("left", (d3.event.pageX) + "px");
+        })
+        .on("mouseout", function(d) {
+            div.transition()
+                .duration(500)
+                .style("opacity", 0);
+            d3.select(this).style("opacity", 0.4);
+        });
+    var radius = 6;
+    state.append("line").attr({
+            y1:y.rangeBand()/2,
+            x2:function(d) { return Math.max(0, xsw(d.sw) - radius); },
+            y2:y.rangeBand()/2,
+            'stroke-width':1,
+            stroke:sw_color});
+    state
+        .append("circle")
+        .attr("r", radius)
+        .attr("cx", function(d) { return xsw(d.sw); })
+        .attr("cy", (y.rangeBand()/2))
+        .style("opacity", 0.9)
+        .style("fill", sw_color)
+        .on("mouseover", function(d) {
+            div.transition()
+                .duration(100)
+                .style("opacity", 1);
+            var matrix = this.getScreenCTM()
+                .translate(+this.getAttribute("cx"),
+                           +this.getAttribute("cy"));
+            div	.html('<ul class="list-group"><li class="list-group-item"><b>' +  d.task + '</b><br>context switches &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="badge">'+ d.sw + '</span></li>')
+                .style("top", (window.pageYOffset + matrix.f + y.rangeBand()/2 - 50) + "px")
+                .style("left", (d3.event.pageX) + "px");
+        })
+        .on("mouseout", function(d) {
+            div.transition()
+                .duration(500)
+                .style("opacity", 0);
+            d3.select(this).style("opacity", 0.9);
+        });
+}
+
+// ----- Coremap
+function draw_coremap(scope) {
+    if (scope.coremap_state[scope.coremap_index]) {
+        return;
+    }
+    scope.coremap_state[scope.coremap_index] = true;
+    var coremap = coremaps[scope.coremap_index];
+    var task_list = coremap.stats.map(function(d) { return d.task; });
+
+    // shadowing the global variables as the height and width is special for coremaps
+    var hor_margin = get_text_width(task_list)+15;
+    var margin = {top: 30, right: hor_margin, bottom: 40, left: hor_margin};
+    var total_height = get_total_height(task_list.length, margin, 0);
+    var width = total_width - margin.left - margin.right;
+    var height = total_height - margin.top - margin.bottom;
+    var y = d3.scale.ordinal()
+        .rangeBands([height, 0], 0.01, 0.05)
+        .domain(task_list);
+    var yAxis = d3.svg.axis()
+        .scale(y)
+        .orient("left");
+    var xrange = d3.range(max_cores);
+    var x_label_allcores = '0-' + (max_cores-1);
+    xrange.push(x_label_allcores);
+    var x = d3.scale.ordinal()
+        .rangeBands([0, width], 0.01, 0.01)
+        .domain(xrange);
+    var xAxis = d3.svg.axis()
+        .scale(x)
+        .orient("bottom");
+    var svg = d3.select("#svg-coremap"+scope.coremap_index)
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", total_height)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    var axis = svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0," + height + ")")
+        .call(xAxis);
+    svg.append("g")
+        .attr("class", "y axis")
+        .call(yAxis);
+    var xAxis2 = d3.svg.axis()
+        .scale(x)
+        .orient("top");
+    svg.append("g")
+        .attr("class", "x axis")
+        .call(xAxis2)
+    var yAxis2 = d3.svg.axis()
+        .scale(y)
+        .orient("right");
+    var axis = svg.append("g")
+        .attr("class", "y axis")
+        .attr("transform", "translate(" + (width) + ",0)")
+        .call(yAxis2);
+    // delimitate total and socket boundary
+    sb = d3.range(8, max_cores, 8);
+    sb.push(x_label_allcores);
+    sb.forEach(function (sb) { draw_vert_line(svg, x(sb), 0, height, grid_color); });
+    // build all the core pods for each task
+    var blues = d3.scale.linear()
+        .domain([0, 50, 100])
+        .range(['#deebf7','#9ecae1','#3182bd']);
+    var oranges = d3.scale.linear()
+        .domain(coremap.extent)
+        .range(['#fee6ce','#e6550d']);
+    function draw_half_rect(id, colormap, y_offset) {
+        var state = svg.selectAll("#" + id)
+            .data(coremap.stats)
+            .enter().append("g")
+            .attr("class", "g")
+            .attr("id", id)
+            .attr("transform", function(d) { return "translate(0, " + (y(d.task) + 1 + y_offset) + ")"; });
+        state.selectAll("rect")
+          .data(function(d) { return d.counts; })
+        .enter().append("rect")
+            .attr("height", (y.rangeBand() - 2)/2)
+            .attr("x", function(d) { return x(d[0]); })
+            .attr("width", x.rangeBand() - 2)
+            .style("opacity", 0.8)
+            .style("fill", colormap)
+            .on("mouseover", function(d, i) {
+                div.transition()
+                    .duration(200)
+                    .style("opacity", 0.9);
+                var matrix = this.getScreenCTM()
+                    .translate(+this.getAttribute("cx"),
+                               +this.getAttribute("cy"));
+                var task = this.parentNode.__data__.task;
+                div	.html('<ul class="list-group"><li class="list-group-item active">' + task + ' on core ' + d[0] + '</li>' +
+                          '<li class="list-group-item">core usage&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="badge">'+ d[1] +'%</span></li>' +
+                          '<li class="list-group-item">ctx switches&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="badge">'+ d[2] +'</span></li></ul>')
+                    .style("top", (window.pageYOffset + matrix.f + y.rangeBand()/2 - 30) + "px")
+                    .style("left", (d3.event.pageX) + "px");
+                d3.select(this).style("opacity", 1);
+            })
+            .on("mousemove", function(d) {
+                div	.style("left", (d3.event.pageX) + "px");
+            })
+            .on("mouseout", function(d) {
+                div.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+                d3.select(this).style("opacity", 0.8);
+            });
+    }
+    draw_half_rect('cpu', function(d) {return blues(d[1]);}, 0);
+    draw_half_rect('sw', function(d) {return oranges(d[2]);}, (y.rangeBand() - 2)/2);
+    // draw a separator to group task names that have the same 3 first letters
+    cur_task_prefix = '';
+    coremap.stats.forEach(function(item, index, array) {
+        if (cur_task_prefix.length == 0) {
+            cur_task_prefix = item.task.substring(0, 3);
+        } else if (!item.task.startsWith(cur_task_prefix)) {
+            draw_hor_line(svg, 0, width, y(item.task) + y.rangeBand(), grid_color);
+            cur_task_prefix = item.task.substring(0, 3);
+        }
+    });
+}
+
+var app = angular.module('pw', ['ui.bootstrap']);
+var modes = [
+    {title:"CPU and Context Switches", icon:"dashboard", svg:"cpu", init:draw_cpusw},
+    {title:"KVM Exit count by type", icon:"log-out", svg:"kvm_exits", init:draw_kvm_exits},
+    {title:"CoreMap", icon:"equalizer", svg:"coremap", init:draw_coremap}
+];
+app.config(['$interpolateProvider', function($interpolateProvider) {
+  $interpolateProvider.startSymbol('{[');
+  $interpolateProvider.endSymbol(']}');
+}]);
+app.controller('PwCtrl', PwCtrl);
+function PwCtrl($scope) {
+    $scope.coremap_state = coremaps.map(function(d) { return false; });
+    $scope.current_index = 0;
+    $scope.modes = modes;
+    $scope.handleEvent = function(event, index) {
+        $scope.current_index = index;
+        $scope.current_mode = $scope.modes[index];
+        var initf = $scope.current_mode['init'];
+        if (initf != null) {
+            initf($scope);
+            $scope.current_mode['init'] = null;
+        }
+    };
+    $scope.handleEvent(null, 0);
+    $scope.coremap_runs = coremaps.map(function(d) { return d.run; });
+    $scope.coremap_index = 0;
+    $scope.selectRun = function(event, index) {
+        $scope.coremap_index = index;
+        draw_coremap($scope);
+    };
+}
+</script>
+
+</body>
+</html>
