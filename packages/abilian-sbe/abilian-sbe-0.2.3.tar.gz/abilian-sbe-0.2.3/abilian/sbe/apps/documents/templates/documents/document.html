@@ -1,0 +1,141 @@
+{% extends "community/_base.html" %}
+
+{% from "macros/box.html" import m_box_content, m_box_menu with context %}
+{% from "macros/audit.html" import m_audit_log %}
+{% from "macros/table.html" import m_table %}
+
+{% from "documents/_macros.html" import m_docs_table, m_breadcrumbs2 with context %}
+
+{% macro user_markup(user) %}
+  <a href="{{ url_for("social.user", user_id=user.id) }}"><img alt="" src="{{ user_photo_url(user, size=16) }}"/>
+    {{ user }}
+  </a>
+{% endmacro %}
+
+{% block content %}
+  {% call m_box_content(title=_("Document view")) %}
+
+    {%- if doc.antivirus_required %}
+      <div style="margin: 5px 0;">
+        <i class="fa fa-file-o fa-lg"></i>
+        {{ m_breadcrumbs2(breadcrumbs) }}
+      </div>
+
+      <hr />
+
+      <p class="small alert alert-warning">
+      <span class="fa-stack">
+        <i class="fa fa-search fa-stack-2x"></i>
+        <i class="fa fa-bug fa-stack-1x text-danger"></i>
+      </span>
+      {% trans %}Waiting for virus check...{% endtrans %}
+      </p>
+    {%-  elif not doc.antivirus_ok %}
+      <p class="alert alert-danger">
+        <i class="fa fa-exclamation-triangle"></i>
+        {%- trans %}Virus found. Access disabled.{%- endtrans %}
+      </p>
+    {%- endif %}
+
+
+    <div>
+      {%- if doc.antivirus_ok %}
+        <a class="btn btn-success btn-lg pull-right"
+           href="{{ url_for('.document_download', community_id=doc.community.slug, doc_id=doc.id, attach=True) }}">
+          <i class="glyphicon glyphicon-download"></i>
+          {{ _('Download') }} (<small>{{ doc.content_length|filesize  }}</small>)
+        </a>
+      {%- endif %}
+      <h2><i class="fa fa-file-o fa-lg"></i>
+        {{ m_breadcrumbs2(breadcrumbs) }}
+      </h2>
+      <div>
+        <small>
+          {{ _('Created: %(date)s (%(age)s) by %(creator)s',
+               date=(doc.created_at | datetimeformat('short')),
+              age=doc.created_at | age(add_direction=False),
+              creator=user_markup(doc.creator)) }}
+          {%- if doc.updated_at != doc.created_at %}
+            <br />
+            {{ _('Last modification: %(date_age)s', date_age=doc.updated_at|age(add_direction=False, date_threshold='day')) }}
+            {%- set lock = doc.lock %}
+            {%- if lock %}
+              <div class="lock">
+                <i class="fa fa-lock"></i>
+              {{ _('Locked for edition by %(user)s at %(date)s (%(age)s)',
+                  user=lock.user, date=lock.date | datetimeformat('short'), age=lock.date | age) }}
+              </div>
+            {%- endif %}
+          {%- endif %}
+        </small>
+      </div>
+    </div>
+
+    {%- if doc.description %}
+      <p>{{ doc.description }}</p>
+      <p>&nbsp;</p>
+    {%- endif %}
+
+    <h3 class="main">{{ _('Preview') }}</h3>
+
+    <div class="preview-container" data-page-num="{{ doc.page_num }}">
+      <img src="{{ url_for(".document_preview_image",
+          community_id=g.community.slug, doc_id=doc.id,
+          size=doc.preview_size) }}"  alt="" class="preview" data-page="0"/>
+
+      {%- if has_preview %}
+        <a class="preview-nav-button preview-prev" title="{{ _('Previous') }}">
+          <i class="fa fa-chevron-circle-left fa-5x"></i>
+          <span class="sr-only">{{ _('Previous') }}</span>
+        </a>
+        <a class="preview-nav-button preview-next" title="{{ _('Next') }}">
+          <i class="fa fa-chevron-circle-right fa-5x"></i>
+          <span class="sr-only">{{ _('Next') }}</span>
+        </a>
+
+        {%- deferJS %}
+        <script type="text/javascript">
+         require(
+             ['Abilian', 'SBEDocumentViewerSetup'],
+             function(Abilian, viewerSetup) {
+                 Abilian.fn.onAppInit(viewerSetup);
+             });
+        </script>
+        {%- enddeferJS %}
+
+      {%- else %}
+        {{ _("Document preview not yet available") }}
+      {%- endif %}
+    </div>
+
+      {%- if doc.extra_metadata %}
+        <h3 class="main collapsed" data-toggle="collapse"
+            href="#doc_extra_metadata">Extra Metadata</h3>
+        <div id="doc_extra_metadata" class="collapse">
+          {%- set sorted = doc.extra_metadata|dictsort %}
+          {{ m_table(sorted) }}
+        </div>
+      {%- endif %}
+
+      {{ m_audit_log(audit_entries) }}
+
+  {% endcall %}
+
+{% endblock %}
+
+{% block sidebar %}
+  {%- set content_actions = actions.for_category('documents:content') %}
+  {%- if content_actions %}
+    {% call m_box_menu() %}
+      <ul class="nav nav-list">
+        {%- for action in content_actions %}
+          <li>{{ action.render() }}</li>
+        {%- endfor %}
+      </ul>
+    {% endcall %}
+  {%- endif %}
+{% endblock %}
+
+{% block modals %}
+  {% include "documents/_modals_document.html" %}
+{% endblock %}
