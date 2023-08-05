@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import datetime as dt
+import argparse
+
+from steptoolkit.ccwtool import XLSXExtension
+from steptoolkit.ccwtool import DataParser
+
+def mkdate(datestring):
+    return dt.datetime.strptime(datestring, '%d/%m/%Y').date()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-i',
+        action='store',
+        dest='input_file',
+        required=True,
+        help='Set input file'
+    )
+    parser.add_argument(
+        '-o',
+        action='store',
+        dest='output_file',
+        required=True,
+        help='Set output file'
+    )
+    parser.add_argument(
+        '-V',
+        action='store',
+        dest='version',
+        default='v0.1',
+        help='Set BOM version'
+    )
+    parser.add_argument(
+        '-c',
+        action='store',
+        dest='customer',
+        default='',
+        help='Set customer name'
+    )
+    parser.add_argument(
+        '-d',
+        action='store',
+        dest='date',
+        default=dt.date.today().strftime("%d.%m.%y"),
+        help='Set date of the BOM creation'
+    )
+
+    args = parser.parse_args()
+
+    bom_xlsx = XLSXExtension(args.output_file)
+    bom_xlsx.add_header(customer_name=args.customer, version=args.version, date=args.date)
+
+    bom_xml = DataParser(args.input_file)
+    bom_xml.parse()
+
+    bom_xlsx.add_body(bom_xml.products)
+    bom_xlsx.add_footer()
+    bom_xlsx.close()
+
+if __name__ == "__main__":
+    main()
