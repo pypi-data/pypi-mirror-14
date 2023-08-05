@@ -1,0 +1,95 @@
+{#
+# GNU MediaGoblin -- federated, autonomous media hosting
+# Copyright (C) 2011, 2012 MediaGoblin contributors.  See AUTHORS.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#}
+{% extends "mediagoblin/base.html" %}
+
+{% from "mediagoblin/utils/pagination.html" import render_pagination %}
+
+{% block title -%}
+  {% trans %}Media processing panel{% endtrans %} &mdash; {{ super() }}
+{%- endblock %}
+
+{% block mediagoblin_content %}
+
+<h1>{% trans %}Media processing panel{% endtrans %}</h1>
+
+<p>
+  {% trans %}You can track the state of media being processed for your gallery here.{% endtrans %}
+</p>
+
+<p>
+Show:
+<a href="{{ request.urlgen('mediagoblin.user_pages.processing_panel',
+                           user=request.user.username) }}">All</a>,
+<a href="{{ request.urlgen('mediagoblin.user_pages.processing_panel',
+                           user=request.user.username, state="processing") }}">In processing</a>,
+<a href="{{ request.urlgen('mediagoblin.user_pages.processing_panel',
+                           user=request.user.username, state="failed") }}">Failed</a>,
+<a href="{{ request.urlgen('mediagoblin.user_pages.processing_panel',
+                           user=request.user.username, state="processed") }}">Succesful</a>
+</p>
+    
+{% if entries.count() %}
+  {{ render_pagination(request, pagination) }}
+  <table class="media_panel processing">
+    <tr>
+      <th width="210">Thumbnail</th>
+      <th>Title</th>
+      <th width="20%">When submitted</th>
+      <th width="200">Transcoding progress</th>
+    </tr>
+    {% for media_entry in entries %}
+      <tr>
+      {% if media_entry.state == 'processed' %}
+        {% set entry_url = media_entry.url_for_self(request.urlgen) %}
+        <td>
+            <div class="thumb-wrapper">
+                <a href="{{ entry_url }}">
+                    <img src="{{ media_entry.thumb_url }}" alt="{{ media_entry.title }}" />
+                </a>
+            </div>
+        </td>
+        <td><a href="{{ entry_url }}">{{ media_entry.title }}</a></td>
+        <td>{{ media_entry.created.strftime("%F %R") }}</td>
+        <td>Ready</td>
+      {% else %}
+        <td>
+            <div class="thumb-wrapper">
+                <img src="{{ media_entry.thumb_url }}" alt="{{ media_entry.title }}" />
+                {% if media_entry.state == 'processing' %}
+                <div class="thumb-overlay-status thumb-processing">Processing...</div>
+                {% elif media_entry.state == 'failed' %}
+                <div class="thumb-overlay-status thumb-failed">Failed!</div>
+                {% endif %}
+            </div>
+        </td>
+        <td>{{ media_entry.title }}</td>
+        <td>{{ media_entry.created.strftime("%F %R") }}</td>
+        {% if media_entry.transcoding_progress %}
+        <td>{{ media_entry.transcoding_progress }}%</td>
+        {% else %}
+        <td>Unknown</td>
+        {% endif %}
+      {% endif %}
+      </tr>
+    {% endfor %}
+  </table>
+  {{ render_pagination(request, pagination) }}
+{% else %}
+  <p><em>{% trans %}You have not uploaded anything yet!{% endtrans %}</em></p>
+{% endif %}  
+{% endblock %}
