@@ -1,0 +1,271 @@
+#!/usr/bin/env python
+
+from edgemanage import const, EdgeManage, StateFile, util
+
+import argparse
+import atexit
+import fcntl
+import json
+import logging
+import logging.handlers
+import os
+import pprint
+import subprocess
+import sys
+import time
+import yaml
+
+import ipaddr
+import setproctitle
+
+__author__ = "nosmo@nosmo.me"
+
+def daemon_setup():
+    # First fork
+    try:
+        pid = os.fork()
+        if pid > 0:
+            # exit first parent
+            sys.exit(0)
+    except OSError, e:
+        sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+        sys.exit(1)
+
+    # Don't hang onto any files accidentally
+    os.chdir("/")
+    # Decouple from our environment
+    os.setsid()
+    os.umask(0)
+
+    # Second fork
+    try:
+        pid = os.fork()
+        if pid > 0:
+            # exit if second parent
+            sys.exit(0)
+    except OSError, e:
+        sys.stderr.write("Second fork failed: %d (%s)\n" % (e.errno, e.strerror))
+        sys.exit(1)
+
+    # redirect standard file descriptors
+    sys.stdout.flush()
+    sys.stderr.flush()
+    si = file("/dev/null", 'r')
+    so = file("/dev/null", 'a+')
+    #se = file("/dev/null", 'a+', 0)
+    os.dup2(si.fileno(), sys.stdin.fileno())
+    os.dup2(so.fileno(), sys.stdout.fileno())
+    #os.dup2(se.fileno(), sys.stderr.fileno())
+
+    # write pidfile
+    #atexit.register(self.delpid)
+    #pid = str(os.getpid())
+    #file(self.pidfile,'w+').write("%s\n" % pid)
+
+def run_command_list(commands):
+    if not commands:
+        return None
+
+    for command in commands:
+        # Subprocess wants a list. This will complicate things for
+        # people using complex strings but for now that's too bad.
+        command = command.split(" ")
+        try:
+            popened_p = subprocess.Popen(command)
+        except OSError as e:
+            logging.error("Failed to run command %s: %s", command, str(e))
+        except Exception as e:
+            # ~* I want to be the very best, like no one ever was *~
+            # I'll allow this kind of exception handling here
+            # because an unforeseen condition here shouldn't break
+            # execution.
+            logging.error(
+                "Caught unhandled exception when running command %s: %s",
+                command, str(e)
+            )
+        else:
+            logging.info("Started execution of command without issue: %s", command)
+
+    return None
+
+
+
+def main(dnet, dry_run, config, state_obj,
+         canary_data={}, force_update=False):
+
+    '''
+
+    Args:
+     dnet: a string containing the dnet label to operate upon
+     dry_run: if true, no changes will be written
+     state_obj: the StateFile object storing Edgemanage state for this dnet
+     config: a dictionary containing the config
+     canary_data: a site-to-canary_ip map. Used for canary behaviour. See docs
+     force_update: update all zone files regardless of whether we need to
+
+    '''
+
+    edgemanage_object = EdgeManage(dnet, config, state, canary_data, dry_run)
+
+    # Read the edgelist as a flat file
+    with open(os.path.join(config["edgelist_dir"], dnet)) as edge_f:
+        edge_list = [ i.strip() for i in edge_f.read().split("\n") if i.strip() and not i.startswith("#") ]
+        logging.info("Edge list is %s", str(edge_list))
+
+    # Load or create our edge state files
+    for edge in edge_list:
+        edgemanage_object.add_edge_state(edge, config["healthdata_store"],
+                                         nowrite=dry_run)
+    for canary_ip in canary_data.values():
+        edgemanage_object.add_edge_state(canary_ip, config["healthdata_store"],
+                                         nowrite=dry_run)
+
+    # Run any run_before commands
+    if "commands" in config and "run_before" in config["commands"]:
+        if config["commands"]["run_before"]:
+            run_command_list(config["commands"]["run_before"])
+
+    verification_failues = edgemanage_object.do_edge_tests()
+    state_obj.verification_failures = verification_failues
+
+    any_changes = edgemanage_object.make_edges_live(force_update)
+
+    if edgemanage_object.edgelist_obj.get_live_edges() != state_obj.last_live:
+        # There has been a rotation as our old list doesn't equal the new
+        state_obj.add_rotation(const.STATE_HISTORICAL_ROTATIONS)
+    state_obj.last_live = edgemanage_object.edgelist_obj.get_live_edges()
+
+    # Write out a flat list of live edges if the config file asks for it
+    if any_changes and "live_list" in config:
+        livelist_path = config["live_list"]
+        if "{dnet}" in livelist_path:
+            livelist_path = livelist_path.format(dnet=dnet)
+
+        with open(livelist_path, "w") as livelist_f:
+            livelist_f.write("\n".join(
+                edgemanage_object.edgelist_obj.get_live_edges()) + "\n")
+
+    if "commands" in config:
+        run_after_section = config["commands"].get("run_after", [])
+        run_command_list(run_after_section)
+
+        if any_changes:
+            run_after_changes_section = config["commands"].get("run_after_changes", [])
+            run_command_list(run_after_changes_section)
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Manage Deflect edge status.')
+    parser.add_argument("--dnet", "-A", dest="dnet", action="store",
+                        help="Specify DNET",
+                        required=True)
+    parser.add_argument("--config", "-c", dest="config_path", action="store",
+                        help="Path to configuration file (defaults to %s)" % const.CONFIG_PATH,
+                        default=const.CONFIG_PATH)
+    parser.add_argument("--dry-run", "-n", dest="dryrun", action="store_true",
+                        help="Dry run - don't generate any files", default=False)
+    parser.add_argument("--force", dest="force", action="store_true",
+                        help="Force execution when not using daemon mode", default=False)
+    parser.add_argument("--force-update", dest="force_update", action="store_true",
+                        help="Force update of zone files regardless of need for an update", default=False)
+    parser.add_argument("--daemonise", dest="daemonise", action="store_true",
+                        help="Run as a daemon, executing as often as is defined in config",
+                        default=False)
+    parser.add_argument("--verbose", "-v", dest="verbose", action="store_true",
+                        help="Verbose output", default=False)
+    args = parser.parse_args()
+
+    with open(args.config_path) as config_f:
+        config = yaml.safe_load(config_f.read())
+
+    setproctitle.setproctitle("edge_manage %s" % " ".join(sys.argv[1:]))
+
+    state = StateFile()
+    statefile_path = config["statefile"]
+    if "{dnet}" in statefile_path:
+        statefile_path = statefile_path.format(dnet=args.dnet)
+    if os.path.exists(statefile_path):
+
+        with open(statefile_path) as statefile_f:
+            state = StateFile(json.loads(statefile_f.read()))
+
+    time_now = time.time()
+    if state.last_run and not args.dryrun and \
+       int(state.last_run) + 50 > int(time_now) and not args.force:
+        logging.error(("Can't run - last run was %d, current time is %d. Bypass"
+                       " this check at your own risk with --force"),
+                      state.last_run, time_now)
+        sys.exit(1)
+
+    if args.verbose:
+        logger = logging.getLogger()
+        logger.setLevel(logging.DEBUG)
+        handler = logging.StreamHandler() # log to STDERR
+        handler.setFormatter(
+            logging.Formatter('edgemanage (%(process)d): %(levelname)s %(message)s')
+        )
+        logger.addHandler(handler)
+
+    else:
+        # Set up logging
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        logfile_handler = logging.handlers.WatchedFileHandler(config["logpath"])
+        logfile_handler.setFormatter(logging.Formatter('%(asctime)s (%(process)d): %(levelname)s %(message)s'))
+        #TODO setup logging for error level in another file
+        logger.addHandler(logfile_handler)
+
+    logging.debug("Command line options are %s", str(args))
+    logging.debug("Full configuration is:\n %s", pprint.pformat(config))
+
+    canary_data = {}
+    if "canary_files" in config:
+        canary_path = config["canary_files"].format(dnet=args.dnet)
+        if os.path.isfile(canary_path):
+            logging.debug("Loading canary file from %s", canary_path)
+            with open(canary_path) as canary_f:
+                canary_data = yaml.load(canary_f.read())
+                logging.debug("Canary data is %s", str(canary_data))
+
+    if canary_data:
+        # Validate list of canary edgenames
+        bad_canaries = []
+        for canary_site, canary_ip in canary_data.iteritems():
+            try:
+                ipaddr_canary = ipaddr.IPAddress(canary_ip)
+            except ValueError as exc:
+                logging.error(("Canary for %s is invalid: value %s is not an "
+                               "IP address. Not using"),
+                              canary_site, canary_ip)
+                bad_canaries.append(canary_site)
+        for bad_canary in bad_canaries:
+            del(canary_data[bad_canary])
+
+    lock_f = open(config["lockfile"], "w")
+
+    if not util.acquire_lock(lock_f):
+        raise Exception("Couldn't acquire lock file - is Edgemanage running elsewhere?")
+    else:
+        if args.daemonise:
+            if not "run_frequency" in config:
+                raise KeyError("Daemonisation requested but no run_frequency in config file")
+
+            # If we're running in verbose mode we can still behave in
+            # a "daemonic" way without actually forking and going to
+            # background. Sorta.
+            if args.daemonise and not args.verbose:
+                daemon_setup()
+
+            while True:
+                main(args.dnet, args.dryrun, config,
+                     state, canary_data, args.force_update)
+                time.sleep(config["run_frequency"])
+        else:
+            main(args.dnet, args.dryrun, config,
+                 state, canary_data, args.force_update)
+
+    state.set_last_run()
+    if not args.dryrun:
+        with open(statefile_path, "w") as statefile_f:
+            statefile_f.write(state.to_json())
+    lock_f.close()
