@@ -1,0 +1,195 @@
+Metadata-Version: 1.1
+Name: devpi-server
+Version: 3.0.2
+Summary: devpi-server: reliable private and pypi.python.org caching server
+Home-page: http://doc.devpi.net
+Author: Holger Krekel, Florian Schulze
+Author-email: holger@merlinux.eu
+License: MIT
+Description: devpi-server: pypi server for caching and private indexes
+        =============================================================================
+        
+        * `issue tracker <https://bitbucket.org/hpk42/devpi/issues>`_, `repo
+          <https://bitbucket.org/hpk42/devpi>`_
+        
+        * IRC: #devpi on freenode, `mailing list
+          <https://groups.google.com/d/forum/devpi-dev>`_ 
+        
+        * compatibility: {win,unix}-py{26,27,34}
+        
+        consistent robust pypi-cache
+        ----------------------------------------
+        
+        You can point ``pip or easy_install`` to the ``root/pypi/+simple/``
+        index, serving as a self-updating transparent cache for pypi-hosted
+        **and** external packages.  Cache-invalidation uses the latest and
+        greatest PyPI protocols.  The cache index continues to serve when
+        offline and will resume cache-updates once network is available.
+        
+        user specific indexes
+        ---------------------
+        
+        Each user (which can represent a person or a project, team) can have
+        multiple indexes and upload packages and docs via standard ``setup.py``
+        invocations command.  Users and indexes can be manipulated through a
+        RESTful HTTP API.
+        
+        index inheritance
+        --------------------------
+        
+        Each index can be configured to merge in other indexes so that it serves
+        both its uploads and all releases from other index(es).  For example, an
+        index using ``root/pypi`` as a parent is a good place to test out a
+        release candidate before you push it to PyPI.
+        
+        good defaults and easy deployment
+        ---------------------------------------
+        
+        Get started easily and create a permanent devpi-server deployment
+        including pre-configured templates for ``nginx`` and cron. 
+        
+        separate tool for Packaging/Testing activities
+        -------------------------------------------------------
+        
+        The complimentary `devpi-client <http://pypi.python.org/devpi-client>`_ tool
+        helps to manage users, indexes, logins and typical setup.py-based upload and
+        installation workflows.
+        
+        See http://doc.devpi.net for getting started and documentation.
+        
+        
+        
+        Changelog
+        =========
+        
+        3.0.2 (2016-03-03)
+        ------------------
+        
+        - fix setting of ``mirror_whitelist``.
+        
+        - normalize names when setting ``mirror_whitelist``.
+        
+        - fix handling of 404 in mirror indexes on replicas.
+        
+        - include version in file paths in exported data to avoid possible
+          name conflicts.
+        
+        
+        3.0.1 (2016-02-12)
+        ------------------
+        
+        - fix importing of uploaded files. Only the last index from exported data
+          was processed.
+        
+        
+        3.0.0 (2016-02-12)
+        ------------------
+        
+        - dropped support for python2.6
+        
+        - block most ascii symbols for user and index names except ``-.@_``.
+          unicode characters are fine.
+        
+        - add ``--no-root-pypi`` option which prevents the creation of the
+          ``root/pypi`` mirror instance on first startup.
+        
+        - added optional ``title`` and ``description`` options to users and indexes.
+        
+        - new indexes have no bases by default anymore. If you want to be able to
+          install pypi packages, then you have to explicitly add ``root/pypi`` to
+          the ``bases`` option of your index.
+        
+        - added optional ``custom_data`` option to users.
+        
+        - generalized mirroring to allow adding mirror indexes other than only PyPI
+        
+        - renamed ``pypi_whitelist`` to ``mirror_whitelist``
+        
+        - speed up simple-page serving for private indexes. A private index
+          with 200 release files should now be some 5 times faster.
+        
+        - internally use normalized project names everywhere, simplifying
+          code and slightly speeding up some operations.
+        
+        - change {name} in route_urls to {project} to disambiguate.
+          This is potentially incompatible for plugins which have registered
+          on existing route_urls.
+        
+        - use "project" variable naming consistently in APIs
+        
+        - drop calling of devpi_pypi_initial hook in favor of
+          the new "devpi_mirror_initialnames(stage, projectnames)" hook
+          which is called when a mirror is initialized.
+        
+        - introduce new "devpiserver_stage_created(stage)" hook which is
+          called for each index which is created.
+        
+        - simplify and unify internal mirroring code some more
+          with "normal" stage handling.
+        
+        - don't persist the list of mirrored project names anymore
+          but rely on a per-process RAM cache and the fact
+          that neither the UI nor pip/easy_install typically
+          need the projectnames list, anyway.
+        
+        - introduce new "devpiserver_storage_backend" hook which allows plugins to
+          provide custom storage backends. When there is more than one backend
+          available, the "--storage" option becomes required for startup.
+        
+        - introduce new "--requests-only" option to start devpi-server in
+          "worker" mode.  It can be used both for master and replica sites.  It
+          starts devpi-server without event processing and replication threads and
+          thus depends on respective "main" instances (those not using
+          "--request-only") to perform event and hook processing.  Each
+          worker instance needs to share the filesystem with a main instance.
+          Worker instances can not serve the "/+status" URL which must
+          always be routed to the main instance.
+        
+        
+        2.6.1 (2016-03-03)
+        ------------------
+        
+        - add more info when importing data.  Thanks Marc Abramowitz for the PR.
+        
+        - include version in file paths in exported data to avoid possible
+          name conflicts.
+        
+        
+        2.6.0 (2016-01-29)
+        ------------------
+        
+        - fix issue262: new experimental option --offline-mode will prevent
+          devpi-server from even trying to perform network requests and it
+          also strip all non-local release files from the simple index.
+          Thanks Daniel Panteleit for the PR.
+        
+        - fix issue304: mark devpi-server versions older than 2.2.x as incompatible
+          and requiring an import/export cycle.
+        
+        - fix issue296: try to fetch files from master again when requested, if there
+          were checksum errors during replication.
+        
+        - if a user can't be found during authentication (with ``setup.py upload`` for
+          example), then the http return code is now 401 instead of 404.
+        
+        - fix issue293: push from root/pypi to another index is now supported
+        
+        - fix issue265: ignore HTTP(S) proxies when checking if the server is
+                        already running.
+        
+        - Add ``content_type`` route predicate for use by plugins.
+        
+        
+Keywords: pypi realtime cache server
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: System Administrators
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI :: Application
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: Implementation :: PyPy
