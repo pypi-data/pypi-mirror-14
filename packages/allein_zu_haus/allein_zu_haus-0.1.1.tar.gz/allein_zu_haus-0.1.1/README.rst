@@ -1,0 +1,213 @@
+=================================================================
+allein_zu_haus: Needleman-Wunsch Quality-Aware Sequence Alignment
+=================================================================
+
+
+This pacakge implements a `Needleman–Wunsch <https://en.wikipedia.org/wiki/Needleman%E2%80%93Wunsch_algorithm>`_
+global alignment with `affine gap penalties <https://en.wikipedia.org/wiki/Gap_penalty#Affine>`_, taking into account the confidence in each base pair of the read sequence.
+
+The classic Needleman-Wunsch algorithm finds the optimal global match assuming all read nucleotides have been identified with certainty. In practice,  
+`NGS (next generation sequencing) <http://www.illumina.com/technology/next-generation-sequencing.html>`_ identifies nucleotides with varying levels of qualities, and popular formats, e.g., `FASTQ <https://en.wikipedia.org/wiki/FASTQ_format>`_ are expressely built for describing these qualities. This package modifies the algorithm to take qualities into account (see mathematical_rationale_ below).
+
+This package is designed to be used in conjunction with a read aligner such as `Bowtie2 <http://bowtie-bio.sourceforge.net/bowtie2/index.shtml>`_ or `GEM <http://www.paoloribeca.net/software/GEM/>`_. Ideally, these tools would be configured to take nucleotide quality into account when searching for hits. Since this is currently not the case, one can use the allein_zu_haus package in order to realign reads to reference sequences at the positions reported by the read aligner, and extract more accurate alignment scores and `CIGAR <https://samtools.github.io/hts-specs/SAMv1.pdf>`_ strings.
+
+
+Usage
+-----
+
+To use this package, you would typically do three things:
+
+1. estimate, per read, the nucleotide priors and read probabilities from the qualities
+
+2. use an ``Aligner`` object to match a read to a reference
+
+3. use 1. and 2. repeatedly for many pairs of reads and references
+
+These steps are outlined below
+
+
+Setting Up Priors & Qualities
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For using this package, you need to provide as input the apiori probabilities of nucleotides, and the probabilities of the read symbols.
+
+Perhaps the simplest approximation of nucleotide priors is the empirical distribution in the reference sequence. If ``ref`` is the reference sequence, then this can be found with:
+
+
+.. code:: python
+
+    import collections
+    
+    return [(k, v / float(ref)) for (k, v) in collections.Counter(ref).items()]
+
+
+Of course, more intricate priors can easily be designed.
+
+
+Nucleotide probabilities cab be extracted from quality strings reported in FASTQ files / read aligner output using the  formula
+
+.. math::
+
+   1 - 10^\frac{-q}{10} 
+
+where q is the ascii value of the quality character - 33 (assuming qualities are given in `Phred+33 <https://en.wikipedia.org/wiki/FASTQ_format#Quality>`_). In Python, assuming the read is in `read`, then the following finds the probabilities:
+
+.. code:: python
+
+    1 - np.power(10, -np.array([ord(e) - 33 for e in read]) / 10.)
+        
+
+For example, for quality string '??CII', this will be be `[0.999, 0.999, 0.996, 0.9999, 0.9999]`.
+
+
+Matching a read/ref pair
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Once you have all the inputs, you can match a pair of read and ref sequences.
+
+.. code:: python 
+
+    import allein_zu_haus
+    import numpy as np
+
+    # Max length of read to be aligned
+    max_read_len = 100             
+    # Max length of reference subsequence to be globally aligned (where start position is determined by read aligner output)
+    max_ref_len = 2 * max_read_len 
+    # Penalty for mismatched nucleotides
+    mismatch_penalty = 4           
+    # Gap opening penalty
+    gap_open_penalty = 6                   
+    # Gap extension penalty
+    gep_extend_penalty = 3                 
+
+    # Set up an aligner object
+    aligner = allein_zu_haus.Aligner(
+        max_read_len, 
+        max_ref_len, 
+        mismatch_penalty, 
+        gap_open_penalty, 
+        gap_extend_penalty)
+
+    # Assume read, and ref are sequences, calculate:
+    # * read_probs is the numpy array described above 
+    # * base_probs is the dictionary described above
+
+    # Aligner.match(...)` returns alignment score and CIGAR string
+    score, cigar = aligner.match(read, read_probs, base_probs, ref) 
+
+
+
+
+Aligning multiple reads
+~~~~~~~~~~~~~~~~~~~~~~~
+
+When working with many read-alignment pairs (e.g., when iterating over the results of `GEM <http://www.paoloribeca.net/software/GEM/>`_ or a FASTQ file), you would typically set up a single ``Aligner`` object, then iterate over each pair and call ``match``.
+
+
+.. code:: python 
+
+    import allein_zu_haus
+    import numpy as np
+
+    # Max length of read to be aligned
+    max_read_len = 100             
+    # Max length of reference subsequence to be globally aligned (where start position is determined by read aligner output)
+    max_ref_len = 2 * max_read_len 
+    # Penalty for mismatched nucleotides
+    mismatch_penalty = 4           
+    # Gep opening penalty
+    gap_open_penalty = 6                   
+    # Gap extension penalty
+    gep_extend_penalty = 3                 
+
+    # Set up an aligner object
+    aligner = allein_zu_haus.Aligner(
+        max_read_len, 
+        max_ref_len, 
+        mismatch_penalty, 
+        gap_open_penalty, 
+        gap_extend_penalty)
+
+
+    # Iterate over all matches.
+    for read, read_quality_string, ref in ...:
+        # Calculate all probabilities for this match.
+        score, cigar = aligner.match(read, read_probs, base_probs, ref) 
+
+
+.. _mathematical_rationale:
+
+Mathematical Rationale
+----------------------
+
+**Note** If the math below doesn't render correctly (e.g., on PyPI, please see the `documentation at bitbucket <https://bitbucket.org/taliraveh/allein_zu_haus>`_.
+
+Suppose we wish to find the optimal match between a read *D* and a reference *F*. Unfortunately, we cannot observe *D* directly, and instead only see *D'*, which is the sequence outputted by some imperfect `sequencing process <https://en.wikipedia.org/wiki/DNA_sequencing>`_. Say that at some point in the alignment algorithm we consider whether a nucleotide from *D'* matches a nucleotide from *F*. Define:
+
+
+* *b* :sub:`D'` is the nucleotide reported by the sequencing process.
+* *b* :sub:`D` is the true (unknown) nucleotide.
+* *b* :sub:`R` is the reference nucleotide.
+
+
+The classic algorithm would assign the penalty
+
+.. math::
+
+    \mbox{penalty}(b_{D'}, b_R)
+
+whereas the correct penalty should be
+
+.. math::
+
+    \mbox{penalty}(b_{D}, b_R) \simeq
+    \sum_b \left[ P\left( B_D = b | B_{D'} = b_{D'} \right) \cdot \mbox{penalty}(b, b_R) \right]
+
+By `Bayes' Theorem <https://en.wikipedia.org/wiki/Bayes%27_theorem>`_,
+
+.. math::
+
+    P\left( B_D = b | B_{D'} = b_{D'} \right) 
+    = 
+    \frac
+    {
+        P\left( B_{D'} = b_{D'} | B_D = b \right) 
+        \cdot
+        P\left( B_D = b \right) 
+    }
+    {
+        \sum_{k = 'A', 'C', 'G', 'T} 
+        P\left( B_{D'} = b_{D'} | B_D = k \right) 
+        \cdot
+        P\left( B_D = k \right) 
+    } 
+
+For evaluating these terms, note that 
+
+.. math::
+
+    P\left( B_D = b \right) 
+
+is the prior over the nucleotides (which must be given by the user), and
+
+
+.. math::
+
+    P\left( B_{D'} = b_{D'} | B_D = b \right) 
+    =
+    \begin{cases}
+        1 - P_{\mbox{err}} ,& \text{if } b_{D'} = b, \\
+        \frac{P_{\mbox{err}}}{3}, & \text{otherwise}
+    \end{cases}
+
+
+where *P* :sub:`err` is the probability for error determined by the reported quality for this nucleotide.
+
+
+Issues
+------
+
+Feel free to open tickets at `https://bitbucket.org/taliraveh/allein_zu_haus/issues <https://bitbucket.org/taliraveh/allein_zu_haus/issues>`_.
+
+
