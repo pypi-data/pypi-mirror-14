@@ -1,0 +1,53 @@
+# -*- coding: utf-8 -*-
+# :Project:   hurm -- i18n related targets
+# :Created:   lun 08 feb 2016 13:08:25 CET
+# :Author:    Lele Gaifax <lele@metapensiero.it>
+# :License:   GNU General Public License version 3 or later
+# :Copyright: © 2016 Lele Gaifax
+#
+
+POLINT := polint
+PYBABEL := pybabel
+POBUGSADDR := lele@metapensiero.it
+POCOPYRIGHT := "Lele Gaifax"
+PBEXTRACT = $(PYBABEL) extract --project=hurm.db \
+			       --version=$(VERSION) \
+			       --add-comments=TRANSLATORS: \
+			       --msgid-bugs-address=$(POBUGSADDR) \
+			       --copyright-holder=$(POCOPYRIGHT)
+LOCALEDIR := $(DBSRC)/locale
+PBUPDATE := $(PYBABEL) update --output-dir $(LOCALEDIR) --previous
+PBCOMPILE := $(PYBABEL) compile --directory $(LOCALEDIR) --statistics
+PBINIT := $(PYBABEL) init --output-dir $(LOCALEDIR)
+PBDB_DOMAIN := hurm-db
+PBDB_MAP := $(LOCALEDIR)/$(PBDB_DOMAIN).cfg
+PBDB_POT := $(LOCALEDIR)/$(PBDB_DOMAIN).pot
+PBDB_POs := $(wildcard $(LOCALEDIR)/*/LC_MESSAGES/*.po)
+PBDB_MOs := $(patsubst %.po,%.mo,$(PBDB_POs))
+
+define fix-first-author =
+for po in $(PBDB_POs); do \
+  sed -i -e "s/^# FIRST AUTHOR <EMAIL@ADDRESS>,.*$$/# `git log --date=format:%Y --pretty=format:'%cN <%cE>, %ad.' $$po | tail -1`/" $$po; \
+done
+endef
+
+.PHONY: update-catalogs
+update-catalogs:
+	$(PBEXTRACT) --mapping $(PBDB_MAP) --output $(PBDB_POT) $(DBSRC)
+	$(PBUPDATE) --domain $(PBDB_DOMAIN) --input-file $(PBDB_POT)
+	$(fix-first-author)
+
+%.mo: %.po
+	$(PBCOMPILE) --domain $(PBDB_DOMAIN)
+
+.PHONY: compile-catalogs
+compile-catalogs: $(PBDB_MOs)
+
+.PHONY: init-catalog-%
+init-catalog-%:
+	$(PBINIT) --locale $(@:init-catalog-%=%) --domain $(PBDB_DOMAIN) \
+		  --input-file $(LOCALEDIR)/$(PBDB_DOMAIN).pot
+
+.PHONY: lint
+lint test::
+	@$(POLINT) $(PBDB_POs)
