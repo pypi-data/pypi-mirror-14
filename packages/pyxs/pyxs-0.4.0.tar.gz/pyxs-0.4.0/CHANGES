@@ -1,0 +1,96 @@
+pyxs Changelog
+==============
+
+Here you can see the full list of changes between each pyxs release.
+
+Version 0.4.0
+-------------
+
+Released on March 6th, 2016
+
+- Fixed a bug in ``Client.set_permissions`` which coerced permission
+  lists (e.g. ``["b0"]``) to repr-strings prior to validation.
+- The API is now based around ``bytes``, which means that all methods
+  which used to accept ``str`` (or text) now require ``bytes``. XenStore
+  paths and values are specified to be 7-bit ASCII, thus it makes little
+  sense to allow any Unicode string as input and then validate if it
+  matches the spec.
+- Removed ``transaction`` argument from ``Client`` constructor. The user
+  is advised to use the corresponding methods explicitly.
+- Removed ``connection`` argument from ``Client`` constructor. The user
+  should now wrap it in a ``Router``.
+- Renamed some of the ``Client`` methods to more human-readable names:
+
+  =================  ===================
+  Old name           New name
+  =================  ===================
+  ls                 list
+  rm                 delete
+  get_permissions    get_perms
+  set_permissions    set_perms
+  transaction_start  transaction
+  transaction_end    commit and rollback
+  =================  ===================
+- Removed ``Client.transaction`` context manager, because it didn't provide
+  a way to handle possible commit failure.
+- Added ``Client.exists`` for one-line path existence checks. See PR #6 on
+  GitHub. Thanks to Sandeep Murthy.
+- Removed implicit reconnection logic from ``FileDescriptorConnection``.
+  The user is now expected to connect manually.
+- Changed ``XenBusConnection`` to prefer ``/dev/xen/xenbus`` on Linux
+  due to a possible deadlock in XenBus backend.
+- Changed ``UnixSocketConnection`` to use ``socket.socket`` instead of the
+  corresponding file descriptor.
+- Disallowed calling ``Client.monitor`` over ``XenBusConnection``. See
+  http://lists.xen.org/archives/html/xen-devel/2016-02/msg03816 for
+  details.
+
+Version 0.3.1
+-------------
+
+Released on November 29th 2012
+
+- Added ``default`` argument to ``Client.read()``, which acts similar to
+  ``dict.get()``.
+- Fixed a lot of minor quirks so ``pyxs`` can be Debianized.
+
+Version 0.3
+-----------
+
+Released on September 12th 2011
+
+- Moved all PUBSUB functionality into a separate ``Monitor`` class, which
+  uses a *separate* connection. That way, we'll never have to worry
+  about mixing incoming XenStore events and command replies.
+- Fixed a couple of nasty bugs in concurrent use of ``Client.wait()``
+  with other commands (see above).
+
+Version 0.2
+-----------
+
+Released on August 18th 2011
+
+- Completely refactored validation -- no more `@spec` magic, everything
+  is checked explicitly inside ``Client.execute_command()``.
+- Added a compatibility interface, which mimics `xen.lowlevel.xs`
+  behaviour, using ``pyxs`` as a backend, see pyxs/_compat.py.
+- Restricted `SET_TARGET`, `INTRODUCE` and `RELEASE` operations to
+  Dom0 only -- ``/proc/xen/capabilities`` is used to check domain
+  role.
+- Fixed a bug in ``Client.wait()`` -- queued watch events weren't wrapped
+  in ``pyxs._internal.Event`` class, unlike the received ones.
+- Added ``Client.walk()`` method for walking XenStore tree -- similar to
+  ``os.walk()``
+
+Version 0.1
+-----------
+
+Initial release, released on July 16th 2011
+
+- Added a complete implementation of XenStore protocol, including
+  transactions and path watching, see ``pyxs.Client`` for details.
+- Added generic validation helper -- `@spec`, which forces arguments
+  to match the scheme from the wire protocol specification.
+- Added two connection backends -- ``XenBusConnection`` for connecting
+  from DomU through a block device and ``UnixSocketConnection``,
+  communicating with XenStore via a Unix domain socket.
