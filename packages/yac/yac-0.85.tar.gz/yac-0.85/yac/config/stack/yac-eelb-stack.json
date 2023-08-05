@@ -1,0 +1,77 @@
+{
+  "Resources" : {
+    "ExternalElb" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "SecurityGroups": [ { "Fn::GetAtt": ["ExternalElbSG", "GroupId" ]} ],
+        "LoadBalancerName" : { "yac-name" : "e-elb" },
+        "Listeners" : [ 
+          {
+            "LoadBalancerPort" : "443",
+            "InstancePort" : { "Ref" : "WebServerPort" },
+            "InstanceProtocol": "HTTP",
+            "Protocol" : "HTTPS",
+            "SSLCertificateId": {
+              "Fn::Join":["",[
+                "arn:aws:iam::",{"Ref":"AWS::AccountId"},
+                ":server-certificate","/",
+                { "yac-ref": "ssl-cert" }]]
+            }
+          }
+        ],
+        "HealthCheck" : {
+          "Target" : { "Fn::Join" : [ "", ["HTTP:81",{"Ref" : "HealthCheckPath" }]]},
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "20",
+          "Timeout" : "5"
+        },
+        "Scheme": "internet-facing",
+        "Subnets": {"yac-ref" : "public-subnet-ids"},
+        "Tags" : [ 
+          { "Key": "Name", "Value" : { "yac-name" : "e-elb" } },
+          { "Key": "Owner", "Value": { "yac-ref": "owner" } },
+          { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" } }]
+      }
+    },    
+    "ExternalElbSG" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable inbound HTTPS access for web clients",
+        "SecurityGroupIngress" : [ 
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "443",
+            "ToPort" : "443",
+            "CidrIp" : "0.0.0.0/0"
+          }
+         ],        
+        "VpcId": {"yac-ref" : "vpc-id"},
+        "Tags" : [ 
+          { "Key": "Name", "Value" : { "yac-name" : "e-elb-sb" }},
+          { "Key": "Owner", "Value": { "yac-ref": "owner" } },
+          { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" } } ]
+      }
+    },      
+    "ExternalElbHttpEgress" : {
+      "Type" : "AWS::EC2::SecurityGroupEgress",
+      "Properties" : {
+        "GroupId" : { "Fn::GetAtt": ["ExternalElbSG","GroupId"]},
+        "IpProtocol" : "tcp",
+        "FromPort" : { "Ref" : "WebServerPort" },
+        "ToPort" : { "Ref" : "DebugPort" },
+        "DestinationSecurityGroupId" : {"Fn::GetAtt": ["AppSG","GroupId"]}
+      }
+    },  
+    "ExternalElbHttpIngress" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : {
+        "GroupId" : { "Fn::GetAtt": ["AppSG","GroupId"]},
+        "IpProtocol" : "tcp",
+        "FromPort" : { "Ref" : "WebServerPort" },
+        "ToPort" : { "Ref" : "DebugPort" },
+        "SourceSecurityGroupId" : { "Fn::GetAtt": ["ExternalElbSG","GroupId"] }
+      }
+    }    
+  }
+}

@@ -1,0 +1,59 @@
+{    
+  "Resources": {
+    "AppEFS": {
+      "Type" : "AWS::EFS::FileSystem",
+      "Properties" : {
+        "FileSystemTags" : [ 
+          { "Key": "Name", "Value" : { "yac-name": "efs" }  },
+          { "Key": "Owner", "Value": { "yac-ref": "owner" }  },
+          { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" }  }
+        ]
+      }
+    },
+    "EFSMT1": {
+      "Type": "AWS::EFS::MountTarget",
+      "Properties": {
+        "FileSystemId": { "Ref": "AppEFS" },
+        "SubnetId": { "Fn::Select" : [0, { "yac-ref": "private-subnet-ids" }]},
+        "SecurityGroups": [ { "Ref": "EFSSG" } ]        
+      }
+    },
+    "EFSMT2": {
+      "Type": "AWS::EFS::MountTarget",
+      "Properties": {
+        "FileSystemId": { "Ref": "AppEFS" },
+        "SubnetId": { "Fn::Select" : [1, { "Ref": "private-subnet-ids" }]},
+        "SecurityGroups": [ { "Ref": "EFSSG" } ]        
+      }
+    },
+    "EFSSG" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable inbound access from the VPC where app lives",       
+        "VpcId": {"yac-ref" : "vpc-id" },
+        "Tags" : [ {"Key": "Name", "Value" : { "yac-name": "efs-sg" } },
+                     { "Key": "Owner", "Value": { "yac-ref": "owner" }  },
+                     { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" } } ]
+      }
+    },    
+    "EFSEgress" : {
+      "Type" : "AWS::EC2::SecurityGroupEgress",
+      "Properties" : {
+        "GroupId" : { "Fn::GetAtt": ["EFSSG","GroupId"]},
+        "IpProtocol" : "tcp",
+        "FromPort" : "0",
+        "ToPort" : "65535",
+        "DestinationSecurityGroupId" : {"Fn::GetAtt": ["AppSG","GroupId"]}
+      }
+    },     
+    "EFSIngress" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : {
+        "GroupId" : { "Fn::GetAtt": ["AppSG","GroupId"]},
+        "FromPort" : "0",
+        "ToPort" : "65535",
+        "SourceSecurityGroupId" : { "Fn::GetAtt": ["EFSSG","GroupId"] }
+      }
+    }  
+  }
+}
