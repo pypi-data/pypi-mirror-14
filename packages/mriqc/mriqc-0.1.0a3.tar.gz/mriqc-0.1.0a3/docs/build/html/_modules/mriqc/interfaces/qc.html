@@ -1,0 +1,503 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>mriqc.interfaces.qc &mdash; mriqc 0.1 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="mriqc 0.1 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> mriqc
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../userguide.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../measures.html">MRIQC measures</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../../index.html">mriqc</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+      
+    <li>mriqc.interfaces.qc</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for mriqc.interfaces.qc</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python</span>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># emacs: -*- mode: python; py-indent-offset: 4; indent-tabs-mode: nil -*-</span>
+<span class="c1"># vi: set ft=python sts=4 ts=4 sw=4 et:</span>
+<span class="c1"># pylint: disable=no-member</span>
+<span class="c1">#</span>
+<span class="c1"># @Author: oesteban</span>
+<span class="c1"># @Date:   2016-01-05 11:29:40</span>
+<span class="c1"># @Email:  code@oscaresteban.es</span>
+<span class="c1"># @Last modified by:   oesteban</span>
+<span class="c1"># @Last Modified time: 2016-02-25 14:16:42</span>
+<span class="sd">&quot;&quot;&quot; Nipype interfaces to quality control measures &quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">nibabel</span> <span class="kn">as</span> <span class="nn">nb</span>
+<span class="kn">from</span> <span class="nn">..qc.anatomical</span> <span class="kn">import</span> <span class="p">(</span><span class="n">snr</span><span class="p">,</span> <span class="n">cnr</span><span class="p">,</span> <span class="n">fber</span><span class="p">,</span> <span class="n">efc</span><span class="p">,</span> <span class="n">artifacts</span><span class="p">,</span>
+                             <span class="n">volume_fraction</span><span class="p">,</span> <span class="n">rpve</span><span class="p">,</span> <span class="n">summary_stats</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">..qc.functional</span> <span class="kn">import</span> <span class="p">(</span><span class="n">gsr</span><span class="p">,</span> <span class="n">dvars</span><span class="p">,</span> <span class="n">fd_jenkinson</span><span class="p">,</span> <span class="n">gcor</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">nipype.interfaces.base</span> <span class="kn">import</span> <span class="p">(</span><span class="n">BaseInterface</span><span class="p">,</span> <span class="n">traits</span><span class="p">,</span> <span class="n">TraitedSpec</span><span class="p">,</span> <span class="n">File</span><span class="p">,</span>
+                                    <span class="n">InputMultiPath</span><span class="p">,</span> <span class="n">BaseInterfaceInputSpec</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">nipype</span> <span class="kn">import</span> <span class="n">logging</span>
+<span class="n">IFLOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;interface&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StructuralQCInputSpec"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.StructuralQCInputSpec">[docs]</a><span class="k">class</span> <span class="nc">StructuralQCInputSpec</span><span class="p">(</span><span class="n">BaseInterfaceInputSpec</span><span class="p">):</span>
+    <span class="n">in_file</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;File to be plotted&#39;</span><span class="p">)</span>
+    <span class="n">in_segm</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                   <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;segmentation file from FSL FAST&#39;</span><span class="p">)</span>
+    <span class="n">in_bias</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                   <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;bias file&#39;</span><span class="p">)</span>
+    <span class="n">in_pvms</span> <span class="o">=</span> <span class="n">InputMultiPath</span><span class="p">(</span><span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">),</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                             <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;partial volume maps from FSL FAST&#39;</span><span class="p">)</span>
+    <span class="n">in_tpms</span> <span class="o">=</span> <span class="n">InputMultiPath</span><span class="p">(</span><span class="n">File</span><span class="p">(),</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;tissue probability maps from FSL FAST&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StructuralQCOutputSpec"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.StructuralQCOutputSpec">[docs]</a><span class="k">class</span> <span class="nc">StructuralQCOutputSpec</span><span class="p">(</span><span class="n">TraitedSpec</span><span class="p">):</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;summary statistics per tissue&#39;</span><span class="p">)</span>
+    <span class="n">icvs</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;intracranial volume (ICV) fractions&#39;</span><span class="p">)</span>
+    <span class="n">rpve</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;partial volume fractions&#39;</span><span class="p">)</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;image sizes&#39;</span><span class="p">)</span>
+    <span class="n">spacing</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;image sizes&#39;</span><span class="p">)</span>
+    <span class="n">bias</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;summary statistics of the bias field&#39;</span><span class="p">)</span>
+    <span class="n">snr</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span>
+    <span class="n">cnr</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">fber</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">efc</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">qi1</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">out_qc</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;output flattened dictionary with all measures&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="StructuralQC"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.StructuralQC">[docs]</a><span class="k">class</span> <span class="nc">StructuralQC</span><span class="p">(</span><span class="n">BaseInterface</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes anatomical :abbr:`QC (Quality Control)` measures on the</span>
+<span class="sd">    structural image given as input</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">input_spec</span> <span class="o">=</span> <span class="n">StructuralQCInputSpec</span>
+    <span class="n">output_spec</span> <span class="o">=</span> <span class="n">StructuralQCOutputSpec</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">StructuralQC</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">inputs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_list_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_results</span>
+
+    <span class="k">def</span> <span class="nf">_run_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">runtime</span><span class="p">):</span>
+        <span class="n">imnii</span> <span class="o">=</span> <span class="n">nb</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_file</span><span class="p">)</span>
+        <span class="n">imdata</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">imnii</span><span class="o">.</span><span class="n">get_data</span><span class="p">())</span>
+
+        <span class="c1"># Cast to float32</span>
+        <span class="n">imdata</span> <span class="o">=</span> <span class="n">imdata</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+        <span class="c1"># Remove negative values</span>
+        <span class="n">imdata</span><span class="p">[</span><span class="n">imdata</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">segnii</span> <span class="o">=</span> <span class="n">nb</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_segm</span><span class="p">)</span>
+        <span class="n">segdata</span> <span class="o">=</span> <span class="n">segnii</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+
+        <span class="c1"># SNR</span>
+        <span class="n">snrvals</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;snr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">tlabel</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;csf&#39;</span><span class="p">,</span> <span class="s1">&#39;wm&#39;</span><span class="p">,</span> <span class="s1">&#39;gm&#39;</span><span class="p">]:</span>
+            <span class="n">snrvals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">snr</span><span class="p">(</span><span class="n">imdata</span><span class="p">,</span> <span class="n">segdata</span><span class="p">,</span> <span class="n">tlabel</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;snr&#39;</span><span class="p">][</span><span class="n">tlabel</span><span class="p">]</span> <span class="o">=</span> <span class="n">snrvals</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;snr&#39;</span><span class="p">][</span><span class="s1">&#39;total&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">snrvals</span><span class="p">)</span>
+
+        <span class="c1"># CNR</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;cnr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cnr</span><span class="p">(</span><span class="n">imdata</span><span class="p">,</span> <span class="n">segdata</span><span class="p">)</span>
+
+        <span class="c1"># FBER</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;fber&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fber</span><span class="p">(</span><span class="n">imdata</span><span class="p">,</span> <span class="n">segdata</span><span class="p">)</span>
+
+        <span class="c1"># EFC</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;efc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">efc</span><span class="p">(</span><span class="n">imdata</span><span class="p">)</span>
+
+        <span class="c1"># Artifacts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;qi1&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">artifacts</span><span class="p">(</span><span class="n">imdata</span><span class="p">,</span> <span class="n">segdata</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">pvmdata</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">fname</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_pvms</span><span class="p">:</span>
+            <span class="n">pvmdata</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nb</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">))</span>
+
+        <span class="c1"># ICVs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;icvs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">volume_fraction</span><span class="p">(</span><span class="n">pvmdata</span><span class="p">)</span>
+
+        <span class="c1"># RPVE</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;rpve&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">rpve</span><span class="p">(</span><span class="n">pvmdata</span><span class="p">,</span> <span class="n">segdata</span><span class="p">)</span>
+
+        <span class="c1"># Summary stats</span>
+        <span class="n">mean</span><span class="p">,</span> <span class="n">stdv</span><span class="p">,</span> <span class="n">p95</span><span class="p">,</span> <span class="n">p05</span> <span class="o">=</span> <span class="n">summary_stats</span><span class="p">(</span><span class="n">imdata</span><span class="p">,</span> <span class="n">pvmdata</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">mean</span><span class="p">,</span> <span class="s1">&#39;stdv&#39;</span><span class="p">:</span> <span class="n">stdv</span><span class="p">,</span>
+                                    <span class="s1">&#39;p95&#39;</span><span class="p">:</span> <span class="n">p95</span><span class="p">,</span> <span class="s1">&#39;p05&#39;</span><span class="p">:</span> <span class="n">p05</span><span class="p">}</span>
+
+        <span class="c1"># Image specs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="n">imdata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                 <span class="s1">&#39;y&#39;</span><span class="p">:</span> <span class="n">imdata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                 <span class="s1">&#39;z&#39;</span><span class="p">:</span> <span class="n">imdata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;spacing&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">i</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">([</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">],</span>
+                                 <span class="n">imnii</span><span class="o">.</span><span class="n">get_header</span><span class="p">()</span><span class="o">.</span><span class="n">get_zooms</span><span class="p">()[:</span><span class="mi">3</span><span class="p">])}</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;size&#39;</span><span class="p">][</span><span class="s1">&#39;t&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">imdata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;spacing&#39;</span><span class="p">][</span><span class="s1">&#39;tr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">imnii</span><span class="o">.</span><span class="n">get_header</span><span class="p">()</span><span class="o">.</span><span class="n">get_zooms</span><span class="p">()[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="c1"># Bias</span>
+        <span class="n">bias</span> <span class="o">=</span> <span class="n">nb</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_bias</span><span class="p">)</span><span class="o">.</span><span class="n">get_data</span><span class="p">()[</span><span class="n">segdata</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;bias&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;max&#39;</span><span class="p">:</span> <span class="n">bias</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="s1">&#39;min&#39;</span><span class="p">:</span> <span class="n">bias</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="s1">&#39;med&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">bias</span><span class="p">)}</span>  <span class="c1">#pylint: disable=E1101</span>
+
+
+        <span class="c1"># Flatten the dictionary</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;out_qc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_flatten_dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">runtime</span></div>
+
+
+<div class="viewcode-block" id="FunctionalQCInputSpec"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.FunctionalQCInputSpec">[docs]</a><span class="k">class</span> <span class="nc">FunctionalQCInputSpec</span><span class="p">(</span><span class="n">BaseInterfaceInputSpec</span><span class="p">):</span>
+    <span class="n">in_epi</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;input EPI file&#39;</span><span class="p">)</span>
+    <span class="n">in_hmc</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;input motion corrected file&#39;</span><span class="p">)</span>
+    <span class="n">in_tsnr</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;input tSNR volume&#39;</span><span class="p">)</span>
+    <span class="n">in_mask</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;input mask&#39;</span><span class="p">)</span>
+    <span class="n">direction</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Enum</span><span class="p">(</span><span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;-x&#39;</span><span class="p">,</span> <span class="s1">&#39;-y&#39;</span><span class="p">,</span> <span class="n">usedefault</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                            <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;direction for GSR computation&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FunctionalQCOutputSpec"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.FunctionalQCOutputSpec">[docs]</a><span class="k">class</span> <span class="nc">FunctionalQCOutputSpec</span><span class="p">(</span><span class="n">TraitedSpec</span><span class="p">):</span>
+    <span class="n">fber</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">efc</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">snr</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">gsr</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span>
+    <span class="n">m_tsnr</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">dvars</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">gcor</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span>
+    <span class="n">spacing</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span>
+    <span class="n">summary</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span>
+
+    <span class="n">out_qc</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;output flattened dictionary with all measures&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FunctionalQC"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.FunctionalQC">[docs]</a><span class="k">class</span> <span class="nc">FunctionalQC</span><span class="p">(</span><span class="n">BaseInterface</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes anatomical :abbr:`QC (Quality Control)` measures on the</span>
+<span class="sd">    structural image given as input</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">input_spec</span> <span class="o">=</span> <span class="n">FunctionalQCInputSpec</span>
+    <span class="n">output_spec</span> <span class="o">=</span> <span class="n">FunctionalQCOutputSpec</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FunctionalQC</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">inputs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_list_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_results</span>
+
+    <span class="k">def</span> <span class="nf">_run_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">runtime</span><span class="p">):</span>
+        <span class="c1"># Get the mean EPI data and get it ready</span>
+        <span class="n">epinii</span> <span class="o">=</span> <span class="n">nb</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_epi</span><span class="p">)</span>
+        <span class="n">epidata</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">epinii</span><span class="o">.</span><span class="n">get_data</span><span class="p">())</span>
+        <span class="n">epidata</span> <span class="o">=</span> <span class="n">epidata</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">epidata</span><span class="p">[</span><span class="n">epidata</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># Get EPI data (with mc done) and get it ready</span>
+        <span class="n">hmcnii</span> <span class="o">=</span> <span class="n">nb</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_hmc</span><span class="p">)</span>
+        <span class="n">hmcdata</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">hmcnii</span><span class="o">.</span><span class="n">get_data</span><span class="p">())</span>
+        <span class="n">hmcdata</span> <span class="o">=</span> <span class="n">hmcdata</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+        <span class="n">hmcdata</span><span class="p">[</span><span class="n">hmcdata</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># Get EPI data (with mc done) and get it ready</span>
+        <span class="n">msknii</span> <span class="o">=</span> <span class="n">nb</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_mask</span><span class="p">)</span>
+        <span class="n">mskdata</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">(</span><span class="n">msknii</span><span class="o">.</span><span class="n">get_data</span><span class="p">())</span>
+        <span class="n">mskdata</span> <span class="o">=</span> <span class="n">mskdata</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">mskdata</span><span class="p">[</span><span class="n">mskdata</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">mskdata</span><span class="p">[</span><span class="n">mskdata</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c1"># SNR</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;snr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">snr</span><span class="p">(</span><span class="n">epidata</span><span class="p">,</span> <span class="n">mskdata</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># FBER</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;fber&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fber</span><span class="p">(</span><span class="n">epidata</span><span class="p">,</span> <span class="n">mskdata</span><span class="p">)</span>
+        <span class="c1"># EFC</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;efc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">efc</span><span class="p">(</span><span class="n">epidata</span><span class="p">)</span>
+        <span class="c1"># GSR</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;gsr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">direction</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span><span class="p">:</span>
+            <span class="n">epidir</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">epidir</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">direction</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">axis</span> <span class="ow">in</span> <span class="n">epidir</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;gsr&#39;</span><span class="p">][</span><span class="n">axis</span><span class="p">]</span> <span class="o">=</span> <span class="n">gsr</span><span class="p">(</span><span class="n">epidata</span><span class="p">,</span> <span class="n">mskdata</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+
+        <span class="c1"># Summary stats</span>
+        <span class="n">mean</span><span class="p">,</span> <span class="n">stdv</span><span class="p">,</span> <span class="n">p95</span><span class="p">,</span> <span class="n">p05</span> <span class="o">=</span> <span class="n">summary_stats</span><span class="p">(</span><span class="n">epidata</span><span class="p">,</span> <span class="n">mskdata</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;mean&#39;</span><span class="p">:</span> <span class="n">mean</span><span class="p">,</span> <span class="s1">&#39;stdv&#39;</span><span class="p">:</span> <span class="n">stdv</span><span class="p">,</span>
+                                    <span class="s1">&#39;p95&#39;</span><span class="p">:</span> <span class="n">p95</span><span class="p">,</span> <span class="s1">&#39;p05&#39;</span><span class="p">:</span> <span class="n">p05</span><span class="p">}</span>
+
+        <span class="c1"># DVARS</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;dvars&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">dvars</span><span class="p">(</span><span class="n">hmcdata</span><span class="p">,</span> <span class="n">mskdata</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># tSNR</span>
+        <span class="n">tsnr_data</span> <span class="o">=</span> <span class="n">nb</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_tsnr</span><span class="p">)</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;m_tsnr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">tsnr_data</span><span class="p">[</span><span class="n">mskdata</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">])</span>
+
+        <span class="c1"># GCOR</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;gcor&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gcor</span><span class="p">(</span><span class="n">hmcdata</span><span class="p">,</span> <span class="n">mskdata</span><span class="p">)</span>
+
+        <span class="c1"># Image specs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="n">hmcdata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                 <span class="s1">&#39;y&#39;</span><span class="p">:</span> <span class="n">hmcdata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                 <span class="s1">&#39;z&#39;</span><span class="p">:</span> <span class="n">hmcdata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;spacing&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">i</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">([</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">],</span>
+                                 <span class="n">hmcnii</span><span class="o">.</span><span class="n">get_header</span><span class="p">()</span><span class="o">.</span><span class="n">get_zooms</span><span class="p">()[:</span><span class="mi">3</span><span class="p">])}</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;size&#39;</span><span class="p">][</span><span class="s1">&#39;t&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hmcdata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;spacing&#39;</span><span class="p">][</span><span class="s1">&#39;tr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">hmcnii</span><span class="o">.</span><span class="n">get_header</span><span class="p">()</span><span class="o">.</span><span class="n">get_zooms</span><span class="p">()[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;out_qc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_flatten_dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">runtime</span></div>
+
+<span class="k">def</span> <span class="nf">_flatten_dict</span><span class="p">(</span><span class="n">indict</span><span class="p">):</span>
+    <span class="n">out_qc</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">indict</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">out_qc</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">subk</span><span class="p">,</span> <span class="n">subval</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subval</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="n">out_qc</span><span class="p">[</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subk</span><span class="p">)]</span> <span class="o">=</span> <span class="n">subval</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">ssubk</span><span class="p">,</span> <span class="n">ssubval</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">subval</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                        <span class="n">out_qc</span><span class="p">[</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_</span><span class="si">%s</span><span class="s1">_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">subk</span><span class="p">,</span> <span class="n">ssubk</span><span class="p">)]</span> <span class="o">=</span> <span class="n">ssubval</span>
+    <span class="k">return</span> <span class="n">out_qc</span>
+
+
+<div class="viewcode-block" id="FramewiseDisplacementInputSpec"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.FramewiseDisplacementInputSpec">[docs]</a><span class="k">class</span> <span class="nc">FramewiseDisplacementInputSpec</span><span class="p">(</span><span class="n">BaseInterfaceInputSpec</span><span class="p">):</span>
+    <span class="n">in_file</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">exists</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">mandatory</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                   <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;input file generated with FSL 3dvolreg&#39;</span><span class="p">)</span>
+    <span class="n">rmax</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span><span class="p">(</span><span class="mf">80.</span><span class="p">,</span> <span class="n">usedefault</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;default brain radius&#39;</span><span class="p">)</span>
+    <span class="n">threshold</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Float</span><span class="p">(</span><span class="mf">1.</span><span class="p">,</span> <span class="n">usedefault</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;motion threshold&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FramewiseDisplacementOutputSpec"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.FramewiseDisplacementOutputSpec">[docs]</a><span class="k">class</span> <span class="nc">FramewiseDisplacementOutputSpec</span><span class="p">(</span><span class="n">TraitedSpec</span><span class="p">):</span>
+    <span class="n">out_file</span> <span class="o">=</span> <span class="n">File</span><span class="p">(</span><span class="n">desc</span><span class="o">=</span><span class="s1">&#39;output file&#39;</span><span class="p">)</span>
+    <span class="n">fd_stats</span> <span class="o">=</span> <span class="n">traits</span><span class="o">.</span><span class="n">Dict</span></div>
+
+<div class="viewcode-block" id="FramewiseDisplacement"><a class="viewcode-back" href="../../../mriqc.interfaces.html#mriqc.interfaces.qc.FramewiseDisplacement">[docs]</a><span class="k">class</span> <span class="nc">FramewiseDisplacement</span><span class="p">(</span><span class="n">BaseInterface</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes anatomical :abbr:`QC (Quality Control)` measures on the</span>
+<span class="sd">    structural image given as input</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">input_spec</span> <span class="o">=</span> <span class="n">FramewiseDisplacementInputSpec</span>
+    <span class="n">output_spec</span> <span class="o">=</span> <span class="n">FramewiseDisplacementOutputSpec</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">inputs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FramewiseDisplacement</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">inputs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_list_outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_results</span>
+
+    <span class="k">def</span> <span class="nf">_run_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">runtime</span><span class="p">):</span>
+        <span class="n">out_file</span> <span class="o">=</span> <span class="n">fd_jenkinson</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">in_file</span><span class="p">,</span>
+                                <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">rmax</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;out_file&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">out_file</span>
+
+        <span class="n">fddata</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">out_file</span><span class="p">)</span>
+        <span class="n">num_fd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">((</span><span class="n">fddata</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="o">.</span><span class="n">threshold</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_results</span><span class="p">[</span><span class="s1">&#39;fd_stats&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;mean_fd&#39;</span><span class="p">:</span> <span class="n">fddata</span><span class="o">.</span><span class="n">mean</span><span class="p">(),</span>
+            <span class="s1">&#39;num_fd&#39;</span><span class="p">:</span> <span class="n">num_fd</span><span class="p">,</span>
+            <span class="s1">&#39;perc_fd&#39;</span><span class="p">:</span> <span class="n">num_fd</span> <span class="o">*</span> <span class="mi">100</span> <span class="o">/</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">fddata</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="p">}</span>
+        <span class="k">return</span> <span class="n">runtime</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Oscar Esteban.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'0.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
