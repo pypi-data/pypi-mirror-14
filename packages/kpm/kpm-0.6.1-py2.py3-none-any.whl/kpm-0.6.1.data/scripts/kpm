@@ -1,0 +1,158 @@
+#!python
+import argparse
+import getpass
+
+import os
+import kpm.registry as registry
+from kpm.registry import Registry
+from kpm.packager import *
+import kpm.manifest
+import kpm.deploy
+from kpm.new import new_package
+import yaml
+
+
+def new(options):
+    new_package(options.package[0], options.dest, options.with_comments)
+
+def show(options):
+    r = Registry(options.registry_host)
+    result = r.pull(options.package[0])
+    p = Package(result['blob'])
+    print p.manifest
+
+def pack(options):
+    m = kpm.manifest.Manifest(path=".")
+    kubpath = os.path.join(options.dest, m.package_name())
+    pack_kub(kubpath)
+    return (m, kubpath)
+
+def install(options):
+    kpm.deploy.install(options.package[0],
+                       options.version,
+                       dest=options.dest,
+                       namespace=options.namespace,
+                       force=options.force,
+                       dry=options.dry_run,
+                       endpoint=options.registry_host
+    )
+
+def pull(options):
+    r = Registry(options.registry_host)
+    result = r.pull(options.package[0])
+    p = Package(result['blob'])
+    path = os.path.join(options.dest, kpm.manifest.Manifest(p).package_name(False))
+    p.extract(path)
+
+def push(options):
+   r = Registry(options.registry_host)
+   manifest, kubpath = pack(options)
+   f = open(kubpath, 'r')
+   r.push(manifest.package['name'], {"name": manifest.package['name'],
+                                     "version": manifest.package['version'],
+                                     "blob": f.read()}, options.force)
+
+
+def login(options):
+    r = Registry(options.registry_host)
+    user = raw_input("Username: ")
+    p1 = getpass.getpass()
+    if options.signup:
+        p2 = getpass.getpass('Password confirmation: ')
+        email = raw_input("Email: ")
+        if p1 != p2:
+            print "Error: password mismatch"
+            exit(1)
+        r.signup(user, p1, p2, email)
+        print ' >>> Registration complete'
+    else:
+        r.login(user, p1)
+    print ' >>> Login Succeeded'
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+
+    # Global arguments
+
+    parser.add_argument("--namespace",
+                        help="namespace to deploy the application")
+
+
+    subparsers = parser.add_subparsers(help='command help')
+
+    # PUSH
+    push_parser = subparsers.add_parser('push', help='push a new package')
+    push_parser.add_argument("-d", "--dest", nargs="?", default=".",
+                               help="destionation directory")
+
+    push_parser.add_argument("-H", "--registry-host", nargs="?", default=registry.DEFAULT_REGISTRY,
+                             help=argparse.SUPPRESS)
+    push_parser.add_argument("--force", action='store_true', default=False,
+                                help="force push the package")
+
+    push_parser.set_defaults(func=push)
+
+    # PULL
+    pull_parser = subparsers.add_parser('pull', help='pull a package')
+    pull_parser.add_argument('package', nargs=1, help="package-name")
+    pull_parser.add_argument("-H", "--registry-host", nargs="?", default=registry.DEFAULT_REGISTRY,
+                            help=argparse.SUPPRESS)
+    pull_parser.add_argument("-d", "--dest", nargs="?", default="/tmp/",
+                        help="destionation directory")
+    pull_parser.set_defaults(func=pull)
+
+    # Show
+    show_parser = subparsers.add_parser('show', help='show a package')
+    show_parser.add_argument('package', nargs=1, help="package-name")
+    show_parser.add_argument("-H", "--registry-host", nargs="?", default=registry.DEFAULT_REGISTRY,
+                                help=argparse.SUPPRESS)
+
+    show_parser.set_defaults(func=show)
+
+    # new
+    new_parser = subparsers.add_parser('new', help='initiate a new package')
+    new_parser.add_argument('package', nargs=1, help="package-name")
+    new_parser.add_argument("-d", "--dest", nargs="?", default=".",
+                               help="destionation directory")
+    new_parser.add_argument("--with-comments", action='store_true', default=False,
+                                help="Add 'help' comments to manifest")
+
+    new_parser.set_defaults(func=new)
+
+    # Login
+    login_parser = subparsers.add_parser('login', help='login a loginage')
+    login_parser.add_argument("-H", "--registry-host", nargs="?", default=registry.DEFAULT_REGISTRY,
+                              help=argparse.SUPPRESS)
+    login_parser.add_argument("-s", "--signup", action='store_true', default=False,
+                              help="Create a new account and login")
+    login_parser.set_defaults(func=login)
+
+
+
+
+    # Install
+    install_parser = subparsers.add_parser('install', help='install a package')
+    install_parser.add_argument('package', nargs=1, help="package-name")
+    install_parser.add_argument("-d", "--dest", nargs="?", default="/tmp/",
+                                help="destionation directory for resources")
+    install_parser.add_argument("--dry-run", action='store_true', default=False,
+                                help="do not create the resources")
+    install_parser.add_argument("--namespace", nargs="?",
+                                help="namespace", default=None)
+    install_parser.add_argument("--replicas", nargs="?",
+                                help="replicas", default=None)
+    install_parser.add_argument("--version", nargs="?",
+                                help="install package VERSION", default=None)
+
+    install_parser.add_argument("--force", action='store_true', default=False,
+                                help="force upgrade")
+    install_parser.add_argument("-H", "--registry-host", nargs="?", default=registry.DEFAULT_REGISTRY,
+                             help=argparse.SUPPRESS)
+
+
+    install_parser.set_defaults(func=install)
+
+
+    args = parser.parse_args()
+    args.func(args)
