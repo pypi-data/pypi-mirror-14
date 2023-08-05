@@ -1,0 +1,2 @@
+class PinError(Exception):
+    pass
