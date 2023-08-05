@@ -1,0 +1,147 @@
+{% load i18n clb_tags %}
+
+<div class="inline-group inline-stacked {{ inline_admin_formset.formset.prefix }}{% if inline_admin_formset.opts.sortable %} sortable{% endif %}{% if inline_admin_formset.opts.classes %} {{ inline_admin_formset.opts.classes|join:" " }}{% endif %}" name="inlinegroup" data-prefix="{{ inline_admin_formset.formset.prefix }}">
+    <h2>{{ inline_admin_formset.opts.verbose_name_plural|title }}</h2>
+    <ul class="inline-item-tools">
+        {% block inline-item-tools %}
+            <li><a href="javascript://" class="openhandler" title="{% trans 'Open All Items' %}"></a></li>
+            <li><a href="javascript://" class="closehandler" title="{% trans 'Close All Items' %}"></a></li>
+            {% if inline_admin_formset.opts.allow_add %}<li><a href="javascript://" class="addhandler" title="{% trans 'Add Item' %}"></a></li>{% endif %}
+        {% endblock %}
+    </ul>
+    {{ inline_admin_formset.formset.management_form }}
+    {{ inline_admin_formset.formset.non_form_errors }}
+    <div class="items"> <!-- sortable container -->
+        {% for inline_admin_form in inline_admin_formset %}
+        <div class="inline-related collapse-closed{% if inline_admin_form.original or inline_admin_form.show_url %} has_original{% endif %}"{% if forloop.last %} style="display:none;"{% endif %}> <!-- sortable items -->
+            <!-- headline, original, delete/link/sort -->
+            <h3>
+                <b>{{ inline_admin_formset.opts.verbose_name|title }} #{{ forloop.counter }}</b>&nbsp;&nbsp;{% if inline_admin_form.original %}{{ inline_admin_form.original }}{% endif %}
+            </h3>
+            <ul class="inline-item-tools">
+                {% if inline_admin_form.show_url %}<li><a href="../../../r/{{ inline_admin_form.original.content_type_id }}/{{ inline_admin_form.original.id }}/" class="viewsitelink" title="{% trans 'View on Site' %}" target="_blank"></a></li>{% else %}<li>&nbsp;</li>{% endif %}
+                {% if inline_admin_formset.opts.sortable_field_name %}<li><a href="javascript://" class="draghandler" title="Move Item"></a></li>{% else %}<li>&nbsp;</li>{% endif %}
+                {% if inline_admin_formset.formset.can_delete and inline_admin_form.original %}<li>{{ inline_admin_form.deletion_field.field }}<a href="javascript://" class="deletelink" title="{% trans 'Delete Item' %}"></a></li>{% else %}<li>&nbsp;</li>{% endif %}
+            </ul>
+            <!-- fieldsets -->
+            {% if inline_admin_form.form.non_field_errors %}{{ inline_admin_form.form.non_field_errors }}{% endif %}
+            {% for fieldset in inline_admin_form %}
+                {% include "admin/includes/fieldset.html" %}
+            {% endfor %}
+            {{ inline_admin_form.pk_field.field }}
+            {{ inline_admin_form.fk_field.field }}
+        </div>
+        {% endfor %}
+        {{ inline_admin_formset.extra_forms }}
+    </div>
+</div>
+
+<div class="sortablehelper">
+    <h3><b>Sortable Helper</b></h3>
+</div>
+
+
+<script type="text/javascript">
+(function($) {
+    var prefix = "{{ inline_admin_formset.formset.prefix }}";
+    $(document).ready(function() {
+        var autocomplete_fields_generic = {% get_autocomplete_lookup_fields_generic inline_admin_formset.opts %};
+        var listcontainer = $("div.inline-stacked."+prefix);
+        listcontainer.data({
+            'autocomplete_fields_generic': autocomplete_fields_generic,
+            'lookup_url': "{% url 'admin:grp_related_lookup' %}",
+            'autocomplete_lookup_url': "{% url 'admin:grp_autocomplete_lookup' %}"
+        });
+        var items = $("div.items", listcontainer);
+        $.each(autocomplete_fields_generic, function() {
+            var content_type = this[0],
+                object_id = this[1];
+            items.find("input[name^='" + prefix + "'][name$='-" + this[1] + "']")
+            .each(function() {
+                var i = $(this).attr("id").match(/(?:-\d+)?(-\d+-)/);
+                if (i) {
+                    var ct_id = "#id_" + prefix + i[1] + content_type,
+                        obj_id = "#id_" + prefix + i[1] + object_id;
+                    $(this).grp_autocomplete_generic({
+                        content_type:ct_id,
+                        object_id:obj_id,
+                        lookup_url:"{% url 'admin:grp_related_lookup' %}",
+                        autocomplete_lookup_url:"{% url 'admin:grp_autocomplete_lookup' %}"
+                    });
+                }
+            });
+        });
+        {% if inline_admin_formset.opts.sortable_field_name %}
+        $("div.inline-stacked."+prefix+" > div.items").sortable({
+            handle: "a.draghandler",
+            items: "div.inline-related",
+            axis: "y",
+            appendTo: 'body',
+            forceHelperSize: true,
+            placeholder: 'grp-module ui-sortable-placeholder',
+            forcePlaceholderSize: true,
+            containment: 'div.inline-stacked.'+prefix+' > div.items',
+            tolerance: 'pointer',
+            start: function(evt, ui) {
+                ui.placeholder.height(ui.item.height() + 12);
+            }
+        });
+        /*
+        Enables changing the sort order manually on sort field change
+        - Top entry is 0
+        - Last entry is n-1. Or any number that equals or is greater than n.
+        - Sortables without a value (extra forms) are not respected. If they are at the end, they stay there.
+        - Non-Number and negative numbers are being ignored.
+        - It does not cleans up the order field values on change (just like dragging does not do that).
+        */
+        $.fn.grp_reverse_list = [].reverse;
+        $("div.inline-stacked."+prefix)
+            .find("div.grp-row.{{ inline_admin_formset.opts.sortable_field_name }} :input")
+            .each(function(i, item) {
+                $(item).parents('div.grp-row').css('display','none');
+                $(item).bind('change', function(event) {
+                    var desired_index = $(event.target).val() * 1;
+                    if(!isNaN(desired_index) && desired_index >= 0) {
+                        var $row = $(event.target).parents('div.inline-related');
+                        var $table = $row.parents('div.items.ui-sortable');
+                        $row.detach();
+                        var $row_desired = $table.children('div.inline-related').get(desired_index);
+                        if($row_desired) {
+                            $row.insertBefore($row_desired);
+                            $row.find('h3,div.grp-row').effect('highlight', {color:"#ffffcc"}, 2000);
+                        } else {
+                            // FIXME: this appends the new row to the very end of the table.
+                            // instead, it should be added after the last row with values.
+                            $table.append($row);
+                            $row.find('h3,div.grp-row').effect('highlight', {color:"#ffffcc"}, 2000);
+                        }
+                    }
+                });
+            });
+        $("#{{ opts.model_name }}_form").bind("submit", function(){
+            var sortable_field_name = "{{ inline_admin_formset.opts.sortable_field_name }}",
+                sortable_excludes = {% get_sortable_excludes inline_admin_formset.opts %},
+                i = 0;
+            $("div.inline-stacked."+prefix).find("div.inline-related").each(function(){
+                var fields = $(this).find("fieldset :input[type!=radio][type!=checkbox],input:checked,input[type=file]"),
+                    submit_values = false,
+                    has_value;
+                $(fields).each(function() {
+                    // position is being updated if
+                    // a) the field has a value
+                    // b) if the field is not exluded with sortable_excludes (e.g. with default values)
+                    has_value = $(this).val() || ($(this).attr('type') == 'file' && $(this).siblings('a').length);
+                    if (has_value && $(this).attr("name") && $.inArray($(this).attr("name").split("-").pop(), sortable_excludes) == -1) {
+                        submit_values = true;
+                    }
+                });
+                if (submit_values) {
+                    $(this).find("input[name$='-"+sortable_field_name+"']").val(i);
+                    i++;
+                }
+            });
+        });
+        {% endif %}
+    });
+})(grp.jQuery);
+</script>
