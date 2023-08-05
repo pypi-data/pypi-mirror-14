@@ -1,0 +1,38 @@
+About(关于)
+============
+
+该包主要是解析迅雷、QQ旋风以及快车下载链接地址为真实地址,兼容0.13.1之前版本。
+
+新版本的使用方式如下::
+
+    from ThunderParser import parser
+    url = "The Download URL of Thunder、QQDownload and Flashget"   # 迅雷、QQ旋风、快车的下载链接地址
+    print parser(url)                                              # 获取到真实的地址
+
+0.13.1之前版本使用方法如下::
+
+    from ThunderParser.parser_thunder import parser
+    url = 'The download url of thunder'                     #  迅雷的下载地址
+    print parser(url)                                       #  获取到真实资源地址
+
+#########################
+Version(版本) 0.14.1
+#########################
+
+- 新增QQ旋风、快车下载链接地址的解析。
+- 使用单元测试进行测试。
+
+#########################
+Version(版本) 0.13.1
+#########################
+
+- 尝试修复URL因为不合法导致解析出错的问题。(Try to fix the error cause by a unvalid url)
+- 对于无法修复的URL给予异常提示。(Give tips for the url which can not be repaired for abnormal)
+
+###############
+Version 0.13
+###############
+
+- 新增模块的使用方式
+
+
