@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+import flask
+import os
+import re
+import time
+import json
+import pdb
+import random
+import tempfile
+import traceback
+from collections import *
+
+import click
+import biblib.bib
+import sqlalchemy
+from sqlalchemy import *
+from sqlalchemy.pool import NullPool
+from bibcleaner.server import run_server
+from bibcleaner.util import *
+
+
+
+if __name__ == "__main__":
+
+  @click.command()
+  @click.option('--bibpath', default=None, help='Path to bibtex file that you want to load and clean')
+  @click.option('--min-crossrefs', type=int, 
+                help='minimum number of cross-referencing entries'
+                ' required to expand a crossref; if omitted, no'
+                ' expansion occurs', default=None)
+  @click.option('--cleanentries', is_flag=True, help='remove bibtex entries from database')
+  @click.option('--cleanmappings', is_flag=True, help='remove booktitle mappings from database')
+  @click.option('--server', is_flag=True, help='run webserver to deduplicate bibtex entries that have been loaded')
+  @click.option('--port', type=int, default=8000)
+  @click.option('--printout', is_flag=True, help='print normalized bibtex database to stdout')
+  @click.option('--out', help='filename to output normalized bibtex database', default=None)
+  @click.option('--sort', type=click.Choice(['year', 'author', 'booktitle', 'key']), 
+                help='when printing or outputing cleaned bibtex, optional sort order')
+  def main(bibpath, min_crossrefs, cleanentries, cleanmappings, server, port, printout, out, sort):
+    """
+    Simple script to parse a bibtex file, store in database, keep only useful attributes,
+    normalize all entries to @inproceedings, and runs a web gui to deduplicate booktitles.
+
+    To run quickly, type:
+
+        bibcleaner --server --port 8888
+
+    and go to http://localhost:8888 
+
+    Note: bibcleaner sets up the db in the directory where bibcleaner is run
+    """
+    if cleanentries:
+      if input("Are you sure you want to remove all bibtex entries in the DB?\nType y or yes to confirm: ").lower() in ['y', 'yes']:
+        engine.execute("delete from entries")
+      else:
+        print("aborted")
+    if cleanmappings:
+      if input("Are you sure you want to remove all booktitle mappings in the DB?\nType y or yes to confirm: ").lower() in ['y', 'yes']:
+        engine.execute("delete from mapping")
+      else:
+        print("aborted")
+
+    if bibpath:
+        with open(bibpath) as bib:
+            entries = load_bibfile(bib, min_crossrefs)
+            save_entries(entries)
+    if server:
+      run_server(HOST='0.0.0.0', PORT=port)
+    if out or printout:
+      print_entries(printout, out, sort)
+    if not cleanentries and not cleanmappings and not bibpath and not server and not out and not printout:
+      print("./bibcleaner --help")
+
+
+  main()
+
