@@ -1,0 +1,646 @@
+Metadata-Version: 1.1
+Name: mercurial_path_pattern
+Version: 1.3.0
+Summary: Mercurial Path Pattern Extension
+Home-page: http://bitbucket.org/Mekk/mercurial-path_pattern
+Author: Marcin Kasperski
+Author-email: Marcin.Kasperski@mekk.waw.pl
+License: BSD
+Description: .. -*- mode: rst; compile-command: "rst2html README.txt README.html" -*-
+        
+        =======================================================
+        Mercurial Path Pattern
+        =======================================================
+        
+        Don't repeat yourself defining ``[paths]`` over many repositories,
+        specify the general rule once in ``~/.hgrc``.
+        
+        Path Pattern is a Mercurial_ extension used to define default
+        remote path aliases. You may find it helpful if you maintain
+        consistently layed out repository trees on a few machines.
+        |drone-badge|
+        
+        .. contents::
+           :local:
+           :depth: 2
+        
+        .. sectnum::
+        
+        Path Pattern mostly works behind the courtains, making standard
+        commands like ``hg pull``, ``hg push``, and ``hg incoming`` aware of
+        extra paths. Still, it implements some commands, in particular ``hg
+        cloneto «path-alias»`` (clone to remote address specified by short
+        name).
+        
+        
+        Using path patterns
+        =======================================================
+        
+        Install the extension as described below.
+        
+        Simple example
+        -------------------------------------------------------
+        
+        Write in your ``~/.hgrc``::
+        
+            [extensions]
+            mercurial_path_pattern =
+        
+            [path_pattern]
+            lagrange.local = ~/devel/{repo}
+            lagrange.remote =  ssh://johny@lagrange.mekk.net/sources/{repo}
+            bbssh.local = ~/devel/public/{below}
+            bbssh.remote = ssh://hg@bitbucket.org/Johny/{below:/=-}
+        
+        Imagine ``~/devel/personal/blog/drafts`` and ``~/devel/public/pymods/acme``
+        are both some mercurial repositories. Then::
+        
+            cd ~/devel/personal/blog/drafts
+            hg push lagrange
+            # Works, pushes to ssh://johny@lagrange.mekk.net/sources/personal/blog/drafts
+        
+            cd ~/devel/public/pymods/acme
+            hg pull lagrange
+            # Works, pulls from ssh://johny@lagrange.mekk.net/sources/public/pymods/acme
+            hg pull bbssh
+            # Works too, pulls from ssh://hg@bitbucket.org/Johny/pymods-acme
+        
+        This works in spite of the fact, that those repos lack ``.hg/hgrc``.
+        
+        For two repositories that's not very useful, but once you have hundred
+        of them, managing individual ``.hg/hgrc`` becomes a hassle (imagine
+        changing ``lagrange.mekk.net`` to ``lagrange.mekk.com`` everywhere, or
+        maybe adding second remote alias for the new development machine).
+        
+        .. note::
+        
+           On Windows extension tries to handle (in ``.local`` specifications)
+           both native paths (``C:\repos\sth``) and portable ones
+           (``C:/repos/sth``), but it is recommended to use the
+           latter. Whichever syntax is used, extracted ``{fragments}`` contain
+           ``/`` (so they can be easily used in remote urls).
+        
+        Overriding repository-level paths
+        -------------------------------------------------------
+        
+        By default path patterns have lower priority than per-repository
+        paths, so in case you define ``lagrange`` path on repository level, it
+        won't be overwritten by pattern. You can augment it by adding
+        ``.enforce``::
+        
+            [path_pattern]
+            lagrange.local = ~/devel/{repo}
+            lagrange.remote =  ssh://johny@lagrange.mekk.net/sources/{repo}
+            lagrange.enforce = true
+        
+        With such config pattern wins against any path from ``.hg/hgrc``
+        (usually it is not recommended but can be handy if you have some
+        broken paths scattered around repositories).
+        
+        Reusing the same alias
+        --------------------------------------------------------
+        
+        To (re)use the same alias in a few different locations, use
+        ``ALIAS.XTRA.local`` and ``ALIAS.XTRA.remote`` keys, where ``XTRA``
+        is something unique. For example::
+        
+            [path_pattern]
+            production.main.local = ~/devel/{repo}
+            production.main.remote = ssh://www-owner@www.acme.org/public/{repo}
+            production.beta.local = ~/experiments/{repo}
+            production.beta.remote = ssh://www-owner@beta.acme.org/public/{repo}
+        
+        would let you ``hg push production`` not only in
+        ``~/devel/website/blog`` but also in ``~/experiments/website/qagame``
+        (pushing to ``www.acme.org`` in the former, and to ``beta.acme.org`` in the
+        latter case). Whether this is a good idea, is up to you.
+        
+        
+        
+        Clone-supporting commands
+        =======================================================
+        
+        Using ``cloneto``
+        -------------------------------------------------------
+        
+        The ``cloneto`` command makes it easier to clone repository to remote url::
+        
+            hg cloneto lagrange
+            # Equivalent to 
+            #   hg clone . ssh://johny@lagrange.mekk.net/sources/pymodules/acme
+            # but noticeably shorter
+        
+        which works both for normal paths and paths derived from patterns, but
+        is especially handy with patterns. In particular, it makes
+        it possible to push newly created repository, for example::
+        
+            cd ~/devel/libs
+            hg init xyz
+            cd xyz
+            hg cloneto lagrange
+            # Works, creates soures/libs/xyz on johny@lagrange.mekk.net
+        
+        .. note::
+        
+           While ``cloneto`` is particularly useful with patterns, it works
+           for usual paths as well. You can write (new) path to repository
+           ``.hg/hgrc``, then ``hg cloneto «new-name»``.
+        
+        Instead of ``clonefrom``
+        -------------------------------------------------------
+        
+        There is no ``clonefrom`` command (at least for now), but it is not
+        really needed. The following works (imagine ``libs/zzz`` exists on
+        ``lagrange.mekk.net``, but is not yet cloned *here*)::
+        
+            cd ~/devel/libs
+            hg init zzz
+            cd zzz
+            hg pull lagrange
+        
+        
+        Testing pattern configuration
+        =======================================================
+        
+        The standard::
+        
+            hg paths
+        
+        command lists paths defined for current repository, after pattern
+        expansion. Use it (in a few different repositories) to verify whether
+        your patterns generate proper paths.
+        
+        The::
+        
+            hg list_path_patterns
+        
+        command prints all patterns found in configuration. Use it to detect
+        typos causing some patterns to be ignored and to check the final
+        result of configuration processing.
+        
+        
+        Pattern syntax
+        =======================================================
+        
+        Introduction
+        --------------------
+        
+        Patterns are defined in ``[path_pattern]`` section of mercurial
+        configuration file (typically ``~/.hgrc``).  You may have as many
+        patterns as you like. Example illustrating various syntax elements::
+        
+            [path_pattern]
+            lagrange.local = ~/devel/{repo}
+            lagrange.remote =  ssh://johny@lagrange.mekk.net/sources/{repo}
+            euler.local = ~/devel/{repo}
+            euler.remote =  ssh://johny@euler.mekk.net/devel/{repo:/=.}/hg
+            wrk.local = ~/work/{what}
+            wrk.remote =  https://tim@devel-department.local/{what:/=__:\=__}
+            ugly.local = ~/(topic)/sources/{subpath}/repo
+            ugly.remote = ssh://hg{topic}@devel.local/{topic}/{subpath}
+            cfg.dotcfg.local = ~/.config/{repo}
+            cfg.dotcfg.remote = ssh://hgrepos@central.com/configs/riemann-config/{repo}
+            cfg.dotshr.local = ~/.local/share/{repo}
+            cfg.dotshr.remote = ssh://hgrepos@central.com/configs/riemann-local/{repo}
+            official.hgstable.local = ~/tracked/mercurial/hg-stable
+            official.hgstable.remote = http://selenic.com/repo/hg-stable
+            official.thg.local = ~/tracked/mercurial/tortoisehg-stable
+            official.thg.remote = https://bitbucket.org/tortoisehg/thg
+            official.evolve.local = ~/tracked/mercurial/mutable-history
+            official.evolve.remote = https://bitbucket.org/marmoute/mutable-history
+        
+        Pattern definition
+        ---------------------
+        
+        Every pattern is defined by the pair of keys - ``«alias».local`` and
+        ``«alias».remote`` - or, in case the same alias is to be used in a few
+        places, by ``«alias».«sth».local`` and ``«alias».«sth».remote`` (where
+        ``«sth»`` is anything making the key unique).
+        
+        While processing patterns, the extension matches current repository
+        root path against ``local`` pattern, and if it matches, extracts parts
+        marked with markers and fills remote part with them to calculate
+        proper path to use.
+        
+        .. note::
+        
+            First matching pattern is used if more than one matches. Picking
+            *best* pattern may be implemented in the future.
+        
+        The ``.local`` part should specify absolute repository path (``~`` and
+        ``~user`` are allowed). Some part(s) of the path may be replaced with
+        ``{brace}`` or ``(paren)`` markers:
+        
+        - ``{brace}`` matches everything aggressively (to the very end, unless
+          some fixed text follows it),
+        
+        - ``(paren)`` is limited to single path item and does not cross ``/`` or ``\\`` characters).
+        
+        Those parts will be extracted from local repository path and available
+        for use in remote path being defined.
+        
+        .. note::
+        
+            Typically there will be single ``{marker}`` on the end, but more
+            obscure patterns are possible (as ``ugly`` above
+            illustrates). 
+        
+        Markers are optional, if no marker is used (see ``official`` above),
+        rule applies to exactly one repository. This may make sense (over
+        defining path in given repo ``.hg/hgrc``) if you prefer to centralize
+        your paths.
+        
+        The ``.remote`` part defines appropriate remote address. This is typical
+        Mercurial remote path, but ``{marker}``'s can be used to refer to
+        values extracted from local path: ``{sth}`` is replaced with whatever
+        matched ``{sth}`` or ``(sth)`` present in local path.
+        
+        Simple modifications are supported – ``{sth:x=y}`` means *take whatever
+        was extracted as* ``sth`` *and replace any* ``x`` *with* ``y``. This is
+        mostly used to replace ``/`` with some other character (in particular
+        ``{below:/=-}`` handles BitBucket convention, replacing slashes with minuses).
+        
+        Replacements can be chained if necessary – ``{sth:x=y,v=z}`` means
+        *take whatever was extracted as* ``sth``, *replace any* ``x`` *with*
+        ``y``, *then replace any* ``v`` *with* ``z``, *then use the final
+        result*.
+        
+        Resolution example
+        --------------------
+        
+        For example, with definitions above, if you happen to work
+        in repository ``~/devel/python/libs/webby``, the extension will:
+        
+        1. Find that ``lagrange.local`` matches and that ``{repo}`` is
+           ``python/libs/webby``.   Filling ``lagrange.remote`` with
+           that value generates
+           ``ssh://johny@lagrange.mekk.net/sources/python/libs/webby``, so
+           finally it will create path alias
+           ``lagrange=ssh://johny@lagrange.mekk.net/sources/python/libs/webby``
+        
+        2. Discover that ``euler.local`` also matches, and ``{repo}`` is again
+           ``python/libs/webby``. After replacing ``/``-s with ``.``-s,
+           that brings alias 
+           ``euler=ssh://johny@euler.mekk.net/devel/python.libs.webby/hg``
+        
+        3. Ignore remaining patterns as they do not match.
+        
+        Or, in ``~/tracked/mercurial/tortoisehg-stable``, the extension will:
+        
+        1. Note that ``official.thg.local`` matches (at this time without
+           defining anything), extract matching path from
+           ``official.thg.remote``, and finally generate for this repository
+           path ``official = https://bitbucket.org/tortoisehg/thg`` (so ``hg
+           pull official`` works there).  Note that the path is just
+           ``official``, the ``.thg.`` part was used only to group appropriate
+           config items.
+        
+        2. Ignore remaining patters which do not match.
+        
+        
+        Legacy syntax
+        ------------------------------------------------------
+        
+        For compatibility reasons, there exist alternative way
+        to reuse the same path alias. For example, instead of
+        (currently recommended)::
+        
+            [path_pattern]
+            production.web.local = ~/devel/web/{repo}
+            production.web.remote = ssh://product@acme.org/www/{repo}
+            production.db.local = ~/devel/database/{repo}
+            production.db.remote = ssh://product@backend.acme.org/db/{repo}
+            production.monit.local = ~/devel/monitoring/{repo}
+            production.monit.remote = ssh://product@monit.acme.org/{repo}
+        
+        one can use ``.alias``::
+        
+            [path_pattern]
+            production.local = ~/devel/web/{repo}
+            production.remote = ssh://product@acme.org/www/{repo}
+            dbproduction.db.local = ~/devel/database/{repo}
+            dbproduction.db.remote = ssh://product@backend.acme.org/db/{repo}
+            dbproduction.alias = production
+            monproduction.local = ~/devel/monitoring/{repo}
+            monproduction.remote = ssh://product@monit.acme.org/{repo}
+            monproduction.alias = production
+        
+        Both those syntaxes give meaning to ``hg push production`` in all matching
+        repositories.
+        
+        .. note::
+        
+           I keep supporting ``.alias`` syntax for backward compatibility (it
+           was the first syntax provided for the task) but it is more
+           elaborate and less readable, so I don't recommend it anymore.
+        
+        
+        Pattern priority
+        =======================================================
+        
+        It is possible to write patterns so they *conflict* (more than one
+        definition of some path exists). While not frequent, such approach has
+        sometimes it's uses.
+        
+        Path aliases have the following priority:
+        
+        - enforced patterns (patterns with ``.enforce`` set),
+        - per repo aliases (standard ``[paths]`` defined in ``.hg/hgrc``),
+        - non-enforced patterns.
+        
+        So, for example, with::
+        
+            [path_pattern]
+            acme.local = ~/devel/{repo}
+            acme.remote =  ssh://johny@apps.mekk.net/code/{repo}
+            acme.enforce = true
+            acme.alt.local = ~/devel/libs/{repo}
+            acme.alt.remote =  ssh://johny@libs.mekk.net/{repo}
+        
+        (both patterns define the same alias ``acme``) executing ``hg push
+        acme`` in ``~/devel/libs/calc`` will push to
+        ``ssh://johny@apps.mekk.net/code/libs/calc`` as enforced pattern wins
+        over non-enforced one. The same will happen even if ``acme`` is
+        defined in per-repository ``.hg/hgrc`` (among standard ``[paths]``).
+        
+        If more than one pattern of the same strength matches, extension tries
+        it's best to pick one with more specific local path, for example if we
+        drop ``acme.enforce`` from the example above (or if we add
+        ``acme.alt.enforce``), executing ``hg push acme`` in
+        ``~/devel/libs/calc`` will push to ``ssh://johny@libs.mekk.net/calc``
+        as more specific pattern wins.
+        
+        .. note::
+        
+            It's not always obvious which pattern is more specific (compare
+            ``~/(klass)/libs/base`` with ``~/src/{repo}``). Current
+            implementation looks for the length of non-varying prefix (so the
+            latter will win over the former as ``~/src/`` is longer than
+            ``~/``). If that is equal, pattern with more non-var characters wins,
+            and finally, the one which happened last in the config file.
+        
+            Some details may change in the future, use ``enforce`` when in
+            doubt.
+        
+        
+        
+        
+        Tips and tricks
+        =======================================================
+        
+        ``default`` as path pattern
+        --------------------------------------------------------
+        
+        You can define ``default`` via path pattern if you wish::
+        
+            [path_pattern]
+            default.hobby.local = ~/hobby/{repo}
+            default.hobby.remote =  ssh://hg@bitbucket.org/Johny/{below:/=-}
+            default.wrk.local = ~/work/{what}
+            default.wrk.remote =  https://tim@devel-department.local/{what}
+        
+        (here in ``~/hobby`` I push to bitbucket by default, but in ``~/work``
+        to department server).
+        
+        .. note::
+        
+           Mercurial will sooner or later define ``default`` path in
+           per-repository ``.hg/hgrc`` files.  Enforce your patterns
+           (``default.hobby.enforce = true``) if you need to defeat those
+           settings. Or don't if you want those patterns for defaults only.
+        
+        
+        Special treatment of specific repositories 
+        -------------------------------------------------------
+        
+        It happens that some repository (or a few) *does not match* the
+        general rule. In such a case, one can simply overwrite given alias
+        on repository level, or use pattern priority.
+        
+        My real example is `Keyring Extension`_ repository. While I generally
+        use dash (``-``) as path separator (so Path Pattern is located at
+        ``/Mekk/mercurial-path_pattern`` and `Dynamic Username`_ at
+        ``/Mekk/mercurial-dynamic_username``), keyring repo predates this
+        convention and is named ``/Mekk/mercurial_keyring``. So I solve this
+        by::
+        
+            [path_pattern]
+            # By default bitbucket mirrors my dir structure replacing / with -
+            bbssh.local = ~/devel/{below}
+            bbssh.remote = ssh://hg@bitbucket.org/Mekk/{below:/=-}
+            # … but there are overrides
+            bbssh.keyring.local = ~/devel/mercurial/keyring
+            bbssh.keyring.remote = ssh://hg@bitbucket.org/Mekk/mercurial_keyring
+        
+        Of course I could achieve the same by defining ``bbssh`` among
+        ``[paths]`` in ``~/devel/mercurial/keyring/.hg/hgrc``, but pattern
+        technique have some advantages:
+        
+        - as I share and sync snippet of my ``~/.hgrc`` between machines, 
+          this definition automatically propagates everywhere, and I don't need
+          to remember about adding path to new clone,
+        
+        - it leaves all paths in one place where I can review them all and fix
+          if necessary,
+        
+        - it can be expanded to whole subtree if necessary.
+        
+        Keeping non-standard remote paths as patterns
+        -------------------------------------------------------
+        
+        The same trick can be used for maintaining list of remotes.
+        For example here is my way to have ``hg pull official`` handy
+        in various tracked repositories::
+        
+            [path_pattern]
+            official.hgstable.local = ~/tracked/hg-stable
+            official.hgstable.remote = http://selenic.com/repo/hg-stable
+            official.thg.local = ~/tracked/tortoise-hg
+            official.thg.remote = https://bitbucket.org/tortoisehg/thg/
+            # …
+        
+        Of course I could enter those paths directly inside ``.hg/hgrc``, but
+        those definitions can be synced between machines, and survive 
+        in case I discard the repo in charge for some time.
+        
+        Separating (and sharing) pattern configuration
+        ---------------------------------------------------
+        
+        In case the pattern list grows bigger, I recommend moving patterns
+        into separate config file. For example, write in ``~/.hgrc``::
+        
+            %include ~/configs/mercurial/path_pattern.hgrc
+        
+        and then store all patterns in ``path_pattern.hgrc``::
+        
+           [path_pattern]
+           …
+        
+        Extra benefit of such approach is that it makes sharing the file
+        easier (in my case ``~/configs/mercurial`` is by itself Mercurial
+        repository which I share over my various development machines, and
+        which contains all non-machine specific snippets of my Mercurial
+        configuration).
+        
+        
+        Installation
+        =======================================================
+        
+        Linux/Unix (from PyPI)
+        -------------------------------------------------------
+        
+        If you have working ``pip`` or ``easy_install``::
+        
+            pip install --user mercurial_path_pattern
+        
+        or maybe::
+        
+            sudo pip install mercurial_path_pattern
+        
+        (or use ``easy_install`` instead of ``pip``). Then activate by::
+        
+            [extensions]
+            mercurial_path_pattern =
+        
+        To upgrade, repeat the same command with ``--upgrade`` option, for
+        example::
+        
+            pip install --user --upgrade mercurial_path_pattern
+        
+        Linux/Unix (from source)
+        -------------------------------------------------------
+        
+        If you don't have ``pip``, or wish to follow development more closely:
+        
+        - clone both this repository and `mercurial_extension_utils`_ and put
+          them in the same directory, for example::
+        
+            cd ~/sources
+            hg clone https://bitbucket.org/Mekk/mercurial-extension_utils/
+            hg clone https://bitbucket.org/Mekk/mercurial-path_pattern/
+        
+        - update to newest tags,
+        
+        - activate by::
+        
+            [extensions]
+            mercurial_path_pattern = ~/sources/mercurial-path_pattern/mercurial_path_pattern.py
+        
+        To upgrade, pull and update.
+        
+        Note that directory names matter. See `mercurial_extension_utils`_ for
+        longer description of this kind of installation.
+        
+        Windows
+        -------------------------------------------------------
+        
+        If you have any Python installed, you may install with ``pip``::
+        
+            pip install mercurial_path_pattern
+        
+        Still, as Mercurial (whether taken from TortoiseHg_, or own package)
+        uses it's own bundled Python, you must activate by specifying the path::
+        
+            [extensions]
+            mercurial_path_pattern = C:/Python27/Lib/site-packages/mercurial_path_pattern.py
+            ;; Or wherever pip installed it
+        
+        To upgrade to new version::
+        
+            pip --upgrade mercurial_path_pattern
+        
+        If you don't have any Python, clone repositories::
+        
+            cd c:\hgplugins
+            hg clone https://bitbucket.org/Mekk/mercurial-extension_utils/
+            hg clone https://bitbucket.org/Mekk/mercurial-path_pattern/
+        
+        update to tagged versions and activate by path::
+        
+            [extensions]
+            mercurial_path_pattern = C:/hgplugins/mercurial-path_pattern/mercurial_path_pattern.py
+            ;; Or wherever you cloned
+        
+        See `mercurial_extension_utils`_ documentation for more details on
+        Windows installation. 
+        
+        .. note::
+        
+           Directory names matter. If ``mercurial_path_pattern.py`` can't find
+           ``mercurial_extension_utils.py`` in system path, it looks for it in
+           its own directory, in ``../mercurial_extension_utils``, and in
+           ``../extension_utils``.
+        
+        
+        Related extensions
+        =======================================================
+        
+        `Schemes Extension`_, distributed together with Mercurial, makes it
+        possible to simplify repository URLs. For example, you can write::
+        
+            hg clone bb://Mekk/mercurial-path_pattern
+        
+        (``bb`` is schemes alias expanding to BitBucket url).
+        
+        While both Path Pattern and Schemes are related to path management,
+        they target different usage patterns. Schemes is particularly useful
+        for people making frequent ad-hoc clones, Path Pattern is about
+        keeping consistent synchronized repository hierarchies. With Schemes
+        urls you type are shorter and less error-prone, with Path Pattern
+        you don't type them at all (as long as you stay within *your* code).
+        
+        Both can cooperate, schemes aliases can be used in pattern definitions::
+        
+            [path_pattern]
+            bitb.local = ~/sources/{below}
+            bitb.remote = bb://Mekk/{below:/=-}
+        
+        will work (as long as schemes extension is enabled).
+        
+        History
+        =======================================================
+        
+        See `HISTORY.txt`_
+        
+        Development, bug reports, enhancement suggestions
+        =======================================================
+        
+        Development is tracked on BitBucket, see 
+        https://bitbucket.org/Mekk/mercurial-path_pattern/
+        
+        Use BitBucket issue tracker for bug reports and enhancement
+        suggestions.
+        
+        Additional notes
+        =======================================================
+        
+        Information about this extension is also available
+        on Mercurial Wiki: http://mercurial.selenic.com/wiki/PathPatternExtension
+        
+        Check also `other Mercurial extensions I wrote`_.
+        
+        .. _other Mercurial extensions I wrote: http://mekk.bitbucket.org/mercurial.html
+        
+        
+        .. _Mercurial: http://mercurial.selenic.com
+        .. _HISTORY.txt: https://bitbucket.org/Mekk/mercurial-path_pattern/src/tip/HISTORY.txt
+        .. _mercurial_extension_utils: https://bitbucket.org/Mekk/mercurial-extension_utils/
+        .. _Schemes Extension: https://www.mercurial-scm.org/wiki/SchemesExtension
+        .. _TortoiseHg: http://tortoisehg.bitbucket.org/
+        .. _Keyring Extension: https://bitbucket.org/Mekk/mercurial_keyring/
+        .. _Dynamic Username: https://bitbucket.org/Mekk/mercurial-dynamic_username/
+        
+        .. |drone-badge| 
+            image:: https://drone.io/bitbucket.org/Mekk/mercurial-path_pattern/status.png
+             :target: https://drone.io/bitbucket.org/Mekk/mercurial-path_pattern/latest
+             :align: middle
+        
+Keywords: mercurial hg path alias
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: DFSG approved
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Software Development :: Version Control
