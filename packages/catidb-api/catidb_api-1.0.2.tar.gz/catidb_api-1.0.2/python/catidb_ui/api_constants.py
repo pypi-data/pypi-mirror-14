@@ -1,0 +1,6 @@
+users_route = 'roles/users'
+user_login_key = 'login'
+groups_route = 'roles/groups'
+group_name_key = 'name'
+group_members_key = 'members'
+group_member_route = 'roles/{group}/members'

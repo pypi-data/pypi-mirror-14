@@ -1,0 +1,310 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from __future__ import print_function
+
+import sys
+import os
+from collections import OrderedDict
+import argparse
+
+import requests
+
+from soma.qt_gui.qt_backend import set_qt_backend
+set_qt_backend('PyQt4', 2)
+
+from PyQt4.QtGui import QApplication
+from PyQt4.QtGui import QMainWindow, QDialog, QMessageBox, QDesktopWidget
+from PyQt4.QtGui import QVBoxLayout, QHBoxLayout, QGridLayout, QFormLayout
+from PyQt4.QtGui import QWidget, QPushButton, QFrame, QTabWidget, QLineEdit
+from PyQt4.QtGui import QTreeView, QStandardItemModel, QStandardItem
+from PyQt4.QtGui import QIcon
+from PyQt4.QtCore import pyqtSignal, pyqtWrapperType
+
+from catidb_api.store_passwords import find_login_and_password
+from catidb_api import catidb_url
+from catidb_api import get_catidb
+from catidb_ui.portfolio import PortfolioAcquisitions, \
+    PortfolioAcquisitionsViewer
+from catidb_ui.studies import StudiesPanel, ExpectedAcquisitionsPanel
+from catidb_ui.roles import UsersPanel, GroupsPanel
+from catidb_ui import global_vars
+
+
+class CatiDbUi(QMainWindow):
+    """
+    main window of catidb_ui
+    """
+    def __init__(self):
+        QMainWindow.__init__(self)
+        #no qt variables
+        self.db = db
+        #Widgets
+        central_window = QWidget()
+        self.setCentralWidget(central_window)
+        file_dir = os.path.dirname(__file__)
+        icons_dir = os.path.join(file_dir,
+                                 '../src/catidb_api/bug_fix/share/icons')
+        self.show_menu_button = QPushButton(
+            QIcon(os.path.join(icons_dir, 'show_menu_icon.png')), '')
+        self.hide_menu_button = QPushButton(
+            QIcon(os.path.join(icons_dir, 'hide_menu_icon.png')), '')
+        self.menu_panel = MenuPanel()
+        self.viewer_panel = QTabWidget()
+        #Layout
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(self.show_menu_button, 0)
+        top_layout.addWidget(self.hide_menu_button, 0)
+        top_layout.addStretch(1)
+
+        self.bottom_layout = QHBoxLayout()
+        self.bottom_layout.addWidget(self.menu_panel, 1)
+        self.bottom_layout.addWidget(self.viewer_panel, 5)
+
+        main_layout = QVBoxLayout(central_window)
+        main_layout.addLayout(top_layout, 0)
+        main_layout.addLayout(self.bottom_layout, 1)
+        #Init
+        self.setWindowTitle("Cati DB user inteface")
+        self.setWindowIcon(QIcon(os.path.join(icons_dir, 'catidb_icon.png')))
+        factor = 0.8  # 80% of the screen
+        self._setQDialogSize(factor)
+        self._centerOnScreen(factor)
+        self.show_menu_button.setHidden(True)
+        self.viewer_panel.setMovable(True)
+        self.viewer_panel.setTabsClosable(True)
+
+        #connections
+        self.show_menu_button.clicked.connect(self.showMenu)
+        self.hide_menu_button.clicked.connect(self.hideMenu)
+        self.menu_panel.itemSelected.connect(self.updateTab)
+        self.viewer_panel.tabCloseRequested.connect(self.closeTab)
+
+    def _setQDialogSize(self, factor):
+        """
+        define window size against scren size
+        """
+        resolution = QDesktopWidget().screenGeometry()
+        width = int(float(resolution.width()) * factor)
+        height = int(float(resolution.height()) * factor)
+        self.setGeometry(0, 0, width, height)
+
+    def _centerOnScreen(self, factor):
+        """
+        center window on the screen
+        """
+        resolution = QDesktopWidget().screenGeometry()
+        width = int(float(resolution.width()) * (1 - factor) / 2)
+        height = int(float(resolution.height()) * (1 - factor) / 2)
+        self.move(width, height)
+
+    def showMenu(self):
+        """
+        show menu panel
+        """
+        self.menu_panel.setVisible(True)
+        self.show_menu_button.setHidden(True)
+        self.hide_menu_button.setVisible(True)
+
+    def hideMenu(self):
+        """
+        hide menu panel
+        """
+        self.menu_panel.setHidden(True)
+        self.show_menu_button.setVisible(True)
+        self.hide_menu_button.setHidden(True)
+
+    def updateTab(self, widget_class, name):
+        for tab_index in range(self.viewer_panel.count()):
+            if name == str(self.viewer_panel.tabText(tab_index)):
+                self.viewer_panel.setCurrentIndex(tab_index)
+                return
+        self.viewer_panel.addTab(widget_class(), name)
+        self.viewer_panel.setCurrentIndex(self.viewer_panel.count()-1)
+
+    def closeTab(self, tab_index):
+        self.viewer_panel.widget(tab_index).close()
+        self.viewer_panel.removeTab(tab_index)
+#------------------------------------------------------------------------------
+
+
+class MenuPanel(QFrame):
+    """
+    Menu panel inherits from QFrame
+    """
+    itemSelected = pyqtSignal(pyqtWrapperType, str)
+    menu = OrderedDict([
+        ("Acquisition", {}),
+        ("Acquisition network", {}),
+        ("Portfolio", OrderedDict([
+            ("Acquisitions", OrderedDict([
+                ("View", {}),
+                ("Add new", {})
+                ])
+             )
+            ]),
+         ),
+        ("Studies", OrderedDict([
+            ("Expected acquisitions", {})
+            ])),
+        ("Security", OrderedDict([
+            ("Users", {}),
+            ("Groups", {}),
+            ])
+         )
+    ])
+
+    widgets_menu = {
+        "Portfolio/Acquisitions/Add new": PortfolioAcquisitions,
+        "Portfolio/Acquisitions/View": PortfolioAcquisitionsViewer,
+        "Studies": StudiesPanel,
+        "Studies/Expected acquisitions": ExpectedAcquisitionsPanel,
+        "Security/Users": UsersPanel,
+        "Security/Groups": GroupsPanel,
+    }
+
+    def __init__(self):
+        QFrame.__init__(self)
+        #no qt variables
+        #Widgets
+        self.tree = QTreeView()
+        model = QStandardItemModel()
+        #Layout
+        main_layout = QGridLayout(self)
+        main_layout.addWidget(self.tree, 0, 0)
+        main_layout.setRowStretch(0, 1)
+        #Init
+        self.setFrameStyle(QFrame.Panel)
+        self.tree.setModel(model)
+        self.tree.setHeaderHidden(True)
+        self.createMenu(self.menu, model)
+        #connections
+        self.tree.clicked.connect(self.addWidgetToPanel)
+
+    def createMenu(self, menu_dict, tree_node):
+        for key in menu_dict.keys():
+            standard_item = QStandardItem(key)
+            standard_item.setEditable(False)
+            tree_node.appendRow(standard_item)
+            self.createMenu(menu_dict[key], standard_item)
+
+    def addWidgetToPanel(self, standard_item):
+        item_selected = str(standard_item.data())
+        genealogy_list = self.getGenealogy(standard_item, [item_selected])
+        genealogy = '/'.join(genealogy_list)
+        if genealogy in self.widgets_menu:
+            self.itemSelected.emit(self.widgets_menu[genealogy], genealogy)
+
+    def getGenealogy(self, standard_item, genealogy_list):
+        model_index = standard_item.parent()
+        if model_index.data():
+            node_name = str(model_index.data())
+            genealogy_list.insert(0, node_name)
+            genealogy_list = self.getGenealogy(model_index, genealogy_list)
+        else:
+            pass
+        return genealogy_list
+#------------------------------------------------------------------------------
+
+
+class LoginWindow(QDialog):
+    """
+    dialog window used to log in catidb_ui
+    """
+    def __init__(self, server=catidb_url, username=None, password=None, dev_mode=False):
+        QDialog.__init__(self)
+        #no qt variable
+        if username is None or password is None:
+            try:
+                username, password = find_login_and_password(catidb_url)
+            except EnvironmentError as e:
+                print(e.message, file=sys.stderr)
+                username = ''
+                password = ''
+        #widgets
+        self.username = QLineEdit(username, self)
+        self.password = QLineEdit(password, self)
+        self.password.setEchoMode(QLineEdit.Password)
+        self.server = QLineEdit(server, self)
+        if not dev_mode:
+            self.server.setReadOnly(True)
+        self.login_button = QPushButton('Log in', self)
+        #layout
+        layout = QFormLayout(self)
+        layout.addRow("username : ", self.username)
+        layout.addRow("password : ", self.password)
+        layout.addRow("server : ", self.server)
+        layout.addRow(self.login_button)
+        #connections
+        self.login_button.clicked.connect(self.checkLogin)
+        #init
+        self.setWindowTitle("catidb log in")
+
+    def checkLogin(self):
+        try:
+            db = get_catidb(str(self.username.text()),
+                            str(self.password.text()),
+                            str(self.server.text()))
+            global_vars.catidb = db
+            self.accept()
+        except requests.exceptions.ConnectionError as e:
+            QMessageBox.warning(self, 'Error', 'the server is not reachable')
+        except requests.exceptions.HTTPError as e:
+            QMessageBox.warning(self, 'Error',
+                                'Bad username or password\n%s' % (e.message))
+        except Exception as e:
+            QMessageBox.warning(self, 'Error', e)
+        finally:
+            self.password.clear()
+#==============================================================================
+# temporary script to call this script
+#==============================================================================
+
+
+def callCatidbUi():
+    window = CatiDbUi()
+    window.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    
+    parser = argparse.ArgumentParser(
+        description='Graphical client for catidb')
+
+    parser.add_argument('--dev', dest='dev_mode', action='store_true',
+                        help='Set default connection values for developers')
+    parser.add_argument('--server', dest='server', default=None,
+                        help='Base catidb3 URL (default=%s)' % catidb_url)
+
+    options = parser.parse_args()
+    
+    if options.dev_mode:
+        username = "admin"
+        password = "admin"
+        if not options.server:
+            server = "http://0.0.0.0:6547"
+        else:
+            server = options.server
+    else:
+        username = None
+        password = None
+        if not options.server:
+            server = catidb_url
+        else:
+            server = options.server
+    try:
+        db = get_catidb(server=server, username=username, password=password)
+    except:
+        print("Automatic connection failed", file=sys.stderr)
+        db = None
+
+    if db is not None and not options.dev:
+        global_vars.catidb = db
+        callCatidbUi()
+    else:
+        login_ui = LoginWindow(server=server, username=username, password=password, dev_mode=options.dev_mode)
+        if login_ui.exec_() == QDialog.Accepted:
+            callCatidbUi()
+        else:
+            pass
