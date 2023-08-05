@@ -1,0 +1,96 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+
+from eslib.procs import ElasticsearchReader, FileWriter
+import eslib.prog
+import eslib.time
+import argparse, sys, time
+
+
+def main():
+    help_i  = "Which index to return documents from."
+    help_t  = "Which type of document to return."
+    help_l  = "The maximum number of documents to return. Will by default return all documents."
+    help_s  = "Returns all documents added after SINCE. Specified in the 'ago' format (1d, 3w, 1y, etc)."
+    help_b  = "Returns all documents added after BEFORE. Specified in the 'ago' format (1d, 3w, 1y, etc)."
+    help_tf = "The field that contains the relavant date information. Default 'timefield' to slice on is '_timestamp'."
+    help_fi = "Format for filter is, by example: 'category:politicians,party:democrats'."
+
+    parser = argparse.ArgumentParser(usage="\n  %(prog)s -i index [-t type] [-f field] [-l limit] [more options]")
+    parser._actions[0].help = argparse.SUPPRESS
+    parser.add_argument("-i", "--index"    , help=help_i, required=True)
+    parser.add_argument("-t", "--type"     , help=help_t)
+    parser.add_argument("-l", "--limit"    , help=help_l, default=0, type=int)
+    parser.add_argument("-s", "--since"    , help=help_s)
+    parser.add_argument("-b", "--before"   , help=help_b)
+    parser.add_argument(      "--host"     , help="Elasticsearch host, format 'host:port' or just 'host'.", default=None)
+    parser.add_argument(      "--timefield", help=help_tf, default="_timestamp")
+    parser.add_argument(      "--filter"   , help=help_fi)
+    parser.add_argument("-v", "--verbose"  , action="store_true")
+    #parser.add_argument(      "--debug"    , action="store_true")
+    parser.add_argument(      "--name"     , help="Process name.", default=None)
+
+    if len(sys.argv) == 1:
+        parser.print_usage()
+        sys.exit(0)
+
+    args = parser.parse_args()
+
+    # Time validation conversion and checks
+    before = None
+    since  = None
+    if args.before:
+        try:
+            before = eslib.time.ago2date(args.before)
+        except:
+            print >> sys.stderr, "Illegal 'ago' time format to 'before' argument, '%s'" % args.before
+            sys.exit(-1)
+    if args.since:
+        try:
+            since = eslib.time.ago2date(args.since)
+        except:
+           print >> sys.stderr, "Illegal 'ago' time format to 'since' argument, '%s'" % args.since
+           sys.exit(-1)
+
+    # Parse filter string
+    filters = {}
+    if args.filter:
+        parts = [{part[0]:part[1]} for part in [filter.split(":") for filter in args.filter.split(",")]]
+        for part in parts:
+            filters.update(part)
+
+    # Set up and run this processor
+    r = ElasticsearchReader(
+        name      = args.name or eslib.prog.progname(),
+        hosts     = [args.host] if args.host else [],
+        index     = args.index,
+        doctype   = args.type,
+        limit     = args.limit,
+        filters   = filters,
+        since     = since,
+        before    = before,
+        timefield = args.timefield
+    )
+
+#    if args.debug: r.debuglevel = 0
+
+    verbose_tick_delay = 3.0
+
+    w = FileWriter()
+    w.subscribe(r)
+    r.start()
+    if args.verbose:
+        # Verbose wait loop
+        last_tick = time.time()
+        while r.running:
+            time.sleep(0.1)
+            now = time.time()
+            if (now - last_tick > verbose_tick_delay) or not r.running:
+                print >> sys.stderr, "Read %d/%d" % (r.count, r.total)
+                last_tick = now
+        print >> sys.stderr, "Reading finished; waiting for writer to finish."
+    w.wait()
+
+
+if __name__ == "__main__": main()
