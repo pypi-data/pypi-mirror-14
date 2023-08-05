@@ -1,0 +1,68 @@
+#!/usr/bin/php
+<?php
+
+set_include_path (__DIR__);
+
+require_once ('agent-server.php');
+
+if ($argc < 2) {
+	echo ("missing argument");
+	exit (1);
+}
+
+$tmpdir  = $_SERVER['argv'][1];
+$timeout = $_SERVER['argv'][2];
+
+if (empty ($tmpdir)) {
+	echo ("argument can't be empty\n");
+	exit (2);
+}
+
+if (empty ($timeout)) {
+	echo ("Timeout can't be empty\n");
+	exit (3);
+}
+
+
+$timeout = intval($timeout);
+
+$server = null;
+$socket = null;
+
+$debug = false;
+
+if ($argc > 3 && strtolower($_SERVER['argv'][3]) == 'debug') {
+	$debug = true;
+}
+
+try {
+	if (!file_exists ($tmpdir))
+		mkdir ($tmpdir);
+
+	chdir ($tmpdir);
+
+	if ($tmpdir [strlen($tmpdir) - 1] != DIRECTORY_SEPARATOR)
+		$socket = $tmpdir. DIRECTORY_SEPARATOR . 'server.sock';
+	else
+		$socket = $tmpdir. 'server.sock';
+
+	if (file_exists ($socket))
+		unlink ($socket);
+
+	$server = new AgentServer ($socket, $timeout, $debug);
+
+	echo $socket . "\n";
+
+	$server->Start();
+}
+catch (Exception $e)
+{
+	echo 'Server Exception: ',  $e->getMessage(), "\n";
+	if ($server != null)
+		$server->Cleanup();
+}
+echo "Closing server...\n";
+unset ($server);
+if (!empty ($socket) && file_exists ($socket))
+	unlink ($socket);
+?>
