@@ -1,0 +1,77 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import argparse
+import sys
+import itertools
+from vagalume import lyrics
+
+LINE = '-' * 80
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Command line client for Vagalume.')
+    subparsers = parser.add_subparsers(help='Commands', dest='command')
+
+    lyric_parser = subparsers.add_parser('lyric', help='search a song lyric')
+    lyric_parser.add_argument('artist', action='store', help='artist or band name')
+    lyric_parser.add_argument('song', action='store', help='song name')
+    lyric_parser.add_argument('-t', action='store', help='translate the lyric', 
+        nargs='?', default=None, const='pt-br', metavar='language', 
+        choices=lyrics.LANGUAGES.keys(), dest='translate_to')
+
+    return parser.parse_args()
+
+def run(args):
+    if args.command == 'lyric':
+        run_lyric(args.artist, args.song, args.translate_to)
+    # Useless now, but commands to search artists, 
+    # albums etc. will be implemented soon.
+
+def run_lyric(artist_name, song_name, translate_to=None):
+    result = find_lyric(artist_name, song_name)
+    
+    if translate_to:
+        translation = get_translation(translate_to, result)
+    else:
+        translation = None
+
+    print_lyric(result.artist, result.song, translation)
+
+def find_lyric(artist, song):
+    result = lyrics.find(artist, song)
+
+    if result.is_not_found():
+        sys.exit('Song not found.')
+
+    return result
+
+def get_translation(language, result):
+    return result.get_translation_to(language) or sys.exit('Translation not found.')
+
+def print_lyric(artist, song, translation=None):
+    by = artist.name
+
+    if not translation:
+        title = song.name
+        lyric = song.lyric
+    else:
+        title = '%s [%s]' % (song.name, translation.name)
+
+        song_lines = song.lyric.splitlines()
+        translation_lines = translation.lyric.splitlines()
+
+        column_length = max(len(line) for line in song_lines)
+        song_lines_justified = [line.ljust(column_length) for line in song_lines]
+        lines = itertools.izip_longest(song_lines_justified, translation_lines, fillvalue='')
+
+        lyric = '\n'.join([('%s  %s' % (line[0], line[1])) for line in lines])
+
+    print LINE
+    print title
+    print by
+    print LINE
+    print lyric
+    print LINE
+
+if __name__ == '__main__':
+    run(parse_args())
