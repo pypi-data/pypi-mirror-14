@@ -1,0 +1,246 @@
+new
+
+;; fish python protocall:
+;;
+;; 10 signals a command to run:
+;;    read a string and execuit it as a command
+;;    return zero on success
+;; 11 signals a fish statement to execute and return the result of
+;;    read a string, execuit it as a fish expression and return the value.
+;; 12 signals a fish assignment statement to execute
+;;    read a string, execuit it as a fish expression and return zero
+
+
+def inline
+  array data_in(1)
+  array tmp(1)
+  array data_out(1)
+end
+inline
+
+def execute_command
+  ;; take the string "scommand" write to a file and call the file.
+  oo=out('writing command')
+  status = open('pp_tempfile.dat',1,1)
+  tmp(1) = scommand
+  status = write(tmp,1)
+  status = close
+
+  command
+    call pp_tempfile.dat
+  end_command
+end
+
+def evalate_string
+  ;; wrap the string 'fstring' in a fish function, write to file, call
+  ;; return value is in ret_value
+  status = open('pp_temp.fis',1,1)
+  tmp(1) = 'def tmpfunc'
+  status = write(tmp,1)
+
+  tmp(1) = 'ret_value = ' + fstring
+  status = write(tmp,1)
+
+  tmp(1) = 'end'
+  status = write(tmp,1)
+
+  tmp(1) = 'tmpfunc'
+  status = write(tmp,1)
+
+  status = close
+
+  command
+    call pp_temp.fis
+  end_command
+end
+
+def evalate_string_assign
+  ;; wrap the string 'fstring' in a fish function, write to file, call
+  ;; return value is in ret_value
+  status = open('pp_temp.fis',1,1)
+  tmp(1) = 'def tmpfunc'
+  status = write(tmp,1)
+
+  tmp(1) = fstring
+  status = write(tmp,1)
+
+  tmp(1) = 'end'
+  status = write(tmp,1)
+
+  tmp(1) = 'tmpfunc'
+  status = write(tmp,1)
+
+  status = close
+
+  command
+    call pp_temp.fis
+  end_command
+end
+
+def ball_id_head
+  if ball_head = null
+    ball_id_head = -1
+  else
+    ball_id_head = b_id(ball_head)
+  endif
+end
+
+def ball_id_next
+  if b_next(find_ball(current_id)) = null
+    ball_id_next = -1
+  else
+    ball_id_next = b_id(b_next(find_ball(current_id)))
+  endif
+end
+
+
+def write_ball_positions
+  status = open('bin.fish', 1, 0) ; binary output
+  bp = ball_head
+  loop while bp # null
+    tmp(1) = b_x(bp)
+    status = write(tmp,1)
+    tmp(1) = b_y(bp)
+    status = write(tmp,1)
+    tmp(1) = b_z(bp)
+    status = write(tmp,1)
+    bp = b_next(bp)
+  end_loop
+  status = close
+end
+
+def write_ball_velocities
+  status = open('bin.fish', 1, 0) ; binary output
+  bp = ball_head
+  loop while bp # null
+    tmp(1) = b_xvel(bp)
+    status = write(tmp,1)
+    tmp(1) = b_yvel(bp)
+    status = write(tmp,1)
+    tmp(1) = b_zvel(bp)
+    status = write(tmp,1)
+    bp = b_next(bp)
+  end_loop
+  status = close
+end
+
+def write_ball_radii
+  status = open('bin.fish', 1, 0) ; binary output
+  bp = ball_head
+  loop while bp # null
+    tmp(1) = b_rad(bp)
+    status = write(tmp,1)
+    bp = b_next(bp)
+  end_loop
+  status = close
+end
+
+def map_ret_val
+  ;; input is the fish variable ret_value
+  ;; if this is a string, int, float return it
+  ;; if it is a pointer encode it
+
+  ;; types: 1 int, 2 float, 3 string, 4 pointer, 5 array
+
+  caseof type(ret_value)
+
+  case 1
+    map_ret_value = ret_value
+  case 2
+    map_ret_value = ret_value
+  case 3
+    map_ret_value = ret_value
+  case 4
+    if ret_value = null then
+      map_ret_value = ':null:'
+    else
+      caseof pointer_type(ret_value)
+        ;; pointer types:
+        ;; 21 memory, 100 ball, 101 wall, 102 contact, 103 clump,
+        ;; 104 measuerment sphere, 0 null
+      case 21
+        oo=error('memory pointers are unsuported in python bridge')
+      case 100
+        oo=out('ball type return')
+        map_ret_value = ':ball: ' + string(b_id(ret_value))
+      case 101
+        map_ret_value = ':wall: ' + string(w_id(ret_value))
+      case 102
+        current_contact = ret_value    ; hack because contacts have no id
+        map_ret_value = ':contact: 0'
+      case 103
+        map_ret_value = ':clump: ' + string(cl_id(ret_value))
+      case 104
+        map_ret_value = ':meas: ' + string(m_id(ret_value))
+      endcase
+    endif
+  case 5
+    oo=error('arrays not supported in python bridge')
+  endcase
+end
+
+def open_socket
+  s = sopen(0,0)
+
+  loop i(0, 1000)
+    oo = out('reading')
+    oo = sread(data_in, 1, 0)
+    oo = out('got ' + string (data_in(1)) + ' from python server')
+    data_out(1) = 0
+
+    if type(data_in(1)) = 1 then
+
+      if data_in(1)=-1 then
+        oo=out('breaking out of server loop')
+        exit
+      endif
+
+      if data_in(1)=-2 then
+        oo=out('exiting PFC')
+        command
+          quit
+        end_command
+      endif
+
+      if data_in(1)=10 then
+        oo = sread(tmp, 1,0)
+        scommand = tmp(1)
+        execute_command
+      endif
+
+      if data_in(1)=11 then
+        oo = out('in 11')
+        oo = sread(tmp, 1,0)
+        oo = out('in 11 part 2')
+        fstring = tmp(1)
+        oo = out('got ' + fstring + ' from python server')
+        evalate_string
+        oo=out('eval done')
+        map_ret_val
+        data_out(1) = map_ret_value
+      endif
+
+      if data_in(1)=12 then
+        oo = sread(tmp, 1,0)
+        fstring = tmp(1)
+        oo = out('got ' + fstring + ' from python server')
+        evalate_string_assign
+        data_out(1) = 0
+      endif
+
+    else
+      oo=error("unknown input to PFC/python bridge server")
+    endif
+
+    oo=out('returning ' + string(data_out(1)) + ' to python')
+    oo=swrite(data_out, 1, 0)
+
+  end_loop
+end
+open_socket
+
+def close_socket
+  oo=sclose(1)
+  oo=out('closed socket connection')
+end
+close_socket
