@@ -1,0 +1,239 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Installing Kallithea on Microsoft Internet Information Services (IIS) &mdash; Kallithea 0.3.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.3.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Kallithea 0.3.1 documentation" href="index.html" />
+    <link rel="next" title="Setup" href="setup.html" />
+    <link rel="prev" title="Installation and upgrade on Windows (XP/Vista/Server 2003/Server 2008)" href="installation_win_old.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="setup.html" title="Setup"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="installation_win_old.html" title="Installation and upgrade on Windows (XP/Vista/Server 2003/Server 2008)"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Kallithea 0.3.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="installing-kallithea-on-microsoft-internet-information-services-iis">
+<span id="installation-iis"></span><h1>Installing Kallithea on Microsoft Internet Information Services (IIS)<a class="headerlink" href="#installing-kallithea-on-microsoft-internet-information-services-iis" title="Permalink to this headline">¶</a></h1>
+<p>The following is documented using IIS 7/8 terminology. There should be nothing
+preventing you from applying this on IIS 6 well.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">For the best security, it is strongly recommended to only host the site over
+a secure connection, e.g. using TLS.</p>
+</div>
+<div class="section" id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this headline">¶</a></h2>
+<p>Apart from the normal requirements for Kallithea, it is also necessary to get an
+ISAPI-WSGI bridge module, e.g. isapi-wsgi.</p>
+</div>
+<div class="section" id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
+<p>The following assumes that your Kallithea is at <code class="docutils literal"><span class="pre">c:\inetpub\kallithea</span></code>, and
+will be served from the root of its own website. The changes to serve it in its
+own virtual folder will be noted where appropriate.</p>
+<div class="section" id="application-pool">
+<h3>Application pool<a class="headerlink" href="#application-pool" title="Permalink to this headline">¶</a></h3>
+<p>Make sure that there is a unique application pool for the Kallithea application
+with an identity that has read access to the Kallithea distribution.</p>
+<p>The application pool does not need to be able to run any managed code. If you
+are using a 32-bit Python installation, then you must enable 32-bit program in
+the advanced settings for the application pool; otherwise Python will not be able
+to run on the website and neither will Kallithea.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The application pool can be the same as an existing application pool,
+as long as the Kallithea requirements are met by the existing pool.</p>
+</div>
+</div>
+<div class="section" id="isapi-handler">
+<h3>ISAPI handler<a class="headerlink" href="#isapi-handler" title="Permalink to this headline">¶</a></h3>
+<p>The ISAPI handler can be generated using:</p>
+<div class="highlight-none"><div class="highlight"><pre>paster install-iis my.ini --root=/
+</pre></div>
+</div>
+<p>This will generate a <code class="docutils literal"><span class="pre">dispatch.py</span></code> file in the current directory that contains
+the necessary components to finalize an installation into IIS. Once this file
+has been generated, it is necessary to run the following command due to the way
+that ISAPI-WSGI is made:</p>
+<div class="highlight-none"><div class="highlight"><pre>python2 dispatch.py install
+</pre></div>
+</div>
+<p>This accomplishes two things: generating an ISAPI compliant DLL file,
+<code class="docutils literal"><span class="pre">_dispatch.dll</span></code>, and installing a script map handler into IIS for the
+<code class="docutils literal"><span class="pre">--root</span></code> specified above pointing to <code class="docutils literal"><span class="pre">_dispatch.dll</span></code>.</p>
+<p>The ISAPI handler is registered to all file extensions, so it will automatically
+be the one handling all requests to the specified root. When the website starts
+the ISAPI handler, it will start a thread pool managed wrapper around the paster
+middleware WSGI handler that Kallithea runs within and each HTTP request to the
+site will be processed through this logic henceforth.</p>
+</div>
+<div class="section" id="authentication-with-kallithea-using-iis-authentication-modules">
+<h3>Authentication with Kallithea using IIS authentication modules<a class="headerlink" href="#authentication-with-kallithea-using-iis-authentication-modules" title="Permalink to this headline">¶</a></h3>
+<p>The recommended way to handle authentication with Kallithea using IIS is to let
+IIS handle all the authentication and just pass it to Kallithea.</p>
+<p>To move responsibility into IIS from Kallithea, we need to configure Kallithea
+to let external systems handle authentication and then let Kallithea create the
+user automatically. To do this, access the administration&#8217;s authentication page
+and enable the <code class="docutils literal"><span class="pre">kallithea.lib.auth_modules.auth_container</span></code> plugin. Once it is
+added, enable it with the <code class="docutils literal"><span class="pre">REMOTE_USER</span></code> header and check <em>Clean username</em>.
+Finally, save the changes on this page.</p>
+<p>Switch to the administration&#8217;s permissions page and disable anonymous access,
+otherwise Kallithea will not attempt to use the authenticated user name. By
+default, Kallithea will populate the list of users lazily as they log in. Either
+disable external auth account activation and ensure that you pre-populate the
+user database with an external tool, or set it to <em>Automatic activation of
+external account</em>. Finally, save the changes.</p>
+<p>The last necessary step is to enable the relevant authentication in IIS, e.g.
+Windows authentication.</p>
+</div>
+</div>
+<div class="section" id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permalink to this headline">¶</a></h2>
+<p>Typically, any issues in this setup will either be entirely in IIS or entirely
+in Kallithea (or Kallithea&#8217;s WSGI/paster middleware). Consequently, two
+different options for finding issues exist: IIS&#8217; failed request tracking which
+is great at finding issues until they exist inside Kallithea, at which point the
+ISAPI-WSGI wrapper above uses <code class="docutils literal"><span class="pre">win32traceutil</span></code>, which is part of <code class="docutils literal"><span class="pre">pywin32</span></code>.</p>
+<p>In order to dump output from WSGI using <code class="docutils literal"><span class="pre">win32traceutil</span></code> it is sufficient to
+type the following in a console window:</p>
+<div class="highlight-none"><div class="highlight"><pre>python2 -m win32traceutil
+</pre></div>
+</div>
+<p>and any exceptions occurring in the WSGI layer and below (i.e. in the Kallithea
+application itself) that are uncaught, will be printed here complete with stack
+traces, making it a lot easier to identify issues.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div style="text-align:center;margin:30px 0;">
+  <img src="_static/kallithea-logo.svg" width="200px"/>
+</div>
+<h3>Support Kallithea development</h3>
+<div style="text-align:center">
+<form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+<input type="hidden" name="cmd" value="_s-xclick">
+<input type="hidden" name="hosted_button_id" value="EYXFS3SQPHYUL">
+<input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal &ndash; The safer, easier way to pay online!">
+<img alt="" border="0" src="https://www.paypalobjects.com/en_US/i/scr/pixel.gif" width="1" height="1">
+</form>
+    <div style="padding:5px">
+     <a href="https://flattr.com/thing/922714/Donate-to-Software-Freedom-Conservancy" target="_blank">
+     <img src="http://api.flattr.com/button/flattr-badge-large.png" alt="Flattr this" title="Flattr this" border="0" /></a>
+    </div>
+</div>
+
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Installing Kallithea on Microsoft Internet Information Services (IIS)</a><ul>
+<li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li><a class="reference internal" href="#installation">Installation</a><ul>
+<li><a class="reference internal" href="#application-pool">Application pool</a></li>
+<li><a class="reference internal" href="#isapi-handler">ISAPI handler</a></li>
+<li><a class="reference internal" href="#authentication-with-kallithea-using-iis-authentication-modules">Authentication with Kallithea using IIS authentication modules</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="installation_win_old.html"
+                        title="previous chapter">Installation and upgrade on Windows (XP/Vista/Server 2003/Server 2008)</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="setup.html"
+                        title="next chapter">Setup</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/installation_iis.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="setup.html" title="Setup"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="installation_win_old.html" title="Installation and upgrade on Windows (XP/Vista/Server 2003/Server 2008)"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Kallithea 0.3.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2010-2016 by various authors, licensed as GPLv3..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Optimizing Kallithea performance &mdash; Kallithea 0.3.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.3.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="Kallithea 0.3.1 documentation" href="../index.html" />
+    <link rel="next" title="Backing up Kallithea" href="backup.html" />
+    <link rel="prev" title="Email settings" href="email.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="backup.html" title="Backing up Kallithea"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="email.html" title="Email settings"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Kallithea 0.3.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="optimizing-kallithea-performance">
+<span id="performance"></span><h1>Optimizing Kallithea performance<a class="headerlink" href="#optimizing-kallithea-performance" title="Permalink to this headline">¶</a></h1>
+<p>When serving a large amount of big repositories, Kallithea can start
+performing slower than expected. Because of the demanding nature of handling large
+amounts of data from version control systems, here are some tips on how to get
+the best performance.</p>
+<ul class="simple">
+<li>Kallithea is often I/O bound, and hence a fast disk (SSD/SAN) is
+usually more important than a fast CPU.</li>
+<li>Sluggish loading of the front page can easily be fixed by grouping repositories or by
+increasing cache size (see below). This includes using the lightweight dashboard
+option and <code class="docutils literal"><span class="pre">vcs_full_cache</span></code> setting in .ini file.</li>
+</ul>
+<p>Follow these few steps to improve performance of Kallithea system.</p>
+<ol class="arabic">
+<li><p class="first">Increase cache</p>
+<blockquote>
+<div><p>Tweak beaker cache settings in the ini file. The actual effect of that
+is questionable.</p>
+</div></blockquote>
+</li>
+<li><p class="first">Switch from SQLite to PostgreSQL or MySQL</p>
+<blockquote>
+<div><p>SQLite is a good option when having a small load on the system. But due to
+locking issues with SQLite, it is not recommended to use it for larger
+deployments. Switching to MySQL or PostgreSQL will result in an immediate
+performance increase. A tool like <a class="reference external" href="https://github.com/shazow/sqlalchemygrate">SQLAlchemyGrate</a> can be used for
+migrating to another database platform.</p>
+</div></blockquote>
+</li>
+<li><p class="first">Scale Kallithea horizontally</p>
+<blockquote>
+<div><p>Scaling horizontally can give huge performance benefits when dealing with
+large amounts of traffic (many users, CI servers, etc.). Kallithea can be
+scaled horizontally on one (recommended) or multiple machines. In order
+to scale horizontally you need to do the following:</p>
+<ul class="simple">
+<li>Each instance needs its own .ini file and unique <code class="docutils literal"><span class="pre">instance_id</span></code> set.</li>
+<li>Each instance&#8217;s <code class="docutils literal"><span class="pre">data</span></code> storage needs to be configured to be stored on a
+shared disk storage, preferably together with repositories. This <code class="docutils literal"><span class="pre">data</span></code>
+dir contains template caches, sessions, whoosh index and is used for
+task locking (so it is safe across multiple instances). Set the
+<code class="docutils literal"><span class="pre">cache_dir</span></code>, <code class="docutils literal"><span class="pre">index_dir</span></code>, <code class="docutils literal"><span class="pre">beaker.cache.data_dir</span></code>, <code class="docutils literal"><span class="pre">beaker.cache.lock_dir</span></code>
+variables in each .ini file to a shared location across Kallithea instances</li>
+<li>If celery is used each instance should run a separate Celery instance, but
+the message broker should be common to all of them (e.g.,  one
+shared RabbitMQ server)</li>
+<li>Load balance using round robin or IP hash, recommended is writing LB rules
+that will separate regular user traffic from automated processes like CI
+servers or build bots.</li>
+</ul>
+</div></blockquote>
+</li>
+</ol>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div style="text-align:center;margin:30px 0;">
+  <img src="../_static/kallithea-logo.svg" width="200px"/>
+</div>
+<h3>Support Kallithea development</h3>
+<div style="text-align:center">
+<form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+<input type="hidden" name="cmd" value="_s-xclick">
+<input type="hidden" name="hosted_button_id" value="EYXFS3SQPHYUL">
+<input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal &ndash; The safer, easier way to pay online!">
+<img alt="" border="0" src="https://www.paypalobjects.com/en_US/i/scr/pixel.gif" width="1" height="1">
+</form>
+    <div style="padding:5px">
+     <a href="https://flattr.com/thing/922714/Donate-to-Software-Freedom-Conservancy" target="_blank">
+     <img src="http://api.flattr.com/button/flattr-badge-large.png" alt="Flattr this" title="Flattr this" border="0" /></a>
+    </div>
+</div>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="email.html"
+                        title="previous chapter">Email settings</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="backup.html"
+                        title="next chapter">Backing up Kallithea</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/usage/performance.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="backup.html" title="Backing up Kallithea"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="email.html" title="Email settings"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">Kallithea 0.3.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2010-2016 by various authors, licensed as GPLv3..
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>
