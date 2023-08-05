@@ -1,0 +1,175 @@
+#!/usr/bin/env python
+import argparse
+from dynomite import *
+from dynomite.dynamodb import *
+from multiprocessing import Process, Queue
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--backup',
+                        dest='action',
+                        action='store_const',
+                        const='backup',
+                        help='Backup tables to S3')
+    parser.add_argument('--restore',
+                        dest='action',
+                        action='store_const',
+                        const='restore',
+                        help='Restore tables from S3')
+    parser.add_argument('--source_region',
+                        help='The region where you want to back data up from')
+    parser.add_argument('--backup_bucket',
+                        help='The bucket to store backup data')
+    parser.add_argument('--stack_definition',
+                        help='The stack definition')
+    parser.add_argument('--access_key_id',
+                        help='AWS access key id')
+    parser.add_argument('--secret_access_key',
+                        help='AWS secret access key')
+    parser.add_argument('--restore_access_key_id',
+                        help='AWS access key id account '
+                             'where restore is happening')
+    parser.add_argument('--restore_secret_access_key',
+                        help='AWS secret access account where '
+                             'restore is happening')
+    parser.add_argument('--region',
+                        help='Region to connect')
+    parser.add_argument('--read_pt_increase',
+                        help='The percentage to increase read PT')
+    parser.add_argument('--write_pt_increase',
+                        help='The percentage to increase write PT')
+    parser.add_argument('--date',
+                        help='The date of the backup to restore')
+    parser.add_argument('--workers',
+                        help='The amount of workers to process '
+                             'tables simulatenously')
+    parser.add_argument('--exclude_tables',
+                        help='Tables to exclude')
+    parser.add_argument('--debug',
+                        dest='debug',
+                        action='store_const',
+                        const='debug',
+                        help='Runs in debug mode')
+
+    return parser.parse_args()
+
+
+def main(args):
+    date = None
+    logger = set_logging(level=args.debug)
+    tables = get_tables_from_stack_definition(args.stack_definition,
+                                              args.exclude_tables)
+
+    if args.date:
+        date = args.date
+
+    if args.action == 'restore':
+        logger.info('Restoring dynamo tables from S3')
+        if args.date:
+            date = args.date
+        else:
+            logger.error('Must provide date when performing a restore')
+            sys.exit()
+
+        logger.debug('Connecting to dynamo in %s' % (args.region))
+        dynamodb_conn = dynamodb_connect_to_region(
+            args.region,
+            args.restore_access_key_id,
+            args.restore_secret_access_key
+        )
+        logger.debug('Connecting to data pipeline in %s' % (args.region))
+        dp_conn = dp_connect_to_region(
+            args.region,
+            args.restore_access_key_id,
+            args.restore_secret_access_key
+        )
+        logger.debug('Connecting to S3 in %s' % (args.region))
+        s3_conn_dest = s3_connect_to_region(
+            args.region,
+            args.restore_access_key_id,
+            args.restore_secret_access_key
+        )
+        s3_conn_src = s3_connect_to_region(
+            args.region,
+            args.access_key_id,
+            args.secret_access_key
+        )
+        logger.debug('Connecting to IAM')
+        iam_conn = boto.iam.connection.IAMConnection(
+            aws_access_key_id=args.restore_access_key_id,
+            aws_secret_access_key=args.restore_secret_access_key
+        )
+        set_permissions_for_user(args.backup_bucket,
+                                 iam_conn,
+                                 s3_conn_src,
+                                 args.debug)
+        set_iam_roles(iam_conn, args.debug)
+    elif args.action == 'backup':
+        logger.info('Backup dynamo tables to S3')
+        dynamodb_conn = dynamodb_connect_to_region(
+            args.region,
+            args.access_key_id,
+            args.secret_access_key
+        )
+        dp_conn = dp_connect_to_region(
+            args.region,
+            args.access_key_id,
+            args.secret_access_key
+        )
+        s3_conn_dest = s3_connect_to_region(
+            args.region,
+            args.access_key_id,
+            args.secret_access_key
+        )
+        s3_conn_src = s3_connect_to_region(
+            args.region,
+            args.access_key_id,
+            args.secret_access_key
+        )
+        iam_conn = boto.iam.connection.IAMConnection(
+            aws_access_key_id=args.access_key_id,
+            aws_secret_access_key=args.secret_access_key
+        )
+
+        set_iam_roles(iam_conn, args.debug)
+
+    work_queue = Queue()
+    done_queue = Queue()
+    processes = []
+
+    for table in tables:
+        work_queue.put((dp_conn,
+                        dynamodb_conn,
+                        s3_conn_dest,
+                        s3_conn_src,
+                        args.region,
+                        table,
+                        args.action,
+                        args.read_pt_increase,
+                        args.write_pt_increase,
+                        date,
+                        args.backup_bucket,
+                        args.debug))
+
+    for w in xrange(int(args.workers)):
+        p = Process(target=worker,
+                    args=(work_queue, done_queue))
+        p.start()
+        processes.append(p)
+        work_queue.put('STOP')
+
+    for p in processes:
+        p.join()
+
+    done_queue.put('STOP')
+
+    for status in iter(done_queue.get, 'STOP'):
+        pass
+
+
+if __name__ == '__main__':
+    args = get_args()
+
+    main(args)
