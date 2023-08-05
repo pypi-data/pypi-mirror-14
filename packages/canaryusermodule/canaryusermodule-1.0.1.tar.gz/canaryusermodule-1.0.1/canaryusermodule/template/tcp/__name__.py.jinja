@@ -1,0 +1,55 @@
+INCIDENT_NAME = "{{ pkgname }} Incident"
+VERSION = "1.0"
+MODULE_DESCRIPTION = "{{ description }}"
+AUTHOR = "User"
+AUTHOR_EMAIL = "user@example.com"
+
+from opencanary.modules import CanaryService
+from twisted.internet.protocol import Protocol
+from twisted.internet.protocol import Factory
+from twisted.application import internet
+
+class {{ pkgname }}Protocol(Protocol):
+    """
+     Example (Fictional) Protocol
+
+    $ nc localhost 8007
+    Welcome!
+    password: wrong0
+    password: wrong1
+    password: wrong2
+    Bad passwords
+    $
+    """
+
+    def __init__(self):
+        self.prompts = 0
+
+    def connectionMade(self):
+        self.transport.write("Welcome!\r\npassword: ")
+        self.prompts += 1
+
+    def dataReceived(self, data):
+        """
+        Careful, data recieved here is unbuffered. See example1
+        for how this can be better handled.
+        """
+        password = data.strip("\r\n")
+        logdata = {"DESCRIPTION": INCIDENT_NAME, "PASSWORD" : password}
+        self.log(logdata)
+
+        if self.prompts < 3:
+            self.transport.write("\r\npassword: ")
+            self.prompts += 1
+        else:
+            self.transport.write("\r\nBad passwords\r\n")
+            self.transport.loseConnection()
+
+class {{ pkgname }}(Factory, CanaryService):
+    NAME = '{{ name }}'
+    protocol = {{ pkgname }}Protocol
+
+    def __init__(self, config=None, logger=None):
+        CanaryService.__init__(self, config=config, logger=logger)
+        self.port = config.getVal('{{ name }}.port', 8007)
+        self.logtype = logger.LOG_USER_2
