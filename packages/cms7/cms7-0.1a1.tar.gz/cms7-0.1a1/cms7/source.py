@@ -1,0 +1,49 @@
+from markdown import Markdown
+from markdown.extensions.meta import MetaExtension, MetaPreprocessor
+from markdown.extensions.wikilinks import WikiLinkExtension
+
+from jinja2 import Markup
+
+from .mdext import CMS7Extension #, IngressExtension
+
+import logging
+logger = logging.getLogger(__name__)
+
+def load_source(path):
+    return MarkdownSource(path)
+
+class Namespace:
+    pass
+
+class MarkdownSource:
+    def __init__(self, source):
+        self.source = source
+        self.text = ''
+        with self.open_source() as f:
+            try:
+                self.text = f.read()
+            except UnicodeDecodeError:
+                logger.error('Invalid unicode in %s', self.source, exc_info=True)
+            except:
+                logger.error('Error loading %s', self.source, exc_info=True)
+
+        self.meta = self.read_metadata()
+
+    def read_metadata(self):
+        ns = Namespace()
+        mp = MetaPreprocessor(ns)
+        mp.run(self.text.split('\n'))
+        return ns.Meta
+
+    def render(self, gs):
+        md = Markdown(extensions=[
+            MetaExtension(), WikiLinkExtension(), CMS7Extension(gs)],
+            output_format='html5')
+        return Markup(md.convert(self.text))
+
+    def ingress(self, gs, hint=2):
+        md = Markdown(extensions=[
+            MetaExtension(), CMS7Extension(gs), IngressExtension(hint)])
+
+    def open_source(self):
+        return self.source.open('r')
