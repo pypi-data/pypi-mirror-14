@@ -1,0 +1,111 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h1>Summary</h1>
+<table class='ui basic table'>
+  <thead>
+    <tr>
+      <th>Hostname</th>
+      <th>Configuration version</th>
+      <th>Start time</th>
+      <th>End time</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="{{url_for('node', env=current_env, node_name=report.node)}}">{{ report.node }}</a></td>
+      <td>
+        {{report.version}}
+      </td>
+      <td rel="utctimestamp">
+        {{report.start}}
+      </td>
+      <td rel="utctimestamp">
+        {{report.end}}
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h1>Events</h1>
+<table class='ui basic table compact'>
+  <thead>
+    <tr>
+      <th>Resource</th>
+      <th>Status</th>
+      <th>Changed From</th>
+      <th>Changed To</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for event in events %}
+    {% if not event.failed and event.item['old'] != event.item['new'] %}
+      <tr id='event-{{loop.index}}' class='ui line changed'>
+    {% elif event.failed %}
+      <tr id='event-{{loop.index}}' class='ui line failed'>
+    {% else %}
+      <tr id='event-{{loop.index}}' class='ui line {{event.status}}'>
+    {% endif %}
+      <td>{{event.item['type']}}[{{event.item['title']}}]</td>
+      <td>{{event.status}}</td>
+      <td>{{event.item['old']}}</td>
+      <td>{{event.item['new']}}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h1>Logs</h1>
+<table class="ui basic table compact">
+  <thead>
+    <tr>
+      <th>Timestamp</th>
+      <th>Source</th>
+      <th>Tags</th>
+      <th>Message</th>
+      <th>Location</th>
+    <tr>
+  </thead>
+  <tbody>
+    {% for log in logs %}
+      {% if log.level == 'info' or log.level == 'notice' %}
+        <tr class='positive'>
+      {% elif log.level == 'warning' %}
+        <tr class='warning'>
+      {% else %}
+        <tr class='error'>
+      {% endif %}
+        <td rel="utctimestamp">{{log.time}}</td>
+        <td>{{log.source}}</td>
+        <td>{{log.tags|join(', ')}}</td>
+        <td>{{log.message}}</td>
+        {% if log.file != None and log.line != None %}
+          <td>{{log.file}}:{{log.line}}</td>
+        {% else %}
+          <td></td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h1>Metrics</h1>
+<table class="ui basic table compact">
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Name</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for metric in metrics %}
+      <tr>
+        <td>{{metric.category}}</td>
+        <td>{{metric.name}}</td>
+        <td>{{metric.value|round(2)}}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock content %}
