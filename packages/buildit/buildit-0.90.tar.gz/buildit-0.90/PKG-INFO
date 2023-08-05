@@ -1,0 +1,336 @@
+Metadata-Version: 1.1
+Name: buildit
+Version: 0.90
+Summary: A simple build tool for small projects.
+Home-page: https://bitbucket.org/mixmastamyk/buildit
+Author: Mike Miller
+Author-email: mixmastamyk@bitbucket.org
+License: GPLv3+
+Download-URL: https://bitbucket.org/mixmastamyk/buildit/get/default.tar.gz
+Description: **tl;dr**
+        
+            A simple build tool for small projects, usable by mortals.
+        
+        BuildIt
+        ==========
+        
+        What?
+        ------
+        
+        BuildIt is a simple build tool and ``make`` replacement,
+        meaning it builds files based on other files,
+        given your instructions.
+        When original source files are modified,
+        ``bld`` will recreate the final products dependent on them.
+        Conversely, if nothing has been changed, nothing is done.
+        This type of utility is important to avoid unnecesary work
+        (and the resulting wasted time)
+        that would occur had one used a "dumb" script or batch file to
+        automate a lengthy operation with intermediate steps.
+        
+        Examples of this sort of thing would be the well-known *compile* ▸ *link* steps of
+        programs,
+        or the *lint* ▸ *minify* ▸ *compress* deployment steps of Javascript and CSS files.
+        BuildIt is focused on these simple use cases.
+        
+        Who?
+        ------
+        
+        BuildIt attempts to be usable for humans, i.e., newcomers, IT folk, and
+        designers, while still useful enough for developers creating small
+        projects.
+        Not only today, but obvious nine months from now.
+        
+        
+        Why?
+        ------
+        
+        …not use make?
+        Well, good question.
+        I've used it over the years,
+        but `like many <http://www.well-typed.com/blog/13>`_
+        never `cared for it <http://freecode.com/articles/what-is-wrong-with-make>`_
+        much due to its strange ways.
+        It feels arcane when you haven't `used it recently
+        <https://software.agendaless.com/Members/chrism/software/buildit/README.txt>`_.
+        It's tedious to have to consult the manual every time you use a tool,
+        because things aren't obvious.
+        ``make`` gives off a faint whiff of masochism and '80's resource constraints.
+        ;)
+        
+        Likewise I looked into ``scons`` and ``cmake``,
+        but they are complex for simple use cases
+        and require reading a book to get started
+        (if you want to understand rather than cut & paste).
+        Also tried Eckel's
+        `builder.py <http://www.artima.com/weblogs/viewpost.jsp?thread=241209>`_
+        and found it nifty.
+        Python though, while great for logic and string manipulation,
+        is clumsy at running commands...
+        which is most of what I need for small projects.
+        Interactive shells like bash are optimized for this kind of thing however.
+        
+        Even though these programs are quite robust,
+        they unfortunately tend to make the easy things difficult.
+        Preferably, I've been looking for something like the following.
+        
+        
+        Design Goals
+        ~~~~~~~~~~~~~
+        
+        - Easy to use & *remember later*, with
+        
+          - A simple file format already known, and
+          - A choice of scripting languages, already known,
+          - That works like ``make`` when it makes sense.
+        
+        - Where a few complex operations are possible,
+          but defers early to more sophisticated tools.
+          Doesn't need to solve every problem.
+        - With few-to-no dependencies.
+        - With good feedback as to what decisions were made during the build.
+        
+        To detect changes BuildIt currently compares timestamps of files,
+        which is sufficient on filesystems used in a local context.
+        This includes remote logins via ssh.
+        
+        
+        Install
+        ---------
+        
+        If necessary, first install pip::
+        
+            sudo apt-get install python-pip  # s/apt-get/yum/
+        
+        then::
+        
+            sudo pip install buildit
+        
+        If using a Python version below 2.7, this will install ``ordereddict`` as well.
+        Under 3.0, it will install ``ushlex``.
+        (This packagage does not currently support Python 3.)
+        
+        Linux-only for now.
+        It should work on Windows/OSX in theory,
+        though I have not yet tried it.
+        
+        
+        Use
+        ------
+        
+        File format
+        ~~~~~~~~~~~~~
+        
+        BuildIt uses the ini file format, encoded in UTF-8.
+        Despite its limitations,
+        ini is a perfect fit for describing items with attributes
+        that need to be read and written by humans.
+        The format is an extended version
+        (as implemented by Python's
+        `ConfigParser <http://docs.python.org/2/library/configparser.html>`_)
+        which adds variables.
+        One **notable change** is that it has been modified to use simpler
+        ``%name`` (or ``pre%{name}post``) shell-style variable expansion
+        rather than the more cumbersome ``%(printf)s`` style.
+        
+        As seen below,
+        a generic ``.ini`` file is a list of section names in square brackets,
+        each of which has a mapping of names to values (aka attributes) following.
+        Comments start with a ``#`` or ``;`` character at the beginning of a line::
+        
+            # Below, a section with two attributes,
+            # the second using variable expansion:
+        
+            [Section1]
+            attribute_one = 1
+            attribute_two = attribute_one is equal to %attribute_one
+            attribute_three = To continue to additional lines,
+                --> make sure to indent them like this.
+        
+        Note ``attribute_two`` above.
+        The text ``%attribute_one`` will be replaced with its value at load-time.
+        These values are substituted first before anything else happens, and
+        unknown variables will raise an Error.
+        
+        
+        Buildfiles
+        ~~~~~~~~~~~~~~~
+        
+        Therefore, an ini-file with build rules suitable for BuildIt
+        may be called a buildfile or build script.
+        A simple one to concatenate and compress javascript might look like the next
+        example.
+        Each section name is a "target file" that we want to build and underneath it
+        the various attributes that together make up the *rule* to create it.
+        
+        An exception is the optional ``[vars]`` section which holds global variables
+        that are available to all rules.
+        It must be the first section::
+        
+            [vars]                      │ Comments:
+            basejs = foo.js             │ Global variable(s).
+                                        │
+            [foo.js.gz]                 │ Target: this file needs to be built,
+            deps = %basejs foo2.js      │ Deps:   using these input files,
+            exec = gzip -c %deps > %me  │ Exec:   in this manner.
+                                        │
+            [clean]                     │ A dummy target.
+            exec = rm -f foo.js.gz      │
+        
+        Note the "dummy" target at the bottom, named clean.
+        It has no "deps," aka dependencies,
+        and always runs when passed as an argument at the command-line,
+        just like make.
+        
+        
+        Attributes
+        ~~~~~~~~~~~~
+        
+        Several attribute names are reserved:
+        
+        * ``me`` - Not set by the user.
+          The output file, otherwise known as the target-file and section name.
+          Is available for use in attributes such as exec.
+        * ``deps`` - The list of files the target is dependent on,
+          separated by whitespace.
+          Names with spaces must therefore be quoted.
+        * ``extends`` - Inherits the attributes from another target,
+          similar to a base-class, AKA
+          `Don't Repeat Yourself <http://en.wikipedia.org/wiki/Don%27t_Repeat_Yourself>`_.
+          If you find yourself cutting and pasting,
+          stop and use ``extends = TARGET`` instead.
+        * ``workdir`` - Selects a different working directory for the current target.
+        
+        
+        Execution
+        ___________
+        
+        There must be at least one (``exec`` or ``deps``) attribute in every rule.
+        The following attribute names are also reserved:
+        
+        * ``preexec`` - Setup script
+        * ``exec``  - Main script
+        * ``postexec`` - Exit stage left
+        
+        The execution attributes of the rule are special since they can take a suffix
+        containing the name of the desired shell,
+        (which by default is ``sh``).
+        To choose a different shell (for example bash),
+        one would set the following attribute instead::
+        
+            exec.bash = line1...
+                line2... etc.
+        
+        These may be whatever shell you'd like, just add its name to the end.
+        There are shortcuts for a few languages (py, pl, rb, js(node)), for example::
+        
+            exec.py = print "hello world!"
+        
+        If BuildIt decides a target needs to be built,
+        its execution attributes will be run.
+        
+        
+        Notes
+        ___________
+        
+        * Use of ``%deps`` and ``%me`` variables are very important since they make it
+          more difficult to author rules with missing, untracked, or obsolete
+          dependencies.
+        * Use of ``%me`` also helps prevent errors from corrupting a previously
+          successful target file.
+          When using ``%me``, output files will be written with a ``.tmp`` extension first,
+          and not moved over to the final filename until the script has completed without
+          error (returned an exit-status code of ``0``).
+        * To prevent the file parser from attempting to expand variables meant to be
+          passed to the shell,
+          double any percent characters to escape them::
+        
+                exec.bash = stat -c %%y foo.txt
+        
+          The percent expansion was chosen on purpose,
+          as it will rarely conflict with shell code.
+        
+        Generic Rules
+        ~~~~~~~~~~~~~~~
+        
+        If you have many files, creating a rule for every one gets tedious quickly.
+        This is when generic rules come in handy.
+        The following demonstrates how to build every dependency with a filename
+        ending in ``.o`` without specifying them individually::
+        
+            [*.o]
+            deps = *.c
+            exec = %CC %CFLAGS %deps -o %me
+        
+        See below for full examples.
+        
+        
+        Running It
+        -----------
+        
+        ::
+        
+            $ bld -h
+            $ bld [target]
+            $ bld
+        
+        Help (``-h``) prints usage information, options, as well as available targets.
+        Running ``bld`` with no arguments will run the first target section in the
+        file ``./buildit.ini`` like make.
+        Therefore it's a good place to put an "all" target.
+        
+        Example Run
+        ~~~~~~~~~~~~~
+        
+        ::
+        
+            $ bld
+            ‣ foo.js.gz
+                ❗ foo.js
+                ❗ foo2.js
+                ⚙ exec:
+                    + gzip -c foo.js foo2.js
+                ✔ exit: 0
+        
+        Good.  Once more for good measure::
+        
+            $ bld
+            ✔ foo.js.gz
+                ✔ foo.js
+                ✔ foo2.js
+        
+        
+        Return Codes
+        ~~~~~~~~~~~~~
+        
+        * ``0`` - All clear
+        * ``N`` - Command execution errors
+        * ``NN`` - Error codes from BuildIt, see ``cat /usr/include/sysexits.h``
+        
+        License
+        -----------
+        
+        BuildIt is licensed under the
+        `GPL, version 3+ <http://www.gnu.org/licenses/gpl.html>`_.
+        
+        
+        Next...
+        -----------
+        
+        * Full examples can be found under the
+          `examples folder <https://bitbucket.org/mixmastamyk/buildit/src/default/examples/>`_.
+        
+        * BuildIt is designed to be complementary to the deployment and
+          configuration management tool `pave <https://pypi.python.org/pypi/pave/>`_.
+        
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.6
+Classifier: Topic :: Software Development :: Build Tools
+Requires: ushlex
