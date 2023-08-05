@@ -1,0 +1,156 @@
+#!/usr/bin/python
+
+# ###############################
+#
+# timecalc 0.7
+# Code made by bgo@vedur.is
+# Iceland Met Office
+# 2015
+#
+# ###############################
+
+"""
+
+In this program are the following functions in order:
+
+datestr(string):
+main():
+
+"""
+
+
+import gtimes.timefunc as timefunc
+import gtimes.gpstime as gpstime
+import argparse, datetime
+
+#------------------------------------------------------------
+
+def datestr(string):
+    """
+    Formating check for -d option
+    """
+    if type(string) != datetime.datetime: # more to contitions to come
+        msg = "%r is not correctly formated" % string
+        raise argparse.ArgumentTypeError(msg)
+    return string
+
+def main():
+    """
+    command line script for
+    general time and date calculations. 
+    can handle obscure GPS time formating.
+
+    run: timecalc -h for help
+    """
+
+    # date to use defaults to today ----
+    dstr="%Y-%m-%d" # Default input string
+    outpstr="%a, %d. %b %Y" # Default output string
+
+    #sday=datetime.date.today().strftime(dstr)
+    sday=datetime.datetime.utcnow()
+
+    dD_parser = argparse.ArgumentParser(description="Time conversion program",add_help=False)
+    dD_parser.add_argument("-D", default=0, nargs='?', const=1, type=int, help="Number of days to shift the given day positive subracts, negativ adds" )
+    dD_parser.add_argument("-d", default=sday, 
+            help="Input date. The default format is ""%%Y-%%m-%%m""." + 
+                 " The format can be modifed through the -f flag")
+    dD_parser.add_argument("-f", default=dstr, type=str, 
+            help="Format of the string passed to -d. If absent, -d defaults to ""%%Y-%%m-%%-%%m""."   +
+                 " Special formating: ""yearf"" -> fractional year ""w-dow"" -> GPS Week-Day of Week." +
+                 " See datetime documentation for formating")
+
+    # parse what has -d, -f and -D to use as input for other options
+    args, remaining_argv = dD_parser.parse_known_args()
+    dstr=args.f
+
+    # dealing with the input format.
+    day = timefunc.toDatetime(args.d,args.f)
+
+    day=day-datetime.timedelta(args.D) # applying the Day offset
+    #----------------------------------------
+    
+    parser= argparse.ArgumentParser(parents=[dD_parser],description=__doc__,
+            formatter_class=argparse.RawDescriptionHelpFormatter,)
+
+    # Year flag -------------------
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-o", type=str,  
+            help=" Output format for general formatting defaults to ""%%a, %%d. %%b %%Y""." +
+                 " See datetime documentation for the formating." +
+                 " for special formatting see other arguments")
+    group.add_argument("-p",  type=str,  
+            help="Second input date, will calculate the number of days between the input date from -d (or today) and the date given with -p." + 
+                 "The default format is ""%%Y-%%m-%%m""."  + 
+                 " The format can be modifed through the -f flag")
+
+    group.add_argument("-y",  type=int, nargs='?', const=timefunc.shlyear(yyyy=day.year,change=True ), help=
+            "Returns the Year in ""YYYY"" form. Special case: If the year is passed directly to -y it is converted to two/four digit form," +
+            "depending on the input.")
+    group.add_argument("-yy", action="store_true", help="Returns the Year from -d in two digit form (""YY""). " +
+            "Current year is returned in two digit form if -d is omitted")
+    group.add_argument("-yf", action="store_const", const=day, help="Return date from -d as fractional year. " + 
+            "Current date is returned if -d omitted")
+    # flags for different output
+    group.add_argument("-t",  action="store_const", const=day, help=
+            "Return a space seperated string of " + 
+            " (year, month, day of month, day of year, fractional year, GPS week, day of week sunday = 0 ... 6 = saturday) -> " +
+            "(YYYY MM DD DOY YYYY.ddd WWWW DOW) ")
+    group.add_argument("-j", action="store_const", const=day, help="Return the day of year")
+    group.add_argument("-ny", action="store_const", const=day, help="Return the number of days in thye year")
+    group.add_argument("-w", "--week",  action="store_const", const=day, help="Return GPS week")
+    group.add_argument("-u", "--dayofw",  action="store_const", const=day, help="Return day of GPS week sunday = 0 ... 6 = saturday ")
+    group.add_argument("-wd","--weekday", action="store_const", const=day, help="Return GPS week and day of GPS week sunday = 0 ... 6 = saturday ")
+    group.add_argument("-i","--datet", action="store_const", const=day, help="Returns the calendar date and time")
+    args = parser.parse_args(args=remaining_argv)
+    #------------------------------
+
+
+    # printing out stuff depending on args
+    if args.y != None:
+        print timefunc.shlyear(yyyy=args.y,change=True)
+
+    elif args.ny:
+        print timefunc.DaysinYear(day.year) 
+
+    elif args.yy:
+        print timefunc.shlyear(yyyy=day.year,change=True) 
+
+    elif args.yf:
+        print  timefunc.currYearfDate(refday=day)
+
+    elif args.j:
+        print timefunc.currDate(refday=args.j,string="%j")
+
+    elif args.week:
+        print timefunc.gpsWeekDay(refday=args.week)[0]
+
+    elif args.dayofw:
+        print timefunc.gpsWeekDay(refday=args.dayofw)[1]
+
+    elif args.weekday:
+        print "%d %03d" % timefunc.gpsWeekDay(refday=args.weekday)
+
+    elif args.datet:
+        print day.isoformat() 
+
+    elif args.t:
+        print "%d %02d %02d %03d %4.5f %04d %d %d %02d %s" % timefunc.dateTuple(refday=args.t) 
+
+    elif args.o:
+        print day.strftime(args.o)
+
+    elif args.p:
+        # dealing with the input format.
+        day1 = timefunc.toDatetime(args.p,dstr)
+        if dstr == "yearf":
+            print (day - day1)
+        else:
+            print (day - day1).days
+
+    else:
+        print day.strftime(outpstr)
+
+
+if __name__=="__main__":
+    main()
