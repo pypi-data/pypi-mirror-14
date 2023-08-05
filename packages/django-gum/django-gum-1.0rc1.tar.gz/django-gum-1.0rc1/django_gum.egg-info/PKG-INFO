@@ -1,0 +1,99 @@
+Metadata-Version: 1.1
+Name: django-gum
+Version: 1.0rc1
+Summary: Elasticsearch client with Django support.
+Home-page: https://github.com/marcosgabarda/django-gum
+Author: Marcos Gabarda
+Author-email: hey@marcosgabarda.com
+License: UNKNOWN
+Description: ==========
+        Django Gum
+        ==========
+        
+        Gum is a Django app for integrate Elasticsearch 1.x with Django.
+        
+        Quick start
+        -----------
+        
+        **1** Install using pip::
+        
+            pip install django-gum
+        
+        **2** Add "gum" to your INSTALLED_APPS settings like this::
+        
+            INSTALLED_APPS += ('gum',)
+        
+        **3** Add Elasticsearch configuration to your settings like this::
+        
+            GUM_ELASTICSEARCH_URLS = ["http://127.0.0.1:9200/"]
+            GUM_ELASTICSEARCH_INDEX = ".gum-tests"
+        
+        List of available configuration variables:
+        
+        * ``GUM_DEBUG`` (boolean)
+        * ``GUM_USE_CELERY`` (boolean)
+        * ``GUM_ELASTICSEARCH_URLS`` (list)
+        * ``GUM_ELASTICSEARCH_INDEX`` (string)
+        
+        
+        **4** Create an index.py in your app, with a content like this::
+        
+            from gum.indexer import MappingType, indexer
+        
+            class PostMappingType(MappingType):
+        
+                def document(self, instance):
+                    tags_text = " ".join(map(lambda x: x.label, instance.tags.all()))
+                    return {
+                        "title": instance.title,
+                        "content": instance.content,
+                        "text": "{} {} {}".format(instance.title, instance.content, tags_text)
+                    }
+        
+                def mapping(self):
+                    return {
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "store": True,
+                            },
+                            "content": {
+                                "type": "string",
+                                "store": True,
+                            },
+                            "text": {
+                                "type": "string",
+                                "store": True,
+                            }
+                        }
+                    }
+        
+            indexer.register(Post, PostMappingType)
+        
+        **5** Update Elasticsearch index::
+        
+            ./manage.py gum --update-index
+        
+        You can specify the models you want to index::
+        
+            ./manage.py gum --update-index blog.Post
+        
+        Searching
+        ---------
+        
+        You can perform Elasticsearch searches (accessing ``search`` method) using ``elasticseaech`` model
+        attribute::
+        
+            response = Post.elasticsearch.search(body={
+                "query": {
+                    "match_all": {}
+                }
+            })
+        
+Platform: UNKNOWN
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
