@@ -1,0 +1,46 @@
+pylastfm
+========
+
+Lasty Last.FM API bindings
+
+.. image:: https://travis-ci.org/thesquelched/pylastfm.svg?branch=master
+    :target: https://travis-ci.org/thesquelched/pylastfm
+
+`GitHub Project <https://github.com/thesquelched/pylastfm>`_
+
+Changelog
+---------
+0.2.0
+-----
+- Removed following methods due to LastFM API changes:
+    - `track.ban`
+    - `track.get_buy_links`
+    - `track.get_fingerprint_metadata`
+    - `track.get_shouts`
+    - `track.get_top_fans`
+    - `track.share`
+    - `track.unban`
+    - `user.get_banned_tracks`
+    - `user.get_events`
+    - `user.get_neighbors`
+    - `user.get_neighbours`
+    - `user.get_new_releases`
+    - `user.get_past_events`
+    - `user.get_playlists`
+    - `user.get_recent_stations`
+    - `user.get_recommended_artists`
+    - `user.get_recommended_events`
+    - `user.get_shouts`
+    - `user.shout`
+- Add album API resource
+- Add chart API resource
+- Add artist API resource
+- Add geo API resource
+- Add library API resource
+- Add tag API resource
+- User resource now parses responses instead of returning raw data
+
+0.1.1
+-----
+- Initial release
+
