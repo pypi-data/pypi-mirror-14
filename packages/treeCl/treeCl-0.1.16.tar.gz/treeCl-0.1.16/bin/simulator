@@ -1,0 +1,85 @@
+#!/usr/bin/env python
+
+# treeCl
+from treeCl.simulator import Simulator
+from treeCl.utils import fileIO
+
+
+if __name__ == '__main__':
+
+    within_variation_choices = ['autocorrelated', 'uncorrelated', 'scaled']
+    import argparse
+
+    prog = fileIO.basename(__file__)
+    parser = argparse.ArgumentParser(description='{0}'.format(prog))
+    parser.add_argument('classes', type=int, nargs='+')
+    parser.add_argument('-p', '--permutations', type=int, nargs='+')
+    parser.add_argument('-s', '--species', type=int, default=12)
+    parser.add_argument('-d', '--datatype', type=str, default='protein')
+    parser.add_argument('-g', '--tree_generator', type=str, default='yule')
+    parser.add_argument('-t', '--tree', type=str, default=None)
+    parser.add_argument('--permuter', type=str, default='lgt')
+    parser.add_argument('-l', '--gene_length_gamma_params', type=float,
+                        nargs=2, default=(1.7719, 279.9))
+    parser.add_argument('-m', '--min_length', type=str, default=10)
+    parser.add_argument('--tmp', type=str, default='/tmp')
+    parser.add_argument('-o', '--output', type=str)
+    parser.add_argument('-r', '--gamma_rate_param', type=float)
+    parser.add_argument('-w', '--within_variation', type=str,
+                        choices=within_variation_choices,
+                        help=('Trees within a class can vary in their size or '
+                              'branch lengths: branch rates (and lengths) can be '
+                              'generated from an autocorrelated lognormal '
+                              'relaxed clock, an uncorrelated lognormal relaxed '
+                              'clock, or scaled uniformly by a parameter, drawn '
+                              'randomly from [0.666, 1.333] (so vary by up to 2x)'))
+    parser.add_argument('-f', '--scale_factor', type=float, default=2,
+                        help=('If --within_variation=scaled is selected, this parameter '
+                              'controls the'))
+    parser.add_argument('-v', '--verbosity', type=int)
+    args = parser.parse_args()
+
+    if args.permutations is None:
+        args.permutations = [1 for _ in args.classes]
+
+    if args.within_variation:
+        if args.within_variation == 'autocorrelated':
+            autocorrelated = True
+            uncorrelated = False
+            scaled = False
+        elif args.within_variation == 'uncorrelated':
+            autocorrelated = False
+            uncorrelated = True
+            scaled = False
+        elif args.within_variation == 'scaled':
+            autocorrelated = False
+            uncorrelated = False
+            scaled = True
+    else:
+        autocorrelated = False
+        uncorrelated = False
+        scaled = False
+
+    sim = Simulator(
+        class_list=args.classes,
+        permutations_list=args.permutations,
+        nspecies=args.species,
+        # datatype=args.datatype,
+        master_tree_generator_method=args.tree_generator,
+        master_tree=args.tree,
+        class_tree_permuter=args.permuter,
+        gene_length_kappa=args.gene_length_gamma_params[0],
+        gene_length_theta=args.gene_length_gamma_params[1],
+        gene_length_min=args.min_length,
+        gamma_rate_param=args.gamma_rate_param,
+        # tmpdir=args.tmp,
+        outdir=args.output,
+        autocorrelated_relaxed_clock=autocorrelated,
+        uncorrelated_relaxed_clock=uncorrelated,
+        scale_rates=scaled,
+        verbosity=args.verbosity)
+
+    sim.run()
+    recs = sim.result
+    if args.output is not None:
+        sim.write()
