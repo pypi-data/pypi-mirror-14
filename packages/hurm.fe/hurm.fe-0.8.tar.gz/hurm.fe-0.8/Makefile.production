@@ -1,0 +1,44 @@
+# -*- coding: utf-8 -*-
+# :Project:   hurm -- Release related targets
+# :Created:   dom 07 feb 2016 20:08:04 CET
+# :Author:    Lele Gaifax <lele@metapensiero.it>
+# :License:   GNU General Public License version 3 or later
+# :Copyright: © 2016 Lele Gaifax
+#
+
+MANIFEST := manifest.json
+define MEDPRSTMT
+from pkg_resources import resource_filename as rfn;
+print(rfn('metapensiero.extjs.desktop',''))
+endef
+MEDSRC := $(shell $(PYTHON) -c "$(MEDPRSTMT)")
+PACKED_CSS := $(HURMSRC)/static/all-styles.css
+PACKED_JS := $(HURMSRC)/static/all-classes.js
+MINIFIER_CACHE := $(HURMSRC)/static/classes-cache.pickle
+MINIFIER := minify_js_scripts \
+		--output-js $(PACKED_JS) \
+		--output-css $(PACKED_CSS) \
+		--prefix-map /static=$(HURMSRC)/static \
+		--prefix-map /desktop=$(MEDSRC)/assets \
+		--prefix-map HuRM=$(HURMSRC)/static/app \
+		--prefix-map MP=$(MEDSRC)/assets/js \
+		--prefix-map Ext=$(MEDSRC)/assets/extjs/src \
+		--extjs-auto-deps \
+		--extjs-core-bundle $(MEDSRC)/assets/extjs/ext-dev.js \
+		--cache $(MINIFIER_CACHE) \
+		$(MANIFEST)
+YUICOMPRESSOR := yuicompressor
+
+.PHONY: clean
+clean:
+	rm -f $(PACKED_CSS) $(PACKED_JS)
+
+.PHONY: production
+production: clean compile-catalogs minimize
+
+.PHONY: minimize
+minimize: $(HURMSRC)/static/ext.js
+	$(MINIFIER)
+
+$(HURMSRC)/static/ext.js: $(MEDSRC)/assets/extjs/ext-dev.js
+	$(YUICOMPRESSOR) $< -o $@
