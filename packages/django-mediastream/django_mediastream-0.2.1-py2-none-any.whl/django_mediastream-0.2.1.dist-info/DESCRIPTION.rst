@@ -1,0 +1,49 @@
+MEDIA STREAM SERVICE
+
+Goal: To create a service that will:
+    - Aggregate the search for media from disparate sources asynchronously
+    - Provide a feed for the results for internal or external clients
+
+Requires a backgrond job to run and collect the items
+Requires a URL to the feed
+Requires a URL to the page for the stream
+
+Models:
+
+    Services:
+        ?? iNaturalist, YourShot, Instagram, flickr, etc.
+
+    Media Stream - An aggregation (with configurable refresh) of media from one or more sources based on search terms
+
+    Media - Information about an individual media item for a stream found on a service.
+
+    Service audit - Information about the results of a job
+
+
+Feed
+
+    /slug-name/feed?count=&page=&since=
+        [{
+            'title': '',
+            'description': '',
+            'when_taken': 'YYYY-MM-DD HH:MM:SS +4:????',
+            'latitude': 0.0,
+            'longitude': 0.0,
+            'service': '',
+            'license': '',
+            'artist': '',
+            'tags': '',
+            'media_type': '',
+            'media_url': '',
+            'media_width': 0,
+            'media_height': 0,
+            'service_url': ''
+        }, ...]
+    /slug-name/status
+        [{
+            'service': '',
+            'last_ran': 'YYYY-MM-DD HH:MM:SS +4:????',
+            'success': true,
+            'error': ''
+        }, ...]
+
