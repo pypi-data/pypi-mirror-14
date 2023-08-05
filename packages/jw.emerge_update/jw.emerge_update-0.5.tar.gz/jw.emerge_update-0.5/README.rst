@@ -1,0 +1,119 @@
+=============
+emerge_update
+=============
+
+This is a script for package update and general system management in Gentoo's portage package manager. The aim is to
+automate system updating and maintenance as straight forward as possible. There are a lot of commands to be run to
+keep a Gentoo Linux system healthy and tidy. Emerge alone does not do a lot. That's where this script comes in.
+
+What does emerge_update do?
+"""""""""""""""""""""""""""
+
+The following tasks are run:
+
+#.  Run ``qcheck --badonly --all`` to check for altered files belonging to packages installed with emerge. With a few
+    exceptions no files should be modified. This is a simple way to detect malicious activities e.g. by an intruder.[1]
+
+#.  Run ``eix-sync -q`` to update the package repository
+
+#.  Backup `/etc` (see Backups_)
+
+#.  Run ``emerge @world``. A lot of options are given, see `Emerge Options`_
+
+#.  If emerge returns with a non-zero status, the assumption is made that some packages required some changes in the files
+    in `/etc/portage`. In this case, ``etc-update --automode=-5 /etc/portage`` is run to make the changes proposed by `emerge`
+    permanent. Then, ``emerge @world`` is run again. Of course, if `emerge` fails because of some non-trivial problem this
+    needlessly re-runs `emerge` a second time without effect.
+
+#.  Run ``emerge --depclean`` to remove unnecessary packages
+
+#.  Run ``revdep-rebuild --ignore`` to rebuild packages with broken shared library dependencies due to the last `emerge`.
+
+#.  Run ``emerge @preserved-rebuild``. Another measure to repair broken library dependencies. Gentoo recommends running
+    both `revdep-rebuild` and `@preserved-rebuild`.
+
+#.  Run ``python-updater``
+
+#.  Run ``perl-cleaner --all``
+
+#.  Run ``cfg-update --update --automatic-only`` to update all config files which can be updated automatically.
+
+#.  Run ``cfg-update --index`` to create update indexes for the next run of `cfg-update`.
+
+#.  Run ``prelink --all`` to prelink all binaries to speed up loading them.
+
+#.  Backup `/var/db/pkg` (see Backups_). If this directory is destroyed, you are in *the most serious trouble*.
+
+#.  Run ``qcheck --all --update`` to bring the checksums up-to-date for the next run.
+
+#.  Run ``emaint -c all`` to check for potential problems or points for improvement. This does not repair anything. You can run
+    ``emaint -f ...`` eg. ``emaint -f all`` to fix things.
+
+Using emerge_update
+"""""""""""""""""""
+
+Options
+'''''''
+
+-h, --help                  show the help
+--dry-run, -n               don't execute commands, just print them
+--verbose, -v               print commands as they are executed
+--version, -V               show program's version number and exit
+--output OUTPUT, -o OUTPUT  specify output file
+--append, -a                append to output file instead of overwriting
+
+To test the script, run it with ``emerge_update --dry-run``. This way, it only shows what would be done.
+
+.. Tip::
+
+   Run the script with ``--verbose --output /var/log/emerge_update --append`` to have a nice log of what's going on.
+
+.. Tip::
+
+   Run the script with ``nice -19`` and ``ionice -c3`` in order to not put the system under too much load.
+
+Backups
+"""""""
+
+Backups are done by renaming and hard-linking the target ~/.local/share/applications/mimeapps.listif possible. This
+does not work with mount points, however. Directories acting as a mount point are backed up as a tar file into a
+backup directory ( `/var/lib/emerge_update` by default). The backup directory is created if necessary.
+
+.. note::
+
+   You should maintain the backup directory (usually `/var/lib/emerge_update`) by deleting old backups. You can do
+   this with package `tmpwatch`. The move-and-link backups retain 8 generations.
+
+Emerge Options
+""""""""""""""
+
+Emerge is run with these options:
+
+--nospinner
+    This is not desirable in automated runs of emerge
+
+--update
+    Only update packages
+
+--newuse
+    Update packages when the USE configuration changes
+
+--deep
+    Consider updating dependencies
+
+--keep-going
+    Continue in case of error to update as much as possible
+
+--autounmask y
+    Unmask required packages
+
+--autounmask-write y
+    Make unmasking permanent
+
+--jobs n
+    where ``n`` = 4. This runs a maximum of 4 parallel emerge jobs
+
+--load-average n
+    where ``n`` is the number of processors on-line in the system or `3` if this number cannot be determined.
+
+    This prevents creating new emerge jobs if the load average if above `n`
