@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.controllers import context
+from woost.models import (
+    get_current_user,
+    ModifyPermission,
+    Publishable,
+    Slot
+)
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    publishable = None
+
+    def get_slots(self):
+        return [
+            (member, self.publishable)
+            for member in self.publishable.__class__.ordered_members()
+            if isinstance(member, Slot) and member.visible
+        ]
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/EditPanel.css")
+    self.add_resource("/resources/scripts/EditPanel.js")
+    ?>
+
+    <py:binding>
+        <?py
+        backoffice = Publishable.get_instance(qname = "woost.backoffice")
+        if backoffice:
+            self.set_client_variable("woost.backofficeURI", backoffice.get_uri())
+
+        if self.publishable is None:
+            self.publishable = context["publishable"]
+
+        if not context.get("show_user_controls", True):
+            self.visible = False
+
+        if not get_current_user().has_permission(ModifyPermission, target = self.publishable):
+            self.visible = False
+        ?>
+    </py:binding>
+
+    <button
+        py:id="show_panel_button"
+        py:client_model="woost.views.EditPanel.show_panel_button">
+        <?py
+        title = translations('woost.views.EditPanel.show_panel_button')
+        ?>
+        <img
+            src="/resources/images/edit.png"
+            alt="${title}"
+            title="${title} (alt + shift + e)"/>
+    </button>
+
+    <button
+        py:id="close_panel_button"
+        py:client_model="woost.views.EditPanel.close_panel_button">
+        <?py
+        title = translations('woost.views.EditPanel.close_panel_button')
+        ?>
+        <img
+            src="/resources/images/EditPanel-close_button.png"
+            alt="${title}"
+            title="${title} (alt + shift + e)"/>
+    </button>
+
+    <div py:id="panel_content">
+        <py:woost.views.EditLink
+            py:id="modify_link"
+            py:action="modify"
+            py:target="@{self.publishable}"/>
+        <py:ready>
+            <py:new
+                py:element="self.create_block_section(slot, blocks_source)"
+                py:for="slot, blocks_source in self.get_slots()"/>
+        </py:ready>
+    </div>
+
+    <py:woost.views.BlockSection
+        py:def="block_section"
+        py:args="slot, blocks_source"
+        py:slot="${slot}"
+        py:blocks_source="${blocks_source}"/>
+</div>
+

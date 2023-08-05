@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost import app
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    item = None
+    icon_factory = "backoffice_thumbnail"
+
+    def get_item_path(self, item):
+        return None
+
+    def get_item_images(self):
+        image = self.item.resolve_representative_image(self.icon_factory)
+        return [image] if image else []
+    ?>
+
+    <img
+        py:id="item_icon"
+        py:visible="@{self.item and not self.item.is_inserted}">
+        <py:ready>
+            <?py
+            element["src"] = app.icon_resolver.find_icon_url(self.item.__class__, 32)
+            ?>
+        </py:ready>
+    </img>
+
+    <py:woost.views.ImageGallery
+        py:id="item_image_gallery"
+        py:thumbnail_factory="@{self.icon_factory}"
+        py:labels_visible="${False}"
+        py:footnotes_visible="${False}">
+        <py:binding>
+            <?py
+            if self.item and self.item.is_inserted:
+                element.images = self.get_item_images()
+            ?>
+        </py:binding>
+    </py:woost.views.ImageGallery>
+
+    <div py:id="item_info">
+        <div py:id="item_translation">
+            <py:ready>
+                <?py
+                if self.item.is_inserted:
+                    context_desc = self.item.any_translation()
+                else:
+                    context_desc = translations("creating", content_type = self.item.__class__)
+                ?>
+                ${context_desc}
+            </py:ready>
+        </div>
+
+        <span py:id="item_type">
+            @{translations(self.item.__class__.name)}
+        </span>
+
+        <span py:id="item_path">
+            ${translations("woost.views.BackOfficeItemHeading.item_path.conjunction")}
+            <py:ready>
+                <?py
+                self._item_path = self.get_item_path(self.item)
+                if not self._item_path:
+                    element.visible = False
+                ?>
+            </py:ready>
+            <ul>
+                <py:ready>
+                    <py:new
+                        py:element="self.create_item_path_step(self._item_path, index, step)"
+                        py:for="index, step in enumerate(self._item_path)"/>
+                </py:ready>
+            </ul>
+        </span>
+    </div>
+
+    <li py:def="item_path_step" py:args="path, index, step">
+        ${translations(path[index])}
+    </li>
+</div>
+
