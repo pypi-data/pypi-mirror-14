@@ -1,0 +1,165 @@
+{% set entry_types = ['open', 'close', 'transaction', 'balance', 'note', 'document', 'pad', 'query'] %}
+{% set transaction_types = ['cleared', 'pending', 'padding', 'summarize', 'transfer', 'other'] %}
+{% set show_type = {
+    'open':        config['journal-show-type-open'],
+    'close':       config['journal-show-type-close'],
+    'transaction': config['journal-show-type-transaction'],
+    'balance':     config['journal-show-type-balance'],
+    'note':        config['journal-show-type-note'],
+    'document':    config['journal-show-type-document'],
+    'pad':         config['journal-show-type-pad'],
+    'query':       config['journal-show-type-query']
+} %}
+{% set show_transaction_type = {
+    'cleared':   config['journal-show-transaction-cleared'],
+    'pending':   config['journal-show-transaction-pending'],
+    'padding':   config['journal-show-transaction-padding'],
+    'summarize': config['journal-show-transaction-summarize'],
+    'transfer':  config['journal-show-transaction-transfer'],
+    'other':     config['journal-show-transaction-other'],
+} %}
+
+{% set show_metadata = config['journal-show-metadata'] %}
+{% set show_legs = config['journal-show-legs'] %}
+
+{% if show_tablefilter %}
+    <div id="entry-filters" class="table-filter">
+        <form>
+            {% for type in entry_types %}
+                <input type="checkbox" value="{{ type }}" id="filter-{{ type }}" data-type="{{ type }}"{% if show_type[type] %} checked="checked"{% endif %}>
+                <label for="filter-{{ type }}">{{ type|capitalize }}</label>
+            {% endfor %}
+            <input type="submit" id="toggle-metadata" value="{% if show_metadata %}Hide{% else %}Show{% endif %} metadata">
+            <input type="submit" id="toggle-legs" value="{% if show_legs %}Hide{% else %}Show{% endif %} legs">
+        </form>
+    </div>
+    <div id="transaction-filters" class="table-filter">
+        <form>
+            {% for type in transaction_types %}
+                <input type="checkbox" value="{{ type }}" id="filter-{{ type }}" data-type="{{ type }}"{% if show_transaction_type[type] %} checked="checked"{% endif %}>
+                <label for="filter-{{ type }}">{{ type|capitalize }}</label>
+            {% endfor %}
+        </form>
+    </div>
+{% endif %}
+
+{% set context_url = url_for('context', ehash='REPLACEME') %}
+{% set account_url = url_for('account_with_journal', name='REPLACEME') %}
+{% set tag_url = url_for_current(tag=['REPLACEME']+g.filters['tag']) %}
+
+{% macro account_link(name) -%}
+<a href="{{ account_url.replace('REPLACEME', name) }}">{{ name }}</a>
+{%- endmacro %}
+
+{% macro render_inventory(inv) -%}
+{% if inv %}
+    {% for currency, number in inv.items() %}
+        {{ number|format_currency(currency) }} {{ currency }}<br>
+    {% endfor %}
+{% endif %}
+{%- endmacro %}
+
+{% macro render_metadata(metadata, show_metadata) -%}
+{% if metadata %}
+    <dl class="metadata{% if not show_metadata %} hidden{% endif %}">
+        {% for key, value in metadata.items() %}
+            <dt>{{ key }}</dt>
+            <dd>
+                {%- if key == 'statement' %}<a href="{{ url_for('document', file_path=value)  }}">{% endif -%}
+                {{ value }}
+                {%- if key == 'statement' %}</a>{% endif -%}
+            </dd>
+        {% endfor %}
+    </dl>
+{% endif %}
+{%- endmacro %}
+
+<ol id="journal-table" class="journal-table">
+    <li class="head">
+        <p>
+        <span class="datecell">Date</span>
+        <span class="flag">F</span>
+        <span class="description">Narration/Payee</span>
+        <span class="position">Position</span>
+        <span class="price">Price</span>
+        <span class="cost">Cost</span>
+        {% if show_change_and_balance %}
+        <span class="change">Change</span>
+        <span class="balance">Balance</span>
+        {% endif %}
+        </p>
+    </li>
+{% for entry in journal %}
+    {% set type = entry.meta.type %}
+    <li class="{{ type }} {{ entry.transaction_type }}
+    {%- if not show_type[type] %} hidden{% endif -%}
+    {%- if (entry.transaction_type and not show_transaction_type[entry.transaction_type]) %} hidden-type{% endif -%}
+    {%- if entry.diff_amount %} fail{% endif -%}
+    " title="{{ entry.meta.filename }}:{{ entry.meta.lineno }}">
+        <p>
+        <span class="datecell"><a href="{{ context_url.replace('REPLACEME', entry.hash) }}">{{ entry.date }}</a></span>
+        <span class="flag">{{ entry.flag }}</span>
+        <span class="description">
+        {% if type == 'open' %}
+            Open {{ account_link(entry.account) }}
+        {% elif type == 'close' %}
+            Close {{ account_link(entry.account) }}
+        {% elif type == 'note' %}
+            Note: {{ entry.comment }}
+        {% elif type == 'query' %}
+            Query: <a href="{{ url_for('query', query_hash=entry.hash) }}">{{ entry.name }}</a>
+        {% elif type == 'pad' %}
+            Pad {{ account_link(entry.account) }} from {{ account_link(entry.source_account) }}
+        {% elif type == 'document' %}
+            Document for {{ account_link(entry.account) }}: <a href="{{ url_for('document', file_path=entry.filename) }}">{{ entry.filename|basename }}</a>
+        {% elif type == 'balance' %}
+            Balance {{ account_link(entry.account) }}
+            {% if entry.diff_amount %} fails;
+                expected = {{ entry.amount|format_amount }}
+                balance = {{ (entry.amount.number + entry.diff_amount.number)|format_currency(entry.amount.currency) }} {{ entry.amount.currency }}
+                difference = {{ entry.diff_amount|format_amount }}
+            {% else %}
+                has {{ entry.amount }}
+            {% endif %}
+        {% elif type == 'transaction' %}
+            <strong>{{ entry.payee or '' }}</strong>{% if entry.payee and entry.narration %} | {% endif %}{{ entry.narration or '' }}
+            {% for tag in entry.tags %}<a class="tag" href="{{ tag_url.replace('REPLACEME', tag) }}" title="Filter for tag #{{ tag }}"><span>#</span>{{ tag }}</a>{% endfor %}
+        {% endif %}
+        </span>
+        {% if type == 'transaction' %}
+            {% for posting in entry.postings %}
+                <span class="leg-indicator leg-{{ posting.posting_type }}"></span>
+            {% endfor %}
+        {% endif %}
+        {% if show_change_and_balance %}
+            <span class="change num">{{ render_inventory(entry.change) }}</span>
+            <span class="balance num">{{ render_inventory(entry.balance) }}</span>
+        </p>
+        {% endif %}
+        {{ render_metadata(entry.metadata, show_metadata) }}
+        {% if entry.postings %}
+        <ul>
+        {% for posting in entry.postings %}
+        <li class="posting {{ posting.posting_type }}{%- if not show_legs %} hidden{% endif -%}">
+            <p>
+                <span class="datecell"></span>
+                <span class="flag"> </span>
+                <span class="description">{{ account_link(posting.account) }}</span>
+                {# We want the output these amounts with the same precision as in the input file.
+                   For computed values this might give a lot of digits, so format the price using the DisplayContext for now.#}
+                <span class="position num">{{ posting.units or '' }}</span>
+                <span class="price num">{{ posting.price|format_amount }}</span>
+                <span class="cost num">{{ posting.cost or '' }}</span>
+                {% if show_change_and_balance %}
+                <span class="change num"></span>
+                <span class="balance num"></span>
+                {% endif %}
+            </p>
+            {{ render_metadata(posting.metadata, show_metadata) }}
+        </li>
+        {% endfor %}
+        </ul>
+        {% endif %}
+    </li>
+{% endfor %}
+</ol>
