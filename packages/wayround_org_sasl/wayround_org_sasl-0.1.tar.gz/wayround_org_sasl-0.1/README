@@ -1,0 +1,91 @@
+Very simple SASL mechanisms implementation
+
+Before this I've already done two gsasl bindings for python:
+  * one was implemented using Cython;
+  * second was implemented using vala.
+
+The main problem with gsasl, is what it's callback mechanism was made
+  without possibility to pass user data, so it is spiky to trying to
+  make binding for OOP language like Python.
+
+As I very mutch do not like non-OOP programming, finally I has dicided
+  to write very simple SASL mechanism at least for PLAIN method, for
+  not return to gsasl problems ever again.
+
+I've written this package looking on gsasl, so it has some
+  similarities, but I've also tryied to make it as simplier as
+  possible, as I'm in horry and need to get My new mail server sofware
+  working as soon as possible.
+
+---
+
+=====
+Usage
+=====
+
+This SASL mechanism architecture shold be simple
+
+1. import wayround_org.sasl.sasl
+
+2. use init_mech(mech_name, mode, callback=None) function
+   to create SASLSession instance.
+
+   NOTE: at time of this writting only supported method(mechanism) is
+   	 PLAIN and it's 'server' and 'client' side.
+
+   example: init_mech('PLAIN', 'server')
+
+   NOTE: callback is MAY only be needed in client mode, possibly for
+         organizing dialog boxes. so this is like in gsasl.
+
+   callback, if supplied, must be callable with one parameter - the
+   name of field which server wishes client to return. The return
+   value of callback will be then assigned to same name property in
+   client's object '.properties' dict property
+
+3. Use step() or step64() method of SASLSession instance to pass data
+   to it's working mechanism.
+
+   Those methods allways return two values:
+      1. code - indicating error, success or asking for more data;
+
+      	        At time of this writting, valid values considered to be:
+		'ok', 'error', 'need_more'.
+
+		gsasl supports more error codes indicating various
+		   errors, depending on mechanism being used. and this
+		   step() methods should also somehow specify errors.
+		   possibly, the good way for farther development of
+		   this methods (and particularly this package
+		   mechanisms) is, in case of errors, return strings
+		   starting with 'error' text and continuing with
+		   '_some_spec' to indicate specific error.
+
+      2. text - data wich should be sent to server or client
+                counterpart. (In case of error, usually no any data
+		should be sent farther, but read documentation
+		on specifics of mechanism being used)
+
+   NOTE: step64() is simply a wrap for step() method. step64() decodes
+         it's input, passes decoding result to step(), after what
+         encodes step() result and returning it's to caller.
+
+=====================
+Developing Mechanisms
+=====================
+
+To develop new mechanism - create new file with it's name in 'mechs'
+directory. Write some code: take plain.py for example.
+
+When Your new mechanism module is complete, register it in sasl.py, by
+editing 'MECHANISMS' dict in sasl.py top.
+
+The structure of mode class REQUIRED to have folloving things:
+    1. def __init__(self, callback=None)
+    2. def step(self, data)
+    3. step() method MUST return 2 values:
+       1: str
+       2: bytes
+    4. '.properties' dict property
+
+Anythin other is on conscience of programmer.
