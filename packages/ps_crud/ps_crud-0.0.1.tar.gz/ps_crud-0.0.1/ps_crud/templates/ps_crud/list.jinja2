@@ -1,0 +1,105 @@
+{% extends "sacrud/redefineme.jinja2" %}
+
+
+{% set
+ps_crud_settings=context.ps_crud %}
+{% set
+ps_crud=ps_crud_settings["crud"] %}
+{% set
+ps_get_id=ps_crud_settings["get_id"] %}
+{% set
+ps_columns=ps_crud_settings["columns"] %}
+{% set
+ps_base_url="/" + request.sacrud_prefix + "/" %}
+{# Links to resources #}
+{% if ps_crud["mass_action"] and not ps_massaction_url %}
+  {% set
+  ps_massaction_url=ps_base_url + request.resource_path(ps_crud['mass_action']) %}
+{% endif %}
+{% if ps_crud["create"] and not ps_create_url %}
+  {% set
+  ps_create_url=ps_base_url + request.resource_path(ps_crud['create']) %}
+{% endif %}
+
+
+{% block title %} - list of {{ _(context.verbose_name) }}{% endblock %}
+
+{% block popup_content %}
+  <h4>{{ _ps('Are you sure you want to delete an object?') }}</h4>
+{% endblock %}
+{% block popup_footer %}
+  <a href="#!" id="delete-confirm" class="modal-action modal-close btn green">
+    {{ _ps('Confirm') }}
+  </a>
+  <a href="#!" class="cancel-button modal-action modal-close red btn">{{ _ps('Cancel') }}</a>
+{% endblock %}
+
+{% block body %}
+  <div id="grid_view"></div>
+  <h4>{{ _(context.verbose_name) }}</h4>
+  {% if ps_create_url %}
+    <a class="create-button btn waves-effect waves-light" href="{{ ps_create_url }}">
+      <i class="material-icons left">add_circle_outline</i>
+      {{ _ps('Create') }}
+    </a>
+  {% endif %}
+  {% if ps_massaction_url %}
+    <a class="delete-button waves-effect waves-light btn disabled">
+      <i class="material-icons left">remove_circle_outline</i>
+      {{ _ps('Delete') }}
+    </a>
+  {% endif %}
+
+  <div class="container"><br/></div>
+  <form id="sacrud-form" method="post" action="{{ ps_massaction_url }}">
+    <table class="bordered highlight hoverable z-depth-1">
+      {% if paginator.items.__len__() > 0 %}
+        <thead>
+          <tr class="blue lighten-5">
+            {% if ps_massaction_url %}
+              <th>
+                <input id="select_all_item" type="checkbox" />
+                <label for="select_all_item"></label>
+              </th>
+            {% endif %}
+            <th></th>
+            {% for col in ps_columns %}
+              <th>{{ _(col.name) }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in paginator %}
+          {% set id=ps_get_id(row) %}
+          <tr id="{{ context.table_name }}_{{ id }}">
+            {% if ps_massaction_url %}
+              <td width="1">
+                <input id="{{ id }}" type="checkbox" name="selected_item" value="{{ id }}" />
+                <label for="{{ id }}"></label>
+              </td>
+            {% endif %}
+            <td width="1">
+              {% if ps_crud["update"] %}
+                <a href="{{ ps_base_url }}{{ request.resource_path(ps_crud["update"](row)) }}">
+                  <i class="material-icons left">edit</i>
+                </a>
+              {% endif %}
+            </td>
+            {% for col in ps_columns %}
+              <td>{{ col.value(row)|string|truncate(200) }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      {% else %}
+        <tr>
+          <td>There are no objects</td>
+        </tr>
+      {% endif %}
+    </table>
+    <input id="mass-action" type="hidden" value="0" name="mass_action" />
+  </form>
+  {% if paginator.items.__len__() >= 1 and paginator.page_count > 1 %}
+    {% include "paginator.jinja2" %}
+  {% endif %}
+{% endblock %}
