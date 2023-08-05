@@ -1,0 +1,163 @@
+RIPE Atlas Tools (Magellan)
+===========================
+|Documentation| |Build Status| |PYPI Version| |Python Versions| |Python Implementations| |Python Format| |Requirements|
+
+The official command-line client for RIPE Atlas.
+
+
+Full Documentation
+------------------
+
+Everything is up on `ReadTheDocs`_
+
+
+How Does it Work?
+-----------------
+
+Presently, the setup is pretty crude.  You can create a ping or traceroute
+measurement with limited options from the command line:
+
+.. code:: bash
+
+    $ ripe-atlas measure ping --target example.com
+    $ ripe-atlas measure ping --packets 7 --size 42 --target example.com
+    $ ripe-atlas measure traceroute --target example.com
+    $ ripe-atlas measure traceroute --packets 2 --target example.com
+    $ ripe-atlas measure dns --query-argument example.com
+    $ ripe-atlas measure dns --use-probe-resolver --query-type AAAA --query-argument example.com
+
+This will create a one-off measurement and then wait for the results to roll in,
+formatting them as they do.
+
+You can also use it to connect to a stream of formatted data.  This command will
+start streaming out all of the results from one of our oldest measurements:
+
+.. code:: bash
+
+    $ ripe-atlas stream 1001
+
+Or you can generate a simple report:
+
+.. code:: bash
+
+    $ ripe-atlas report 1001
+
+Configuration is done by way of a config file, and modifying it can be done from
+the command line:
+
+.. code:: bash
+
+    $ ripe-atlas configure --set authorisation.create=MY_API_KEY
+
+
+Can I Contribute?
+-----------------
+
+Absolutely.  Please read our `guide`_ on how to contribute.
+
+
+Colophon
+--------
+
+This project was code-named by means of a `poll`_.  In order to conform to the
+RIPE Atlas theme, it had to be named for an explorer, and so the winning
+suggestion was for Magellan, *"in memory of those times when RTT was ~3 years"*.
+
+.. |Documentation| image:: https://readthedocs.org/projects/ripe-atlas-tools/badge/?version=latest
+  :target: http://ripe-atlas-tools.readthedocs.org/en/latest/?badge=latest
+  :alt: Documentation Status
+.. _ReadTheDocs: https://ripe-atlas-tools.readthedocs.org/
+.. _guide: https://github.com/RIPE-NCC/ripe-atlas-tools/blob/master/CONTRIBUTING.rst
+.. _poll: https://github.com/RIPE-NCC/ripe-atlas-tools/issues/13
+.. |Build Status| image:: https://travis-ci.org/RIPE-NCC/ripe-atlas-tools.png?branch=master
+   :target: https://travis-ci.org/RIPE-NCC/ripe-atlas-tools
+.. |PYPI Version| image:: https://img.shields.io/pypi/v/ripe.atlas.tools.svg
+.. |Python Versions| image:: https://img.shields.io/pypi/pyversions/ripe.atlas.tools.svg
+.. |Python Implementations| image:: https://img.shields.io/pypi/implementation/ripe.atlas.tools.svg
+.. |Python Format| image:: https://img.shields.io/pypi/format/ripe.atlas.tools.svg
+.. |Requirements| image:: https://requires.io/github/RIPE-NCC/ripe-atlas-tools/requirements.svg?branch=master
+  :target: https://requires.io/github/RIPE-NCC/ripe-atlas-tools/requirements/?branch=master
+  :alt: Requirements Status
+
+
+Release History
+===============
+
+1.2.3 (released 2016-03-08)
+---------------------------
+
+Changes
+~~~~~~~
+- Usage of newest Cousteau/Sagan library.
+- Support of API keys for fetching results on report command.
+- Default radius for probes filtering is changed to 15.
+- Several changes for supporting Windows.
+
+
+1.2.2 (released 2016-01-13)
+---------------------------
+
+New Features
+~~~~~~~~~~~~
+- Cleaner and more consistent implementation of the renderer plugable
+  architecture.
+- Usage of newest Cousteau library.
+
+
+1.2.1 (released 2015-12-15)
+---------------------------
+
+Bug Fixes
+~~~~~~~~~
+- Restored some required template files.
+
+
+1.2.0 (released 2015-12-15)
+---------------------------
+
+Output Changes
+~~~~~~~~~~~~~~
+- `#119`_: Support HTTP results.
+- `#122`_: Allow packagers to set the user agent.
+
+
+1.1.1 (released 2015-11-25)
+---------------------------
+
+Output Changes
+~~~~~~~~~~~~~~
+- `#103`_: Removed header from the ``report`` command.
+
+Bug Fixes
+~~~~~~~~~
+- `#105`_: Measurement report and stream broken on Python3.4.
+
+1.1.0 (released 2015-11-12)
+---------------------------
+
+New features
+~~~~~~~~~~~~
+- Support for the creation of NTP, SSLCert, and HTTP measurements.
+- Additional argument in report command to filter results by probe ASN.
+- Additional renderer that shows the different destination ASNs and some
+  additional stats about them.
+
+Bug Fixes
+~~~~~~~~~
+- Various fixes.
+
+Changes
+~~~~~~~
+- Better testing.
+- Additional documentation.
+
+1.0.0 (released 2015-11-02)
+---------------------------
+- Initial release.
+
+.. _#103: https://github.com/RIPE-NCC/ripe-atlas-tools/issues/103
+.. _#105: https://github.com/RIPE-NCC/ripe-atlas-tools/issues/105
+.. _#119: https://github.com/RIPE-NCC/ripe-atlas-tools/issues/119
+.. _#122: https://github.com/RIPE-NCC/ripe-atlas-tools/issues/122
+
+
