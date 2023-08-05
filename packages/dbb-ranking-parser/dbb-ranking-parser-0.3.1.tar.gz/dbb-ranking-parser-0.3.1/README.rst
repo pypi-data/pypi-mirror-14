@@ -1,0 +1,201 @@
+DBB Ranking Parser
+==================
+
+Extract league rankings from the DBB_ (Deutscher Basketball Bund e.V.)
+website.
+
+This library has been extracted from the web application behind the
+website of the `BTB Royals Oldenburg`_ (a basketball team from
+Oldenburg, Germany) where it has proven itself for many, many years.
+
+
+Requirements
+------------
+
+- Python_ 3.4+
+- lxml_
+
+
+Installation
+------------
+
+Install this package via pip_:
+
+.. code:: sh
+
+    $ pip install dbb-ranking-parser
+
+Because of the dependency on lxml_, this will also require the header
+files for the targeted Python_ version as well as those for libxml2_ and
+libxslt_.
+
+On `Debian Linux`_, one should be able to install these from the
+distribution's repositories (as the 'root' user):
+
+.. code:: sh
+
+    # aptitude update
+    # aptitude install python3.4-dev libxml2-dev libxslt1-dev
+
+Apart from that (for example, if those packages are not yet installed)
+it might be easier to install Debian's pre-built binary packages for
+lxml_ instead:
+
+.. code:: sh
+
+    # aptitude update
+    # aptitude install python-lxml
+
+
+Usage
+-----
+
+To fetch and parse a league ranking, the appropriate URL is required.
+
+It can be obtained on the DBB_ website. On every league's ranking page
+there should be a link to a (non-"XL") HTML print version.
+
+Its target URL should look like this (assuming the league's ID is
+12345):
+``http://www.basketball-bund.net/public/tabelle.jsp?print=1&viewDescKey=sport.dbb.views.TabellePublicView/index.jsp_&liga_id=12345``
+
+The league ID has to be identified manually in any of the URLs specific
+for that league (ranking, schedule, stats).
+
+For convenience, specifying only the league ID is sufficient; the URL
+will be assembled automatically. (Obviously, this might break when the
+URL structure changes on the DBB website.)
+
+
+Programmatically
+~~~~~~~~~~~~~~~~
+
+.. code:: python
+
+    from dbbrankingparser import load_ranking_for_league
+
+
+    league_id = 12345
+
+    ranking = list(load_ranking_for_league(league_id))
+
+    top_team = ranking[0]
+    print('Top team:', top_team['name'])
+
+The URL can be specified explicitly, too:
+
+.. code:: python
+
+    from dbbrankingparser import load_ranking_from_url
+
+
+    URL = '<see example above>'
+
+    ranking = list(load_ranking_from_url(URL))
+
+Note that a call to a ``load_ranking_*`` method returns a generator. To
+keep its elements around, and also to access them by index, they can be
+fed into a list (as shown above).
+
+
+On the Command Line
+~~~~~~~~~~~~~~~~~~~
+
+The package includes a command line script to retrieve a league's
+rankings non-programmatically, as JSON. It requires a league ID as its
+sole argument:
+
+.. code:: sh
+
+    $ dbb-ranking 12345
+    [{"name": "Team ACME", "rank": 1, …}]
+
+
+Via HTTP
+~~~~~~~~
+
+Also included is an HTTP wrapper around the parser.
+
+To spin up the server:
+
+.. code:: sh
+
+    $ dbb-ranking-server
+    Listening for HTTP requests on localhost:8080 ...
+
+Since this is mostly meant to be used inside a Docker_ container, host
+and port are not (easily) configurable at this point.
+
+The server will attempt to look up a ranking for requests with an URL
+part of the form ``/<league id>``:
+
+.. code:: sh
+
+    $ curl http://localhost:8080/12345
+    [{"name": "Team ACME", "rank": 1, …}]
+
+
+Docker
+------
+
+The command line and HTTP server scripts can also be run in a Docker_
+container each.
+
+Building the respective Docker_ images requires:
+
+- Docker_ being installed
+- a source copy of the `dbb-ranking-parser` package
+
+In the package path (as the 'root' user):
+
+- to build an image for the command line script:
+
+  .. code:: sh
+
+      # docker build -t dbb-ranking-parser-cli ./docker/cli
+
+- to build an HTTP server image:
+
+  .. code:: sh
+
+      # docker build -t dbb-ranking-parser-server ./docker/httpserver
+
+Each of these commands should build a Docker_ image based upon `Alpine
+Linux`_ and which includes Python_ 3, lxml_ and the DBB Ranking Parser
+itself. It should be roughly 75 MB in size.
+
+Running the command line script in a container requires the league ID as
+the sole argument:
+
+.. code:: sh
+
+    # docker run --rm dbb-ranking-parser-cli 12345
+    [{"name": "Team ACME", "rank": 1, …}]
+
+To spin up the HTTP server on port 8080:
+
+.. code:: sh
+
+    # docker run -p 8080:8080 --rm dbb-ranking-parser-server
+
+The ``--rm`` option causes a container (but not the image) to be removed
+after it exits.
+
+
+.. _DBB:                  http://www.basketball-bund.net/
+.. _BTB Royals Oldenburg: https://www.btbroyals.de/
+.. _Python:               https://www.python.org/
+.. _pip:                  http://www.pip-installer.org/
+.. _lxml:                 http://lxml.de/
+.. _libxml2:              http://xmlsoft.org/XSLT/
+.. _libxslt:              http://xmlsoft.org/XSLT/
+.. _Debian Linux:         https://www.debian.org/
+.. _Docker:               https://www.docker.com/
+.. _Alpine Linux:         http://alpinelinux.org/
+
+
+:Copyright: 2006-2016 Jochen Kupperschmidt
+:Date: 10-Mar-2016
+:License: MIT, see LICENSE for details.
+:Version: 0.3.1
+:Website: http://homework.nwsnet.de/releases/4a51/#dbb-ranking-parser
