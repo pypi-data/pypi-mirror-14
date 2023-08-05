@@ -1,0 +1,76 @@
+# -*- mode: makefile-gmake; coding: utf-8 -*-
+# :Project:   hurm -- Database specific targets
+# :Created:   mar 12 gen 2016 11:50:57 CET
+# :Author:    Lele Gaifax <lele@metapensiero.it>
+# :License:   GNU General Public License version 3 or later
+# :Copyright: © 2016 Lele Gaifax
+#
+
+DBHOST := localhost
+DBPORT := 5432
+DBNAMETEST := hurm_test
+DBNAMEDEV := hurm
+DBNAME ?= $(DBNAMEDEV)
+STORAGE = $(DBSRC)/data/$(DBNAMEDEV).axon
+DSN = host=$(DBHOST) port=$(DBPORT) dbname=$(DBNAME)
+DBHPOPTS := --host=$(DBHOST) --port=$(DBPORT)
+PUP = patchdb --postgresql="$(DSN)" --log-file=$(DBNAME).log $(STORAGE)
+DBURI = postgresql://$(DBHOST):$(DBPORT)/$(DBNAME)
+DBLOADY = dbloady -u postgresql://$(DBHOST):$(DBPORT)/$(DBNAME)
+DROPDB = dropdb $(DBHPOPTS)
+CREATEDB = createdb $(DBHPOPTS) --encoding=UTF-8 --template=template0
+PYTEST = TEST_DB_URL=$(DBURI) py.test
+
+test-%:
+	@$(MAKE) DBNAME=$(DBNAMETEST) $*
+
+help::
+	@printf "\nDatabase management\n"
+	@printf "===================\n\n"
+
+help::
+	@printf "database\n\tCreate or update database\n"
+
+.PHONY: database
+database: $(STORAGE)
+	$(PUP)
+
+$(STORAGE): html
+
+html:
+	$(MAKE) -C docs html
+
+help::
+	@printf "database0\n\tRecreate database from scratch\n"
+
+.PHONY: database0
+database0:
+	-$(DROPDB) $(DBNAME)
+	$(CREATEDB) $(DBNAME)
+	$(MAKE) database
+
+help::
+	@printf "load-historic-data\n\tLoad historic data\n"
+
+.PHONY: load-historic-data
+load-historic-data:
+	$(DBLOADY) -p $(DBSRC)/data/preload.py $(DBSRC)/data/2015.yaml.gpg
+
+help::
+	@printf "load-test-data\n\tLoad test data\n"
+
+.PHONY: load-test-data
+load-test-data: DBNAME = $(DBNAMETEST)
+load-test-data:
+	$(DBLOADY) -p $(DBSRC)/data/preload.py $(DBSRC)/data/test.yaml
+
+help::
+	@printf "test\n\tExecute DB related tests\n"
+
+.PHONY: test
+test:: DBNAME=$(DBNAMETEST)
+test::
+	$(PYTEST) --cov=hurm/db --cov-report=term-missing tests
+
+clean:
+	$(MAKE) -C docs clean
