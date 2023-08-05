@@ -1,0 +1,186 @@
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+    1. Redistributions of source code must retain the above copyright notice,
+       this list of conditions and the following disclaimer.
+   
+    2. Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+
+    3. Neither the name of Matthew Wilkes, Tangent Communications PLC nor the
+       names of its contributors may be used to endorse or promote products
+       derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Description: =================================
+        Worldpay package for django-oscar
+        =================================
+        
+        .. image:: https://travis-ci.org/MatthewWilkes/django-oscar-worldpay.png
+            :alt: Continuous integration status
+            :target: http://travis-ci.org/#!/MatthewWilkes/django-oscar-worldpay
+        
+        .. image:: https://coveralls.io/repos/MatthewWilkes/django-oscar-worldpay/badge.svg?branch=master&service=github
+            :target: https://coveralls.io/github/MatthewWilkes/django-oscar-worldpay?branch=master
+        
+        This package provides integration between django-oscar_ and Worldpay Select Junior (also known as HTML Redirect).
+        
+        .. _django-oscar: https://github.com/tangentlabs/django-oscar
+        
+        These payment options can be used individually or together.  Further, the
+        package is structured so that it can be used without Oscar if you so wish.
+        
+        .. _`Continuous integration status`: http://travis-ci.org/#!/matthewwilkes/django-oscar-worldpay?branch=master
+        
+        Current status
+        --------------
+        
+        We believe this product is usable in production, but as always, it is released as-is without warranty. If you find any bugs please submit either a
+        bug report or a pull request.
+        
+        Security
+        --------
+        
+        This package supports the so-called 'MD5 Encryption' security of Worldpay, with configurable fields. It also implement the DNS based checking of
+        response callbacks.
+        
+        It uses C_Parameters internally for passing cart information back, this uses a SHA-based HMAC for verification.
+        
+        This package doesn't yet support the `callbackPW` parameter, patches to add this would be very welcome.
+        
+        Configuration
+        -------------
+        
+        The following parameters should be set:
+        
+            * WORLDPAY_INSTANCE_ID
+                A string containing your instance ID, such as '12345'
+                
+            * WORLDPAY_TEST_MODE
+                A boolean to determine test mode
+        
+            * WORLDPAY_MD5_SECRET
+                The string entered in the MD5 field of WorldPay's console, or None
+                
+            * WORLDPAY_SIGNATURE_FIELDS
+                A tuple of field names, such as ('instId', 'cartId', 'amount', 'currency'), to use with the MD5 Secret
+        
+            * WORLDPAY_REMOTE_ADDRESS_HEADER
+                A string pointing to the key in Request.META that contains the IP of the request's origin.
+                Usually either `REMOTE_ADDR` or `HTTP_X_FORWARDED_FOR`.
+        
+        Gotchas
+        -------
+        
+        Worldpay's recommended authentication of requests is based on multiple DNS lookups. Please be sure you have a working and reliable DNS setup
+        before using this package. Patches to make this lookup optional and to add the `CallbackPW` alternative would be welcome.
+        
+        You also need the dynamic callback response parameter to be enabled. Currently there are two callbacks, a fail and a success callback. If these
+        two were integrated this requirement could be dropped.
+        
+        License
+        -------
+        
+        The package is released under the `New BSD license`_.
+        
+        .. _`New BSD license`: https://github.com/matthewwilkes/django-oscar-worldpay/blob/master/LICENSE
+        
+        Contributing
+        ------------
+        
+        Please let `@matthewwilkes`_ know if you use this package, feedback would be very useful. Pull requests are very much welcome, please don't
+        hesitate to send them. If they're not attended to quickly, ping `@matthewwilkes` on twitter or GitHub. 
+        
+        Support
+        -------
+        
+        Having problems or got a question?
+        
+        * Have a look at the sandbox site as this is a sample Oscar project
+          integrated with Worldpay.  See the contributing guide within the
+          docs for instructions on how to set up the sandbox locally.
+        
+        * Ping `@matthewwilkes`_ (or `@django_oscar`_) with quick queries.
+        
+        * Ask more detailed questions on the Oscar mailing list: `django-oscar@googlegroups.com`_
+        
+        * Use Github_ for submitting issues and pull requests.
+        
+        .. _`@django_oscar`: https://twitter.com/django_oscar
+        .. _`@matthewwilkes`: https://twitter.com/matthewwilkes
+        .. _`django-oscar@googlegroups.com`: https://groups.google.com/forum/?fromgroups#!forum/django-oscar
+        .. _`Github`: http://github.com/MatthewWilkes/django-oscar-worldpay
+        
+        Changelog
+        ---------
+        
+        1.3 (Unreleased)
+        ----------------
+        
+        * Fix a bug where the reliability fix included in 1.2 would not work if the two requests were almost simultanous.
+          [bharling, mwilkes]
+        
+        1.2 (2015-10-22)
+        ----------------
+        
+        * Make order confirmation more reliable, by fixing a failure mode if the user sends multiple finalisation requests
+          [bharling]
+        
+        * On payment failure redirect to basket:summary rather than basket:preview, to support multiple gateways.
+          [lpakula]
+        
+        * Load OrderPlacementMixin dynamically to allow overrides
+          [bharling]
+        
+        1.1 (2015-09-28)
+        ----------------
+        
+        * Fix a bug when phonenumber wasn't set.
+          [mwilkes]
+        * Remove some old PayPal references that were missed.
+          [mwilkes]
+        
+        1.0 (2015-09-28)
+        ----------------
+        
+        * Initial release. Working integration of Worldpay and Oscar.
+          [mwilkes]
+        
+        0.1
+        ~~~
+        
+        * Skeleton of Worldpay integration, supporting making requests and receiving callbacks.
+          [mwilkes]
+        
+        0.0
+        ~~~
+        * Forked from django-oscar-paypal 0.9.5
+        
+Keywords: Payment,WorldPay,Oscar
+Platform: linux
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: Unix
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Topic :: Other/Nonlisted Topic
