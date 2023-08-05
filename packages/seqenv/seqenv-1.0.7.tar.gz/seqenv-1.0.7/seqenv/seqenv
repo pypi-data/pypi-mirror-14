@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+# Built-in modules #
+import os, inspect, argparse, re
+from argparse import RawTextHelpFormatter
+
+# Internal modules #
+import seqenv
+
+# Retrieve the documentation from the README file #
+current_script = inspect.getframeinfo(inspect.currentframe()).filename
+current_dir = os.path.dirname(os.path.abspath(current_script)) + '/'
+readme_path = current_dir + '../README.md'
+if os.path.exists(readme_path): readme_contents = open(readme_path).read()
+else: readme_contents = "" #TODO
+
+# Get the different paragraphs #
+doc_params = re.findall('^### All parameters(.+?)###', readme_contents, flags=re.M|re.DOTALL)[0]
+doc_usage = re.findall('^### Usage(.+?)###', readme_contents, flags=re.M|re.DOTALL)[0]
+desc = seqenv.version_string + "\n\n" + doc_usage + "\n\n" + doc_params
+
+# Make a shell arguments parser #
+parser = argparse.ArgumentParser(description=desc, formatter_class=RawTextHelpFormatter)
+
+# All the required arguments #
+parser.add_argument("input_file", help="The fasta file to process", type=str)
+
+# All the optional arguments #
+parameters = {
+    "seq_type"      : "Either `nucl` or `prot`. Defaults to `nucl`.",
+    "search_algo"   : "Either 'blast' or 'usearch'. Defaults to `blast`.",
+    "search_db"     : "The path to the database to search against. Defaults to `nt`.",
+    "normalization" : "What normalization strategy should we use for the frequency counts. Refer to the README.",
+    "proportional"  : "Should we divide the counts of every input sequence by the number of envo terms that were associated to it. Defaults to `True`.",
+    "backtracking"  : "For every term identified by the tagger, we will propagate frequency counts up the acyclic directed graph described by the ontology. Defaults to `False`.",
+    "num_threads"   : "Number of threads to use. Default to the number of cores on the current machine.",
+    "out_dir"       : "Place all the outputs in the specified directory. Defaults to the input file's directory.",
+    "min_identity"  : "Minimum identity in similarity search. Defaults to 0.97.",
+    "e_value"       : "Minimum e-value in similarity search. Defaults to 0.0001.",
+    "max_targets"   : "Maximum number of reference matches in similarity search. Defaults to 10.",
+    "min_coverage"  : "Minimum query coverage in similarity search. Defaults to 0.97.",
+    "abundances"    : "If you have sample information, give is as a TSV file with OTUs as rows and sample names as columns.",
+    "N"             : "Use only the top `N` sequences in terms of their abundance. Defaults to 1000.",
+}
+
+# Parse it #
+for param, hlp in parameters.items(): parser.add_argument("--" + param, help=hlp)
+args = parser.parse_args()
+input_path = args.input_file
+kwargs = {k:getattr(args, k) for k in parameters if getattr(args, k) is not None}
+
+# Check modules are installed #
+#TODO
+
+# Check executables can be found #
+#TODO
+
+# Run the pipeline #
+seqenv.Analysis(input_path, **kwargs).run()
