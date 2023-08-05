@@ -1,0 +1,7 @@
+cf.Field.remove_data
+====================
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.Field.remove_data

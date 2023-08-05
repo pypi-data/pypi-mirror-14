@@ -1,0 +1,7 @@
+cf.Field.select
+===============
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.Field.select

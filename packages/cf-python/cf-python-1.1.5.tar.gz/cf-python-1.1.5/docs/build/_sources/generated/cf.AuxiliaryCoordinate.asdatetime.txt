@@ -1,0 +1,7 @@
+cf.AuxiliaryCoordinate.asdatetime
+=================================
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.AuxiliaryCoordinate.asdatetime

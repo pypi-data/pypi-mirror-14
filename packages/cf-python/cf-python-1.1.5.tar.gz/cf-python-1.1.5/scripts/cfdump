@@ -1,0 +1,868 @@
+#!/usr/bin/python2
+#-*-python-*-
+
+if __name__ == '__main__':
+
+    import getopt
+    import sys
+    import os
+    import cf
+
+    def print_help(version, date):
+        import subprocess
+        
+        manpage = '''\
+.TH "CFDUMP" "1" "%s" "%s" "cfdump"
+.
+.
+.
+.SH NAME
+cfdump \- view CF fields
+.
+.
+.
+.SH SYNOPSIS
+.
+cfdump [\-1] [\-c] [\-h] [\-i] [\-l] [\-n] [\-s] [\-u] [\-x] [OPTIONS] FILES
+.
+.
+.
+.SH DESCRIPTION
+.
+.
+.
+The cfdump tool generates text representations on standard output of
+the CF fields contained in the input FILES.
+
+Accepts CF\-netCDF and CFA\-netCDF files (or URLs if DAP access is
+enabled), Met Office (UK) PP files and Met Office (UK) fields files as
+input. Multiple input files in a mixture of formats may be given and
+normal UNIX file globbing rules apply.
+
+By default the contents of each input file is aggregated
+(i.e. combined) into as few multi\-dimensional CF fields as
+possible. Unaggregatable fields in the input files may be omitted from
+the output (see the
+.ft B
+\-x
+.ft P
+option). Information on which fields are unaggregatable, and why, may
+be displayed (see the
+.ft B
+\-\-info
+.ft P
+option). All aggregation may be turned off with the
+.ft B
+\-n
+.ft P
+option, in which case all input fields are output without
+modification.
+
+See the AGGREGATION section for details on the aggregation process and
+unaggregatable fields.
+
+By default each input file is treated separately. In this case there
+is no inter\-file aggregation, but the contents of each file is
+aggregated independently of the others.
+
+Alternatively, all of the input files may be treated collectively as a
+single CF dataset (see the
+.ft B
+\-1
+.ft P
+option). In this case aggregation is attempted within and between the
+input files.
+
+In the displayed output, each component of a field is assigned one of
+the following roles as defined by the CF data model:
+.PP
+.RS
+.nf
+Field
+Axis
+Cell method
+Dimension coordinate
+Auxiliary coordinate
+Cell measure
+Coordinate reference
+.fi
+.RE
+.PP
+A field and its components are identified, where appropriate, by their
+standard names if available, or their long names. If neither is
+present then a netCDF variable name is used. Long names and netCDF
+variable names are preceded by long_name: and ncvar:
+respectively. Axis identities are inferred from the coordinates which
+span them.
+.PP
+Each data array of a field and its components is described by its
+dimensionality, units and (depending on the extent of the output
+requested) its first and last values. For longer and complete outputs,
+arrays containing coordinate bounds are given in the same way and
+included as part of their coordinates' descriptions.
+.
+.
+.
+.SH AGGREGATION
+.
+.
+.
+Aggregation of input fields into as few multi\-dimensional CF fields
+as possible is carried out according to the aggregation rules
+documented in CF ticket #78 (http://kitt.llnl.gov/trac/ticket/78). For
+each input field, the aggregation process creates a
+.ft I
+structural signature
+.ft P
+which is essentially a subset of the metadata of the field, including
+coordinate metadata and other domain information, but which contains
+no data values. The structural signature accounts for the following
+standard CF properties:
+  
+.RS
+add_offset, calendar, cell_methods, _FillValue, flag_masks,
+flag_meanings, flag_values, missing_value, scale_factor,
+standard_error_multiplier, standard_name, units, valid_max, valid_min,
+valid_range
+.RE
+
+Aggregation is then attempted on each group of fields with the same,
+well defined structural signature, and will succeed where the
+coordinate data values imply a safe combination into a single dataset.
+
+Not all fields are aggregatable. Unaggregatable fields are those
+without a well defined structural signature; or those with the same
+structural signature when at least two of them 1) can't be
+unambiguously distinguished by coordinates or other domain information
+or 2) contain coordinate reference fields or ancillary variable fields
+which themselves can't be unambiguously aggregated.
+.
+.
+.
+.SH EXAMPLES
+.
+.
+.
+In these examples, a complete dataset has been split across two files
+(file1.nc and file2.nc). These may be passed to cfdump which can
+return a description of the recombined, aggregated field. The
+.ft B
+\-1
+.ft P
+option is necessary here so that the two input files are treated as
+parts of the same dataset.
+
+The 
+.ft B
+\-s
+.ft P
+option displays the short, one\-line output, which gives the identity
+of the field (air_temperature), the identities and sizes of its data
+array dimensions (time, latitude and longitude with sizes 1200, 64 and
+128 respectively) and the units of the field's data array (K):
+
+.nf
+   $ cfdump \-1s file1.nc file2.nc
+   <CF Field: air_temperature(time(1200), latitude(64), longitude(128)) K>
+.fi
+.PP
+The default summary gives the same information as the the one\-line
+output, along with short descriptions of the field's other components:
+.PP
+.nf
+   $ cfdump \-1 file[12].nc
+   air_temperature field summary
+   -----------------------------
+   Data           : air_temperature(time(1200), latitude(64), longitude(128)) K
+   Cell methods   : time: mean (interval: 1.0 month)
+   Axes           : time(12) = [ 450\-11\-16 00:00:00, ...,  550\-10\-16 12:00:00] noleap calendar
+                  : latitude(64) = [\-87.8638000488, ..., 87.8638000488] degrees_north
+                  : longitude(128) = [0.0, ..., 357.1875] degrees_east
+                  : height(1) = [2.0] m
+.fi
+
+This shows that the aggregated field has a cell method and four
+dimension coordinates, one of which (height) is a coordinate for a
+size 1 dimension that is not a dimension of the field's data
+array. The units and first and last values of the coordinates' data
+arrays are given and relative time values are translated into strings.
+
+The 
+.ft B
+\-l
+.ft P
+option displays the long output, which includes each component's
+properties, as well as the first and last values of the field's data
+array:
+
+.nf
+   $ cfdump \-1l file[1\-2].nc
+   ======================
+   Field: air_temperature
+   ======================
+   Axes
+       height(1)
+       latitude(64)
+       longitude(128)
+       time(12)
+   
+   Data(time(12), latitude(64), longitude(128)) = [[[236.512756348, ..., 256.93371582]]] K
+   cell_methods = time: mean (interval: 1.0 month)
+   
+   experiment_id = 'pre\-industrial control experiment'
+   long_name = 'air_temperature'
+   missing_value = 1e+20
+   standard_name = 'air_temperature'
+   
+   Dimension coordinate: time
+       Data(time(12)) = [ 450\-11\-16 00:00:00, ...,  550\-10\-16 12:00:00] noleap calendar
+       Bounds(time(12), 2) = [[ 450\-11\-01 00:00:00, ...,  550\-11\-01 00:00:00]] noleap calendar
+       axis = 'T'
+       standard_name = 'time'
+   
+   Dimension coordinate: latitude
+       Data(latitude(64)) = [\-87.8638000488, ..., 87.8638000488] degrees_north
+       Bounds(latitude(64), 2) = [[\-90.0, ..., 90.0]] degrees_north
+       axis = 'Y'
+       standard_name = 'latitude'
+   
+   Dimension coordinate: longitude
+       Data(longitude(128)) = [0.0, ..., 357.1875] degrees_east
+       Bounds(longitude(128), 2) = [[\-1.40625, ..., 358.59375]] degrees_east
+       axis = 'X'
+       standard_name = 'longitude'
+   
+   Dimension coordinate: height
+       Data(height(1)) = [2.0] m
+       axis = 'Z'
+       positive = 'up'
+       standard_name = 'height'
+.fi
+.PP
+In this case, the complete output using the
+.ft B
+\-c
+.ft P
+option would be the same as the long output, since there are no fields
+contained in coordinate references nor ancillary variables.
+.
+.
+.
+.SH OPTIONS
+.
+.
+.
+.TP
+.B \-1, \-\-one
+Treat all input files collectively as a single CF dataset. In this
+case aggregation is attempted within and between the input files.
+.
+.
+.TP
+.B \-\-axis=property
+Aggregation configuration: Create a new axis for each input field
+which has given property. If an input field has the property then,
+prior to aggregation, a new axis is created with an auxiliary
+coordinate whose data array is the property's value. This allows for
+the possibility of aggregation along the new axis. The property itself
+is deleted from that field. No axis is created for input fields which
+do not have the specified property.
+
+Multiple axes may be created by specifying more than one
+.ft B
+\-\-axis
+.ft P
+option.
+
+For example, if you wish to aggregate an ensemble of model
+experiments that are distinguished by the source property, you can use
+.ft B
+\-\-axis=source
+.ft P
+to create an ensemble axis which has an auxiliary coordinate variable
+containing the source property values.
+.
+.
+.TP
+.B \-c, \-\-complete
+Display complete outputs. Fields are described without abbreviation
+with the exception of data arrays, which are abbreviated to their
+first and last values. Fields contained in transforms and ancillary
+variables are given as long outputs (see the
+.ft B
+\-l
+.ft P
+option).
+.
+.
+.TP
+.B \-\-contiguous
+Aggregation configuration: Requires that aggregated fields have
+adjacent dimension coordinate cells which partially overlap or share
+common boundary values. Ignored if the dimension coordinates do not
+have bounds.
+.
+.
+.TP
+.B \-\-equal=property
+Aggregation configuration: Require that an input field may only be
+aggregated with other fields if they all have the given CF property
+(standard or non-standard) with equal values. Ignored for any input
+field which does not have this property, or if the property is already
+accounted for in the structural signature.
+
+Supersedes the behaviour for the given property that may be implied by
+the
+.ft B
+\-\-exist_all
+.ft P
+option.
+
+Multiple properties may be set by specifying more than one
+.ft B
+\-\-equal
+.ft P
+option.
+.
+.
+.TP
+.B \-\-equal_all
+Aggregation configuration: Require that an input field may only be
+aggregated with other fields that have the same set of CF properties
+(excluding those already accounted for in the structural signature)
+with equal sets of values.
+
+The behaviour for individual properties may be overridden by the
+.ft B
+\-\-exist \-\-ignore
+.ft P
+options.
+
+For example, to insist that a group of aggregated input fields must
+all have the same CF properties (other than those accounted for in the
+structural signature) with matching values, but allowing the long_name
+properties have unequal values, you can use
+.ft B
+\-\-equal_all \-\-exist=long_name
+.ft P
+.
+.
+.TP
+.B \-\-exist=property
+Aggregation configuration: Require that an input field may only be
+aggregated with other fields if they all have the given CF property
+(standard or non-standard), but not requiring the values to be the
+same. Ignored for any input field which does not have this property,
+or if the property is already accounted for in the structural
+signature.
+
+Supersedes the behaviour for the given property that may be implied by
+the
+.ft B
+\-\-equal_all
+.ft P
+option.
+
+Multiple properties may be set by specifying more than one
+.ft B
+\-\-exist
+.ft P
+option.
+.
+.
+.TP
+.B \-\-exist_all
+Aggregation configuration: Require that an input field may only be
+aggregated with other fields that have the same set of CF properties
+(excluding those already accounted for in the structural signature),
+but not requiring the values to be the same.
+
+The behaviour for individual properties may be overridden by the
+.ft B
+\-\-equal \-\-ignore
+.ft P
+options.
+
+For example, to insist that a group of aggregated input fields must
+all have the same CF properties (other than those accounted for in the
+structural signature), regardless of their values, but also insisting
+that the long_name properties have equal values, you can use
+.ft B
+\-\-exist_all \-\-equal=long_name
+.ft P
+.
+.
+.TP
+.B \-h, \-\-help
+Display this man page.
+.
+.
+.TP
+.B \-i, \-\-relaxed_identities
+Aggregation configuration: In the absence of standard names, allow
+fields and their components (such as coordinates) to be identified by
+their long_name CF properties or else their netCDF file variable
+names.
+.
+.
+.TP
+.B \-\-ignore=property
+Aggregation configuration: An input field may be aggregated with other
+fields regardless of whether or not they have the given CF property
+(standard or non-standard) and regardless of its values. Ignored for
+any input field which does not have this property, or if the property
+is already accounted for in the structural signature.
+
+This is the default behaviour in the absence of all the
+.ft B
+\-\-exist \-\-equal \-\-exist_all \-\-equal_all
+.ft P
+options and supersedes the behaviour for the given property that may
+be implied if any of these options are set.
+
+Multiple properties may be set by specifying more than one
+.ft B
+\-\-ignore
+.ft P
+option.
+
+For example, to insist that a group of aggregated input fields must
+all have the same CF properties (other than those accounted for in the
+structural signature) with the same values, but with no restrictions
+on the existence or values of the long_name property you can use
+.ft B
+\-\-equal_all \-\-ignore=long_name
+.ft P
+.
+.
+.TP
+.B \-\-ignore_read_error
+Ignore, without failing, any file which causes an error whilst being
+read, as would be the case for an empty file, unknown file format,
+etc. By default, an error occurs and the return code is non\-zero.
+.
+.
+.TP
+.B \-\-info=N
+Print information about the aggregation process. If N is 0 then no
+information is displayed. If N is 1 or more then display information
+on which fields are unaggregatable, and why. If N is 2 or more then
+display the fields' structural signatures and, when there is more than
+one field with the same structural signature, their canonical first
+and last coordinate values. If N is 3 or more then display the fields'
+complete aggregation metadata.
+
+By default N is 1.
+.
+.
+.TP
+.B \-l, \-\-long
+Display long outputs. Differs from the complete output (see the
+.ft B
+\-c
+.ft P
+option) only in that fields contained in transforms and ancillary
+variables are given as one\-line summaries (see the
+.ft B
+\-s
+.ft P
+option) rather than as long outputs.
+.
+.
+.TP
+.B \-\-ncvar_identities
+Aggregation configuration: Force fields and their components (such as
+coordinates) to be identified by their netCDF file variable names.
+.
+.
+.TP
+.B \-n, \-\-no_aggregation
+Aggregation configuration: Do not aggregate fields. Displays the input
+fields as they exist in the input files.
+.
+.
+.TP
+.B \-\-no_overlap
+Aggregation configuration: Requires that aggregated fields have
+adjacent dimension coordinate cells which do not overlap (but they may
+share common boundary values). Ignored if the dimension coordinates
+do not have bounds.
+.
+.
+.TP
+.B \-\-promote=component
+Promote field components to independent top-level fields. If component
+is ancillary then ancillary data fields are promoted. If component is
+auxiliary then auxiliary coordinate variables are promoted. If
+component is measure then cell meausure variables are promoted. If
+component is reference then fields pointed to from formula_terms
+attributes are promoted. If component is field then all component
+fields are promoted.
+
+Multiple conponent types may be promoted by specifying more than one
+.ft B
+\-\-promote
+.ft P
+option.
+
+For example, promote ancillary data field and cell measure variables
+to independent, top-level fields you can use
+.ft B
+\-\-promote=ancillary --promote=measure
+.ft P
+.
+.
+.TP
+.B \-\-respect_valid
+Aggregation configuration: Take into account the CF properties
+valid_max, valid_min and valid_range during aggregation. By default
+they are ignored for the purposes of aggregation and deleted from any
+aggregated output CF fields.
+.
+.
+.TP
+.B \-s, \-\-short
+Display short outputs. Fields are described by a short, one\-line
+summaries.
+.
+.
+.TP
+.B \-\-shared_nc_domain
+Aggregation configuration: Match axes between a field and its
+contained ancillary variable and coordinate reference fields via their
+netCDF dimension names and not via their domains.
+.
+.
+.TP
+.B \-\-squeeze
+Remove size 1 axes from the displayed fields' data arrays. If a size
+one axis has any one dimensional coordinates then these are converted
+to CF scalar coordinates.
+.
+.
+.TP
+.B \-u, \-\-relaxed_units
+Aggregation configuration: Assume that fields or their components
+(such as coordinates) with the same standard name (or other
+identifiers, see the
+.ft B
+\-i
+.ft P
+option) but missing units all have equivalent (but unspecified) units,
+so that aggregation may occur. This is the default for Met Office (UK)
+PP files and Met Office (UK) fields files, but not for other formats.
+.
+.
+.TP
+.B \-\-unsqueeze
+Include size 1 axes in the displayed fields' data arrays. If a size
+one axis has any CF scalar coordinates then these are converted to one
+dimensional coordinates.
+.
+.
+.TP
+.B \-\-um_version=version
+For Met Office (UK) PP files and Met Office (UK) fields files only,
+the Unified Model (UM) version to be used when decoding the
+header. Valid versions are, for example, 4.2, 6.6.3 and 8.2. The
+default version is 4.5. In general, the given version is ignored if it
+can be inferred from the header (which is usually the case for files
+created by the UM at versions 5.3 and later). The exception to this is
+when the given version has a third element (such as the 3 in 6.6.3),
+in which case any version in the header is ignored. This option is
+ignored for input files which are not Met Office (UK) PP files or Met
+Office (UK) fields files.
+.
+.
+.TP
+.B \-x, \-\-exclude
+Aggregation configuration: Omit unaggregatable fields from the
+output. Ignored if the
+.ft B
+\-n
+.ft P
+option is set. See the AGGREGATION section for the definition of an
+unaggregatable field.
+.
+.
+.
+.SH SEE ALSO
+cfa(1), ncdump(1)
+.
+.
+.
+.SH LIBRARY
+cf\-python library version %s at %s
+.
+.
+.
+.SH BUGS
+Reports of bugs are welcome at http://cfpython.bitbucket.org
+.
+.
+.
+.SH LICENSE
+Open Source Initiative MIT License
+.
+.
+.SH AUTHOR
+David Hassell
+''' % (version, date, version, os.path.dirname(os.path.abspath(cf.__file__)))
+
+#        p = subprocess.Popen(['groffer', '-a', '--', '-'], stdin=subprocess.PIPE)
+        p = subprocess.Popen(['man', '-r',
+                              ' Manual page cfdump(1)\ ?ltline\ %lt?L/%L.:',
+                              '-l', '-'], stdin=subprocess.PIPE)
+#        p = subprocess.Popen(['groff', '-Tascii', '-mandoc', '-'], stdin=subprocess.PIPE)
+#        p = subprocess.Popen(['groffer', '-a', '--', '-'], stdin=subprocess.PIPE)
+        p.communicate(manpage)
+    #---- End: def
+
+    iam   = os.path.basename(sys.argv[0])
+    usage = "USAGE: %s [-1] [-c] [-h] [-i] [-l] [-n] [-s] [-u] [-x] [OPTIONS] FILES" % iam
+ 
+    short_description = '''\
+
+The cfdump tool generates text representations on standard output of
+the CF fields contained in the input files. By default each input file
+is treated as a single CF dataset following the aggregation rules
+currently documented in CF ticket #78. By default a summary of each CF
+field is output, but short one-line summaries, longer and complete
+outputs are optionally available. Accepts CF-netCDF and CFA-netCDF
+files (or URLs if DAP access is enabled), Met Office (UK) PP files and
+Met Office (UK) fields files as input.
+'''
+
+    short_help = '''\
+%s
+  [-1]                   Treat all input files together as a single CF dataset
+  [-c]                   Display complete outputs
+  [-h]                   Display the full man page
+  [-i]                   Configure field aggregation
+  [-l]                   Display long outputs
+  [-n]                   Do not aggregate fields
+  [-s]                   Display short, one-line field summaries
+  [-u]                   Configure field aggregation
+  [-x]                   Do not output unaggregatable fields
+  [--ignore_read_error]  Ignore bad input files
+  [--squeeze]            Remove size 1 axes from the output fields' data arrays
+  [--unsqueeze]          Include size 1 axes in the output fields' data arrays
+  [--um_version]         UM version for decoding PP and fields files
+  [--info=N]             Display information about field aggregation 
+  [--axis=property]      Configure field aggregation
+  [--equal=property]     Configure field aggregation
+  [--exist=property]     Configure field aggregation
+  [--ignore=property]    Configure field aggregation
+  [--equal_all]          Configure field aggregation
+  [--exist_all]          Configure field aggregation
+  [--contiguous]         Configure field aggregation
+  [--ncvar_identitites]  Configure field aggregation
+  [--no_overlap]         Configure field aggregation
+  [--respect_valid]      Configure field aggregation
+  [--shared_nc_domain]   Configure field aggregation
+  FILES                  Name (or URL for DAP access) of each input file 
+
+Using cf-python library version %s at %s''' % \
+        (usage, cf.__version__,
+         os.path.dirname(os.path.abspath(cf.__file__)))
+        
+    # --------------------------------------------------------------------
+    # Parse command line options
+    # --------------------------------------------------------------------
+    try:
+        opts, infiles = getopt.getopt(sys.argv[1:], "1achilnr:suxw:", 
+                                      longopts=['complete',
+                                                'contiguous',
+                                                'equal=',
+                                                'equal_all',
+                                                'exist=',
+                                                'exist_all',
+                                                'help',
+                                                'ignore=',
+                                                'ignore_read_error', 
+                                                'info=',
+                                                'long',
+                                                'no_aggregation',
+                                                'no_overlap',
+                                                'one', 
+                                                'promote=',
+                                                'relaxed_identities',
+                                                'ncvar_identities',
+                                                'relaxed_units',
+                                                'respect_valid',
+                                                'shared_nc_domain',
+                                                'short',
+                                                'squeeze',
+                                                'um_version=',
+                                                'unsqueeze',
+                                                'all', 'aggregate=', 'read=', 'write=',
+                                                ])
+    except getopt.GetoptError, err:
+        # Print help information and exit:
+        print "%s ERROR: Incorrect usage" % iam
+        print short_help
+        sys.exit(2)
+    #--- End: try
+
+    if not (infiles or opts):
+        print short_description, '\n', short_help
+        sys.exit(0)
+    #--- End: if
+
+    # Defaults
+    short_output      = False
+    long_output       = False
+    complete_output   = False
+    no_aggregation    = False
+#    user_info         = False
+    one_to_one        = True
+    exclude           = False  # By default unaggregatable fields are output
+    info              = 0      # By default no info is printed to STDOUT
+    axes              = []
+    equal             = []
+    exist             = []
+    ignore            = []
+    promote           = []
+    aggregate_options = {}
+    read_options      = {}
+
+    for option, arg in opts: 
+        if option in ('-h', '--help'):
+            print_help(cf.__version__, cf.__date__)
+            sys.exit(0)
+        elif option in ('-s', '--short'):
+            short_output = True
+        elif option in ('-l', '--long'):
+            long_output = True
+        elif option in ('-c', '--complete'):
+            complete_output = True
+            long_output     = True
+        elif option in ('-1', '--one'):
+            one_to_one = False
+        elif option in ('-n', '--no_aggregation'):
+            no_aggregation = True
+        elif option in ('-a', '--all'):
+            exclude = False
+        elif option == '--info':
+#            user_info = True
+            info = int(arg)
+        elif option in ('-x', '--exclude'):
+            exclude = True
+        elif option == '--axis':
+            axes.append(arg)
+        elif option == '--equal':
+            equal.append(arg)
+        elif option == '--exist':
+            exist.append(arg)
+        elif option == '--ignore':
+            ignore.append(arg)
+        elif option == '--promote':
+            promote.append(arg)
+        elif option == '--contiguous':
+            aggregate_options['contiguous'] = True
+        elif option == '--equal_all':
+            aggregate_options['equal_all'] = True
+        elif option == '--exist_all':
+            aggregate_options['exist_all'] = True
+        elif option == '--no_overlap':
+            aggregate_options['no_overlap'] = True
+        elif option in ('-i', '--relaxed_identities'):
+            aggregate_options['relaxed_identities'] = True
+        elif option in ('-u', '--relaxed_units'):
+            aggregate_options['relaxed_units'] = True
+        elif option == '--respect_valid':
+            aggregate_options['respect_valid'] = True
+        elif option == '--ncvar_identities':
+            aggregate_options['ncvar_identities'] = True
+        elif option == '--shared_nc_domain':
+            aggregate_options['shared_nc_domain'] = True
+        elif option == '--squeeze':
+            read_options['squeeze'] = True
+        elif option == '--um_version':
+            read_options['umversion'] = arg
+        elif option == '--unsqueeze':
+            read_options['unsqueeze'] = True
+        elif option == '--ignore_read_error':
+            read_options['ignore_read_error'] = Tru
+        elif option in ('-a', '--all'):
+            print(
+"%s ERROR: The %s option has been deprecated and is now the default behaviour. See the -x option." %
+(iam, option))
+            sys.exit(2)
+        elif option in ('-r', '-w', '--aggregate', '--read', '--write'):
+            print(
+"%s ERROR: Option %s has been replaced. See %s -h" % (iam, option, iam))
+            sys.exit(2)
+        else:
+            print short_help
+            assert False, "Unhandled option: "+option
+    #--- End: for
+
+    if not infiles:
+        print iam, "ERROR: Must provide at least one input file"
+        print short_help
+        sys.exit(2)
+    #--- End: if
+    
+    if promote:
+        read_options['promote'] = promote
+
+    if no_aggregation:
+        read_options['aggregate'] = False
+    else:
+        aggregate_options['info']    = info
+        aggregate_options['exclude'] = exclude
+    
+        if axes:
+            aggregate_options['dimension'] = axes
+    
+        if equal:
+            aggregate_options['equal'] = equal
+    
+        if exist:
+            aggregate_options['exist'] = exist
+    
+        if ignore:
+            aggregate_options['ignore'] = ignore
+    
+        read_options['aggregate'] = aggregate_options
+    #--- End: if
+
+    status = 0
+
+    if len(infiles) == 1:
+        # Only one input is equivalent to using the --one option
+        one_to_one = False
+
+    if not one_to_one:
+        infiles = (infiles,)
+
+    # ----------------------------------------------------------------
+    # Read the input files
+    # ----------------------------------------------------------------
+    for infile in infiles:
+        if one_to_one:
+            print '\nFILE:', infile,'\n'
+            
+        try:        
+            f = cf.read(infile, **read_options)
+        except Exception as error:
+            print '%s ERROR reading file: %s' % (iam, error)
+            sys.exit(1)
+
+        status |= cf.aggregate.status
+        
+        # ----------------------------------------------------------------
+        # Print the fields' descriptions
+        # ----------------------------------------------------------------
+        if short_output:
+            for g in f:            
+                print repr(g)
+        elif not long_output:
+            print f
+        else:
+            f.dump(complete=complete_output)
+            
+        if not one_to_one:
+            break
+    #--- End: for

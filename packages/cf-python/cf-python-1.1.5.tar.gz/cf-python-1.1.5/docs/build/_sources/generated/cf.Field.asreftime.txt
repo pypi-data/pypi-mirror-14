@@ -1,0 +1,7 @@
+cf.Field.asreftime
+==================
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.Field.asreftime

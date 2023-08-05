@@ -1,0 +1,7 @@
+cf.Field.insert_data
+====================
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.Field.insert_data
