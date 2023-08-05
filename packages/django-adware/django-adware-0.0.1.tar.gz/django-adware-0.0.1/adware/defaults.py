@@ -1,0 +1,7 @@
+from django.conf import settings
+
+ADWARE_TEMPLATE_BASE_DIR = getattr(settings, 'ADWARE_TEMPLATE_BASE_DIR', 'ads')
+ADWARE_MINIMUM_IMPRESSION_PERCENTAGE = getattr(settings, 'ADWARE_MINIMUM_IMPRESSION_PERCENTAGE', 30)
+
+ADWARE_DEFAULT_AD_CLIENT = getattr(settings, 'ADWARE_DEFAULT_AD_CLIENT', '')
+ADWARE_DEFAULT_AD_SLOT = getattr(settings, 'ADWARE_DEFAULT_AD_SLOT', '')
