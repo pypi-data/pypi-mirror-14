@@ -1,0 +1,13 @@
+.. :changelog:
+
+History
+-------
+
+1.0.0
+------------------
+
+* Use ``$PATH`` to find ``gs`` binary.
+* Rename ``PostscriptError`` to ``TreepoemError``.
+* Add basic ``setup.py``.
+* Setup Travis CI build.
+* Setup Tox
