@@ -1,0 +1,143 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:grok="http://namespaces.zope.org/grok"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+    xmlns:plone="http://namespaces.plone.org/plone"
+    xmlns:i18n="http://namespaces.zope.org/i18n"
+    xmlns:theme="http://namespaces.zope.org/plonetheme.onegov"
+    i18n_domain="seantis.dir.events">
+
+    <i18n:registerTranslations directory="locales" />
+
+    <include package="plone.behavior" file="meta.zcml" />
+    <include package="plone.contentrules" />
+    <include package="plone.contentrules" file="meta.zcml" />
+    <include package="plone.directives.form" file="meta.zcml" />
+    <include package="plone.directives.form" />
+    <include package="plone.app.jquerytools" />
+
+    <!-- Include configuration for dependencies listed in setup.py -->
+    <includeDependencies package="." />
+
+    <!-- upgrades -->
+    <include file="upgrades.zcml" />
+
+    <!-- Grok the package to initialise schema interfaces and content classes -->
+    <grok:grok package="." />
+
+    <!-- Resources -->
+    <browser:resourceDirectory
+        name="seantis.dir.events.stylesheets"
+        directory="css"/>
+
+    <browser:resourceDirectory
+        name="seantis.dir.events.javascript"
+        directory="js"/>
+
+
+    <configure zcml:condition="installed plonetheme.onegov">
+        <include package="plonetheme.onegov" />
+        <theme:add_scss path="scss/events.scss" />
+    </configure>
+
+    <!-- Change add view -->
+    <adapter
+        for="Products.CMFCore.interfaces.IFolderish
+             Products.CMFDefault.interfaces.ICMFDefaultSkin
+             plone.dexterity.interfaces.IDexterityFTI"
+        provides="zope.publisher.interfaces.browser.IBrowserPage"
+        factory=".form.EventSubmitForm"
+        name="seantis.dir.events.item"
+        />
+
+    <!-- Behaviors -->
+    <plone:behavior
+        title="Event Submission Data"
+        description="Event Data relevant in a submission, but not for display"
+        provides=".interfaces.IEventSubmissionData"
+        factory=".submission.EventSubmissionData"
+        for=".interfaces.IEventsDirectoryItem"
+    />
+
+    <!-- Profiles -->
+    <genericsetup:registerProfile
+        name="default"
+        title="Seantis Dir Events"
+        description="Base Profile for Seantis Dir Events, Minimal Styles"
+        directory="profiles/default"
+        provides="Products.GenericSetup.interfaces.EXTENSION"
+    />
+
+    <genericsetup:registerProfile
+        name="sunburst"
+        title="Seantis Dir Events - for default plone theme"
+        description="Sunburst Profile for Seantis Dir Events, Usually You Want This"
+        directory="profiles/sunburst"
+        provides="Products.GenericSetup.interfaces.EXTENSION"
+    />
+
+    <genericsetup:registerProfile
+        name="izug_basetheme"
+        title="Seantis Dir Events - for izug.basetheme"
+        description="IZug Basetheme Profile for Seantis Dir Events"
+        directory="profiles/izug_basetheme"
+        provides="Products.GenericSetup.interfaces.EXTENSION"
+    />
+
+    <genericsetup:registerProfile
+         name="teamraum"
+         title="Seantis Dir Events - for plonetheme.teamraum"
+         description="Plonetheme Teamraum Profile for Seantis Dir Events"
+         directory="profiles/teamraum"
+         provides="Products.GenericSetup.interfaces.EXTENSION"
+    />
+
+    <!-- Content rule conditions -->
+    <adapter factory=".conditions.SourceConditionExecutor" />
+
+    <browser:page
+      for="plone.app.contentrules.browser.interfaces.IRuleConditionAdding"
+      name="seantis.dir.events.conditions.source_add"
+      class=".conditions.SourceConditionAddForm"
+      permission="cmf.ManagePortal"
+      />
+
+    <browser:page
+      for=".interfaces.ISourceCondition"
+      name="seantis.dir.events.conditions.source_edit"
+      class=".conditions.SourceConditionEditForm"
+      permission="cmf.ManagePortal"
+      />
+
+    <plone:ruleCondition
+        name="seantis.dir.events.conditions.source"
+        title="Event Import Source"
+        description="Apply only when the current content object has the given source"
+        for="*"
+        event="zope.component.interfaces.IObjectEvent"
+        addview="seantis.dir.events.conditions.source_add"
+        editview="seantis.dir.events.conditions.source_edit"
+        />
+
+    <genericsetup:importStep
+      name="seantis.dir.events"
+      description=""
+      title="seantis.dir.events indexes"
+      handler="seantis.dir.events.setuphandler.import_indexes"
+      />
+
+    <genericsetup:importStep
+      name="enable_jquerytools_dateinput_js"
+      description=""
+      title="Enable jquery.dateinput.js"
+      handler="seantis.dir.events.setuphandler.enable_jquerytools_dateinput_js"
+      />
+
+    <!-- Advanced Theme Adjustments through Diazo -->
+    <plone:static name="seantis.dir.events.izug-theme"
+      directory="themes/izug-theme" type="theme"
+    />
+
+</configure>
