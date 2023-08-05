@@ -1,0 +1,337 @@
+#!/bin/bash
+
+if [ x"$WARPDRIVE_DEBUG" != x"" ]; then
+    set -x
+fi
+
+# This script will run 'mod_wsgi-express start-server', adding in some
+# additional initial arguments to send logging to the terminal.
+
+# Set the umask to be '002' so that any files/directories created from
+# this point are group writable. This does rely on any applications or
+# installation scripts honouring the umask setting.
+
+umask 002
+
+# Setup the environment if not already done.
+
+if [ x"$WARPDRIVE_ACTION" = x"" ]; then
+    eval "$(warpdrive env)"
+fi
+
+WARPDRIVE_ACTION=start
+export WARPDRIVE_ACTION
+
+# Make sure we are in the correct working directory for the application.
+
+cd $WARPDRIVE_APPL_DIR
+
+# Run any user supplied script to be run prior to starting the
+# application in the actual container. The script must be executable in
+# order to be run. It is not possible for this script to change the
+# permissions so it is executable and then run it, due to some docker
+# bug which results in the text file being busy. For more details see:
+#
+#   https://github.com/docker/docker/issues/9547
+
+if [ -f .warpdrive/action_hooks/deploy ]; then
+    if [ ! -x .warpdrive/action_hooks/deploy ]; then
+        echo "WARNING: Script .warpdrive/action_hooks/deploy not executable."
+    fi
+fi
+
+if [ -x .warpdrive/action_hooks/deploy ]; then
+    echo " -----> Running .warpdrive/action_hooks/deploy"
+    .warpdrive/action_hooks/deploy
+fi
+
+# Determine whether we have been told that we are running a specific web
+# application server type. If we haven't, we will try and automatically
+# determine how the server should be started and what WSGI server to use.
+
+if [ -f .warpdrive/server_type ]; then
+    WARPDRIVE_SERVER_TYPE="`cat .warpdrive/server_type`"
+else
+    WARPDRIVE_SERVER_TYPE="auto"
+fi
+
+WARPDRIVE_WSGI_SERVER=${WARPDRIVE_WSGI_SERVER:-mod_wsgi}
+
+case $WARPDRIVE_SERVER_TYPE in
+    auto+gunicorn|gunicorn)
+        WARPDRIVE_SERVER_TYPE="auto"
+        WARPDRIVE_WSGI_SERVER="gunicorn"
+        ;;
+    auto+mod_wsgi|mod_wsgi)
+        WARPDRIVE_SERVER_TYPE="auto"
+        WARPDRIVE_WSGI_SERVER="mod_wsgi"
+        ;;
+    auto+uwsgi|uwsgi)
+        WARPDRIVE_SERVER_TYPE="auto"
+        WARPDRIVE_WSGI_SERVER="uwsgi"
+        ;;
+    auto+waitress|waitress)
+        WARPDRIVE_SERVER_TYPE="auto"
+        WARPDRIVE_WSGI_SERVER="waitress"
+        ;;
+esac
+
+echo " -----> Configuring for server type of '$WARPDRIVE_SERVER_TYPE'"
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "auto" ]; then
+    echo " -----> Default server for 'auto' is '$WARPDRIVE_WSGI_SERVER'"
+fi
+
+# Setup default names of files to check for different server types.
+
+WARPDRIVE_SHELL_FILE="${WARPDRIVE_SHELL_FILE:-app.sh}"
+WARPDRIVE_PYTHON_FILE="${WARPDRIVE_PYTHON_FILE:-app.py}"
+
+WARPDRIVE_WSGI_MODULE_NAME="${WARPDRIVE_WSGI_MODULE_NAME:-wsgi}"
+WARPDRIVE_WSGI_CALLABLE_OBJECT=${WARPDRIVE_WSGI_CALLABLE_OBJECT:-application}
+WARPDRIVE_WSGI_STATIC_URL=${WARPDRIVE_WSGI_STATIC_URL:-}
+WARPDRIVE_WSGI_STATIC_ROOT=${WARPDRIVE_WSGI_STATIC_ROOT:-}
+
+# Ensure that path to a shell script file uses absolute path else we
+# will not be able to execute it later as isn't going to be in PATH.
+
+case "$WARPDRIVE_SHELL_FILE" in
+    /*)
+        ;;
+    *)
+        WARPDRIVE_SHELL_FILE="$WARPDRIVE_APPL_DIR/$WARPDRIVE_SHELL_FILE"
+        ;;
+esac
+
+# Utility functions for deducing server args for various cases.
+
+function wsgi_module_path() {
+    WARPDRIVE_WSGI_MODULE_FILE="`echo $WARPDRIVE_WSGI_MODULE_NAME | \
+        sed -e 's%\.%/%g'`.py"
+    WARPDRIVE_WSGI_PACKAGE_FILE="`echo $WARPDRIVE_WSGI_MODULE_NAME | \
+        sed -e 's%\.%/%g'`/__init__.py"
+
+    WARPDRIVE_WSGI_FILE=""
+
+    if [ -f $WARPDRIVE_WSGI_MODULE_FILE ]; then
+        WARPDRIVE_WSGI_FILE=$WARPDRIVE_WSGI_MODULE_FILE
+    fi
+    
+    if [ -f $WARPDRIVE_WSGI_PACKAGE_FILE ]; then
+        WARPDRIVE_WSGI_FILE=$WARPDRIVE_WSGI_PACKAGE_FILE
+    fi
+
+    echo $WARPDRIVE_WSGI_FILE
+}
+
+function django_server_args() {
+    WARPDRIVE_TMP_MODULE="django_settings_$$"
+    WARPDRIVE_TMP_SCRIPT="/tmp/server_vars_$$.py"
+
+    python manage.py diffsettings > /tmp/$WARPDRIVE_TMP_MODULE.py
+
+    cat > $WARPDRIVE_TMP_SCRIPT << !
+from __future__ import print_function
+import sys
+sys.path.insert(0, '/tmp')
+
+try:
+    import $WARPDRIVE_TMP_MODULE as settings
+    wsgi_application = getattr(settings, 'WSGI_APPLICATION')
+    static_url = getattr(settings, 'STATIC_URL', '/static/')
+    static_root = getattr(settings, 'STATIC_ROOT',
+            '$WARPDRIVE_HOME_DIR/django/static')
+    entry_point = '.'.join(wsgi_application.split('.')[:2])
+    callable_object = wsgi_application.split('.')[-1]
+except Exception:
+    pass
+else:
+    variables = [
+        'WARPDRIVE_WSGI_MODULE_NAME=%s' % entry_point,
+        'WARPDRIVE_WSGI_CALLABLE_OBJECT=%s' % callable_object]
+
+    if static_url.endswith('/') and not static_root.endswith('/'):
+        static_root = static_root + '/'
+
+    variables.append('WARPDRIVE_WSGI_STATIC_URL=%s' % static_url)
+    variables.append('WARPDRIVE_WSGI_STATIC_ROOT=%s' % static_root)
+
+    print('\n'.join(variables))
+!
+
+    python $WARPDRIVE_TMP_SCRIPT
+
+    rm /tmp/$WARPDRIVE_TMP_MODULE.py*
+    rm $WARPDRIVE_TMP_SCRIPT*
+}
+
+function server_args() {
+    WARPDRIVE_SERVER_ARGS="$WARPDRIVE_SERVER_ARGS $*"
+}
+
+function create_whitenoise_wrapper() {
+    mkdir -p $WARPDRIVE_HOME_DIR/django/modules
+    cat > $WARPDRIVE_HOME_DIR/django/modules/whitenoise_wrapper.py << !
+from whitenoise import WhiteNoise
+
+from $WARPDRIVE_WSGI_MODULE_NAME import $WARPDRIVE_WSGI_CALLABLE_OBJECT as _application
+
+application = WhiteNoise(_application)
+application.add_files('$WARPDRIVE_WSGI_STATIC_ROOT', prefix='$WARPDRIVE_WSGI_STATIC_URL')
+!
+}
+
+# Now check whether server type of 'shell' is selected.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "shell" ]; then
+    server_args $WARPDRIVE_SHELL_FILE
+fi
+
+# Now check whether server of 'python' is selected.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "python" ]; then
+    server_args $WARPDRIVE_PYTHON_FILE
+fi
+
+# Now check whether server of 'wsgi' is selected. We are going to
+# switch to type 'mod_wsgi' in this case and configure it appropriately.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "wsgi" ]; then
+    if [ "$(wsgi_module_path)" != "" ]; then
+        WARPDRIVE_SERVER_TYPE="$WARPDRIVE_WSGI_SERVER"
+    fi
+fi
+
+# Now check whether server of 'django' is selected. We are going to
+# switch to type 'mod_wsgi' in this case and configure it appropriately.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "django" -a -f manage.py ]; then
+    if grep -q DJANGO_SETTINGS_MODULE manage.py; then
+        WARPDRIVE_SERVER_TYPE="$WARPDRIVE_WSGI_SERVER"
+        eval "$(django_server_args)"
+    fi
+fi
+
+# If instead we are in automatic mode, we are going to try a number of
+# different strategies. First up we are going to check whether there
+# exists an executable 'app.sh' program in the top level directory of
+# the application. If there is, we switch to 'shell' server type.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "auto" -a -x $WARPDRIVE_SHELL_FILE ]; then
+    WARPDRIVE_SERVER_TYPE="shell"
+    WARPDRIVE_SERVER_ARGS="$WARPDRIVE_SHELL_FILE"
+fi
+
+# Now check whether there exists an 'app.py' script file in the top
+# level directory. If there is, we switch to 'python' server type.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "auto" -a -f $WARPDRIVE_PYTHON_FILE ]; then
+    WARPDRIVE_SERVER_TYPE="python"
+    WARPDRIVE_SERVER_ARGS="$WARPDRIVE_PYTHON_FILE"
+fi
+
+# Now check whether there exists a 'wsgi.py' file in the top level
+# directory. If there is, we switch to 'mod_wsgi' server type.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "auto" ]; then
+    if [ "$(wsgi_module_path)" != "" ]; then
+        WARPDRIVE_SERVER_TYPE="$WARPDRIVE_WSGI_SERVER"
+    fi
+fi
+
+# Now check whether there exists a 'setup.py' file in the top level
+# directory. This means we should have an application package installed.
+# In this was we will switch to 'mod_wsgi' server type and use the name
+# of the application package as the module containing the WSGI
+# application entry point.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "auto" -a -f setup.py ]; then
+    WARPDRIVE_SERVER_TYPE="$WARPDRIVE_WSGI_SERVER"
+    WARPDRIVE_WSGI_MODULE_NAME="$(python setup.py --name)"
+fi
+
+# Now check whether there exists a 'manage.py' file in the top level
+# directory. This can indicate we are running Django. Validate that it
+# is probably Django and then use 'manage.py' to determine the WSGI
+# application entry point, static files location and mount point. Switch
+# to 'mod_wsgi' server type.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "auto" -a -f manage.py ]; then
+    if grep -q DJANGO_SETTINGS_MODULE manage.py; then
+        WARPDRIVE_SERVER_TYPE="$WARPDRIVE_WSGI_SERVER"
+        eval $(django_server_args)
+    fi
+fi
+
+# Setup server args when WSGI server is to be used.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "gunicorn" ]; then
+    WARPDRIVE_WSGI_APPLICATION="$WARPDRIVE_WSGI_STATIC_URL:$WARPDRIVE_WSGI_STATIC_ROOT"
+
+    if [ "$WARPDRIVE_WSGI_STATIC_URL" != "" ]; then
+        if [ "$WARPDRIVE_WSGI_STATIC_ROOT" != "" ]; then
+            create_whitenoise_wrapper
+            WARPDRIVE_WSGI_APPLICATION="whitenoise_wrapper:application"
+            PYTHONPATH="$PYTHONPATH:$WARPDRIVE_HOME_DIR/django/modules"
+            export PYTHONPATH
+        fi
+    fi
+
+    server_args $WARPDRIVE_WSGI_APPLICATION
+fi
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "mod_wsgi" ]; then
+    server_args --application-type module
+    server_args --entry-point $WARPDRIVE_WSGI_MODULE_NAME
+    server_args --callable-object $WARPDRIVE_WSGI_CALLABLE_OBJECT
+
+    if [ "$WARPDRIVE_WSGI_STATIC_URL" != "" ]; then
+        if [ "$WARPDRIVE_WSGI_STATIC_ROOT" != "" ]; then
+            server_args --url-alias $WARPDRIVE_WSGI_STATIC_URL $WARPDRIVE_WSGI_STATIC_ROOT
+        fi
+    fi
+fi
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "uwsgi" ]; then
+    server_args --module $WARPDRIVE_WSGI_MODULE_NAME
+    server_args --callable $WARPDRIVE_WSGI_CALLABLE_OBJECT
+
+    if [ "$WARPDRIVE_WSGI_STATIC_URL" != "" ]; then
+        if [ "$WARPDRIVE_WSGI_STATIC_ROOT" != "" ]; then
+            server_args --static-map $WARPDRIVE_WSGI_STATIC_URL=$WARPDRIVE_WSGI_STATIC_ROOT
+        fi
+    fi
+fi
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "waitress" ]; then
+    WARPDRIVE_WSGI_APPLICATION="$WARPDRIVE_WSGI_STATIC_URL:$WARPDRIVE_WSGI_STATIC_ROOT"
+
+    if [ "$WARPDRIVE_WSGI_STATIC_URL" != "" ]; then
+        if [ "$WARPDRIVE_WSGI_STATIC_ROOT" != "" ]; then
+            create_whitenoise_wrapper
+            WARPDRIVE_WSGI_APPLICATION="whitenoise_wrapper:application"
+            PYTHONPATH="$PYTHONPATH:$WARPDRIVE_HOME_DIR/django/modules"
+            export PYTHONPATH
+        fi
+    fi
+
+    server_args $WARPDRIVE_WSGI_APPLICATION
+fi
+
+# If was doing auto detection and couldn't match any possible way to
+# host the Python web application, switch to 'mod_wsgi' server type and
+# show the default splash page.
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "auto" ]; then
+    WARPDRIVE_SERVER_TYPE="mod_wsgi"
+    WARPDRIVE_SERVER_ARGS=""
+fi
+
+# Finally, execute the startup script for the final server type.
+
+WARPDRIVE_START=`which $0`
+WARPDRIVE_SCRIPTS=`dirname $WARPDRIVE_START`/../etc
+
+echo " -----> Running server script start-$WARPDRIVE_SERVER_TYPE"
+
+exec $WARPDRIVE_SCRIPTS/start-$WARPDRIVE_SERVER_TYPE $WARPDRIVE_SERVER_ARGS

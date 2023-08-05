@@ -1,0 +1,44 @@
+#!/bin/bash
+
+if [ x"$WARPDRIVE_DEBUG" != x"" ]; then
+    set -x
+fi
+
+WARPDRIVE_SCRIPT=$1
+
+WARPDRIVE_SERVER_ARGS=""
+
+if [ -d .warpdrive/server_args ]; then
+    WARPDRIVE_SERVER_ARGS_FILE=".warpdrive/server_args/python"
+else
+    WARPDRIVE_SERVER_ARGS_FILE=".warpdrive/server_args"
+fi
+
+if [ -f $WARPDRIVE_SERVER_ARGS_FILE ]; then
+    WARPDRIVE_SERVER_ARGS="$WARPDRIVE_SERVER_ARGS `cat $WARPDRIVE_SERVER_ARGS_FILE`"
+
+    # Expand any environment variable references in options.
+
+    WARPDRIVE_TMP_FILE=/tmp/server_args.$$
+
+    cat > $WARPDRIVE_TMP_FILE << EOF
+#!/bin/sh
+cat << !
+$WARPDRIVE_SERVER_ARGS
+!
+EOF
+
+    chmod +x $WARPDRIVE_TMP_FILE
+
+    WARPDRIVE_SERVER_ARGS=`$WARPDRIVE_TMP_FILE`
+
+    rm -f $WARPDRIVE_TMP_FILE
+fi
+
+if [ $$ = 1 ]; then
+    WARPDRIVE_TINI="tini --"
+fi
+
+echo " -----> Executing server command '$WARPDRIVE_TINI python $WARPDRIVE_SCRIPT $WARPDRIVE_SERVER_ARGS'"
+
+exec $WARPDRIVE_TINI python $WARPDRIVE_SCRIPT $WARPDRIVE_SERVER_ARGS

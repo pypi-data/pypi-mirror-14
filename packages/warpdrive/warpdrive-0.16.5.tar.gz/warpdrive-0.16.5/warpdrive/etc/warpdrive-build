@@ -1,0 +1,266 @@
+#!/bin/bash
+
+if [ x"$WARPDRIVE_DEBUG" != x"" ]; then
+    set -x
+fi
+
+# This is the script that prepares the Python application to be run. It
+# would normally be triggered from a derived docker image explicitly,
+# as a deferred ONBUILD action, or from an S2I builder.
+#
+# The main purpose of the script is to run 'pip install' on any user
+# supplied 'requirements.txt' file. In addition to that though, it will
+# also run any user provided scripts for performing actions before or
+# after the installation of any application dependencies. These user
+# scripts enable the ability to install additional system packages, or
+# run any application specific startup commands for preparing an
+# application, such as for running 'collectstatic' on a Django web
+# application.
+
+# Ensure that any failure within this script or a user provided script
+# causes this script to fail immediately. This eliminates the need to
+# check individual statuses for anything which is run and prematurely
+# exit. Note that the feature of bash to exit in this way isn't
+# foolproof. Ensure that you heed any advice in:
+#
+#   http://mywiki.wooledge.org/BashFAQ/105
+#   http://fvue.nl/wiki/Bash:_Error_handling
+#
+# and use best practices to ensure that failures are always detected.
+# Any user supplied scripts should also use this failure mode.
+
+set -eo pipefail
+
+# Specify the build system and target. The build target is mainly for
+# pre build action hooks.
+
+WARPDRIVE_BUILD_SYSTEM=${WARPDRIVE_BUILD_SYSTEM:-local}
+WARPDRIVE_BUILD_TARGET=application
+
+export WARPDRIVE_BUILD_SYSTEM
+export WARPDRIVE_BUILD_TARGET
+
+# Set up the home directory for the application.
+
+WARPDRIVE_APPL_DIR=${WARPDRIVE_APPL_DIR:-/opt/warpdrive}
+export WARPDRIVE_APPL_DIR
+
+# Set up the system directory where we keep runtime files.
+
+WARPDRIVE_HOME_DIR=${WARPDRIVE_HOME_DIR:-/home/warpdrive}
+export WARPDRIVE_HOME_DIR
+
+# Make sure we are in the correct working directory for the application.
+
+cd $WARPDRIVE_APPL_DIR
+
+# Set the umask to be '002' so that any files/directories created from
+# this point are group writable. This does rely on any applications or
+# installation scripts honouring the umask setting.
+
+umask 002
+
+# Check for the existence of the '.warpdrive/user_vars' directory for
+# storage of user defined environment variables. These can be created by
+# the user from any hook script. The name of the file corresponds to the
+# name of the environment variable and the contents of the file the
+# value to set the environment variable to.
+
+# Run any user supplied script to be run prior to installing application
+# dependencies. This is to allow additional system packages to be
+# installed that may be required by any Python modules which are being
+# installed. The script must be executable in order to be run. It is not
+# possible for this script to change the permissions so it is executable
+# and then run it, due to some docker bug which results in the text file
+# being busy. For more details see:
+#
+#   https://github.com/docker/docker/issues/9547
+
+if [ -f ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/pre-build ]; then
+    if [ ! -x ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/pre-build ]; then
+        echo "WARNING: Script ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/pre-build not executable."
+    fi
+fi
+
+if [ -x ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/pre-build ]; then
+    echo " -----> Running ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/pre-build"
+    ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/pre-build
+fi
+
+# Now run 'pip' to install any required Python packages based on the
+# contents of the 'requirements.txt' file.
+
+WARPDRIVE_BUILD_DIR=${WARPDRIVE_BUILD_DIR:-/tmp/warpdrive-build.$$}
+
+WARPDRIVE_PIP_OPTIONS=
+
+if [ -d ${WARPDRIVE_APPL_DIR}/.warpdrive/wheelhouse ]; then
+    echo " -----> Found Python wheelhouse of packages"
+    WARPDRIVE_PIP_OPTIONS="--find-links file://${WARPDRIVE_APPL_DIR}/.warpdrive/wheelhouse"
+fi
+
+if [ x"$WARPDRIVE_PIP_NO_INDEX" != x"" ]; then
+    WARPDRIVE_PIP_OPTIONS="$WARPDRIVE_PIP_OPTIONS --no-index"
+fi
+
+WARPDRIVE_PIP_PACKAGES=${WARPDRIVE_PIP_PACKAGES:-requirements.txt}
+
+for filename in $WARPDRIVE_PIP_PACKAGES; do
+    if [ -f $filename ]; then
+        echo " -----> Installing dependencies with pip ($filename)"
+        pip install $WARPDRIVE_PIP_OPTIONS --no-cache-dir --exists-action=w \
+            --src=$WARPDRIVE_BUILD_DIR -r $filename
+    fi
+done
+
+# We also install any application package if a 'setup.py' file is
+# present. This is installed in 'develop' mode so is linked into Python
+# installation. This allows for live source code updates in the
+# container still.
+
+if [ -f setup.py ]; then
+    echo "---> Installing application from setup.py"
+    python setup.py develop
+fi
+
+# Determine whether we have been told that we are running a specific web
+# application server type. If we haven't, we will try and automatically
+# determine how the server should be started and what WSGI server to use.
+
+if [ -f ${WARPDRIVE_APPL_DIR}/.warpdrive/server_type ]; then
+    WARPDRIVE_SERVER_TYPE="`cat ${WARPDRIVE_APPL_DIR}/.warpdrive/server_type`"
+else
+    WARPDRIVE_SERVER_TYPE="auto"
+fi
+
+WARPDRIVE_WSGI_SERVER=${WARPDRIVE_WSGI_SERVER:-mod_wsgi}
+
+case $WARPDRIVE_SERVER_TYPE in
+    auto+gunicorn|gunicorn)
+        WARPDRIVE_SERVER_TYPE=auto
+        WARPDRIVE_WSGI_SERVER=gunicorn
+        ;;
+    auto+mod_wsgi|mod_wsgi)
+        WARPDRIVE_SERVER_TYPE=auto
+        WARPDRIVE_WSGI_SERVER=mod_wsgi
+        ;;
+    auto+uwsgi|uwsgi)
+        WARPDRIVE_SERVER_TYPE=auto
+        WARPDRIVE_WSGI_SERVER=uwsgi
+        ;;
+    auto+waitress|waitress)
+        WARPDRIVE_SERVER_TYPE=auto
+        WARPDRIVE_WSGI_SERVER=waitress
+        ;;
+esac
+
+# See whether WSGI server is actually installed and if it isn't and we
+# may require it, then install it. It should already be installed for
+# mod_wsgi if using the Docker base images.
+
+if [ "$WARPDRIVE_WSGI_SERVER" = "gunicorn" ]; then
+    if ! (python -c "import gunicorn" &>/dev/null); then
+        pip install gunicorn
+    fi
+    if [ "$WARPDRIVE_SERVER_TYPE" = "auto" ]; then
+        if ! (python -c "import whitenoise" &>/dev/null); then
+            pip install whitenoise
+        fi
+    fi
+fi
+
+if [ "$WARPDRIVE_WSGI_SERVER" = "mod_wsgi" ]; then
+    if ! (python -c "import mod_wsgi" &>/dev/null); then
+        pip install mod_wsgi
+    fi
+fi
+
+if [ "$WARPDRIVE_WSGI_SERVER" = "uwsgi" ]; then
+    if ! (which uwsgi &>/dev/null); then
+        pip install uwsgi
+    fi
+fi
+
+if [ "$WARPDRIVE_WSGI_SERVER" = "waitress" ]; then
+    if ! (python -c "import waitress" &>/dev/null); then
+        pip install waitress
+    fi
+    if [ "$WARPDRIVE_SERVER_TYPE" = "auto" ]; then
+        if ! (python -c "import whitenoise" &>/dev/null); then
+            pip install whitenoise
+        fi
+    fi
+fi
+
+# If we are automatically detect the server type and we find a Django
+# application, trigger collection of static files if possible.
+
+function django_settings_module() {
+    WARPDRIVE_TMP_MODULE="project_settings_$$"
+    WARPDRIVE_TMP_SCRIPT="/tmp/settings_module_$$.py"
+
+    python manage.py diffsettings > /tmp/$WARPDRIVE_TMP_MODULE.py
+
+    cat > $WARPDRIVE_TMP_SCRIPT << !
+from __future__ import print_function
+import sys
+sys.path.insert(0, '/tmp')
+
+import $WARPDRIVE_TMP_MODULE as settings
+
+print(settings.SETTINGS_MODULE)
+!
+
+    python $WARPDRIVE_TMP_SCRIPT
+
+    rm /tmp/$WARPDRIVE_TMP_MODULE.py*
+    rm $WARPDRIVE_TMP_SCRIPT*
+}
+
+function django_collectstatic() {
+    WARPDRIVE_PROJECT_SETTINGS="$(django_settings_module)"
+
+    WARPDRIVE_TMP_MODULE="project_settings_$$"
+
+    cat > $WARPDRIVE_HOME_DIR/$WARPDRIVE_TMP_MODULE.py << !
+from $WARPDRIVE_PROJECT_SETTINGS import *
+if 'STATIC_ROOT' not in globals():
+    STATIC_ROOT = '$WARPDRIVE_HOME_DIR/django/static'
+!
+
+    mkdir -p $WARPDRIVE_HOME_DIR/django
+
+    PYTHONPATH=$WARPDRIVE_HOME_DIR:$PYTHONPATH \
+      DJANGO_SETTINGS_MODULE=$WARPDRIVE_TMP_MODULE \
+      python manage.py collectstatic --noinput
+
+    rm $WARPDRIVE_HOME_DIR/$WARPDRIVE_TMP_MODULE.py*
+}
+
+if [ "$WARPDRIVE_SERVER_TYPE" = "auto" -o "$WARPDRIVE_SERVER_TYPE" = "django" ]; then
+    if [ -f manage.py ]; then
+        if grep -q DJANGO_SETTINGS_MODULE manage.py; then
+            echo " -----> Collecting static files for Django"
+            django_collectstatic
+        fi
+    fi
+fi
+
+# Run any user supplied script to run after installing any application
+# dependencies. This is to allow any application specific setup scripts
+# to be run, such as 'collectstatic' for a Django web application. It is
+# not possible for this script to change the permissions so it is
+# executable and then run it, due to some docker bug which results in
+# the text file being busy. For more details see:
+#
+#   https://github.com/docker/docker/issues/9547
+
+if [ -x ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/build ]; then
+    echo " -----> Running ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/build"
+    ${WARPDRIVE_APPL_DIR}/.warpdrive/action_hooks/build
+fi
+
+# Clean up any temporary files, including the results of checking out
+# any source code repositories when doing a 'pip install' from a VCS.
+
+rm -rf $WARPDRIVE_BUILD_DIR
