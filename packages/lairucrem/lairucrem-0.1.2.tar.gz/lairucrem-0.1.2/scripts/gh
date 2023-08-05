@@ -1,0 +1,74 @@
+#! /usr/bin/env python
+# Copyright (C) 2016 Alain Leufroy
+#
+# Author: Alain Leufroy <alain@leufroy.fr>
+# Licence: WTFPL, grab your copy here: http://sam.zoy.org/wtfpl/
+
+"""Interactive console interface for mercurial repository."""
+
+from __future__ import unicode_literals
+
+import argparse
+import urwid
+from lairucrem import repository, controller
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=globals()['__doc__'])
+    parser.add_argument('--rev', '-r',
+                        help='show the specified revision set',
+                        default=None)
+    parser.add_argument('--template', '-T',
+                        help='display with template',
+                        default='{rev}:{node|short} {desc|firstline}')
+    return parser.parse_args()
+
+
+def debug_mode(mainloop):
+    import __builtin__
+    __builtins__.mainloop = mainloop
+    from lairucrem.utils import monkeypatch
+    try:
+        from ipdb import Pdb
+        from IPython.core.debugger import Pdb
+    except ImportError:
+        from pdb import set_trace, Pdb
+    ctx = []
+    @monkeypatch(Pdb, 'do_c')
+    @monkeypatch(Pdb, 'do_cont')
+    @monkeypatch(Pdb)
+    def do_continue(self, arg):
+        if ctx:
+            ctx.pop()
+            mainloop.start()
+        self.set_continue()
+        return 1
+    def _set_trace():
+        try:
+            mainloop.stop()
+            ctx.append(True)
+        except: pass
+        set_trace()
+    __builtins__.debugger = _set_trace
+
+
+def unhandled_input(key):
+    if key in ('q', 'Q'):
+        raise urwid.ExitMainLoop()
+
+
+if __name__ == '__main__':
+    opts = parse_args()
+    palette = [
+        ('focus', 'standout', ''),
+        ('button', '', 'dark blue'),
+        ('button_hover', 'black', 'light green'),
+        ('highlight', 'standout', ''),
+        ('match', 'black', 'yellow'),
+        ('important', 'white,bold', ''),
+    ]
+    ml = controller.mainloop(None, palette=palette, pop_ups=True, unhandled_input=unhandled_input)
+#    debug_mode(ml)
+    ctrl = controller.controller(repository(), opts.template, opts.rev, ml)
+    ctrl.refresh()
+    ml.run()
