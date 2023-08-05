@@ -1,0 +1,351 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Speeding genotype queries &mdash; gemini 0.18.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/labibi.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.18.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="shortcut icon" href="../_static/gemini.png"/>
+    <link rel="top" title="gemini 0.18.1 documentation" href="../index.html" />
+    <link rel="next" title="Acknowledgements" href="acknowledgements.html" />
+    <link rel="prev" title="Using the GEMINI API" href="api.html" />
+
+
+<script src="../_static/labibi.js"></script>
+
+
+
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', '']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="acknowledgements.html" title="Acknowledgements"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="api.html" title="Using the GEMINI API"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">gemini v0.18.1</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  
+  <div class="section" id="speeding-genotype-queries">
+<h1>Speeding genotype queries<a class="headerlink" href="#speeding-genotype-queries" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="design-of-gemini">
+<h2>Design of Gemini<a class="headerlink" href="#design-of-gemini" title="Permalink to this headline">¶</a></h2>
+<p>Gemini stores all genotypes information in a single column. E.g. <cite>gt_depths</cite>
+is a single column in the sqlite database that contains information on all
+samples in a compressed and serialized array. So, in order to do a query involving
+<cite>&#8211;gt-filter</cite> <cite>gemini</cite> must iterate over each row, decompress and de-serialize the
+array and then evaluate the genotype filter. Even if the filter involves only a
+single sample, we must deserialize the entire array. This design works quite well
+and we have improved performance greatly, but for complex queries, it is quite slow.</p>
+<p>We provide the means to index genotype fields and <em>optionally</em> use those indexes
+to perform the genotype filtering.
+These are external to gemini in that they do not change the behavior of <cite>gemini</cite>
+when used without the engine.</p>
+</div>
+<div class="section" id="bcolz-indexes">
+<h2>bcolz indexes<a class="headerlink" href="#bcolz-indexes" title="Permalink to this headline">¶</a></h2>
+<p>We have a implemented indexes using <a class="reference external" href="http://bcolz.blosc.org/">bcolz</a>.</p>
+<p>These can be used for existing databases by creating the external indexes:</p>
+<div class="highlight-bash"><div class="highlight"><pre>gemini bcolz_index <span class="nv">$db</span>
+</pre></div>
+</div>
+<p>This is easily parallelized by specifying a column per process, e.g.</p>
+<div class="highlight-bash"><div class="highlight"><pre>gemini bcolz_index <span class="nv">$db</span> --cols gt_types
+gemini bcolz_index <span class="nv">$db</span> --cols gt_depths <span class="c"># in another process</span>
+</pre></div>
+</div>
+<p>Which can index about 20K variants / second for 17 samples in our testing.
+Due to a limitation in the string type in bcolz, indexing the <cite>gts</cite> column
+is slower so we recommend not doing those queries with bcolz (e.g. gts.sample1 == &#8216;A/C&#8217;).
+See note below.</p>
+<p>It is recommended to only index the columns you&#8217;ll be using in the
+<cite>&#8211;gt-filter</cite>.</p>
+<p>Indexing is done only once; after that, add <cite>&#8211;use-bcolz</cite> to an existing gemini query command. e.g.</p>
+<div class="highlight-bash"><div class="highlight"><pre>gemini query -q <span class="s2">&quot;select variant_id, gts.1719PC0016 from variants&quot;</span>  <span class="se">\</span>
+    --gt-filter <span class="s2">&quot;gt_types.1094PC0012 == HET and gt_types.1719PC0016 == HET and gts.1094PC0012 == &#39;A/C&#39;&quot;</span> <span class="se">\</span>
+    --use-bcolz <span class="se">\</span>
+    <span class="nb">test</span>/test.query.db
+</pre></div>
+</div>
+<p>This query will return identical results with or without using bcolz. It is likely
+only beneficial to use <cite>bcolz</cite> on complex queries that are slow with the default gemini
+apparatus. Queries that are more selective&#8211;e.g. return fewer rows are the best target
+for speed improvement with <cite>bcolz</cite></p>
+<p>An example of the types of improvements (usually 20X to 50X) with various queries
+is <a class="reference external" href="https://gist.github.com/brentp/e2189dbfee8784ab5f13">here</a>.</p>
+<div class="section" id="limitations">
+<h3>limitations<a class="headerlink" href="#limitations" title="Permalink to this headline">¶</a></h3>
+<p>As the number of samples grows, it becomes less beneficial to use <cite>&#8211;gt-filter</cite> s that
+touch all samples. For example: <cite>(gt_types).(*).(!=HOM_REF).(all)</cite> will become slower
+as samples are added since it must test every sample. However, a query like:
+<cite>(gt_types.DAD == HOM_REF and gt_types.MOM == HOM_REF and gt_types.KID != HOM_REF)</cite> will
+be much less affected by the number of samples in the database because they are only touching
+3 samples.</p>
+<p>The image below shows the time to perform the filters on a database with 1.8 million variants
+and varying sample size:</p>
+<ol class="arabic simple">
+<li><cite>(gt_types).(*).(!=HOM_REF).(all)</cite> which is affected by sample size</li>
+<li><cite>(gt_types.DAD == HOM_REF and gt_types.MOM == HOM_REF and gt_types.KID != HOM_REF)</cite>
+which is less affected by sample-size</li>
+</ol>
+<p>Note that at 2500 samples, using bcolz is slower than the standard gemini query, however using
+bcolz is consistently 30 to 50 times faster for the 2nd query. (This is up to 1000 times faster
+than versions of gemini before 0.12). The y-axis is log10-scaled.</p>
+<img alt="../_images/query-speed.png" src="../_images/query-speed.png" />
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">indexing the &#8216;gts&#8217; column will be much slower (only about 350 variants per second instead of
+up to 25K per second) as it must be stored as an object rather than a fixed-size numeric type.
+It will be a much larger index. So only create an index on &#8216;gts&#8217; if necessary.</p>
+</div>
+</div>
+</div>
+<div class="section" id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h2>
+<p>First, make sure you have gemini version 0.15 or greater:</p>
+<div class="highlight-bash"><div class="highlight"><pre>gemini --version
+</pre></div>
+</div>
+<p>Then, you can index an existing database (<cite>$db</cite>) with:</p>
+<div class="highlight-bash"><div class="highlight"><pre>gemini bcolz_index <span class="nv">$db</span>
+</pre></div>
+</div>
+<p>Then, wherever you have a slow query that&#8217;s using the <cite>&#8211;gt-filter</cite>, you
+can add <cite>&#8211;use-bcolz</cite> to the query command.</p>
+<div class="highlight-bash"><div class="highlight"><pre>gemini query -q <span class="s2">&quot;select chrom, start, end from variants&quot;</span> <span class="nv">$db</span> <span class="se">\</span>
+        --use-bcolz <span class="se">\</span>
+        --gt-filter <span class="s2">&quot;gt_depth.samples1 &gt;= 20 and gt_depth.samples2 &gt;= 20 and gt_depth.samples3 &gt;= 20 \</span>
+<span class="s2">          and (gt_types.sample1 == HOM_REF and gt_types.sample2 == HOM_REF and gt_types.sample3 != HOM_REF)&quot;</span>
+</pre></div>
+</div>
+<p>Note that nothing has changed except that <cite>&#8211;use-bcolz</cite> is added to the query.</p>
+</div>
+<div class="section" id="design-of-genotype-query-engines">
+<h2>Design of Genotype Query Engines<a class="headerlink" href="#design-of-genotype-query-engines" title="Permalink to this headline">¶</a></h2>
+<p>This sections is for those wishing to create their own genotype query engines to plug
+in to gemini and will not be needed for most users.</p>
+<p>Genotype Query Engines can be plugged in to <cite>gemini</cite>. They must be
+exposed with a single function:</p>
+<blockquote>
+<div>filter(db_path, gt_filter, user_dict)</div></blockquote>
+<p>where <cite>db_path</cite> is the path to the gemini sqlite database, <cite>gt_filter</cite> is
+the genotype query string. user_dict will be pre-filled with things like
+user_dict contains things like HET, UNKNOWN, etc. used in gemini.</p>
+<p>The <cite>filter</cite> function must return a list of integer variant_ids that meet the specified
+filter. If it can not perform the query, it must return <cite>None</cite>.</p>
+<p><cite>gemini</cite> will internally use the returned variant_ids to modifiy the sqlite
+query to select only those rows.</p>
+<p>The <cite>filter</cite> function only needs to worry about which variant_ids to return,
+not how to integrate with the rest of <cite>gemini</cite>.</p>
+</div>
+</div>
+
+
+
+
+  
+
+<div id="disqus_thread"></div>
+ <script type="text/javascript">
+     /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+     var disqus_shortname = 'geminidocs'; // required: replace example with your forum shortname
+
+     /* * * DON'T EDIT BELOW THIS LINE * * */
+     (function() {
+         var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+         dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+         (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+     })();
+ </script>
+ <noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+ <a href="http://disqus.com" class="dsq-brlink">comments powered by <span class="logo-disqus">Disqus</span></a>
+
+
+
+
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/gemini.png" alt="Logo"/>
+            </a></p>
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Speeding genotype queries</a><ul>
+<li><a class="reference internal" href="#design-of-gemini">Design of Gemini</a></li>
+<li><a class="reference internal" href="#bcolz-indexes">bcolz indexes</a><ul>
+<li><a class="reference internal" href="#limitations">limitations</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#usage">Usage</a></li>
+<li><a class="reference internal" href="#design-of-genotype-query-engines">Design of Genotype Query Engines</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="api.html"
+                        title="previous chapter">Using the GEMINI API</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="acknowledgements.html"
+                        title="next chapter">Acknowledgements</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/content/genotype_query_engines.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="acknowledgements.html" title="Acknowledgements"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="api.html" title="Using the GEMINI API"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">gemini v0.18.1</a> &raquo;</li> 
+      </ul>
+    </div>
+
+    <div class="footer">
+        &copy; Copyright 2012,2013,2014,2015.
+      Last updated on Feb 03, 2016.
+    <a href="http://www.gnu.org/licenses/gpl-3.0.txt"><p>GPL3 licensed</p></a>
+    </div>
+
+<!-- 
+<div id="editor-trap">
+      <h3>Edit and improve this document!</h3>
+
+      <p>
+        This file can be edited directly through the Web. Anyone can
+        update and fix errors in this document with few clicks --
+        no downloads needed.
+      <p>
+
+      <ol>
+
+        <li>
+          Go to
+        <a href="https://github.com/arq5x/gemini/blob/master/docs/content/genotype_query_engines.rst">
+          Speeding genotype queries
+        </a> on GitHub.
+      </li>
+
+        <li>
+        <b>Edit</b> files using GitHub's text editor in your web browser (see the 'Edit' tab on the top right of the file)
+      </li>
+
+      <li>
+        Fill in the <b>Commit message</b> text box at the bottom of the page describing <i>why</i>
+        you made the changes. Press the <b>Propose file change</b> button next to it when done.
+      </li>
+
+      <li>
+        Then click <b>Send a pull request</b>.
+      </li>
+
+      <li>
+        Your changes are now queued for review under the project's <a href="https://github.com/arq5x/gemini/pulls">Pull requests</a> tab on GitHub!
+      </li>
+      </ol>
+
+      <p>
+        For an introduction to the documentation format please see <a href="http://docutils.sourceforge.net/docs/user/rst/quickstart.html">the reST primer</a>.
+      </p>
+
+  </div>
+ -->
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', UA-39150563-1]);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+
+</script>
+
+
+  </body>
+</html>
