@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost.models import Configuration, Block, block_type_groups
+?>
+
+<py:woost.views.ActionBar
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    block = None
+    block_parent = None
+    block_slot = None
+    edited_item = None
+
+    def can_create_block_type(self, block_type):
+
+        if self.edited_item:
+            allows_block_type = getattr(self.edited_item, "allows_block_type", None)
+
+            if allows_block_type is not None:
+                return allows_block_type(block_type)
+
+        return True
+
+    def create_action_button(self, action, extra):
+        if action.id in ("add_block", "add_block_before", "add_block_after"):
+            return self.create_block_picker(action)
+        else:
+            button = ActionBar.create_action_button(self, action, extra)
+
+            if button.tag == "button":
+                form = Element("form")
+                form["method"] = "POST"
+
+                for key, value in (
+                    ("block", self.block and self.block.id),
+                    ("block_parent", self.block_parent and self.block_parent.id),
+                    ("block_slot", self.block_slot and self.block_slot.name)
+                ):
+                    param = Element("input")
+                    param["type"] = "hidden"
+                    param["name"] = key
+                    param["value"] = value
+                    form.append(param)
+
+                form.append(button)
+                return form
+            else:
+                return button
+    ?>
+
+    <py:ready>
+        <?py
+        self._common_blocks = [
+            common_block
+            for common_block in Configuration.instance.common_blocks
+            if self.can_create_block_type(common_block.__class__)
+        ]
+        ?>
+    </py:ready>
+
+    <button
+        py:def="block_picker" py:args="action"
+        type="button">
+        <?py
+        element.add_class(action.id)
+        element.set_client_param("action", action.id)
+        ?>
+        <img src="${action.icon_uri}"/>
+        ${translations("Action " + action.id)}
+    </button>
+
+    <div
+        py:id="block_picker_dialog"
+        py:client_model="woost.views.EditBlocksSlotList.blockPickerDialog">
+        <py:ready>
+            <?py
+            if Configuration.instance.common_blocks:
+                element.add_class("with_common_blocks")
+            ?>
+        </py:ready>
+        <div py:id="dialog_panels">
+            <div py:local_id="new_blocks_panel">
+                <div py:local_id="panel_header">
+                    ${translations("woost.views.EditBlocksSlotList.new_blocks_panel.panel_header")}
+                </div>
+                <py:woost.views.ItemPalette
+                    py:local_id="new_blocks_palette"
+                    py:types="${Block}"
+                    py:type_groups="${block_type_groups}"
+                    py:required_permission="create">
+                    <?py
+                    @extend(element)
+                    def should_include_type(new_blocks_palette, block_type):
+                        return call_base(block_type) and self.can_create_block_type(block_type)
+                    ?>
+                    <py:with py:def="palette_entry" py:args="content_type">
+                        <form py:local_id="form" method="POST" py:wrap="palette_entry.button">
+                            <input type="hidden" name="action" value=""/>
+                            <input type="hidden" name="block_parent" value=""/>
+                            <input type="hidden" name="block_slot" value=""/>
+                            <input type="hidden" name="block" value=""/>
+                            <input type="hidden" name="block_type" value="${content_type.full_name}"/>
+                        </form>
+                        <py:with py:element="palette_entry.button" py:tag="button" type="submit" href="${None}"/>
+                    </py:with>
+                </py:woost.views.ItemPalette>
+            </div>
+            <div py:local_id="common_blocks_panel" py:visible="@{bool(self._common_blocks)}">
+                <div py:local_id="panel_header">
+                    ${translations("woost.views.EditBlocksSlotList.common_blocks_panel.panel_header")}
+                </div>
+                <form py:local_id="common_blocks_form" method="POST">
+                    <input type="hidden" name="action" value=""/>
+                    <input type="hidden" name="block_parent" value=""/>
+                    <input type="hidden" name="block_slot" value=""/>
+                    <input type="hidden" name="block" value=""/>
+                    <py:ready>
+                        <py:new
+                            py:element="self.create_common_block_entry(common_block)"
+                            py:for="common_block in self._common_blocks"/>
+                    </py:ready>
+                </form>
+            </div>
+            <div py:local_id="dialog_buttons">
+                <button py:local_id="cancel_button">
+                    ${translations("woost.views.EditBlocksSlotList.dialog_buttons.cancel_button")}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div py:def="common_block_entry" py:args="common_block">
+        <button
+            py:local_id="button"
+            name="common_block"
+            value="${common_block.id}"
+            type="submit">
+            <py:woost.views.ItemLabel
+                py:local_id="label"
+                py:item="${common_block}"/>
+        </button>
+    </div>
+
+</py:woost.views.ActionBar>
+

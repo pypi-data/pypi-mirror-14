@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.schema import SchemaClass
+from cocktail.controllers import context
+from woost import app
+from woost.models import (
+    get_current_user,
+    type_groups,
+    Item,
+    CreatePermission,
+    ReadPermission
+)
+?>
+
+<ul
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    icon_size = 16
+    types = Item
+    type_groups = type_groups
+    selection = None
+    plural_labels = False
+    required_permission = "read"
+    per_role_types = True
+
+    def get_group_label(self, group):
+        return translations(group)
+
+    def get_item_url(self, content_type):
+        return "javascript:"
+
+    def get_item_icon(self, content_type):
+        return app.icon_resolver.find_icon_url(content_type, self.icon_size)
+
+    def get_item_label(self, content_type):
+        key = content_type.name
+        if self.plural_labels:
+            key += "-plural"
+        return translations(key)
+
+    def should_include_type(self, content_type):
+        return (
+            content_type.visible
+            and (
+                self.required_permission is None
+                or self._user.has_permission(ReadPermission, target = content_type)
+            )
+            and (
+                self.required_permission != "create"
+                or (
+                    content_type.instantiable
+                    and self._user.has_permission(CreatePermission, target = content_type)
+                )
+            )
+        )
+
+    def should_collapse_type(self, content_type):
+        return False
+    ?>
+
+    <py:ready>
+        <?py
+        if isinstance(self.types, SchemaClass):
+            types = set()
+            def collect_types(content_type):
+                types.add(content_type)
+                if not self.should_collapse_type(content_type):
+                    for subclass in content_type.derived_schemas(recursive = False):
+                        collect_types(subclass)
+            collect_types(self.types)
+        else:
+            types = set(self.types)
+
+        self._user = get_current_user()
+
+        # Hide content types based on the main role of the current user
+        if self.per_role_types:
+            main_role = self._user.roles and self._user.roles[0]
+            if main_role:
+                role_hidden_types = getattr(main_role, "hidden_content_types", None)
+                if role_hidden_types:
+                    types.difference_update(role_hidden_types)
+
+        # Group types
+        types_by_group = {}
+
+        for content_type in types:
+            if self.should_include_type(content_type):
+                group_entries = types_by_group.get(content_type.type_group)
+                if group_entries is None:
+                    types_by_group[content_type.type_group] = [content_type]
+                else:
+                    group_entries.append(content_type)
+
+        def create_group(group):
+            has_entries = False
+            content_types = types_by_group.get(group.id)
+            nested_groups = filter(None, [create_group(child) for child in group])
+
+            if content_types or nested_groups:
+                group_element = self.create_palette_group(group)
+
+                if content_types:
+                    for content_type in sorted(content_types, key = self.get_item_label):
+                        entry = self.create_palette_entry(content_type)
+                        group_element.group_entries.append(entry)
+
+                for nested_group_element in nested_groups:
+                    group_element.nested_groups.append(nested_group_element)
+
+                return group_element
+
+        root = create_group(self.type_groups)
+        if root:
+            element.append(root)
+        ?>
+    </py:ready>
+
+    <li py:def="palette_group" py:args="group" py:type_group="${group}">
+        <?py
+        element.add_class(group.id.replace(".", "-") + "-group")
+
+        label = self.get_group_label(group)
+        if not label:
+            element.add_class("anonymous")
+        else:
+            element.add_class("with_label")
+        ?>
+        <div py:local_id="group_label">
+            <?py
+            if label:
+                element.append(label)
+            else:
+                element.visible = False
+            ?>
+        </div>
+        <ul py:local_id="group_entries" py:collapsible="${True}"/>
+        <ul py:local_id="nested_groups" py:collapsible="${True}"/>
+    </li>
+
+    <li py:def="palette_entry" py:args="content_type">
+        <?py
+        if content_type is self.selection:
+            element.add_class("selected")
+        ?>
+        <a py:local_id="button" href="${self.get_item_url(content_type)}">
+            <img py:local_id="type_icon"  src="${self.get_item_icon(content_type)}"/>
+            <span py:local_id="type_label">${self.get_item_label(content_type)}</span>
+        </a>
+    </li>
+
+</ul>
+

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.controllers import context
+from woost.models import get_current_website
+from woost.extensions.ecommerce.basket import Basket
+from woost.extensions.ecommerce.utils import catalog_current_state_uri
+?>
+
+<form
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    method="post">
+
+    <?py-class
+    order_steps = None
+    current_step = None
+
+    @property
+    def previous_step(self):
+        steps = self.order_steps
+        pos = steps.index(self.current_step)
+        if pos > 0:
+            return steps[pos - 1]
+
+    @property
+    def previous_step_uri(self):
+        if self.previous_step is None:
+            return catalog_current_state_uri()
+        else:
+            return self.previous_step.get_uri()
+    ?>
+
+    <py:ready>
+        <?py
+        if self.order_steps is None:
+            website = get_current_website()
+            self.order_steps = website.ecommerce_order_steps
+
+        if self.current_step is None:
+            self.current_step = context["publishable"]
+
+        order = Basket.get()
+        if not order.purchases:
+            self.step_content.visible = False
+            self.proceed_button.visible = False
+        else:
+            self.empty_basket_notice.visible = False
+        ?>
+    </py:ready>
+
+
+    <?py
+    self.add_resource("/cocktail/scripts/form.js")
+    ?>
+
+    <button
+        py:id="default_button"
+        type="submit"
+        name="action"
+        value="proceed"
+        style="visibility: hidden; position: absolute"/>
+
+    <ol py:id="steps_list">
+        <py:ready>
+            <py:new
+                py:element="self.create_order_step(step)"
+                py:for="step in self.order_steps"/>
+        </py:ready>
+    </ol>
+
+    <li py:def="order_step" py:args="page">
+        <?py
+        if page is self.current_step:
+            element.add_class("current")
+        ?>
+        ${translations(page)}
+    </li>
+
+    <py:woost.views.NotificationBox
+        py:id="notification_box"
+        py:filter="${lambda notification: notification[1] != 'product_added'}"/>
+
+    <py:woost.views.BlockList
+        py:id="step_content"
+        py:blocks="@{self.blocks}"/>
+
+    <div py:id="empty_basket_notice">
+        ${translations("woost.extensions.ecommerce.BasketView.empty_basket_notice")}
+    </div>
+
+    <div py:id="step_buttons">
+        <a href="@{self.previous_step_uri}" py:id="back_link">
+            <py:ready>
+                <?py
+                if self.current_step is self.order_steps[0]:
+                    key = "catalog"
+                else:
+                    key = "back"
+
+                element.append(
+                    translations("woost.extensions.ecommerce.OrderStep.%s_button" % key)
+                )
+                ?>
+            </py:ready>
+        </a>
+        <button py:id="proceed_button"
+            type="submit"
+            name="action"
+            value="proceed">
+            <py:ready>
+                <?py
+                if self.current_step is self.order_steps[-1]:
+                    key = "submit"
+                else:
+                    key = "proceed"
+                element.append(
+                    translations("woost.extensions.ecommerce.OrderStep.%s_button" % key)
+                )
+                ?>
+            </py:ready>
+        </button>
+    </div>
+
+</form>

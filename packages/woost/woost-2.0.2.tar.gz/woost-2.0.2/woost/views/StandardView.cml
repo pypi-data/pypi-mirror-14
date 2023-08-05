@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.controllers import context
+from cocktail.html.utils import html5_tag, rendering_html5
+from woost.models import Configuration, get_current_website
+?>
+
+<py:woost.views.BaseView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    py:tag="div">
+
+    <?py-class
+    def get_title(self):
+        return get_current_website().site_name
+
+    def get_logo(self):
+        return self._website.logo
+
+    def rendering_home_page(self):
+        return self.publishable is self._home
+    ?>
+
+    <py:ready>
+        <?py
+        self._website = get_current_website()
+        self._home = self._website.home
+        ?>
+    </py:ready>
+
+    <div py:id="header">
+        <?py html5_tag(element, "header") ?>
+
+        <h1 py:id="title_label">
+            <py:ready>
+                <?py
+                self._title = self.get_title()
+                self._logo = self.get_logo()
+                if self._logo and not self._logo.is_accessible():
+                    self._logo = None
+
+                if not self._title and not self._logo:
+                    element.visible = False
+                ?>
+            </py:ready>
+            <a href="@{self._home.get_uri()}" style="position: relative">
+                <py:woost.views.Image
+                    py:id="logo"
+                    py:image="@{self._logo}"
+                    py:accessible_check="${False}"
+                    style="z-index: 1; position: relative;">
+                    <py:ready>
+                        <?py
+                        element["alt"] = ""
+                        ?>
+                    </py:ready>
+                </py:woost.views.Image>
+                <span py:id="title_label_text">
+                    <py:ready>
+                        <?py
+                        if self._logo is not None:
+                            element.set_style("position", "absolute")
+                            element.set_style("z-index", "0")
+                            element.set_style("left", "0")
+                            element.set_style("top", "0")
+                            element.set_style("visibility", "hidden")
+                        ?>
+                    </py:ready>
+                    @{self._title}
+                </span>
+            </a>
+        </h1>
+
+        <py:woost.views.IdentityBox py:id="identity">
+            <py:ready>
+                <?py
+                if not context.get("show_user_controls", True):
+                    element.visible = False
+                ?>
+            </py:ready>
+        </py:woost.views.IdentityBox>
+
+        <py:woost.views.LanguageSelector py:id="language_selector"/>
+    </div>
+
+    <div py:id="navigation">
+        <?py html5_tag(element, "nav") ?>
+        <h1 style="display:none">
+            ${translations("woost.views.StandardView.navigation_title")}
+            <py:ready>
+                <?py
+                if not rendering_html5():
+                    element.visible = False
+                ?>
+            </py:ready>
+        </h1>
+        <py:woost.views.Menu
+            py:id="menu"
+            py:root_visible="${False}"
+            py:collapsible="${True}"/>
+    </div>
+
+    <div py:id="main">
+
+        <py:ready>
+            <?py
+            if rendering_html5():
+                element["role"] = "main"
+                if not self.rendering_home_page():
+                    element.tag = "article"
+            ?>
+        </py:ready>
+
+        <h2 py:id="content_title_label">
+            <py:ready>
+                <?py
+                title = None
+
+                if rendering_html5():
+                    element.tag = "h1"
+
+                if not self.rendering_home_page():
+                    title = self.get_content_title()
+
+                if title:
+                    element.append(title)
+                else:
+                    element.visible = False
+                ?>
+            </py:ready>
+        </h2>
+
+        <div py:id="fallback_language_notice" class="notice" py:visible="@{not self.fully_translated}">
+            @{"" if self.fully_translated else translations("woost.views.StandardView fallback language notice", fallback = self.content_language)}
+        </div>
+
+        <?py
+        element.append(self.content)
+        ?>
+    </div>
+
+    <div py:id="footer">
+        <?py html5_tag(element, "footer") ?>
+        <div py:id="vcard" py:collapsible="${True}">
+            <?py html5_tag(element, "address") ?>
+            <py:woost.views.Image
+                py:id="vcard_logo"
+                class="logo"
+                py:image="@{self.get_logo()}"
+                style="display:none"/>
+            <a
+                py:id="organization_label"
+                class="fn org url"
+                href="@{self._website.organization_url or self._home.get_uri()}"
+                py:visible="@{self._website.organization_name}">
+                @{self._website.organization_name}
+            </a>
+            <div
+                py:id="vcard_address"
+                class="adr"
+                py:collapsible="${True}">
+                <span
+                    py:id="address_label"
+                    class="street-address"
+                    py:visible="@{self._website.address}">
+                    @{self._website.address}
+                </span>
+                <span class="sep" py:visible="@{self._website.address}">-</span>
+                <span
+                    py:id="postal_code_label"
+                    class="postal-code"
+                    py:visible="@{self._website.postal_code}">
+                    @{self._website.postal_code}
+                </span>
+                <span
+                    py:id="town_label"
+                    class="locality"
+                    py:visible="@{self._website.town}">
+                    @{self._website.town}
+                </span>
+                <span
+                    py:id="region_label"
+                    class="region"
+                    py:visible="@{self._website.region}">
+                    @{self._website.region}
+                    <py:ready>
+                        <?py
+                        if self._website.town == self._website.region:
+                            element.set_style("display", "none")
+                        ?>
+                    </py:ready>
+                </span>
+                <span
+                    py:id="country_label"
+                    class="country-name"
+                    py:visible="@{self._website.country}">
+                    @{self._website.country}
+                </span>
+            </div>
+            <span
+                py:id="phone_label"
+                class="tel"
+                py:visible="@{self._website.phone_number}">
+                <span>${translations("woost.views.StandardView.phone_number")}</span>
+                <span class="value">@{self._website.phone_number}</span>
+            </span>
+            <span class="sep" py:visible="@{self._website.phone_number and self._website.fax_number}">-</span>
+            <span
+                py:id="fax_label"
+                class="tel"
+                py:visible="@{self._website.fax_number}">
+                <span class="type">Fax</span>
+                <span class="value">@{self._website.fax_number}</span>
+            </span>
+            <br/>
+            <a
+                py:id="email_label"
+                class="email"
+                href="mailto:@{self._website.email or ''}"
+                py:visible="@{self._website.email}">
+                @{self._website.email}
+            </a>
+        </div>
+    </div>
+
+</py:woost.views.BaseView>
+

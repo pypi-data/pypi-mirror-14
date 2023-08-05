@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail.translations import get_language, translations
+from cocktail.html.ieconditionalcomment import IEConditionalComment
+from cocktail.schema import Collection
+from woost import app
+from woost.controllers.backoffice.editstack import (
+    EditNode,
+    SelectionNode,
+    RelationNode
+)
+from woost.controllers.backoffice.useractions import add_view_action_context
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+
+    cms = None
+    backoffice = None
+    user = None
+    edit_stack = None
+    notifications = ()
+    client_side_scripting = False
+
+    def get_page_title(self):
+        return self.backoffice and self.backoffice.title
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/backoffice.css")
+    self.add_resource("/cocktail/scripts/form.js")
+    self.add_resource("/resources/scripts/BackOfficeLayout.js")
+
+    # TODO: Implement conditional comments for IE more generally
+    self.add_head_element(IEConditionalComment(condition = "lt IE 8", children = [
+        Element("link",
+            rel = "Stylesheet",
+            type = "text/css",
+            href = "/resources/styles/backoffice_ie.css")
+    ]))
+
+    self.add_head_element(
+        Element("link",
+            rel = "Stylesheet",
+            type = "text/css",
+            media = "print",
+            href = "/resources/styles/print.css")
+    )
+
+    self.add_resource("/cocktail/scripts/jquery.hotkeys.js")
+    self.add_resource("/cocktail/scripts/jquery.query.js")
+    self.add_resource("/cocktail/scripts/selectors.js")
+    ?>
+
+    <link rel="icon" type="image/png" href="/resources/images/favicon.ico"/>
+
+    <py:ready>
+        <?py
+        self.language = get_language()
+
+        self.is_client_side_selector = (
+            self.client_side_scripting
+            and self.edit_stack
+            and isinstance(self.edit_stack[-1], (SelectionNode, RelationNode))
+        )
+
+        self.page_title = self.get_page_title()
+
+        add_view_action_context(element, "nested" if self.edit_stack else "root")
+        if self.cms:
+            self.set_client_variable("cms_uri", self.cms.contextual_uri())
+
+        self.add_client_translation("woost.views.BackOfficeLayout.drop")
+        self.add_client_translation("woost.views.BackOfficeLayout.drop_before")
+        self.add_client_translation("woost.views.BackOfficeLayout.drop_after")
+
+        if app.installation_id:
+            self.add_class("installation-" + app.installation_id)
+        ?>
+    </py:ready>
+
+    <div py:id="header">
+        <py:ready>
+            <?py
+            if app.installation_color:
+                element.set_style("background-color", app.installation_color)
+            ?>
+        </py:ready>
+
+        <!-- Page title -->
+        <h1>
+            <a>
+                <py:ready>
+                    <?py
+                    if self.cms and not self.is_client_side_selector:
+                        element["href"] = self.cms.contextual_uri()
+                    else:
+                        element.tag = None
+
+                    element.append(self.page_title)
+                    ?>
+                </py:ready>
+            </a>
+        </h1>
+
+        <!-- Identity and logout -->
+        <div py:id="identity"
+            py:visible="@{self.user and not self.user.anonymous and not self.is_client_side_selector}">
+            <py:ready py:if="element.visible">
+                <strong>${translations(self.user)}</strong>
+                <form method="post">
+                    <button py:id="logout_button" name="logout" type="submit">
+                        ${translations("Logout")}
+                    </button>
+                </form>
+            </py:ready>
+        </div>
+    </div>
+
+    <py:woost.views.NotificationBox py:id="notification_box" />
+
+    <py:ready>
+        <?py
+        if self.edit_stack and len(self.edit_stack) > 1 and not self.is_client_side_selector:
+            node_container = None
+
+            for node in self.edit_stack:
+
+                # Only show relation nodes when they are at the top of the
+                # stack (ie. when selecting related items)
+                if isinstance(node, RelationNode):
+                    if node is not self.edit_stack[-1]:
+                        continue
+
+                # Nesting
+                parent_container = node_container
+                node_container = Element()
+                node_container.add_class("stack_node")
+
+                if parent_container is None:
+                    node_container.place_before(self.body)
+                    node_container.add_class("root")
+                else:
+                    parent_container.append(node_container)
+
+                if node is self.edit_stack[-1]:
+                    node_container.add_class("top")
+                    continue
+
+                # Title
+                node_label = Element()
+                node_label.add_class("label")
+                node_label.append(translations(node))
+                node_container.append(node_label)
+
+            node_container.append(self.body)
+        ?>
+    </py:ready>
+
+    <div py:id="body">
+        <h2 py:id="page_title">
+            <py:ready>
+                <?py
+                edit_stack = self.edit_stack
+                if self.edit_stack:
+                    element.append(translations(self.edit_stack[-1]))
+                else:
+                    element.visible = False
+                ?>
+            </py:ready>
+        </h2>
+    </div>
+
+    <div py:id="footer"/>
+
+</div>
