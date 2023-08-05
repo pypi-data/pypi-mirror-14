@@ -1,0 +1,128 @@
+<script language="javascript" src="{{ url_for('shelf.static', filename='shelf/js/library_field.js') }}"></script>
+<script language="javascript" src="{{ url_for('shelf.static', filename='jquery/jquery.cropit.js') }}"></script>
+<script language="javascript" src="{{ url_for('library.static', filename='smartcrop.js') }}"></script>
+<script language="javascript">
+(function($) {
+    var CROP_PREVIEW_MAX_WIDTH = 400;
+    var CROP_PREVIEW_MAX_HEIGHT = 300;
+
+    $('.model-form').on('click', "button.modal-open", function() {
+        var input_el = $(this).closest('.form-group').find('input');
+        var modal = $(this).closest('.form-group').find('.modal');
+
+        if (input_el.hasClass('remote-file'))
+        {
+            modal.data('val-target', '#' + input_el.attr('id'));
+
+            modal.modal({
+                remote: "/admin/fileadmin/modal/",
+                toggle: "modal"
+            });
+        }
+        else if (input_el.hasClass('picture'))
+        {
+            var thumb_id = 'thumb_' + input_el.attr('id');
+            var thumb_el = $(this).closest('.form-group').find('.thumbnail>img').first();
+
+            thumb_el.attr('id', thumb_id);
+
+            modal.data('val-target', '#' + input_el.attr('id'));
+            modal.data('src-target', '#' + thumb_id);
+
+            if (thumb_el.attr('width') && thumb_el.attr('height')) {
+                modal.data('crop-width', thumb_el.attr('width'));
+                modal.data('crop-height', thumb_el.attr('height'));
+
+                modal.observe('added', '.modal_file_element', function(record) {
+                    if (!$(this).data('width') || !$(this).data('height')) {
+                        $(this).removeClass('modal_file_element');
+                        return;
+                    }
+
+                    if ($(this).data('width') < thumb_el.attr('width') || $(this).data('height') < thumb_el.attr('height')) {
+                        $(this).find('span.link-file').append('<span class="picture_too_small">🚫 picture too small</span>');
+                        $(this).removeClass('modal_file_element');
+                        return;
+                    }
+
+                    if ($(this).data('width') != thumb_el.attr('width') || $(this).data('width') != thumb_el.attr('width')) {
+                        $(this).addClass('modal_crop_required');
+                    }
+                });
+
+                modal.observe('added', '.image-cropper', function(record) {
+                    var preview = $(this).find('.cropit-preview').first();
+                    var validator = modal.find('.modal_file_validate_crop').first();
+
+                    validator.data('x', 0);
+                    validator.data('y', 0);
+                    validator.data('crop_width', thumb_el.attr('width'));
+                    validator.data('crop_height', thumb_el.attr('height'));
+
+                    preview_width_ratio = thumb_el.attr('width') / CROP_PREVIEW_MAX_WIDTH;
+                    preview_height_ratio = thumb_el.attr('height') / CROP_PREVIEW_MAX_HEIGHT;
+                    preview_max_ratio = Math.max(1, preview_width_ratio, preview_height_ratio);
+
+                    preview_width = thumb_el.attr('width') / preview_max_ratio;
+                    preview_height = thumb_el.attr('height') / preview_max_ratio;
+
+                    $('.image-cropper').cropit({
+                        imageState: {src: "{{ url_for('fileadmin.download', path='') }}" + $(this).data('path')},
+                        width: preview_width,
+                        height: preview_height,
+                        exportZoom: preview_max_ratio,
+                        imageBackground: true,
+                        allowDragNDrop: false,
+                        imageBackground: true,
+                        onImageLoaded: function() {
+                            validator.data('width', this.cropit.image.width);
+                            validator.data('height', this.cropit.image.height);
+                            validator.removeClass('disabled');
+
+                            var $this = this;
+                            SmartCrop.crop(this.cropit.image, {width: thumb_el.attr('width'), height: thumb_el.attr('height')}, function(result) {
+                                $('.image-cropper').cropit('zoom', (preview_width/result.topCrop.width + preview_height/result.topCrop.height) / 2);
+                                $('.image-cropper').cropit('offset', {
+                                    x: -result.topCrop.x * $this.cropit.zoom,
+                                    y: -result.topCrop.y * $this.cropit.zoom
+                                });
+                            });
+                        },
+                        onOffsetChange: function(offset) {
+                            validator.data('x', (-offset.x / this.cropit.zoom).toFixed());
+                            validator.data('y', (-offset.y / this.cropit.zoom).toFixed());
+                        },
+                        onZoomChange: function(zoom) {
+                            validator.data('width', (thumb_el.attr('width') / (zoom * this.exportZoom)).toFixed());
+                            validator.data('height', (thumb_el.attr('height') / (zoom * this.exportZoom)).toFixed());
+                        }
+                    });
+                });
+            }
+
+            modal.get(0).crop_base_url = "{{ url_for('fileadmin.modal_crop', path='') }}";
+
+            modal.modal({
+                remote: "{{ url_for('fileadmin.modal_iconic_index') }}",
+                toggle: "modal"
+            }).on('hidden.bs.modal', function(e) {
+                modal.disconnect();
+            });
+        }
+        return false;
+    });
+
+    $('.model-form').on('click', "button.remove", function() {
+        if ($(this).closest('.form-group').find('input').hasClass('remote-file'))
+        {
+            $(this).closest('.form-group').find('input').first().val('');
+        }
+        else if ($(this).closest('.form-group').find('input').hasClass('picture'))
+        {
+            $(this).closest('.form-group').find('img').first().attr('src', "/shelf/static/shelf/img/missing-picture.png");
+            $(this).closest('.form-group').find('input[type=hidden]').first().val('');
+        }
+        return false;
+    });
+})(jQuery);
+</script>
