@@ -1,0 +1,895 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta content="User documentation for FFGo's conditional configuration feature" name="description" />
+<meta content="FFGo, condition, conditional, configuration, CondConfigParser" name="keywords" />
+
+    <title>Conditional configuration for FFGo &mdash; FFGo.condconfig 1.11.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.11.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="FFGo.condconfig 1.11.1 documentation" href="index.html" />
+    <link rel="prev" title="FFGo conditional config documentation" href="index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="index.html" title="FFGo conditional config documentation"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">FFGo.condconfig 1.11.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="conditional-configuration-for-ffgo">
+<h1>Conditional configuration for FFGo<a class="headerlink" href="#conditional-configuration-for-ffgo" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>FFGo uses <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a>, which opens up new possibilities regarding
+what can be done with the configuration file. Specifically, the word
+“configuration” in this document normally refers to the part of FFGo&#8217;s
+configuration file that is displayed in the main window, which you can use
+to pass specific options to the FlightGear executable (typically,
+<strong class="program">fgfs</strong>).</p>
+<p>Notes:</p>
+<blockquote>
+<div><ul class="simple">
+<li>If you actually look at FFGo&#8217;s configuration file,
+<code class="file docutils literal"><em><span class="pre">USER_DATA_DIR</span></em><span class="pre">/config</span></code> (where <code class="file docutils literal"><em><span class="pre">USER_DATA_DIR</span></em></code> is
+<code class="file docutils literal"><em><span class="pre">$HOME</span></em><span class="pre">/.ffgo</span></code> on Unix, <code class="file docutils literal"><em><span class="pre">%APPDATA%</span></em><span class="pre">/FFGo</span></code> on Windows), this
+corresponds to the part following the special marker line containing
+<code class="docutils literal"><span class="pre">INTERNAL</span> <span class="pre">OPTIONS</span> <span class="pre">ABOVE.</span> <span class="pre">EDIT</span> <span class="pre">CAREFULLY!</span></code> (which is an implementation
+detail and might change in the future).</li>
+<li>The following description is somewhat informal, written with FFGo
+users in mind. For those who want more details, including a formal
+grammar specification of the configuration format, the reference
+document is the <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/doc/">CondConfigParser Manual</a>.</li>
+</ul>
+</div></blockquote>
+</div>
+<div class="section" id="structure-of-the-configuration-in-the-simplest-case">
+<h2>Structure of the configuration in the simplest case<a class="headerlink" href="#structure-of-the-configuration-in-the-simplest-case" title="Permalink to this headline">¶</a></h2>
+<p>In the simplest case, the configuration is a sequence of lines with optional
+comments. A <span class="target" id="index-0"></span>comment is started on a given line
+with the <code class="docutils literal"><span class="pre">#</span></code> character and ends at the end of the line. Except where special
+syntax described below is used, every non-blank line, after comment removal,
+is passed as a single argument to <strong class="program">fgfs</strong>, preserving the order used
+in the configuration.</p>
+<p>Example:</p>
+<div class="highlight-python"><div class="highlight"><pre>#--enable-auto-coordination
+
+--enable-terrasync
+--terrasync-dir=/path/to/scenery-terrasync
+
+--timeofday=noon
+--season=summer
+</pre></div>
+</div>
+<p>In this example, the <code class="docutils literal"><span class="pre">--enable-auto-coordination</span></code> option is not passed
+to the FlightGear executable because it is commented out with the <code class="docutils literal"><span class="pre">#</span></code>
+character. The four remaining non-blank lines will be passed as four
+arguments to <strong class="program">fgfs</strong>. They will be added after the options
+automatically set by FFGo, such as <code class="samp docutils literal"><span class="pre">--aircraft=</span><em><span class="pre">...</span></em></code>,
+<code class="samp docutils literal"><span class="pre">--airport=</span><em><span class="pre">...</span></em></code>, <code class="samp docutils literal"><span class="pre">--fg-scenery=</span><em><span class="pre">...</span></em></code>, etc.</p>
+<p>Comments don&#8217;t necessary start at the beginning of a line. For instance,
+a configuration such as:</p>
+<div class="highlight-python"><div class="highlight"><pre>--prop:/instrumentation/nav/frequencies/selected-mhz=109.70 # OEJ
+--prop:/instrumentation/nav/radials/selected-deg=66
+--dme=nav1
+--adf2=413 # KÜHTAI (KTI)
+</pre></div>
+</div>
+<p>will cause 4 options to be passed to <strong class="program">fgfs</strong>, namely:</p>
+<div class="highlight-python"><div class="highlight"><pre>--prop:/instrumentation/nav/frequencies/selected-mhz=109.70
+--prop:/instrumentation/nav/radials/selected-deg=66
+--dme=nav1
+--adf2=413
+</pre></div>
+</div>
+<p>The comments, as well as spaces preceding the <code class="docutils literal"><span class="pre">#</span></code> comment char, are
+ignored. Similarly, spaces at the beginning of option lines are ignored,
+but not spaces in the &#8220;middle&#8221; of an option. Thus, a line such as:</p>
+<div class="highlight-python"><div class="highlight"><pre>--aircraft=A weird aircraft name
+</pre></div>
+</div>
+<p>would be passed as a single argument to <strong class="program">fgfs</strong>, including the spaces
+inside.</p>
+<p>(and in case you find yourself in such a situation that you actually <em>need</em> to
+include spaces at the beginning or end of an <strong class="program">fgfs</strong> argument, this is
+possible; each of them must simply be preceded by a backslash, as explained
+later in this document)</p>
+</div>
+<div class="section" id="variables-and-conditional-sections">
+<span id="index-1"></span><h2>Variables and conditional sections<a class="headerlink" href="#variables-and-conditional-sections" title="Permalink to this headline">¶</a></h2>
+<p id="index-2">The piece of configuration we have described in the previous paragraphs
+defines arguments that are always passed to the FlightGear executable,
+<strong class="program">fgfs</strong>, regardless of any condition. For this reason, it is called
+the <em>default, unconditional section</em> in <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a>-speak; and the
+lines contained within that section are called the <em>default raw
+configuration lines</em>. However, you may want to have certain options passed
+to <strong class="program">fgfs</strong> only in specific circumstances, such as starting at a
+specific airport, using a specific aircraft, flying a helicopter, etc. This
+is where CondConfigParser&#8217;s variables and conditional sections come in
+handy.</p>
+<p>Suppose for instance that you often fly around Amsterdam Schiphol airport
+(EHAM) and you want to have the COM1 and COM2 frequencies automatically set up
+when you start FlightGear there. Of course, you can set <code class="samp docutils literal"><span class="pre">--com1=</span><em><span class="pre">...</span></em></code>
+and <code class="samp docutils literal"><span class="pre">--com2=</span><em><span class="pre">...</span></em></code> in the default, unconditional section as we did
+above. However, this method won&#8217;t work as soon as you&#8217;ll want to do the same
+for several airports using different frequencies. In order to solve this
+problem, you can use conditional sections like this:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="p">[</span> <span class="n">airport</span> <span class="o">==</span> <span class="s2">&quot;EHAM&quot;</span> <span class="p">]</span>
+<span class="o">--</span><span class="n">com1</span><span class="o">=</span><span class="mf">121.975</span>
+<span class="o">--</span><span class="n">com2</span><span class="o">=</span><span class="mf">119.225</span>
+</pre></div>
+</div>
+<p>With such a section, the <code class="docutils literal"><span class="pre">--com1</span></code> and <code class="docutils literal"><span class="pre">--com2</span></code> options will only be passed
+to <strong class="program">fgfs</strong> if the selected airport in FFGo is EHAM. The important
+thing to note is that conditional sections must come <em>after</em> the default,
+unconditional section. This is because a given conditional section ends at the
+beginning of the next one (or at the end of the file, whichever comes first).
+A blank line does not end any section, conditional or not. Therefore, a
+complete configuration with two conditional sections could look like this:</p>
+<div class="highlight-python"><div class="highlight"><pre>--enable-terrasync
+--terrasync-dir=/path/to/scenery-terrasync
+
+--timeofday=noon
+--season=summer
+
+--enable-fullscreen
+--disable-hud-3d
+
+[ airport == &quot;EHAM&quot; ]
+--com1=121.975
+--com2=119.225
+
+[ airport == &quot;EHRD&quot; ]
+--com1=122.750
+--com2=127.025
+</pre></div>
+</div>
+<p id="index-3">This example uses one external variable: <code class="docutils literal"><span class="pre">airport</span></code>. It is said to be
+<em>external</em> because it is not defined in this configuration, but
+automatically set by FFGo when it interprets the configuration to compute
+the argument list for the <strong class="program">fgfs</strong> command. The complete list of
+external variables that <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a> obtains from FFGo is, at the
+time of this writing: <code class="docutils literal"><span class="pre">aircraft</span></code>, <code class="docutils literal"><span class="pre">aircraftDir</span></code>, <code class="docutils literal"><span class="pre">airport</span></code>,
+<code class="docutils literal"><span class="pre">parking</span></code>, <code class="docutils literal"><span class="pre">runway</span></code>, <code class="docutils literal"><span class="pre">carrier</span></code> and <code class="docutils literal"><span class="pre">scenarios</span></code>.</p>
+<p>While external variables get their values from user selections in the FFGo
+graphical user interface, other variables must be explicitely defined at the
+beginning of the configuration, that is, before the default, unconditional
+section. This is done in a special section delimited by braces, like this:</p>
+<div class="highlight-python"><div class="highlight"><pre>{ var1 = value1
+  var2 = value2
+  ...
+}
+</pre></div>
+</div>
+<p>As an example where using such a variable is convenient, let&#8217;s consider
+the following configuration:</p>
+<div class="highlight-python"><div class="highlight"><pre>{ custom_start_pos = &quot;heli-H7&quot; } # Only one variable defined here
+
+[ custom_start_pos == &quot;parking&quot; and airport == &quot;EDDK&quot; ]
+--lat=50.8768259714
+--lon=7.1222074126
+--heading=49
+
+[ custom_start_pos == &quot;heli-H7&quot; and airport == &quot;EDDM&quot; ] # helipad H7 at EDDM
+--lat=48.3595136857
+--lon=11.8043934004
+--heading=270
+
+[ custom_start_pos == &quot;TFFJ-app&quot; ] # Approach for TFFJ
+# Can override the option set from the GUI, see MERGED_OPTIONS below
+--airport=TFFJ
+--offset-distance=4.5
+--offset-azimuth=120
+--altitude=2500
+--heading=130
+--vc=120
+</pre></div>
+</div>
+<p>This type of configuration allows one to easily customize the start position
+(latitude, longitude, altitude and heading), as well as the initial speed of
+the aircraft, or anything else that can be set from the <strong class="program">fgfs</strong>
+command line (use <code class="docutils literal"><span class="pre">fgfs</span> <span class="pre">--help</span> <span class="pre">--verbose</span></code> to see the full option list).
+Which set of options is selected depends on the <span class="target" id="index-4"></span>predicates (the conditions between square brackets), and therefore in this
+example on the selected airport and the value given to the
+<code class="docutils literal"><span class="pre">custom_start_pos</span></code> variable at the beginning of the configuration.</p>
+<p>So, if you want to start at the defined parking position at EDDK, select
+EDDK in the FFGo GUI and make sure you have:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">custom_start_pos</span> <span class="o">=</span> <span class="s2">&quot;parking&quot;</span>
+</pre></div>
+</div>
+<p>in the brace-delimited section for variable assignments at the beginning of
+the config. Similarly, you can easily start on the H7 helipad at EDDM by
+choosing EDDM in the FFGo GUI and setting <code class="docutils literal"><span class="pre">custom_start_pos</span></code> to the string
+<code class="docutils literal"><span class="pre">&quot;heli-H7&quot;</span></code>. The third conditional section in this example allows you to
+easily practice landings at TFFJ by setting <code class="docutils literal"><span class="pre">custom_start_pos</span></code> to
+<code class="docutils literal"><span class="pre">&quot;TFFJ-app&quot;</span></code> (for aircraft models that support in-air startup).</p>
+<p>Finally, if you don&#8217;t want any of these options to be used, just set
+<code class="docutils literal"><span class="pre">custom_start_pos</span></code> to a value that doesn&#8217;t satisfy any of the predicates,
+for instance the empty string <code class="docutils literal"><span class="pre">&quot;&quot;</span></code>, or something like <code class="docutils literal"><span class="pre">&quot;-parking&quot;</span></code>
+(convenient if you often switch between the &#8220;parking&#8221; setting and the
+default FFGo behavior—the one obtained without any specific configuration).</p>
+<p>Note:</p>
+<blockquote>
+<div>These custom parking positions defined by latitude, longitude and
+heading are not very useful in airports where the scenery has
+well-defined parking lots that can be directly selected in the FFGo
+GUI. Unfortunately, this case is relatively rare, especially for
+“exotic” installations such as helipads.</div></blockquote>
+</div>
+<div class="section" id="advanced-expressions">
+<h2>Advanced expressions<a class="headerlink" href="#advanced-expressions" title="Permalink to this headline">¶</a></h2>
+<p id="index-5">In the previous section, we have seen how to define and use variables and
+conditional sections in the configuration read by FFGo (via
+<a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a>). As we have explained, each such section starts with a
+condition, called a <em>predicate</em>, enclosed in square brackets (<code class="docutils literal"><span class="pre">[</span></code> and
+<code class="docutils literal"><span class="pre">]</span></code>). But what constitutes a valid predicate? Similarly, when writing a
+variable assignment, what constitutes a valid right-hand side? The answer
+given here will be kept slightly approximate in order to remain short and
+relatively easy to understand. If you want the full details, please refer to
+the <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/doc/">CondConfigParser Manual</a>.</p>
+<p id="index-6">Before diving into a somewhat verbose description, let&#8217;s give a sample
+configuration with a few conditional sections. This example makes use of
+two external variables (<code class="docutils literal"><span class="pre">airport</span></code> and <code class="docutils literal"><span class="pre">aircraft</span></code>) that <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a>
+obtains from FFGo. The other three variables used in the predicates
+(<code class="docutils literal"><span class="pre">custom_start_pos</span></code>, <code class="docutils literal"><span class="pre">instruments</span></code> and <code class="docutils literal"><span class="pre">condConfigParser_testing</span></code>) are
+defined in the brace-delimited section for variable assignments at the
+beginning of the configuration.</p>
+<div class="highlight-python"><div class="highlight"><pre>{ custom_start_pos = &quot;&quot; # You can use &quot;parking&quot;, &quot;manual&quot;, or anything else...
+  instruments = &quot;LOWI&quot;
+  # The corresponding section (see below) will be applied if this variable
+  # is set to True.
+  condConfigParser_testing = False }
+
+[ custom_start_pos == &quot;parking&quot; and airport == &quot;LKPR&quot; ]
+--lat=50.10427155972259
+--lon=14.26571160265325
+--heading=40
+
+[ custom_start_pos == &quot;parking&quot; and airport == &quot;EIDW&quot; and
+  aircraft == &quot;707&quot; ] # I want to use a specific parking position for the 707
+--lat=53.4299148608
+--lon=-6.2488343207
+--heading=009
+
+[ instruments == &quot;LFRS&quot; or ((not instruments) and airport == &quot;LFRS&quot;) or
+  custom_start_pos == &quot;LFRS-app&quot; ] # Nantes Atlantique
+--nav1=29:109.9
+
+[ custom_start_pos == &quot;LOWI-appW&quot; ] # Approch from the west
+--fix=KTI08
+--altitude=13000
+--heading=137
+--vc=120
+
+[ instruments == &quot;LOWI&quot; or ((not instruments) and airport == &quot;LOWI&quot;) or
+  custom_start_pos in [&quot;LOWI-appW&quot;, &quot;LOWI-appE&quot;] ]
+--prop:/instrumentation/nav/frequencies/selected-mhz=109.70 # OEJ
+#--prop:/instrumentation/nav/frequencies/standby-mhz=
+--prop:/instrumentation/nav/radials/selected-deg=66
+--dme=nav1
+--adf2=413 # KÜHTAI (KTI)
+
+[ instruments == &quot;IFR tutorial&quot; ]
+--prop:/instrumentation/comm/frequencies/selected-mhz=118.625
+--prop:/instrumentation/comm/frequencies/standby-mhz=910.00 # FGCom self-test
+#--prop:/instrumentation/comm[1]/frequencies/selected-mhz=
+#--prop:/instrumentation/comm[1]/frequencies/standby-mhz=
+--prop:/instrumentation/nav/frequencies/selected-mhz=114.1
+#--prop:/instrumentation/nav/frequencies/standby-mhz=
+--prop:/instrumentation/nav/radials/selected-deg=9
+--prop:/instrumentation/nav[1]/frequencies/selected-mhz=116.8
+--prop:/instrumentation/nav[1]/frequencies/standby-mhz=116.0
+--prop:/instrumentation/nav[1]/radials/selected-deg=114
+
+--dme=nav1
+
+[ condConfigParser_testing ]
+whatever argument(s) you want to pass to fgfs
+</pre></div>
+</div>
+<p id="index-7">The syntactic rules for expressions used in variable assignments and
+predicates are deliberately close to those governing expressions in
+Python, but there are less data types available than in Python and, to
+this date, no functions, classes, etc. The syntactic element used for
+the right-hand side of variable assignments is the same as for
+predicates, after removal of the enclosing square brackets. In
+<a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a>&#8216;s grammar, it is called an <em>orTest</em> and is composed of
+variable references and literals of one of these basic types:</p>
+<blockquote>
+<div><ul class="simple">
+<li>boolean (<code class="docutils literal"><span class="pre">True</span></code> or <code class="docutils literal"><span class="pre">False</span></code>);</li>
+<li>string, delimited by double quotes (<code class="docutils literal"><span class="pre">&quot;</span></code>);</li>
+<li>list, delimited by square brackets (<code class="docutils literal"><span class="pre">[</span></code> and <code class="docutils literal"><span class="pre">]</span></code>), the elements
+inside a list being separated by commas.</li>
+</ul>
+</div></blockquote>
+<p id="index-8">A <em>variable reference</em> is a variable name used in an expression. For
+instance:</p>
+<div class="highlight-python"><div class="highlight"><pre>{ heli1 = &quot;ec130b4&quot;
+  other_heli = &quot;uh1&quot;
+  my_helis = [heli1, &quot;ec135p2&quot;, other_heli, &quot;bo105&quot;] }
+</pre></div>
+</div>
+<p>In this example, two variables are assigned string literals and the
+third variable (<code class="docutils literal"><span class="pre">my_helis</span></code>) is assigned a list defined using two string
+literals (<code class="docutils literal"><span class="pre">&quot;ec135p2&quot;</span></code> and <code class="docutils literal"><span class="pre">&quot;bo105&quot;</span></code>) and two variable references
+(<code class="docutils literal"><span class="pre">heli1</span></code> and <code class="docutils literal"><span class="pre">other_heli</span></code>).</p>
+<p id="index-9">A <em>variable name</em> is a sequence of ASCII letters, digits or underscore:</p>
+<blockquote>
+<div><ul class="simple">
+<li>that is delimited by word boundaries (according to the Python re
+module);</li>
+<li>that is not a keyword (<code class="docutils literal"><span class="pre">or</span></code>, <code class="docutils literal"><span class="pre">and</span></code>, <code class="docutils literal"><span class="pre">not</span></code>, <code class="docutils literal"><span class="pre">in</span></code>, <code class="docutils literal"><span class="pre">True</span></code>, <code class="docutils literal"><span class="pre">False</span></code>).</li>
+</ul>
+</div></blockquote>
+<p>Lists can be of arbitrary length, may contain any expression, including
+other lists, and their nesting level is not limited by <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a>.</p>
+<p>There is no integer nor float type in CondConfigParser, as it has not
+seemed to be very useful for FFGo so far, however this might change in
+the future.</p>
+<p>So, what is allowed to go into the right-hand side of a variable
+assignment or inside the predicate of a conditional section? Answer: any
+number of the aforementioned basic type literals or variable references,
+combined with the following operators and parentheses:</p>
+<table border="1" class="docutils" id="index-10">
+<colgroup>
+<col width="43%" />
+<col width="57%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Operator</th>
+<th class="head">Meaning</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td><code class="docutils literal"><span class="pre">==</span></code>, <code class="docutils literal"><span class="pre">!=</span></code>, <code class="docutils literal"><span class="pre">in</span></code></td>
+<td>equality and membership tests</td>
+</tr>
+<tr class="row-odd"><td><code class="docutils literal"><span class="pre">not</span></code></td>
+<td>logical “not”</td>
+</tr>
+<tr class="row-even"><td><code class="docutils literal"><span class="pre">and</span></code></td>
+<td>logical “and”</td>
+</tr>
+<tr class="row-odd"><td><code class="docutils literal"><span class="pre">or</span></code></td>
+<td>logical “or”</td>
+</tr>
+</tbody>
+</table>
+<p>(operators listed in decreasing order of precedence; those on the same
+line have equal priority)</p>
+<p>The <code class="docutils literal"><span class="pre">in</span></code> operator can be used to test:</p>
+<blockquote>
+<div><ul class="simple">
+<li>whether a character (string of length 1) is part of a string;</li>
+<li>whether an arbitrary object is equal to an element of a list.</li>
+</ul>
+</div></blockquote>
+<p>(the objects need not be written literally: they can be specified via
+variable references or even expressions)</p>
+<p>Example:</p>
+<blockquote>
+<div><p>As a consequence of the preceding rules, the expression inside the
+predicate used in the above example:</p>
+<div class="highlight-python"><div class="highlight"><pre>instruments == &quot;LOWI&quot; or ((not instruments) and airport == &quot;LOWI&quot;) or
+custom_start_pos in [&quot;LOWI-appW&quot;, &quot;LOWI-appE&quot;]
+</pre></div>
+</div>
+<p>is equivalent to:</p>
+<div class="highlight-python"><div class="highlight"><pre>instruments == &quot;LOWI&quot; or (not instruments) and airport == &quot;LOWI&quot; or
+custom_start_pos in [&quot;LOWI-appW&quot;, &quot;LOWI-appE&quot;]
+</pre></div>
+</div>
+<p>This is because <code class="docutils literal"><span class="pre">and</span></code> has a higher priority than <code class="docutils literal"><span class="pre">or</span></code> and <code class="docutils literal"><span class="pre">==</span></code> a
+higher priority than both of them. Since <code class="docutils literal"><span class="pre">not</span></code> has a higher priority
+than <code class="docutils literal"><span class="pre">and</span></code>, it is also equivalent to the following expression,
+although I would advise against using it, because it will probably
+feel ambiguous to people not knowing the precise precedence rules:</p>
+<div class="highlight-python"><div class="highlight"><pre>instruments == &quot;LOWI&quot; or not instruments and airport == &quot;LOWI&quot; or
+custom_start_pos in [&quot;LOWI-appW&quot;, &quot;LOWI-appE&quot;]
+</pre></div>
+</div>
+</div></blockquote>
+<p>The precedence rules between operators should be quite familiar to
+Python programmers. When in doubt, you can always use parentheses.
+Similarly, the way expressions are interpreted in boolean context tries
+to mimic Python&#8217;s behavior (example: a string or list is considered true
+if, and only if, it is not empty).</p>
+<p>Note:</p>
+<blockquote>
+<div>The <code class="docutils literal"><span class="pre">and</span></code> and <code class="docutils literal"><span class="pre">or</span></code> boolean operators are short circuit and return the
+last evaluated expression, as in Python.</div></blockquote>
+<p id="index-11">A useful example of what can be done with lists could be the following:</p>
+<div class="highlight-python"><div class="highlight"><pre>{ custom_start_pos = &quot;parking&quot;    # &quot;parking&quot; or &quot;manual&quot; or ...
+  instruments = &quot;&quot;                # &quot;IFR tutorial&quot; or &quot;LOWI&quot; or ...
+  # Lists to be completed according to your needs
+  gate_class = aircraft in [&quot;777-200ER&quot;, &quot;A320neo&quot;, &quot;A330-203&quot;]
+  ga_class = aircraft in \
+    [&quot;c172p&quot;, &quot;SenecaII&quot;, &quot;Cub&quot;, &quot;dr400-dauphin&quot;, &quot;dhc6&quot;, &quot;Dragonfly&quot;]
+}
+
+# Toncontin Intl (Tegucigalpa, Honduras)
+[ custom_start_pos == &quot;parking&quot; and airport == &quot;MHTG&quot; and gate_class ]
+--lat=14.06054
+--lon=-87.21878
+--heading=288
+
+[ custom_start_pos == &quot;parking&quot; and airport == &quot;MHTG&quot; and ga_class ]
+--lat=14.05552
+--lon=-87.21387
+--heading=265
+
+[ instruments == &quot;MHTG&quot; or (not instruments) and airport == &quot;MHTG&quot; or
+  custom_start_pos == &quot;MHTG-app&quot; ]
+--nav1=122:112.3 # Toncontin (TNT)
+</pre></div>
+</div>
+<p>This simple configuration defines two different parking positions for
+the Toncontin Intl airport, one for aircrafts that take their passengers
+via jet bridges (of class “gate”), the other for usually smaller
+aircrafts (“general aviation”, abbreviated “ga”). It also automatically
+sets up the NAV1 frequency to 112.3&nbsp;MHz and the radial to 122, which is
+useful for the RNAV (RNP) approach of runway 02 (a particularly
+interesting one!).</p>
+<p>For FFGo to know which aircraft belongs to which class, we have defined
+the two variables, <code class="docutils literal"><span class="pre">gate_class</span></code> and <code class="docutils literal"><span class="pre">ga_class</span></code>, as booleans using
+membership tests. Of course, you have to add the aircrafts you fly to
+the appropriate list if you want to use this feature. When you want to
+start on a runway or on a parking position selected from the popup list
+of FFGo&#8217;s interface at the same airport, just replace <code class="docutils literal"><span class="pre">&quot;parking&quot;</span></code> with
+something else (e.g., <code class="docutils literal"><span class="pre">&quot;-parking&quot;</span></code>) on the first line, where the
+<code class="docutils literal"><span class="pre">custom_start_pos</span></code> variable is defined.</p>
+<p id="index-12">Another useful example to help fly helicopters as well as planes could
+be the following:</p>
+<div class="highlight-python"><div class="highlight"><pre>{ custom_start_pos = &quot;parking&quot;  # can be changed to &quot;heli-H5&quot; for instance
+  # Define a boolean variable (&#39;using_heli&#39;) indicating whether the
+  # selected aircraft is a helicopter. The list of helicopters given here
+  # is incomplete, of course.
+  using_heli = aircraft in \
+    [&quot;alouette2&quot;, &quot;alouette2F&quot;, &quot;Alouette-III_sc&quot;, &quot;bo105&quot;,
+     &quot;ec130b4&quot;, &quot;ec135p2&quot;, &quot;M-XE&quot;, &quot;s55&quot;, &quot;s76c&quot;, &quot;uh1&quot;, &quot;uh60&quot;,
+     &quot;rah-66&quot;] }
+
+[ using_heli ]
+# I need smaller throttle increments for helicopters than for planes
+# (this property is used by my mouse wheel binding, which controls the
+# throttle).
+--prop:/frougon/initial-mouse-wheel-throttle-step=0.004
+
+[ not using_heli ]
+# Uncomment this if you want auto-coordination enabled for everything
+# but helicopters.
+# --enable-auto-coordination
+
+# Define a starting position for EBBR when using anything but a helicopter
+[ custom_start_pos == &quot;parking&quot; and airport == &quot;EBBR&quot; and not using_heli ]
+--lat=50.89939819021788
+--lon=4.487598394661401
+--heading=340
+
+# Predefined starting position at helipad H1 of EBBR
+[ airport == &quot;EBBR&quot; and
+  (custom_start_pos == &quot;heli-H1&quot; or
+   using_heli and custom_start_pos == &quot;parking&quot;) ] # H1
+--lat=50.8975296235
+--lon=4.4906784598
+--heading=115
+
+# Predefined starting position at helipad H5 of EBBR. This one
+# requires specifically setting &#39;custom_start_pos&#39; to &quot;heli-H5&quot;;
+# The generic &quot;parking&quot; setting will select H1 if using a helicopter,
+# not H5.
+[ custom_start_pos == &quot;heli-H5&quot; and airport == &quot;EBBR&quot; ] # H5
+--lat=50.8938820754
+--lon=4.4689847385
+--heading=63
+</pre></div>
+</div>
+<p>Finally, to give you an idea of what the syntax allows, here is a valid
+configuration using the possibilities presented above. Of course, it is
+very convoluted and completely artificial!</p>
+<div class="highlight-python"><div class="highlight"><pre>{ a = [&quot;def&quot;, &quot;ghi&quot;]
+  # The expression for &#39;b&#39; contains 3 variables, 2 of which are external.
+  # Its evaluation will return a nested list.
+  b = [True, &quot;jkl&quot;, aircraft, a, airport]
+  c = parking == &quot;XYZ0&quot; and &quot;ufo&quot; in b
+  d = (parking == &quot;XYZ0&quot;) and (&quot;ufo&quot; in b) # same thing
+  e = c == d # e will always evaluate to True
+
+  foobar = True
+  baz = [aircraft, &quot;strange\tstring\nwith \
+                    many escape sequences&quot;,
+         [&quot;list&quot;, &quot;inside&quot;, &quot;a&quot;, &quot;list&quot;]] or not [&quot;bla&quot;]
+  zod = \
+  [True, &quot;you&quot;, &quot;may&quot;, &quot;reference&quot;, baz, &quot;from here&quot;] and \
+  (a or b)
+  blabla = zod # [&quot;pouet&quot;]   ← just a comment
+}
+
+--common-options
+--another-one     # with a comment
+# Option starting with a &#39;[&#39; followed by a space (the &#39;[&#39; at the
+# beginning of a line must be escaped)
+\[ spaces at the end of the line need escaping like this: \ # easy!
+--normal-option=value
+
+[ foobar and (airport == &quot;KSFO&quot; or
+              (scenarios == [&quot;nimitz_demo&quot;,
+                             &quot;clemenceau_demo&quot;,
+                             &quot;balloon_demo&quot;]
+               or &quot;wingman_demo&quot; in scenarios
+               and aircraft != &quot;777-200ER&quot;))
+]
+--lon=5.12358614
+# blabla
+--lat=40.1654116
+
+[ not e ]
+--oh no!
+</pre></div>
+</div>
+</div>
+<div class="section" id="assembling-the-fgfs-command-line">
+<span id="index-13"></span><h2>Assembling the fgfs command line<a class="headerlink" href="#assembling-the-fgfs-command-line" title="Permalink to this headline">¶</a></h2>
+<p>As we have seen, the configuration read by FFGo consists in an optional
+section containing variable assignments followed by a possibly-empty
+default, unconditional section, itself followed by zero or more conditional
+sections. Let&#8217;s explain how the various arguments (sometimes called
+<em>options</em>) specified in these get assembled into an <strong class="program">fgfs</strong> command.</p>
+<p>The rules used by default are pretty simple. The <strong class="program">fgfs</strong> program is
+passed the following arguments in this order:</p>
+<blockquote>
+<div><ul class="simple">
+<li>arguments derived from user settings in the FFGo graphical user
+interface (e.g., <code class="samp docutils literal"><span class="pre">--fg-root=</span><em><span class="pre">...</span></em></code>, <code class="samp docutils literal"><span class="pre">--fg-aircraft=</span><em><span class="pre">...</span></em></code>,
+<code class="samp docutils literal"><span class="pre">--fg-scenery=</span><em><span class="pre">...</span></em></code>, <code class="samp docutils literal"><span class="pre">--aircraft=</span><em><span class="pre">...</span></em></code>,
+<code class="samp docutils literal"><span class="pre">--airport=</span><em><span class="pre">...</span></em></code>, etc.);</li>
+<li>arguments from the default, unconditional section;</li>
+<li>arguments from each conditional section whose predicate is true
+(i.e., the sections that are said to be <em>applicable</em>).</li>
+</ul>
+</div></blockquote>
+<p>For instance, let&#8217;s consider the following configuration:</p>
+<div class="highlight-python"><div class="highlight"><pre>{ custom_start_pos = &quot;parking&quot; }
+
+#--enable-auto-coordination
+
+--enable-terrasync
+--terrasync-dir=/path/to/scenery-terrasync
+
+[ airport == &quot;LFPO&quot; ]
+--com1=118.700
+
+[ airport == &quot;LFPO&quot; and custom_start_pos == &quot;parking&quot; ]
+--lon=2.372079
+--lat=48.7275
+--heading=345
+
+[ airport == &quot;LFPG&quot; ]
+--com1=119.250
+--com2=121.800
+
+[ airport == &quot;LFPG&quot; and custom_start_pos == &quot;parking&quot; ]
+--lat=49.0075192
+--lon=2.5793183
+--heading=220
+</pre></div>
+</div>
+<p>Assuming the selected airport in the FFGo user interface is LFPG, then the
+<strong class="program">fgfs</strong> command issued by FFGo when the user clicks on the
+<span class="guilabel">Run FG</span> button will be:</p>
+<div class="highlight-python"><div class="highlight"><pre>fgfs &lt;basic options&gt; --enable-terrasync \
+                     --terrasync-dir=/path/to/scenery-terrasync \
+                     --com1=119.250 \
+                     --com2=121.800 \
+                     --lat=49.0075192 \
+                     --lon=2.5793183 \
+                     --heading=220
+</pre></div>
+</div>
+<p>where <code class="samp docutils literal"><em><span class="pre">&lt;basic</span> <span class="pre">options&gt;</span></em></code> is a placeholder for the options
+automatically added based on the settings in the FFGo user interface, as
+mentioned above (<code class="samp docutils literal"><span class="pre">--aircraft=</span><em><span class="pre">...</span></em></code>, <code class="samp docutils literal"><span class="pre">--airport=</span><em><span class="pre">...</span></em></code>, etc.).</p>
+<p id="index-14">Right, this is all nice and clean, but what happens when several applicable
+sections declare the same or redundant <strong class="program">fgfs</strong> options? In some
+cases, such as with <code class="docutils literal"><span class="pre">--ai-scenario</span></code>, it can be useful to provide an option
+several times. In other cases (e.g., with <code class="docutils literal"><span class="pre">--airport</span></code>, <code class="docutils literal"><span class="pre">--lat</span></code>...), it
+doesn&#8217;t make sense. Therefore, there is no “one size fits all” solution that
+can automatically do the right thing here. But there is a mechanism in place
+that can allow you, for some options explicitly listed in your
+configuration, to have FFGo apply a “last occurence wins” policy.</p>
+<p id="index-15">In order to use this mechanism, you must list one or more prefixes in a
+special variable called <code class="docutils literal"><span class="pre">MERGED_OPTIONS</span></code>. Let&#8217;s illustrate this with a
+simple example:</p>
+<div class="highlight-python"><div class="highlight"><pre>{ MERGED_OPTIONS = [&quot;--airport=&quot;, &quot;--aircraft=&quot;, &quot;--parking-id=&quot;,
+                    &quot;--runway=&quot;, &quot;--carrier=&quot;, &quot;--parkpos=&quot;,
+                    &quot;--com1=&quot;, &quot;--com2=&quot;] }
+</pre></div>
+</div>
+<p>Now, suppose that, after filtering out all non-applicable sections, the
+list of <strong class="program">fgfs</strong> arguments would be:</p>
+<div class="highlight-python"><div class="highlight"><pre>--airport=LFPO --aircraft=777-200ER --com1=121.975 --com1=122.750
+--aircraft=c172p --aircraft=ec130b4 --nav1=57:110.55 --airport=LFML
+--disable-hud-3d --nav1=66:109.70
+</pre></div>
+</div>
+<p>We have here three elements of <code class="docutils literal"><span class="pre">MERGED_OPTIONS</span></code> that are a prefix of at
+least one of the arguments: <code class="docutils literal"><span class="pre">--airport=</span></code>, <code class="docutils literal"><span class="pre">--aircraft=</span></code> and <code class="docutils literal"><span class="pre">--com1=</span></code>.
+For each of these prefixes, the corresponding arguments will be
+automatically merged using the “last occurence wins” policy, resulting
+in the following argument list:</p>
+<div class="highlight-python"><div class="highlight"><pre>--airport=LFML --aircraft=ec130b4 --com1=122.750 --nav1=57:110.55
+--disable-hud-3d --nav1=66:109.70
+</pre></div>
+</div>
+<p>(the two <code class="samp docutils literal"><span class="pre">--nav1=</span><em><span class="pre">...</span></em></code> options have not been merged because we didn&#8217;t
+include any corresponding prefix in <code class="docutils literal"><span class="pre">MERGED_OPTIONS</span></code>)</p>
+<p>As you can see, the first argument for a given prefix acts as a sort of
+anchor: its position is kept (relatively to the other arguments), but
+the “value” (what comes after the prefix) is replaced with the value of
+the last argument that has the same prefix.</p>
+<p>By default, <code class="docutils literal"><span class="pre">MERGED_OPTIONS</span></code> is empty, so this mechanism is not active
+for any option. This is because there is no way to determine the “right”
+default value that would work for present and future FlightGear
+releases. As a consequence, it is up to you to ensure that your
+configuration doesn&#8217;t generate unwanted duplicate options—or at least,
+if it does, make sure you are aware of the concerned options and what
+consequences it has for FlightGear to have them passed several times on
+the command line.</p>
+</div>
+<div class="section" id="escaping-rules-for-special-characters">
+<span id="index-16"></span><h2>Escaping rules for special characters<a class="headerlink" href="#escaping-rules-for-special-characters" title="Permalink to this headline">¶</a></h2>
+<p>Generally speaking, you can split a configuration line without affecting
+syntax by ending it with a backslash, as in many computer languages.
+Some syntactic constructs don&#8217;t need such precautions. In particular,
+this is the case with grammar elements that start with an opening
+bracket (<code class="docutils literal"><span class="pre">[</span></code>) or opening parenthesis (<code class="docutils literal"><span class="pre">(</span></code>). In these cases, newlines
+don&#8217;t matter: only the matching closing delimiter can terminate the
+grammar element.</p>
+<div class="section" id="escaping-in-raw-configuration-lines-fgfs-arguments">
+<h3>Escaping in raw configuration lines (fgfs arguments)<a class="headerlink" href="#escaping-in-raw-configuration-lines-fgfs-arguments" title="Permalink to this headline">¶</a></h3>
+<p>In the previous sections of this document, we have introduced conditional
+sections; if you remember well, these always start with an opening bracket
+(<code class="docutils literal"><span class="pre">[</span></code>). This special character marks the beginning of a conditional
+section&#8217;s predicate, the end of which is marked by the matching closing
+bracket (<code class="docutils literal"><span class="pre">]</span></code>). Then all following lines until either the end of the file
+or the first opening bracket at the beginning of a line (after optional
+spaces) belong to that conditional section: these are the lines containing
+the <strong class="program">fgfs</strong> arguments. The opening bracket, if any, marks the start
+of the next conditional section, and so on. But, what if you absolutely need
+to pass <strong class="program">fgfs</strong> an argument that starts with an opening bracket (or
+spaces, for that matter—same problem)?</p>
+<p>Granted, this kind of situation sounds rather unusual. Nevertheless,
+<a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a> provides a way to do such things, which should not be
+much of a surprise to programmers. The technique used to solve the
+problem is <em>backslash escaping</em>. This means that, in order to use a
+special character (here, an opening bracket or a space) without
+retaining its special meaning for the grammar in use, just as if it were
+an ordinary character, you have to precede it with a backslash (<code class="docutils literal"><span class="pre">\</span></code>).
+So, a conditional section passing <strong class="program">fgfs</strong> the argument
+<code class="docutils literal"><span class="pre">[arg</span> <span class="pre">inside</span> <span class="pre">brackets]</span></code> could look like this:</p>
+<div class="highlight-python"><div class="highlight"><pre>[ variable == &quot;foobar&quot; ]
+\[arg inside brackets]
+--other-argument
+\[this is also allowed, for symmetry reasons\]
+</pre></div>
+</div>
+<p>As the last line illustrates, <code class="docutils literal"><span class="pre">\]</span></code> is also accepted as an escape sequence
+for <code class="docutils literal"><span class="pre">]</span></code>. And if you need to pass <strong class="program">fgfs</strong> an argument containing a
+backslash, you have to use the <code class="docutils literal"><span class="pre">\\</span></code> escape sequence, i.e., double every
+backslash you want to include as a normal character. There are a few more
+escape sequences that can be used in <strong class="program">fgfs</strong> arguments (called <em>raw
+configuration lines</em> in <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a>-speak). The authoritative
+documentation for these is in the FFGo code (currently:
+<code class="file docutils literal"><span class="pre">ffgo/fgcmdbuilder.py:FGCommandBuilder.processRawConfigLines()</span></code>). For
+information, here is the complete list at the time of this writing:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="30%" />
+<col width="25%" />
+<col width="45%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Escape sequence</th>
+<th class="head">Meaning</th>
+<th class="head">Comments</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td><code class="docutils literal"><span class="pre">\\</span></code></td>
+<td><code class="docutils literal"><span class="pre">\</span></code></td>
+<td>produces a single backslash</td>
+</tr>
+<tr class="row-odd"><td><code class="docutils literal"><span class="pre">\[</span></code></td>
+<td><code class="docutils literal"><span class="pre">[</span></code></td>
+<td>useful at the beginning of a
+line to avoid confusion with the
+start of a predicate</td>
+</tr>
+<tr class="row-even"><td><code class="docutils literal"><span class="pre">\]</span></code></td>
+<td><code class="docutils literal"><span class="pre">]</span></code></td>
+<td>for symmetry with <code class="docutils literal"><span class="pre">\[</span></code></td>
+</tr>
+<tr class="row-odd"><td><code class="docutils literal"><span class="pre">\#</span></code></td>
+<td><code class="docutils literal"><span class="pre">#</span></code></td>
+<td>literal <code class="docutils literal"><span class="pre">#</span></code> character, doesn&#8217;t
+start a comment</td>
+</tr>
+<tr class="row-even"><td><code class="docutils literal"><span class="pre">\t</span></code></td>
+<td>tab character</td>
+<td>&nbsp;</td>
+</tr>
+<tr class="row-odd"><td><code class="docutils literal"><span class="pre">\n</span></code></td>
+<td>newline character</td>
+<td>doesn&#8217;t start a new option</td>
+</tr>
+<tr class="row-even"><td><code class="samp docutils literal"><span class="pre">\</span><em><span class="pre">&lt;space&gt;</span></em></code></td>
+<td>space character</td>
+<td>useful to include a space at the
+end of an option, which would be
+ignored without the backslash</td>
+</tr>
+<tr class="row-odd"><td><code class="samp docutils literal"><span class="pre">\</span><em><span class="pre">&lt;newline&gt;</span></em></code></td>
+<td>continuation line</td>
+<td>makes as if the next line were
+really the continuation of the
+current line, with the
+<code class="samp docutils literal"><span class="pre">\</span><em><span class="pre">&lt;newline&gt;</span></em></code> escape
+sequence removed</td>
+</tr>
+</tbody>
+</table>
+<p>Yes, the last one means you can split a very long <strong class="program">fgfs</strong> option into
+several lines if you want, like this:</p>
+<div class="highlight-python"><div class="highlight"><pre>[ variable == &quot;foobar&quot; ]
+--this-is-a-very-very-very-very-very-very-very-very-very-very-very\
+-very-very-very-very-very-very-very-very-very-very-very-very-very\
+-very-very-very-long-option
+--normal-option
+</pre></div>
+</div>
+</div>
+<div class="section" id="escaping-in-string-literals">
+<h3>Escaping in string literals<a class="headerlink" href="#escaping-in-string-literals" title="Permalink to this headline">¶</a></h3>
+<p>String literals in <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/">CondConfigParser</a> also support some kind of escaping
+mechanism to allow for instance to write string literals containing
+double quotes. Example:</p>
+<div class="highlight-python"><div class="highlight"><pre>{ abc = &quot;bla \&quot;waouuh\&quot; bla&quot; }
+</pre></div>
+</div>
+<p>This short variable assignments section defines the variable <code class="docutils literal"><span class="pre">abc</span></code> as a
+string containing three words separated by spaces, the second word being
+enclosed in double quotes. At the time of this writing, the escape
+sequences supported in CondConfigParser&#8217;s string literals are:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="53%" />
+<col width="48%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Escape sequence</th>
+<th class="head">Meaning</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td><code class="docutils literal"><span class="pre">\\</span></code></td>
+<td><code class="docutils literal"><span class="pre">\</span></code></td>
+</tr>
+<tr class="row-odd"><td><code class="docutils literal"><span class="pre">\t</span></code></td>
+<td>tab character</td>
+</tr>
+<tr class="row-even"><td><code class="docutils literal"><span class="pre">\n</span></code></td>
+<td>newline character</td>
+</tr>
+<tr class="row-odd"><td><code class="docutils literal"><span class="pre">\&quot;</span></code></td>
+<td><code class="docutils literal"><span class="pre">&quot;</span></code></td>
+</tr>
+<tr class="row-even"><td><code class="samp docutils literal"><span class="pre">\</span><em><span class="pre">&lt;newline&gt;</span></em></code></td>
+<td>continuation line</td>
+</tr>
+</tbody>
+</table>
+<p>For the definitive reference on these escape sequences, please consult
+the <a class="reference external" href="http://people.via.ecp.fr/~flo/projects/CondConfigParser/doc/">CondConfigParser Manual</a>.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Conditional configuration for FFGo</a><ul>
+<li><a class="reference internal" href="#introduction">Introduction</a></li>
+<li><a class="reference internal" href="#structure-of-the-configuration-in-the-simplest-case">Structure of the configuration in the simplest case</a></li>
+<li><a class="reference internal" href="#variables-and-conditional-sections">Variables and conditional sections</a></li>
+<li><a class="reference internal" href="#advanced-expressions">Advanced expressions</a></li>
+<li><a class="reference internal" href="#assembling-the-fgfs-command-line">Assembling the fgfs command line</a></li>
+<li><a class="reference internal" href="#escaping-rules-for-special-characters">Escaping rules for special characters</a><ul>
+<li><a class="reference internal" href="#escaping-in-raw-configuration-lines-fgfs-arguments">Escaping in raw configuration lines (fgfs arguments)</a></li>
+<li><a class="reference internal" href="#escaping-in-string-literals">Escaping in string literals</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">FFGo conditional config documentation</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/condconfig.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="index.html" title="FFGo conditional config documentation"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">FFGo.condconfig 1.11.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2015, Florent Rougon.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.6.
+    </div>
+  </body>
+</html>
