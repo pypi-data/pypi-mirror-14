@@ -1,0 +1,143 @@
+#!/usr/bin/env python
+#
+#  (C) Catchoom Technologies S.L.
+#  Licensed under the MIT license.
+#  https://github.com/catchoom/craftar-python/blob/master/LICENSE
+#  All warranties and liabilities are disclaimed.
+
+"""%prog -t TOKEN -p IMAGE_PATH [-c] [-s MIN_SIZE] [-v] [-h]
+
+Script to perform one or several recognition queries against CraftAR
+
+The script will perform visual scans against the collection (specified
+by the token) using every image in the provided directory.
+
+Use option -v to see image transformations applied to queries.
+
+Use option -h to see additional parameters controlling the image quality.
+"""
+
+import craftar
+
+import optparse
+import os
+import sys
+import time
+
+
+def search(token, image_list, color, min_size, verbose):
+    success_count = 0
+    request_count = 0
+    target_count = 0
+    run_time = 0
+
+    # iterate through all query images and perform recognition
+    for image in image_list:
+        if not image.endswith(craftar.settings.ALLOWED_IMG_EXTENSIONS):
+            continue
+
+        request_count += 1
+
+        print("(%s) -> Results for '%s':" % (request_count, image) )
+
+        # store request start time
+        start_time = time.time()
+
+        # recognition
+        search_response = craftar.search(token, image, False, False, False, \
+                                         color, min_size, verbose)
+
+        run_time += (1000 * (time.time() - start_time))
+
+        result_list = search_response["results"]
+
+        target_count += len(result_list)
+
+        if result_list:
+            success_count += 1
+
+            for count, result in enumerate(result_list):
+                print("    %s. %s    uuid: %s    score: %s" % (count + 1, \
+                    result['item']['name'], result['item']['uuid'], \
+                    result['score']))
+        else:
+            print("    No matches found")
+
+
+        print("")
+
+    avg_request_time = int(float(run_time) / float(request_count))
+
+    print("--> Summary:")
+    print("    Total number of requests: %d" % request_count)
+    print("    Number of successful recognitions (with matches): %d" \
+        % success_count)
+    print("    Number of unrecognised queries: %d" % (request_count -
+                                                      success_count))
+    print("    Total number of retrieved items: %d" % target_count)
+    print("    Average round-trip time: %dmsec" % avg_request_time)
+
+
+if __name__ == '__main__':
+    # parse command line arguments
+    parser = optparse.OptionParser(usage=__doc__, version="%prog 1.0")
+    parser.add_option("-t", "--token",
+                      dest="token",
+                      help="Collection token.")
+    parser.add_option("-p", "--image-path",
+                      dest="image_path",
+                      help="Path to an image or a directory of images.")
+    parser.add_option("-c", "--color",
+                      action="store_true",
+                      dest="color",
+                      help="Disables grayscale conversion. "
+                           "But often color images do not give better results.")
+    parser.add_option("-s", "--size",
+                      dest="min_size",
+                      type="int",
+                      help="Sets the shorter dimension for query resizing. "
+                           "Default value provides good recognition results "
+                           "and small round-trip times for most cases. "
+                           "Recognition of objects covering <1/4 of the scene "
+                           "may require higher values. "
+                           "Rescaling can be disabled by using -s -1.")
+    parser.add_option("-v", "--verbose",
+                      action="store_true",
+                      dest="verbose",
+                      help="Activates a verbose mode showing performed query "
+                           "image transformations.")
+
+    options, args = parser.parse_args()
+
+    # check token argument
+    if not options.token:
+        parser.error("Missing parameter -t TOKEN\n"
+                     "Use option -h or --help for more information.")
+
+    # check query file argument
+    if not options.image_path:
+        parser.error("Missing option -i IMAGE_PATH\n"
+                     "Use option -h or --help for more information.")
+
+    if os.path.isdir(options.image_path):
+        # list all files inside the directory
+        try:
+            image_list = os.listdir(options.image_path)
+            image_list = [os.path.join(options.image_path, f) for f in image_list]
+        except OSError as e:
+            print("Search Client Error: %s" % e)
+            sys.exit(-1)
+    else:
+        image_list = [options.image_path]
+
+    # set query maximum size
+    if options.min_size:
+        min_size = options.min_size
+    else:
+        min_size = craftar.settings.DEFAULT_QUERY_MIN_SIZE
+
+    try:
+        search(options.token, image_list, options.color, min_size, \
+               options.verbose)
+    except KeyboardInterrupt:
+        print("Leaving...")
