@@ -1,0 +1,196 @@
+
+Asynchronous Files and Pipes (asyncfile)
+****************************************
+
+"asyncfile" module provides API for asynchronous files and pipes to be
+used in coroutines.
+
+
+Examples
+========
+
+Following is a brief description of the examples included relevant to
+this section (unlike examples in other sections which tend to be a bit
+trivial, these examples are more complicated than necessary, to
+introduce different features / approaches):
+
+* "examples/pipe_csum.py" uses asynchronous pipes to write data to
+  and read data from a system program (that computes checksum of
+  data).
+
+* "examples/pipe_grep.py" uses chained pipes with asynchronous read
+  and write interface to count number of lines matching a pattern.
+
+
+Asynchronous File
+=================
+
+"AsyncFile" class wraps given file so it can be used for asynchronous
+I/O. Note that regular on-disk files are non-blocking and can't be
+used for polling and asynchronous I/O under Linux, OS X and other Unix
+variants. Under Windows asynchronous I/O of on-disk files is
+supported, but it may not be very useful. However, under Linux, OS X
+and other Unix variants, network sockets can be converted to
+asynchronous file interface so "read()", "write()", "readline()" in
+"AsyncFile" can be used. With Windows, though, network sockets don't
+use file in implementation so sockets can't be converted to
+"AsyncFile" under Windows.
+
+"AsyncFile" is used in implementing "AsyncPipe".
+
+class asyncfile.AsyncFile(fd)
+
+   Note: This interface is for Linux, OS X and other Unix variants.
+
+   Sets up given file descriptor (that was created with "open()" or
+   "socket.socket") for asynchronous I/O.
+
+class asyncfile.AsyncFile(path, mode='r')
+
+   Note: This interface is for Windows.
+
+   Opens *path* name (string) for asynchronous I/O. *mode* is as per
+   "open()" function (e.g., 'r' for reading, 'w' for writing, 'a' for
+   appending, and with '+' read/write etc.)
+
+   Asynchronous file created with either of the above classes has
+   following methods:
+
+   read(size=0, full=False, timeout=None)
+
+      Note: This method must be used with *yield* as "buf = yield
+        afd.read()"
+
+      If *size* is positive number and *full* is "False", reads and
+      returns up to *size* bytes from the file. If *full* is "True",
+      reads exactly *size* bytes, unless EOF is encountered or
+      *timeout* occurs.
+
+      If *size* is 0, then all the data is read up to EOF, unless
+      *timeout* occurs before.
+
+      If EOF is encountered before any data is read, empty buffer is
+      returned.
+
+      If *timeout* is a positive number, and read is not complete
+      before timeout, data read up to that point is returned if any
+      data has been read; otherwise, "IOError" is thrown to the
+      coroutine with 'timedout'.
+
+   write(buf, full=False, timeout=None)
+
+      Note: This method must be used with *yield* as "n = yield
+        afd.write(buf)"
+
+      Writes data in 'buf' to file. If *full* is "True", the function
+      waits till all the data in 'buf' is written (up to *timeout*);
+      otherwise, it waits until one write completes. It returns length
+      of data written.
+
+      If *timeout* is given and *full* is "True" and *timeout* expires
+      before all the data could be written, it returns length of data
+      written before timeout if any data has been written.
+
+      If no data has been written before *timeout*, then "IOError" is
+      thrown to the coroutine with 'timedout'.
+
+   readline(size=0, sizehint=100, timeout=None)
+
+      Note: This method must be used with *yield* as "line = yield
+        afd.readline()"
+
+      Reads and returns a line from the file. *size* and *timeout* are
+      as per "read()" method.
+
+      *sizehint* indicates approximate number of bytes expected in a
+      line. Too big/small value of *sizehint* affects performance,
+      otherwise has no effect.
+
+   close()
+
+      Closes file.
+
+
+Examples
+--------
+
+See "socket_afile.py" in the examples directory.
+
+
+Asynchronous Pipe
+=================
+
+"AsyncPipe" provides asynchronous API for pipes.
+
+Under Windows, "Popen" in "asyncfile" module must be used instead of
+"subprocess.Popen".
+
+class asyncfile.AsyncPipe(first, last=None)
+
+   Sets up (chained) pipe for asynchronous I/O. *first* must be
+   "subprocess.Popen" object under Linux, OS X and other Unix variants
+   and "asyncfile.Popen" object under Windows. If *last* is "None",
+   the pipe is not chained and in the description below, *last* is
+   same as *first*; otherwise, *last* must also be a "Popen" object
+   (representing end of chained pipe). "write()" operations send data
+   to *first*'s stdin and "read()" operations get data from *last*'s
+   stdout/stderr.
+
+   Asynchronous pipes support following methods:
+
+   write(buf, full=False, timeout=None)
+
+      Note: This method must be used with *yield* as "n = yield
+        apipe.write(buf)"
+
+      Writes data in *buf* to stdin of *first*. *full*, *timeout* and
+      operation of this method are same as that for "write()" of
+      "AsyncFile".
+
+   read(size=0, timeout=None)
+
+      Note: This method must be used with *yield* as "buf = yield
+        apipe.read()"
+
+      Reads data from stdout of *last*. *timeout* and operation of
+      this method are same as that for "read()" of "AsyncFile".
+
+   readline(size=0, sizehint=100, timeout=None)
+
+      Note: This method must be used with *yield* as "line = yield
+        apipe.readline()"
+
+      Reads a line from stdout of *last*. *sizehint*, *timeout* and
+      operation of this method are same as that for "readline()" of
+      "AsyncFile".
+
+   read_stderr(size=0, timeout=None)
+
+      Note: This method must be used with *yield* as "buf = yield
+        apipe.read_stderr()"
+
+      Reads data from stderr of *last*. *timeout* and operation of
+      this method are same as that for "read()" of "AsyncFile".
+
+   readline_stderr(size=0, sizehint=100, timeout=None)
+
+      Note: This method must be used with *yield* as "line = yield
+        apipe.readline_stderr()"
+
+      Reads a line from stderr of *last*. *sizehint*, *timeout* and
+      operation of this method are same as that for "readline()" of
+      "AsyncFile".
+
+   communicate(input=None)
+
+      Note: This method must be used with *yield* as "stdoutdata,
+        stderrdata = yield apipe.communicate()"
+
+      Similar to "Popen.communicate", except that *input* can be
+      either data (as per "Popen.communicate") or a file descriptor.
+      The file descriptor can be synchronous (obtained with "open") or
+      asynchronous (created with "AsyncFile").
+
+   close()
+
+      Closes pipe.
