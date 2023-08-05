@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost.models import Configuration
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    search_engine_id = None
+    search_control_type = "searchresults-only" # search, searchbox, searchresults, searchbox-only, searchresults-only
+    search_options = {"linkTarget": "_self"}
+    ?>
+
+    <?py
+    self.search_options = self.search_options.copy()
+    ?>
+
+    <py:ready>
+        <?py
+        if self.search_engine_id is None:
+            self.search_engine_id = Configuration.instance.get_setting("google_search_engine_id")
+
+        if not self.search_engine_id:
+            self.visible = False
+        ?>
+    </py:ready>
+
+    <?py
+    @self.when_document_ready
+    def add_google_cse_script(document):
+        if not hasattr(document, "google_cse_script"):
+            script = Element("script", type = "text/javascript")
+            script.append("""
+                (function () {
+                var gcse = document.createElement('script');
+                gcse.type = 'text/javascript';
+                gcse.async = true;
+                gcse.src = document.location.protocol + '//www.google.com/cse/cse.js?cx=%s';
+                var s = document.getElementsByTagName('script')[0];
+                s.parentNode.insertBefore(gcse, s);
+                })();
+                """ % self.search_engine_id
+            )
+            document.google_cse_script = script
+            document.scripts_container.append(script)
+    ?>
+    <div>
+        <py:binding>
+            <?py
+            element.add_class("gcse-" + self.search_control_type)
+            for key, value in self.search_options.iteritems():
+                element["data-" + key] = value
+            ?>
+        </py:binding>
+    </div>
+</div>
+

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.stringutils import normalize
+?>
+
+<py:woost.views.ContentTable
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    action_order = {
+        "create": 1,
+        "modify": 2,
+        "delete": 3
+    }
+    ?>
+
+    <ul py:def="changes_display" py:args="obj, member">
+        <?py
+        changes = self.get_member_value(obj, member).values()
+        changes.sort(key = lambda change: (
+            0 if change.is_explicit_change else 1,
+            self.action_order.get(change.action),
+            normalize(translations(change.target))
+        ))
+        ?>
+        <py:new py:element="self.create_change_entry(change)" py:for="change in changes"/>
+    </ul>
+
+    <li py:def="change_entry" py:args="change">
+        <?py
+        element.add_class(change.action)
+        if change.is_explicit_change:
+            element.add_class("explicit")
+        ?>
+        <span py:local_id="change_action">
+            <img
+                py:local_id="change_action_icon"
+                src="/resources/images/change-${change.action}.png"/>
+            <span py:local_id="change_action_label">
+                ${change.__class__.action.translate_value(change.action)}
+            </span>
+        </span>
+        <py:woost.views.ContentLink
+            py:if="change.target.is_inserted"
+            py:local_id="change_target"
+            py:item="${change.target}"
+            py:icon_visible="${True}"/>
+        <py:woost.views.ItemLabel
+            py:if="not change.target.is_inserted"
+            py:local_id="change_target"
+            py:item="${change.target}"
+            py:icon_visible="${False}"/>
+    </li>
+
+</py:woost.views.ContentTable>
