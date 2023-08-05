@@ -1,0 +1,39 @@
+import os
+from setuptools import setup, find_packages
+from tergraw.info import __version__, __name__
+from pip.req      import parse_requirements
+from pip.download import PipSession
+
+
+# access to the file at the package top level (like README)
+def path_to(filename):
+    return os.path.join(os.path.dirname(__file__), filename)
+
+
+# parse requirements.txt
+install_reqs = parse_requirements(path_to('requirements.txt'),
+                                  session=PipSession())
+reqs = [str(ir.req) for ir in install_reqs]
+
+
+setup(
+    name = __name__,
+    version = __version__,
+    packages = find_packages(),
+    install_requires = reqs,
+
+    author = "lucas",
+    author_email = "lucas.bourneuf@laposte.net",
+    description = "Draw graphs in terminal",
+    long_description = open(path_to('README.mkd')).read(),
+    keywords = "graph terminal draw",
+    url = "https://github.com/Aluriak/tergraw",
+
+    classifiers = [
+        "License :: OSI Approved :: GNU General Public License (GPL)",
+        "Natural Language :: English",
+        "Operating System :: Unix",
+        "Programming Language :: Python :: 3",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+    ]
+)
