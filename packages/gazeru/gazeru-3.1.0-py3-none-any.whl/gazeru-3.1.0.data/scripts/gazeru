@@ -1,0 +1,96 @@
+#!python
+import argparse
+import os
+import json
+from gazeru import *
+
+def display_registed_mylist(args):
+    gazeru = Gazeru()
+    print('{0:10} {1:10} {2}'.format('id', 'creator', 'title'))
+    for mylist in gazeru.get_mylists().values():
+        print('{0:10} {1:10} {2}'.format(mylist['id'], mylist['creator'], mylist['title']))
+
+def add_mylist(args):
+    gazeru = Gazeru()
+    mylist_id = args.mylist_id
+    try:
+        gazeru.add_mylist(mylist_id)
+    except AlreadyRegisteredMylistError:
+        print('{0} is already registed'.format(mylist_id))
+    except NotFoundMylistError:
+        print('{0} is not found in niconico'.format(mylist_id))
+
+def remove_mylist(args):
+    gazeru = Gazeru()
+    mylist_id = args.mylist_id
+    try:
+        gazeru.remove_mylist(mylist_id)
+    except NotRegisteredMylistError:
+        print('{0} is not registed'.format(mylist_id))
+
+def change_account_information(args):
+    gazeru = Gazeru()
+    user = args.user
+    password = args.password
+    gazeru.set_account(user, password)
+
+def change_download_directory(args):
+    gazeru = Gazeru()
+    directory = args.directory
+    gazeru.set_directory(directory)
+
+def pull(args):
+    gazeru = Gazeru()
+    gazeru.pull()
+
+def init_gazeru(args):
+    HOME = '{0}/.gazeru'.format(os.environ['HOME'])
+    try:
+        os.mkdir(HOME)
+    except FileExistsError:
+        print('.gazeru directory is already exists')
+        exit()
+    os.mkdir('{0}/log'.format(HOME))
+    with open('{0}/gazeru.conf'.format(HOME), 'w') as file:
+        file.write(json.dumps({'account': {'user': '', 'password': ''}, 'directory': '', 'mylist': {}}))
+    change_account_information(args)
+    change_download_directory(args)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='gazeru is niconico downloader')
+    subparsers = parser.add_subparsers()
+
+    parser_list = subparsers.add_parser('list', help='display registered mylist')
+    parser_list.set_defaults(func=display_registed_mylist)
+
+    parser_add = subparsers.add_parser('add', help='add mylist')
+    parser_add.add_argument('mylist_id', type=str)
+    parser_add.set_defaults(func=add_mylist)
+
+    parser_remove = subparsers.add_parser('remove', help='remove mylist')
+    parser_remove.add_argument('mylist_id', type=str)
+    parser_remove.set_defaults(func=remove_mylist)
+
+    parser_account = subparsers.add_parser('account', help='change account information')
+    parser_account.add_argument('user')
+    parser_account.add_argument('password')
+    parser_account.set_defaults(func=change_account_information)
+
+    parser_directory = subparsers.add_parser('directory', help='change download directory')
+    parser_directory.add_argument('directory')
+    parser_directory.set_defaults(func=change_download_directory)
+
+    parser_init = subparsers.add_parser('init', help='initialize gazeru')
+    parser_init.add_argument('user')
+    parser_init.add_argument('password')
+    parser_init.add_argument('directory')
+    parser_init.set_defaults(func=init_gazeru)
+
+    parser_pull = subparsers.add_parser('pull', help='pull songs')
+    parser_pull.set_defaults(func=pull)
+
+    args = parser.parse_args()
+    if vars(args):
+        args.func(args)
+    else:
+        parser.print_help()
