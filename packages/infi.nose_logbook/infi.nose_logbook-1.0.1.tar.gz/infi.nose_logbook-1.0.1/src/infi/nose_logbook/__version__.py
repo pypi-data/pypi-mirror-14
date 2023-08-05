@@ -1,0 +1,11 @@
+__version__ = "1.0.1"
+__git_commiter_name__ = "Arnon Yaari"
+__git_commiter_email__ = "arnony@infinidat.com"
+__git_branch__ = '(HEAD detached at v1.0.1)'
+__git_remote_tracking_branch__ = '(No remote tracking)'
+__git_remote_url__ = '(Not remote tracking)'
+__git_head_hash__ = 'b2f210f2ea6ad6c5997bb615b33269d2376aa0db'
+__git_head_subject__ = 'Finished Release v1.0.1'
+__git_head_message__ = ''
+__git_dirty_diff__ = ''
+__git_commit_date__ = '2016-03-11 16:05:52'
