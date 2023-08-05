@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from difflib import IS_CHARACTER_JUNK
+from cocktail import schema
+from woost.views.htmldiff import html_diff
+?>
+
+<tr
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    diff_member = None
+    diff_language = None
+    diff_source = None
+    diff_target = None
+    diff_source_value = None
+    diff_target_value = None
+
+    def get_member_label(self):
+        return translations(self.diff_member)
+
+    def get_lines(self, value):
+        if isinstance(self.diff_member, schema.Collection) and not isinstance(self.diff_member, schema.Mapping):
+            return [self.diff_member.items.translate_value(item) for item in value] if value else []
+        else:
+            return self.diff_member.translate_value(value).split("\n")
+    ?>
+
+    <py:ready>
+        <?py
+        a = self.get_lines(self.diff_source_value)
+        b = self.get_lines(self.diff_target_value)
+        self._differences = html_diff(a, b, charjunk = IS_CHARACTER_JUNK)
+        ?>
+    </py:ready>
+
+    <td py:id="subject_cell">
+        <span py:id="member_label">
+            @{self.get_member_label()}
+        </span>
+        <span py:id="language_label">
+            <py:ready>
+                <?py
+                if self.diff_language:
+                    element.append(u"(%s)" % translations("locale", locale = self.diff_language))
+                else:
+                    element.visible = False
+                ?>
+            </py:ready>
+        </span>:
+    </td>
+    <td py:id="previous_value_cell">
+        <py:ready>
+            <div class="diff_unit" py:for="unit in self._differences[0]">${unit}</div>
+        </py:ready>
+    </td>
+    <td py:local_id="arrow_cell">
+        <py:ready>
+            <span py:local_id="arrow">→</span>
+        </py:ready>
+    </td>
+    <td py:local_id="new_value_cell">
+        <py:ready>
+            <div class="diff_unit" py:for="unit in self._differences[1]">${unit}</div>
+        </py:ready>
+    </td>
+</tr>
+

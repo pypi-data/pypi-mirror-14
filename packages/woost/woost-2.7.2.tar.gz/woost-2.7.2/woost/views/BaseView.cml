@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.translations import require_language
+from cocktail.html import Content
+from woost import app
+from woost.models import Configuration, Publishable
+?>
+
+<py:block
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    publishable = None
+    user = None
+    content_language = None
+    fully_translated = True
+    head_end_html = ""
+    body_end_html = ""
+    base_url = None
+    include_alternate_language_links = True
+
+    def get_keywords(self):
+        keywords = []
+        site_keywords = Configuration.instance.get_setting("keywords")
+        if site_keywords:
+            keywords.append(site_keywords)
+        item_keywords = getattr(self.publishable, "keywords", None)
+        if item_keywords:
+            keywords.append(item_keywords)
+        return " ".join(keywords) if keywords else None
+
+    def get_page_title(self):
+        title = self.get_content_title()
+        if not self.publishable.is_home_page():
+            site_name = app.website.site_name
+            if site_name:
+                title += " | " + site_name
+        return title
+
+    def get_content_title(self):
+        return getattr(self.publishable, "inner_title", None) or translations(self.publishable)
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/blocks.css")
+    self.set_meta("generator", "woost")
+
+    @self.when_document_ready
+    def adapt_document(document):
+
+        if app.splash:
+            document.head.insert(0, Content("<!--\n" + app.splash + "\n-->"))
+
+        # Links
+        home = app.website.home
+        document.head_start_link = Element("link", rel = "start", title = home.title, href = home.get_uri() or "/")
+        document.head.append(document.head_start_link)
+
+        # Alternate languages
+        config = Configuration.instance
+        publishable = self.publishable
+        language = get_language()
+
+        if (
+            self.include_alternate_language_links
+            and publishable is not None
+            and publishable.per_language_publication
+        ):
+            for trans_lang in publishable.enabled_translations:
+                if publishable.is_published(trans_lang):
+                    document.head.append(
+                        Element("link",
+                            rel = "alternate",
+                            title = translations("woost.views.BaseView alternate language link", language = trans_lang, lang = trans_lang),
+                            href = app.language.translate_uri(language = trans_lang),
+                            lang = trans_lang,
+                            hreflang = trans_lang
+                        )
+                    )
+
+        # Shortcut icon
+        icon = config.get_setting("icon")
+        if icon:
+            document.head_icon_link = Element("link",
+                rel = "Shortcut Icon",
+                type = icon.mime_type,
+                href = icon.get_uri()
+            )
+            document.head.append(document.head_icon_link)
+
+        # Base tag
+        if self.base_url:
+            document.head.append(Element("base", href = self.base_url))
+    ?>
+
+    <py:ready>
+        <?py
+        if self.head_end_html or self.body_end_html:
+            @self.when_document_ready
+            def add_trailing_html(document):
+                if self.head_end_html:
+                    document.head.append(self.head_end_html)
+                if self.body_end_html:
+                    document.body.append(self.body_end_html)
+
+        publishable = self.publishable
+        config = Configuration.instance
+        website = app.website
+
+        for key, value in config.meta_tags:
+            self.set_meta(key, value)
+
+        for key, value in website.meta_tags:
+            self.set_meta(key, value)
+
+        if publishable:
+
+            # Content type / charset
+            self.page_content_type = publishable.mime_type
+            self.page_charset = publishable.encoding
+
+            # Page title
+            self.page_title = self.get_page_title()
+
+            # Meta tags
+            meta_tags = getattr(publishable, "meta_tags", None)
+            if meta_tags:
+                for key, value in meta_tags:
+                    self.set_meta(key, value)
+
+            description = getattr(publishable, "description", None) \
+                          or config.get_setting("description")
+
+            if description:
+                self.set_meta("description", description)
+
+            keywords = self.get_keywords()
+            if keywords:
+                self.set_meta("keywords", keywords)
+
+            robots_should_index = getattr(self.publishable, "robots_should_index", True)
+            robots_should_follow = getattr(self.publishable, "robots_should_follow", True)
+            if not robots_should_index or not robots_should_follow:
+                self.set_meta("robots", "%s, %s" % (
+                    robots_should_index and "index" or "noindex",
+                    robots_should_follow and "follow" or "nofollow"
+                ))
+
+        # Link to the stylesheet for user defined styles
+        user_styles = Publishable.get_instance(qname = "woost.user_styles")
+        if user_styles:
+            self.add_resource(user_styles.get_uri(), mime_type = user_styles.mime_type)
+
+        # Add a CSS class based on the website's identifier
+        if website and website.qname:
+            self.add_class(website.qname.replace(".", "-"))
+
+        # Add a CSS class based on the page's name
+        if publishable and self.publishable.qname:
+            self.add_class(self.publishable.qname.replace(".", "-"))
+        ?>
+    </py:ready>
+
+    <py:woost.views.EditPanel py:id="toolbar"/>
+
+    <div py:id="content">
+        <py:woost.views.BlockList
+            py:id="block_content"
+            py:container="@{self.publishable}"
+            py:slot="blocks"/>
+    </div>
+
+</py:block>

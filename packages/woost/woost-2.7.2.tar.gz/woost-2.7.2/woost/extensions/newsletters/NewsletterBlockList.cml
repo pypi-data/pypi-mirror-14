@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost.models.blockutils import create_block_views
+?>
+
+<table
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    blocks = None
+    container = None
+    slot = None
+    disposition = "column"
+    ?>
+
+    <py:ready>
+        <?py
+        self.add_class(self.disposition + "_block_list_disposition")
+
+        if self.blocks is None:
+            if self.container is not None and self.slot is not None:
+                if isinstance(self.slot, basestring):
+                    slot = self.container.__class__.get_member(self.slot)
+                else:
+                    slot = self.slot
+
+                if slot:
+                    self.depends_on(self.container, slot.cache_part)
+                    self.blocks = getattr(self.container, slot.name, None)
+
+        if self.disposition == "column":
+            self.layout_row.visible = False
+            for block_view in create_block_views(self.blocks):
+                element.append(self.create_block_row(block_view))
+        elif self.disposition == "row":
+            for block_view in create_block_views(self.blocks):
+                self.layout_row.append(self.create_block_cell(block_view))
+        else:
+            raise ValueError(
+                "Invalid disposition for %r; expected 'column' or 'row', got %r instead"
+                % (self, self.disposition)
+            )
+        ?>
+    </py:ready>
+
+    <tr py:id="layout_row"/>
+
+    <tr py:def="block_row" py:args="block_view">
+        <py:new py:local_id="block_cell" py:element="self.create_block_cell(block_view)"/>
+    </tr>
+
+    <td py:def="block_cell" py:args="block_view">
+        <?py
+        element.append(block_view)
+        ?>
+    </td>
+
+</table>
+

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.html.grouping import Grouping
+from woost.extensions.locations.location import Location
+
+class LocationGrouping(Grouping):
+
+    sorted = True
+    sort_groups_alphabetically = True
+
+    def create_group(self, key):
+        return LocationGrouping(
+            key = key
+        )
+?>
+
+<py:cocktail.html.DrillDownSelector
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    location_types = ["country", "province", "town"]
+
+    def build_location_tree(self, location):
+
+        if location.location_type in self.location_types:
+            group = None
+
+            for child in location.locations:
+                branches, leaves = self.build_location_tree(child)
+                if branches or leaves:
+                    if group is None:
+                        group = LocationGrouping(key = location)
+                    for branch in branches:
+                        group.add_group(branch)
+                    for leaf in leaves:
+                        group.add_item(leaf)
+
+            return (
+                [group] if group else [],
+                [location]
+                    if (
+                        group is None and (
+                            self.items is None
+                            or location in self.items
+                        )
+                    )
+                    else []
+            )
+        else:
+            branches = []
+            leaves = []
+
+            for child in location.locations:
+                child_branches, child_leaves = self.build_location_tree(child)
+                branches.extend(child_branches)
+                leaves.extend(child_leaves)
+
+            return branches, leaves
+    ?>
+
+    <py:binding>
+        <?py
+        if self.location_types:
+            self.levels = [
+                {"sorted": True, "null_label": "---"}
+                for location_type in self.location_types
+            ]
+
+            if self.items is None and self.member:
+                self.items = self._get_items_from_member(self.member)
+
+            self.grouping = LocationGrouping()
+            self.grouping.prefilled = True
+
+            for location in Location.select({"location_type": self.location_types[0]}):
+                branches, leaves = self.build_location_tree(location)
+                for branch in branches:
+                    self.grouping.add_group(branch)
+                for leaf in leaves:
+                    self.grouping.add_item(leaf)
+        ?>
+    </py:binding>
+
+</py:cocktail.html.DrillDownSelector>
+

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from datetime import datetime
+from woost.controllers.backoffice.useractions import get_block_clipboard_contents
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    tabindex="0"
+    draggable="true"
+    id="block@{str(self.block.id)}">
+
+    <?py-class
+    block = None
+    block_parent = None
+    block_slot = None
+    edited_item = None
+    visible_languages = ()
+
+    def add_status(self, status):
+        self.add_class(status + "_block")
+        self.status_labels.append(self.create_status_label(status))
+    ?>
+
+    <?py
+    self.add_resource("/resources/scripts/BlockDisplay.js")
+    ?>
+
+    <py:ready>
+        <?py
+        self.set_client_param("block", self.block.id)
+
+        if not self.block.enabled:
+            self.add_status("disabled")
+
+        if self.block.is_common_block():
+            self.add_status("common")
+
+        if self.block.start_date or self.block.end_date:
+            now = datetime.now()
+
+            if self.block.start_date and now < self.block.start_date:
+                self.add_status("awaiting_publication")
+            elif self.block.end_date and now >= self.block.end_date:
+                self.add_status("expired")
+            else:
+                self.add_status("temporary")
+
+        clipboard = get_block_clipboard_contents()
+        if clipboard and self.block.id == clipboard["block"]:
+            self.add_class(clipboard["mode"])
+        ?>
+    </py:ready>
+
+    <py:cocktail.html.DropdownPanel
+        py:id="block_handle">
+        <py:with py:element="element.label">
+            <py:woost.views.Image
+                py:local_id="block_image"
+                py:image="@{self.block}"
+                py:image_factory="icon16"/>
+            <span py:local_id="block_type">
+                @{translations(type(self.block).name)}
+            </span>
+            <span py:local_id="block_title">
+                <py:ready>
+                    <?py
+                    block_title = translations(self.block, discard_generic_translation = True)
+                    if block_title:
+                        element.append(" - " + block_title)
+                    else:
+                        element.visible = False
+                    ?>
+                </py:ready>
+            </span>
+        </py:with>
+        <py:with py:element="element.panel">
+            <py:woost.views.EditBlocksActionBar
+                py:id="block_menu"
+                py:action_target="@{self.block}"
+                py:block_parent="@{self.block_parent}"
+                py:block_slot="@{self.block_slot}"
+                py:block="@{self.block}"
+                py:group_additional_actions="${False}">
+                <py:binding>
+                    <?py
+                    element.action_context.add("block_menu")
+                    if self.block.is_common_block():
+                        element.action_context.add("common_block")
+                    ?>
+                </py:binding>
+            </py:woost.views.EditBlocksActionBar>
+        </py:with>
+    </py:cocktail.html.DropdownPanel>
+
+    <div py:id="status_labels"/>
+
+    <span
+        py:def="status_label" py:args="status"
+        title="${translations('woost.views.BlockDisplay.' + status + '_status.title')}">
+        <img py:local_id="icon" src="/resources/images/blocks-status-${status}.png"/>
+        <span py:local_id="label">${translations("woost.views.BlockDisplay." + status + "_status.label")}</span>
+    </span>
+
+    <div py:id="content_preview"/>
+
+    <py:woost.views.EditBlocksSlotList
+        py:id="slots_list"
+        py:item="@{self.block}"
+        py:edited_item="@{self.edited_item}"
+        py:foldable="${True}"
+        py:visible_languages="@{self.visible_languages}"/>
+
+</div>
+

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost import app
+from woost.models import Publishable
+from woost.models.utils import any_translation
+from woost.views.viewfactory import item_card_view_factory
+?>
+
+<article
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    item = None
+    icon_factory = "backoffice_thumbnail"
+    image_close_up_enabled = True
+    view_factory = item_card_view_factory
+
+    def get_item_path(self, item):
+        return None
+
+    def create_item_display(self):
+
+        if not self.item.is_inserted or not isinstance(self.item, Publishable):
+            display = self.create_item_icon()
+        else:
+            display = self.view_factory.create_view(
+                self.item,
+                thumbnail_factory = self.icon_factory,
+                links_open_in_new_window = True
+            )
+
+        display.add_class("item_display")
+        return display
+    ?>
+
+    <py:ready>
+        <?py
+        if self.item:
+            self.item_display = self.create_item_display()
+            self.insert(0, self.item_display)
+        ?>
+    </py:ready>
+
+    <img py:def="item_icon">
+        <?py
+        element["src"] = app.icon_resolver.find_icon_url(self.item.__class__, 32)
+        ?>
+    </img>
+
+    <div py:id="item_content">
+        <div py:id="item_info">
+            <h1 py:id="item_heading">
+                <py:ready>
+                    <?py
+                    if self.item.is_inserted:
+                        context_desc = any_translation(self.item)
+                    else:
+                        context_desc = translations("creating", content_type = self.item.__class__)
+                    ?>
+                    ${context_desc}
+                </py:ready>
+            </h1>
+
+            <span py:id="item_type">
+                @{translations(self.item.__class__.name)}
+            </span>
+
+            <span py:id="item_path">
+                ${translations("woost.views.BackOfficeItemHeading.item_path.conjunction")}
+                <py:ready>
+                    <?py
+                    self._item_path = self.get_item_path(self.item)
+                    if not self._item_path:
+                        element.visible = False
+                    ?>
+                </py:ready>
+                <ul>
+                    <py:ready>
+                        <py:new
+                            py:element="self.create_item_path_step(self._item_path, index, step)"
+                            py:for="index, step in enumerate(self._item_path)"/>
+                    </py:ready>
+                </ul>
+            </span>
+        </div>
+    </div>
+
+    <li py:def="item_path_step" py:args="path, index, step">
+        ${translations(path[index])}
+    </li>
+</article>
+

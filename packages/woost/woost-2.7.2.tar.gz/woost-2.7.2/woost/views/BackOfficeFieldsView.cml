@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from cocktail.modeling import extend, call_base
+from woost import app
+from woost.models import (
+    CreateTranslationPermission,
+    DeleteTranslationPermission,
+    Configuration
+)
+?>
+
+<py:woost.views.BackOfficeEditView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    fields_schema = None
+    form_data = None
+    saved = None
+    submitted = False
+    changes = None
+    available_languages = ()
+    item_translations = ()
+    visible_translations = ()
+    ?>
+
+    <py:with py:element="self.item_body">
+
+        <!-- Translations dropdown -->
+        <py:cocktail.html.DropdownPanel
+            py:id="translations_dropdown"
+            py:index="0">
+            <py:binding>
+                <?py
+                if not self.edited_content_type.translated:
+                    element.visible = False
+                ?>
+            </py:binding>
+            <py:with
+                py:element="element.label"
+                accesskey="${translations('woost.views.BackOfficeFieldsView.translations_dropdown.shortcut')}">
+                ${translations("woost.views.BackOfficeFieldsView.translations_dropdown")}
+            </py:with>
+            <py:with py:element="element.panel">
+                <py:woost.views.ItemTranslationsSelector
+                    py:id="translations_selector"
+                    py:available_languages="@{self.available_languages}"
+                    py:item_translations="@{self.item_translations}"
+                    py:visible_translations="@{self.visible_translations}"/>
+            </py:with>
+        </py:cocktail.html.DropdownPanel>
+
+        <!-- Form -->
+        <py:ready>
+            <py:new py:element="loader.new(self.edited_item.edit_form)"
+                py:id="edit_form"
+                py:embeded="${True}"
+                py:tag="div"
+                py:data="${self.form_data}"
+                py:persistent_object="${self.edited_item}"
+                py:schema="${self.fields_schema}"
+                py:errors="${self.submitted and self.errors}"
+                py:edited_content_type="${self.edited_content_type}"
+                py:name_prefix="edited_item_"
+                method="post">
+
+                <?py
+                if self.visible_translations is not None:
+                    element.translations = [
+                        lang
+                        for lang in Configuration.instance.languages
+                        if lang in self.visible_translations
+                    ]
+                ?>
+
+                <!-- Highlight changed members -->
+                <py:with py:def="field_instance" py:args="member, language = None" py:baseargs="member, language">
+                    <?py
+                    key = (
+                        member.name,
+                        language
+                    )
+
+                    if key in self.changed_keys:
+                        element.add_class("changed")
+                    ?>
+                </py:with>
+
+            </py:new>
+
+        </py:ready>
+
+    </py:with>
+
+</py:woost.views.BackOfficeEditView>
