@@ -1,0 +1,98 @@
+{% extends 'report/layouts/base.html' %}
+
+{% block js_btm %}
+	{{ super() }}
+
+	<script src="//cdnjs.cloudflare.com/ajax/libs/highcharts/4.2.3/highcharts.js"></script>
+{% endblock %}
+
+{% block main %}
+<div class="container">
+
+	<div class="row">
+		<div class="col-md-12">
+			<div class="panel panel-default">
+				<div class="panel-heading">
+					<h4>Incomplete transcripts</h4>
+				</div>
+				<ul class="list-group">
+					{% if sample_ids %}
+						<li class="list-group-item">
+							Samples:
+							{% for sample_id in sample_ids %}
+								<strong>{{ id_map[sample_id]|default(sample_id) }}</strong>
+							{% endfor %}
+						</li>
+					{% endif %}
+				</ul>
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col-md-12">
+			<ul class="nav nav-pills">
+				{% for level_id, _ in levels %}
+					<li {% if level_id == level|int %}class="active"{% endif %}>
+						<a href="{{ url_for('report.genes', level=level_id, gene_id=gene_ids|join(','), **link_args) }}">
+							Completeness {{ level_id }}x
+						</a>
+					</li>
+				{% endfor %}
+			</ul>
+		</div>
+	</div>
+
+	<br />
+
+	<div class="row">
+		<div class="col-md-12">
+			<table class="table table-bordered">
+				<thead>
+					<tr>
+						<th>Gene</th>
+						<th>Transcript</th>
+						<th>Sample</th>
+						<th>Completeness {{ level }}x [%]</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for stat in incomplete %}
+						<tr>
+							<td>
+								<a href="{{ url_for('report.gene', gene_id=stat.transcript.gene_id, link=exonlink, **link_args) }}">
+									{{ stat.transcript.gene_id }}
+								</a>
+							</td>
+							<td>{{ stat.transcript_id }}</td>
+							<td>{{ id_map[stat.sample_id]|default(stat.sample_id) }}</td>
+							<td class="text-right">{{ stat|attr("completeness_%s"|format(level))|round(2) }}</td>
+						</tr>
+					{% else %}
+						<tr>
+							<td colspan="4">No transcripts found or level not annotated.</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col-md-6">
+			{% if skip > 0 %}
+				{% set next_skip = 0 if (skip - limit) < 0 else (skip - limit) %}
+				<a href="{{ url_for('report.genes', level=level, skip=next_skip, limit=limit, gene_id=gene_ids|join(','), **link_args) }}" class="btn btn-default">Previous</a>
+			{% endif %}
+		</div>
+		<div class="col-md-6">
+			{% if has_next %}
+				<div class="pull-right">
+					<a href="{{ url_for('report.genes', level=level, skip=(skip + limit), limit=limit, gene_id=gene_ids|join(','), **link_args) }}" class="btn btn-default">Next</a>
+				</div>
+			{% endif %}
+		</div>
+	</div>
+</div>
+
+{% endblock %}
