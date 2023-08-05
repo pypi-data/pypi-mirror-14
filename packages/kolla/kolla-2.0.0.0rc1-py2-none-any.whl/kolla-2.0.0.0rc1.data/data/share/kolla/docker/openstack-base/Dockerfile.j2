@@ -1,0 +1,138 @@
+FROM {{ namespace }}/{{ image_prefix }}base:{{ tag }}
+MAINTAINER {{ maintainer }}
+
+{% if base_distro in ['fedora', 'centos', 'oraclelinux', 'rhel'] %}
+RUN yum -y install \
+        git \
+        iproute \
+        openssl \
+    && yum clean all
+
+{% endif %}
+{% if install_type == 'binary' %}
+    {% if base_distro in ['fedora', 'centos', 'oraclelinux', 'rhel'] %}
+
+# TODO(Allen) Remove python-dogpile-cache after the requirement of
+# python-ironicclient is fixed.
+RUN yum -y install \
+        python-barbicanclient \
+        python-ceilometerclient \
+        python-congressclient \
+        python-designateclient \
+        python-heatclient \
+        python-dogpile-cache \
+        python-ironicclient \
+        python-magnumclient \
+        python-manilaclient \
+        python-mistralclient \
+        python-muranoclient \
+        python-PyMySQL \
+        python-pip \
+        python-saharaclient \
+        python-swiftclient \
+        python-troveclient \
+        python-tuskarclient \
+        python-zaqarclient \
+        python-openstackclient \
+        python-keystoneauth1 \
+    && yum clean all
+
+    {% elif base_distro in ['ubuntu'] %}
+
+# This will prevent questions from being asked during the install
+ENV DEBIAN_FRONTEND noninteractive
+# There is no python-tuskarclient in ubuntu 14.04
+RUN apt-get install -y --no-install-recommends \
+        python-barbicanclient \
+        python-ceilometerclient \
+        python-congressclient \
+        python-designateclient \
+        python-heatclient \
+        python-ironicclient \
+        python-magnumclient \
+        python-manilaclient \
+        python-mistralclient \
+        python-muranoclient \
+        python-pip \
+        python-saharaclient \
+        python-swiftclient \
+        python-troveclient \
+        python-zaqarclient \
+        python-openstackclient \
+        python-pymysql \
+        python-keystoneclient \
+        python-oslo.log \
+        openssl \
+        patch \
+    && apt-get clean
+
+    {% endif %}
+{% elif install_type == 'source' %}
+    {% if base_distro in ['fedora', 'centos', 'oraclelinux', 'rhel'] %}
+
+RUN yum -y install \
+        gcc \
+        gcc-c++ \
+        libffi-devel \
+        libxml2-devel \
+        libxslt-devel \
+        MariaDB-devel \
+        openldap-devel \
+        openssl-devel \
+        postgresql \
+        postgresql-devel \
+        python-devel \
+        sqlite-devel \
+    && yum clean all
+
+    {% elif base_distro in ['ubuntu', 'debian'] %}
+
+RUN apt-get install -y --no-install-recommends \
+        ca-certificates \
+        build-essential \
+        python-dev \
+        libssl-dev \
+        libmariadbclient-dev \
+        libxslt1-dev \
+        libffi-dev \
+        libyaml-dev \
+        pkg-config \
+        git \
+    && apt-get clean
+
+    {% endif %}
+
+ADD openstack-base-archive /openstack-base-source
+RUN ln -s openstack-base-source/* /requirements \
+    && mkdir -p /var/lib/kolla \
+    && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
+    && python get-pip.py \
+    && rm get-pip.py \
+    && pip --no-cache-dir install -U virtualenv \
+    && virtualenv --system-site-packages /var/lib/kolla/venv \
+    && /var/lib/kolla/venv/bin/pip --no-cache-dir install --upgrade -c requirements/upper-constraints.txt \
+        jinja2 \
+        kazoo \
+        keystonemiddleware \
+        python-barbicanclient \
+        python-ceilometerclient \
+        python-congressclient \
+        python-designateclient \
+        python-heatclient \
+        python-ironicclient \
+        python-magnumclient \
+        python-manilaclient \
+        python-mistralclient \
+        python-muranoclient \
+        python-saharaclient \
+        python-swiftclient \
+        python-troveclient \
+        python-tuskarclient \
+        python-zaqarclient \
+        python-openstackclient \
+        pymysql \
+        python-memcached \
+        six
+ENV PATH /var/lib/kolla/venv/bin:$PATH
+
+{% endif %}
