@@ -1,0 +1,147 @@
+#lang:
+root_folder: "~/Documents"
+nb_process: 8
+
+ignore:
+    - '*_fichiers/*'
+    - '*_files/*'
+
+scan_comments: |
+    Recomanded file names:
+    * <subject> - <date> - <page number>
+
+scans:
+  - name: Color
+    cmds:
+    - scanc
+    - crop
+    - 2png
+    - auto-rotate
+    postprocess:
+    - optipng
+
+  - name: Black & White
+    default: true
+    cmds:
+    - scan
+    - crop
+    - cleanup
+    - 2png
+    - auto-rotate
+    postprocess:
+    - optipng
+
+to_txt:
+  - extension: png
+    cmds:
+    - ocr
+  - extension: jpeg
+    cmds:
+    - ocr
+  - extension: pdf
+    cmds:
+    - pdf2txt
+  - extension: txt
+    cmds:
+    - cp
+  - extension: csv
+    cmds:
+    - cp
+  - extension: odt
+    cmds:
+    - odt2txt
+  - extension: ods
+    cmds:
+    - ods2txt
+  - extension: ods
+    cmds:
+    - ods2txt
+  - extension: docx
+    cmds:
+    - docx2txt
+
+open_cmd: gnome-open
+
+task:
+  - name: Optimise images
+    on_ext: png
+    cmds:
+    - optipng
+  - name: Fix files names
+    cmds:
+    - fixextensions_case
+    - fixextensions_jpeg
+
+cmds:
+    scan:
+        display: Scanning...
+        cmd: "scanimage --format tiff --resolution 300 --mode Gray --gamma 1 -l 0 -t 0 -x 216.069 -y 297.011 > {out}"
+        out_ext: tiff
+
+    scanc:
+        display: Scanning...
+        cmd: "scanimage --format tiff --resolution 300 --gamma 1 -l 0 -t 0 -x 216.069 -y 297.011 > {out}"
+        out_ext: tiff
+
+    crop:
+        display: Cropping.
+        cmd: "convert {in} -crop `convert {in} -crop 2502x3458+25+25 +repage -level 20%,80%,4 -virtual-pixel edge -blur 0x5 -fuzz 4% -trim -format '%[fx:w+50]x%[fx:h+50]+%[fx:page.x]+%[fx:page.y]' info:` +repage -normalize {out}"
+
+    cleanup:
+        display: Cleanup the piture.
+        cmd: "convert {in} -background white +matte -fuzz 10% -fill white -level 10%,80%,1 +matte -format tiff {out}"
+
+    2png:
+        display: Convert to PNG.
+        cmd: "convert {in} -format png {out}"
+        out_ext: png
+
+    auto-rotate: 
+        display: Automatic rotate.
+        cmd: "convert {in} -rotate `(tesseract -psm 0 -l ${lang} {in} text 2>&1 || echo 'Orientation in degrees 0') | grep 'Orientation in degrees' | awk '{{print $4}}'` {out}"
+
+    ocr:
+        display: Optical character recognition.
+        cmd: "tesseract -l ${lang} {in} stdout > {out}"
+        out_ext: txt
+
+    pdf2txt:
+        display: Convert PDF to text.
+        cmd: "pdftotext {in} {out}"
+        out_ext: txt
+
+    odt2txt:
+        display: Convert OpenDocument to text.
+        cmd: "odt2txt {in} --output={out}"
+        out_ext: txt
+
+    ods2txt:
+        display: Convert OpenDocument to text.
+        cmd: "ods2txt {in} --output={out}"
+        out_ext: txt
+
+    docx2txt:
+        display: Convert Docx to text.
+        cmd: "docx2txt {in} {out}"
+        out_ext: txt
+
+    cp:
+        display: Copy.
+        cmd: "cp {in} {out}"
+
+    optipng:
+        display: Compress the picture.
+        cmd: "optipng -o7 {in}"
+        inplace: true
+
+    fixextensions_case:
+        display: Fix extension type case.
+        type: remame
+        from: '\.([a-zA-Z]+)$'
+        format: lower
+
+    fixextensions_jpeg:
+        display: Fix the extensions (.jpg -> .jpeg).
+        type: remame
+        from: '\.jpg$'
+        to: '.jpeg'
