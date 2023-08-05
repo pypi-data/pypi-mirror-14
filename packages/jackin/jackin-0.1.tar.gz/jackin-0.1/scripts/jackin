@@ -1,0 +1,192 @@
+#!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
+
+import re
+import os
+import sys
+import yaml
+import time
+import shlex
+import pipes
+import pprint
+import datetime
+import argparse
+import threading
+import subprocess
+import ioex.shell
+
+def log(message, color = ioex.shell.TextColor.default, formatting = ''):
+    sys.stderr.write(''.join([
+        color,
+        ioex.shell.Formatting.dim,
+        datetime.datetime.now().strftime('%H:%I:%S'),
+        ioex.shell.Formatting.reset,
+        ' ',
+        formatting,
+        message,
+        ioex.shell.Formatting.reset,
+        ioex.shell.TextColor.default,
+        ]) + '\n'
+        )
+
+def stream_logger(stream, color, formatting, callback = None):
+    while not stream.closed:
+        line = stream.readline()
+        if line != '':
+            log(line[:-1], color, formatting)
+            if callback:
+                callback(line)
+
+def start_stream_logger(stream, color, formatting = '', callback = None):
+    thread = threading.Thread(
+        target = stream_logger,
+        args = (stream, color, formatting, callback),
+        )
+    thread.daemon = True
+    thread.start()
+
+def start_subprocess(parameters, color, stdout_callback = None):
+    log(' '.join([pipes.quote(p) for p in parameters]))
+    process = subprocess.Popen(parameters, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    start_stream_logger(process.stdout, color, ioex.shell.Formatting.reset, stdout_callback)
+    start_stream_logger(process.stderr, color, ioex.shell.Formatting.bold)
+    return process
+
+def compute(
+        after_startup_script_path,
+        before_shutdown_script_path,
+        after_shutdown_script_path,
+        setup_pulseaudio_source,
+        ):
+
+    # jack
+    log('starting jack server... ', ioex.shell.TextColor.default, ioex.shell.Formatting.bold)
+    jack = start_subprocess(
+            [
+                'jackd',
+                '--realtime',
+                '-d', 'alsa',
+                '-dhw:USB,0',
+                ],
+            ioex.shell.TextColor.red,
+            )
+    log('wait for jack to start')
+    while jack.poll() is None:
+        if subprocess.check_output(['jack_wait', '--check'], stderr = subprocess.PIPE).strip() == 'running':
+            break
+        time.sleep(0.1)
+    if jack.poll() is not None:
+        return
+
+    try:
+
+        # aj2midi
+        log('starting a2jmidi... ', ioex.shell.TextColor.default, ioex.shell.Formatting.bold)
+        a2jmidi_started = [False]
+        def a2jmidi_stdout_callback(line):
+            if line.strip() == 'Bridge started':
+                a2jmidi_started[0] = True
+        a2jmidi = start_subprocess(
+            ['a2jmidid', '--export-hw'],
+            ioex.shell.TextColor.blue,
+            a2jmidi_stdout_callback,
+            )
+        log('wait for a2jmidi to start')
+        while a2jmidi.poll() is None and not a2jmidi_started[0]:
+            time.sleep(0.1)
+        if not a2jmidi_started[0]:
+            return
+
+        if setup_pulseaudio_source:
+            log('load jack-sink module into pulseaudio...', ioex.shell.TextColor.default, ioex.shell.Formatting.bold)
+            subprocess.check_call(['pactl', 'load-module', 'module-jack-sink'], stdout = subprocess.PIPE)
+
+        # after startup script
+        if after_startup_script_path is not None:
+            log('run after startup script... ', ioex.shell.TextColor.default, ioex.shell.Formatting.bold)
+            after_startup_script = start_subprocess([after_startup_script_path], ioex.shell.TextColor.green)
+            after_startup_script.wait()
+
+        jack.wait()
+
+    except KeyboardInterrupt:
+        log('keyboard interrupt')
+
+    finally:
+
+        # before shutdown script
+        if before_shutdown_script_path is not None:
+            log('run before shutdown script... ', ioex.shell.TextColor.default, ioex.shell.Formatting.bold)
+            before_shutdown_script = start_subprocess([before_shutdown_script_path], ioex.shell.TextColor.magenta)
+            before_shutdown_script.wait()
+
+        if a2jmidi and a2jmidi.poll() is None:
+            log('terminate a2jmidi... ')
+            a2jmidi.terminate()
+            a2jmidi.wait()
+
+        if jack and jack.poll() is None:
+            log('terminate jack... ')
+            jack.terminate()
+            jack.wait()
+
+        # after shutdown script
+        if after_shutdown_script_path is not None:
+            log('run after shutdown script... ', ioex.shell.TextColor.default, ioex.shell.Formatting.bold)
+            after_shutdown_script = start_subprocess([after_shutdown_script_path], ioex.shell.TextColor.yellow)
+            after_shutdown_script.wait()
+
+def _init_argparser():
+
+    argparser = argparse.ArgumentParser(description = None)
+    # argparser.add_argument('a', nargs = '*')
+    argparser.add_argument(
+            '--after-startup-script',
+            metavar = 'path',
+            dest = 'after_startup_script_path',
+            )
+    argparser.add_argument(
+            '--before-shutdown-script',
+            metavar = 'path',
+            dest = 'before_shutdown_script_path',
+            )
+    argparser.add_argument(
+            '--after-shutdown-script',
+            metavar = 'path',
+            dest = 'after_shutdown_script_path',
+            )
+    argparser.add_argument(
+            '--pulseaudio-source',
+            action = 'store_true',
+            dest = 'setup_pulseaudio_source',
+            help = "load pulseaudio's module-jack-sink",
+            )
+    # argparser.add_argument('file', type = argparse.FileType('r'))
+    # exclusive_group = argparser.add_mutually_exclusive_group(required = False)
+    # exclusive_group.add_argument('--exclusive-1', action='store_true')
+    # exclusive_group.add_argument('--exclusive-2', action='store_true')
+    # subparsers = argparser.add_subparsers(help = None, dest = 'command')
+    return argparser
+
+def main(argv):
+
+    argparser = _init_argparser()
+    try:
+        import argcomplete
+        argcomplete.autocomplete(argparser)
+    except ImportError:
+        pass
+    args = argparser.parse_args(argv)
+
+    compute(**vars(args))
+
+    # try:
+    #     compute(**vars(args))
+    # except Exception, ex:
+    #     sys.stderr.write('%s\n' % str(ex))
+    #     return 1
+
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
