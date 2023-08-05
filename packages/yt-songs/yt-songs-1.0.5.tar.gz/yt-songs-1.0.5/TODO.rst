@@ -1,0 +1,3 @@
+- Add search options
+- Generalize search to make it fully extensible
+- Consider alternatives to setting props in run
