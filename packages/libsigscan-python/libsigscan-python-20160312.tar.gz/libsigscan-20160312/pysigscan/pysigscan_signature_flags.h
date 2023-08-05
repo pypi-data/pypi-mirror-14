@@ -1,0 +1,63 @@
+/*
+ * Python object definition of the libsigscan signature flags
+ *
+ * Copyright (C) 2014-2016, Joachim Metz <joachim.metz@gmail.com>
+ *
+ * Refer to AUTHORS for acknowledgements.
+ *
+ * This software is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this software.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#if !defined( _PYSIGSCAN_ENCRYPTION_TYPES_H )
+#define _PYSIGSCAN_ENCRYPTION_TYPES_H
+
+#include <common.h>
+#include <types.h>
+
+#include "pysigscan_libsigscan.h"
+#include "pysigscan_python.h"
+
+#if defined( __cplusplus )
+extern "C" {
+#endif
+
+typedef struct pysigscan_signature_flags pysigscan_signature_flags_t;
+
+struct pysigscan_signature_flags
+{
+	/* Python object initialization
+	 */
+	PyObject_HEAD
+};
+
+extern PyTypeObject pysigscan_signature_flags_type_object;
+
+int pysigscan_signature_flags_init_type(
+     PyTypeObject *type_object );
+
+PyObject *pysigscan_signature_flags_new(
+           void );
+
+int pysigscan_signature_flags_init(
+     pysigscan_signature_flags_t *pysigscan_signature_flags );
+
+void pysigscan_signature_flags_free(
+      pysigscan_signature_flags_t *pysigscan_signature_flags );
+
+#if defined( __cplusplus )
+}
+#endif
+
+#endif
+

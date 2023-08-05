@@ -1,0 +1,108 @@
+/*
+ * The internal definitions
+ *
+ * Copyright (C) 2014-2016, Joachim Metz <joachim.metz@gmail.com>
+ *
+ * Refer to AUTHORS for acknowledgements.
+ *
+ * This software is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this software.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#if !defined( _LIBSIGSCAN_INTERNAL_DEFINITIONS_H )
+#define _LIBSIGSCAN_INTERNAL_DEFINITIONS_H
+
+#include <common.h>
+#include <byte_stream.h>
+
+#define LIBSIGSCAN_ENDIAN_BIG					_BYTE_STREAM_ENDIAN_BIG
+#define LIBSIGSCAN_ENDIAN_LITTLE				_BYTE_STREAM_ENDIAN_LITTLE
+
+/* Define HAVE_LOCAL_LIBSIGSCAN for local use of libsigscan
+ */
+#if !defined( HAVE_LOCAL_LIBSIGSCAN )
+#include <libsigscan/definitions.h>
+
+/* The definitions in <libsigscan/definitions.h> are copied here
+ * for local use of libsigscan
+ */
+#else
+#define LIBSIGSCAN_VERSION					20160312
+
+/* The version string
+ */
+#define LIBSIGSCAN_VERSION_STRING				"20160312"
+
+/* The access flags definitions
+ * bit 1        set to 1 for read access
+ * bit 2        set to 1 for write access
+ * bit 3-8      not used
+ */
+enum LIBSIGSCAN_ACCESS_FLAGS
+{
+	LIBSIGSCAN_ACCESS_FLAG_READ				= 0x01,
+/* Reserved: not supported yet */
+	LIBSIGSCAN_ACCESS_FLAG_WRITE				= 0x02
+};
+
+/* The file access macros
+ */
+#define LIBSIGSCAN_OPEN_READ					( LIBSIGSCAN_ACCESS_FLAG_READ )
+/* Reserved: not supported yet */
+#define LIBSIGSCAN_OPEN_WRITE					( LIBSIGSCAN_ACCESS_FLAG_WRITE )
+/* Reserved: not supported yet */
+#define LIBSIGSCAN_OPEN_READ_WRITE				( LIBSIGSCAN_ACCESS_FLAG_READ | LIBSIGSCAN_ACCESS_FLAG_WRITE )
+
+/* The signature flags
+ */
+enum LIBSIGSCAN_SIGNATURE_FLAGS
+{
+	LIBSIGSCAN_SIGNATURE_FLAG_NO_OFFSET			= 0x00000000,
+	LIBSIGSCAN_SIGNATURE_FLAG_OFFSET_RELATIVE_FROM_START	= 0x00000001,
+	LIBSIGSCAN_SIGNATURE_FLAG_OFFSET_RELATIVE_FROM_END	= 0x00000002
+};
+
+#endif
+
+#define LIBSIGSCAN_SIGNATURE_FLAGS_MASK				0x00000003
+
+/* The pattern offset modes
+ */
+enum LIBSIGSCAN_PATTERN_OFFSET_MODES
+{
+	LIBSIGSCAN_PATTERN_OFFSET_MODE_BOUND_TO_START		= 1,
+	LIBSIGSCAN_PATTERN_OFFSET_MODE_BOUND_TO_END		= 2,
+	LIBSIGSCAN_PATTERN_OFFSET_MODE_UNBOUND			= 3
+};
+
+/* The scan object types
+ */
+enum LIBSIGSCAN_SCAN_OBJECT_TYPES
+{
+	LIBSIGSCAN_SCAN_OBJECT_TYPE_SCAN_TREE_NODE		= 1,
+	LIBSIGSCAN_SCAN_OBJECT_TYPE_SIGNATURE			= 2
+};
+
+/* The scan states
+ */
+enum LIBSIGSCAN_SCAN_STATES
+{
+	LIBSIGSCAN_SCAN_STATE_INITIALIZED			= 0,
+	LIBSIGSCAN_SCAN_STATE_STARTED				= 1,
+	LIBSIGSCAN_SCAN_STATE_STOPPED				= 2
+};
+
+#define LIBSIGSCAN_DEFAULT_SCAN_BUFFER_SIZE			8192
+
+#endif
+
