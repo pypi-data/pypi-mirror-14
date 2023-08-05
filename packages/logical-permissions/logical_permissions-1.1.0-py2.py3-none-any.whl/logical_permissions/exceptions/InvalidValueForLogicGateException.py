@@ -1,0 +1,4 @@
+from logical_permissions.exceptions import InvalidArgumentValueException
+
+class InvalidValueForLogicGateException(InvalidArgumentValueException):
+  pass
