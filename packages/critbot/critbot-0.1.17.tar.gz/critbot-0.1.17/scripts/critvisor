@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+
+"""
+critvisor = critbot + supervisor
+https://github.com/denis-ryzhkov/critbot
+
+@author Denis Ryzhkov <denisr@denisr.com>
+"""
+
+usage = '''
+Create a config for supervisor:
+
+[eventlistener:critvisor]
+command=critvisor /path/to/critbot_config.py
+events=PROCESS_LOG_STDERR,PROCESS_STATE_EXITED,PROCESS_STATE_FATAL
+
+[program:my_program]
+stderr_events_enabled=true
+
+Optional "crit_defaults.skip_stderrs" list allows to avoid some "safe" crits.
+Optional "crit_defaults.max_stderr_crit_length" allows to save e.g. Slack from being broken.
+'''
+
+### import
+
+import imp
+from collections import defaultdict
+from critbot import crit, crit_defaults
+import datetime
+import os
+from supervisor.childutils import eventdata, listener
+import sys
+import time
+from threading import Lock, Thread
+from traceback import print_exc
+
+### shared state
+
+lock = Lock()
+stderr_first = dict()
+stderr_last = dict()
+stderr_chunks = defaultdict(list)
+
+### stderr_harvester
+
+def stderr_harvester(skip_stderrs, max_stderr_crit_length):
+    while True:
+        try:
+            time.sleep(1)
+            now = time.time()
+            texts = []
+
+            with lock:
+                for header, last in stderr_last.items(): # Not "iteritems": we need a copy for "del" below.
+                    if now - last < 1:
+                        continue
+
+                    text = '{} UTC {}\n{}'.format(stderr_first[header], header, ''.join(stderr_chunks[header]))
+                    if all(skip_stderr not in text for skip_stderr in skip_stderrs):
+                        texts.append(text)
+
+                    del stderr_first[header]
+                    del stderr_last[header]
+                    del stderr_chunks[header]
+
+            if texts:
+                text = '\n'.join(texts)
+                if max_stderr_crit_length and len(text) > max_stderr_crit_length:
+                    text = text[:max_stderr_crit_length] + '...'
+                crit(text)
+
+        except Exception:
+            print_exc() # To /var/log/supervisor/critvisor-stderr*
+            os._exit(1) # Exit main thread too. Supervisor will "autorestart" on this "unexpected" exit code.
+
+### main
+
+def main():
+
+    if len(sys.argv) < 2:
+        exit(usage)
+    imp.load_source('critbot_config', sys.argv[1])
+
+    stderr_thread = Thread(target=stderr_harvester, args=(crit_defaults.get('skip_stderrs', []), crit_defaults.get('max_stderr_crit_length', 0)))
+    stderr_thread.daemon = True
+    stderr_thread.start()
+
+    while True:
+        headers, event = listener.wait()
+        event_name = headers.get('eventname')
+        if event_name in ('PROCESS_LOG_STDERR', 'PROCESS_STATE_EXITED', 'PROCESS_STATE_FATAL'):
+            headers, event = eventdata(event + '\n')
+
+            if event_name == 'PROCESS_LOG_STDERR':
+                header = 'Process pid={pid} {groupname}:{processname} wrote to stderr:'.format(**headers)
+                with lock:
+                    stderr_first.setdefault(header, datetime.datetime.utcnow())
+                    stderr_last[header] = time.time()
+                    stderr_chunks[header].append(event)
+
+            else:
+                text = 'Process{space_pid} {groupname}:{processname} crashed from {from_state} to {to_state}'.format(
+                    space_pid=' pid={pid}'.format(**headers) if 'pid' in headers else '',
+                    to_state=event_name.replace('PROCESS_STATE_', ''),
+                    **headers
+                )
+                crit(text)
+
+        listener.ok()
+
+if __name__ == '__main__':
+    main()
