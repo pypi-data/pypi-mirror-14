@@ -1,0 +1,123 @@
+{# -*- mode: jinja2; -*- #}
+{#
+   Copyright (C) 2015  lpschedule-generator contributors. See CONTRIBUTORS.
+
+    This file is part of lpschedule-generator.
+
+   lpschedule-generator is free software: you can redistribute it
+   and/or modify it under the terms of the GNU General Public License
+   as published by the Free Software Foundation, either version 3 of
+   the License, or (at your option) any later version.
+
+   lpschedule-generator is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with lpschedule-generator (see COPYING).  If not, see
+   <http://www.gnu.org/licenses/>.
+#}
+
+{# macros start #}
+
+{# make speakers macro #}
+{% macro mk_speakers(speakers) %}
+  <span class="program-session-speaker">
+    {% for speaker in speakers %}
+      {% if loop.last %}
+        {{ speaker }}
+      {% else %}
+        {{ speaker }},
+      {% endif %}
+    {% endfor %}
+  </span>
+{% endmacro %}
+
+{# make room macro #}
+{% macro mk_room(room) %}
+  {% if room|lower != 'roomtba' %}
+    <span class="label label-default">{{ room }}</span>
+  {% endif %}
+{% endmacro %}
+
+{# make day header macro #}
+{% macro mk_day_header(day, collapse_area) %}
+  {% if day|trim != '' %}
+    <header class="program-day-header">
+      <hgroup>
+        <h2>{{ day }}</h2>
+      </hgroup>
+    </header>
+  {% endif %}
+{% endmacro %}
+
+{# make timeslot header macro #}
+{% macro mk_timeslot_header(timeslot, collapse, collapse_area='') %}
+  {% if timeslot|trim != '' %}
+    <header class="program-timeslot-header">
+      <hgroup>
+        <h2>{{ timeslot }}</h2>
+      </hgroup>
+    </header>
+  {% endif %}
+{% endmacro %}
+
+{# make session header macro #}
+{% macro mk_session_header(session) %}
+  <header class="program-session-header">
+    <hgroup>
+      <h2>{{ session }}</h2>
+    </hgroup>
+  </header>
+{% endmacro %}
+
+{# desc macro #}
+{% macro desc(disc_list) %}
+  {% for desc_p in disc_list %}
+    <p>{{ desc_p }}</p>
+  {% endfor %}
+{% endmacro %}
+
+{# populate sessions macro #}
+{% macro populate_sessions(sessions, day_index, timeslot_index) %}
+  {% for session, session_info in sessions.iteritems() %} {# session start #}
+    <section id="day-{{ day_index }}-timeslot-{{ timeslot_index }}-session-{{ loop.index }}" class="program-session">
+      {{ mk_session_header(session) }}
+      {{ mk_speakers(session_info['speakers']) }}
+      <p class="program-session-room-details">
+        {{ mk_room(session_info['room']) }}
+        <button class="btn btn-default btn-xs"
+                data-toggle="collapse" aria-expanded="false"
+                aria-controls="day-{{ day_index }}-timeslot-{{ timeslot_index }}-session-{{ loop.index }}-collapse"
+                data-target="#day-{{ day_index }}-timeslot-{{ timeslot_index }}-session-{{ loop.index }}-collapse">
+                Details
+        </button>
+      </p>
+      <div class="collapse in"
+           id="day-{{ day_index }}-timeslot-{{ timeslot_index }}-session-{{ loop.index }}-collapse">
+        {{ desc(session_info['desc']) }}
+      </div> <!-- day-{{ day_index }}-timeslot-{{ timeslot_index }}-session-{{ loop.index }}-collapse end -->
+    </section> <!-- day-{{ day_index }}-timeslot-{{ timeslot_index }}-session-{{ loop.index }} end -->
+  {% endfor %} {# session end #}
+{% endmacro %}
+
+{# populate timeslots macro #}
+{% macro populate_timeslots(timeslots, day_index) %}
+  {% for timeslot, sessions in timeslots.iteritems() %}  {# timeslot start #}
+    <article id="day-{{ day_index }}-timeslot-{{ loop.index }}" class="program-timeslot">
+      {{ mk_timeslot_header(timeslot) }}
+      {% if sessions|length > 0 %}
+             {{ populate_sessions(sessions, day_index, loop.index) }}
+      {% endif %}
+    </article> <!-- day-{{ day_index }}-timeslot-{{ loop.index }} end -->
+  {% endfor %} {# timeslot start #}
+{% endmacro %}
+
+{# lp schedule 2016 template start #}
+{% for day, timeslots in lp_dict.iteritems() %} {# day start #}
+  <article id="day-{{ loop.index }}-program" class="program-day">
+    {{ mk_day_header(day) }}
+      {{ populate_timeslots(timeslots, loop.index) }}
+  </article> <!-- day-{{ loop.index }} end -->
+{% endfor %} {# day loop end #}
