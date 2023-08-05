@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.dateutils import CalendarPage
+from cocktail.controllers.viewstate import view_state
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    events = None
+    calendar_page = None
+    calendar_page_member = None
+    show_time = True
+    ?>
+
+    <div py:id="calendar_navigation">
+        <py:ready>
+            <?py
+            if self.calendar_page_member is None:
+                element.visible = False
+            ?>
+        </py:ready>
+
+        <a
+            py:id="previous_month_link"
+            title="@{translations('woost.views.EventsCalendar.previous_month_link')}">
+            <py:ready>
+                <?py
+                if self.calendar_page_member:
+                    element["href"] = "?" + view_state(
+                        (self.calendar_page_member, self.calendar_page - 1)
+                    )
+                ?>
+            </py:ready>
+            <?py element.append("&lt;") ?>
+        </a>
+
+        <py:cocktail.html.DropdownPanel py:id="month_selector">
+            <py:with py:element="element.label">
+                @{translations("month %d" % self.calendar_page.month)}
+            </py:with>
+            <py:with py:element="element.panel">
+                <ul py:id="months_list">
+                    <py:ready>
+                        <li py:for="i in range(12)">
+                            <a>
+                                <?py
+                                element["href"] = "?" + view_state(
+                                    (self.calendar_page_member, CalendarPage(self.calendar_page.year, i + 1))
+                                )
+                                ?>
+                                ${translations("month %d" % (i + 1))}
+                            </a>
+                        </li>
+                    </py:ready>
+                </ul>
+            </py:with>
+        </py:cocktail.html.DropdownPanel>
+
+        <a
+            py:id="next_month_link"
+            title="@{translations('woost.views.EventsCalendar.next_month_link')}">
+            <py:ready>
+                <?py
+                if self.calendar_page_member:
+                    element["href"] = "?" + view_state(
+                        (self.calendar_page_member, self.calendar_page + 1)
+                    )
+                ?>
+            </py:ready>
+            <?py element.append("&gt;") ?>
+        </a>
+
+        <a
+            py:id="previous_year_link"
+            title="@{translations('woost.views.EventsCalendar.previous_year_link')}">
+            <py:ready>
+                <?py
+                if self.calendar_page_member:
+                    element["href"] = "?" + view_state(
+                        (self.calendar_page_member, CalendarPage(self.calendar_page.year - 1, 1))
+                    )
+                ?>
+            </py:ready>
+            <?py element.append("&lt;") ?>
+        </a>
+
+        <span py:id="year_label">@{self.calendar_page.year}</span>
+
+        <a
+            py:id="next_year_link"
+            title="@{translations('woost.views.EventsCalendar.next_year_link')}">
+            <py:ready>
+                <?py
+                if self.calendar_page_member:
+                    element["href"] = "?" + view_state(
+                        (self.calendar_page_member, CalendarPage(self.calendar_page.year + 1, 1))
+                    )
+                ?>
+            </py:ready>
+            <?py element.append("&gt;") ?>
+        </a>
+
+    </div>
+
+    <py:cocktail.html.MonthCalendar
+        py:id="calendar_contents"
+        py:calendar_page="@{self.calendar_page}">
+
+        <py:ready>
+            <?py
+            for event in self.events:
+                if event.event_start:
+                    cell = element.get_cell(event.event_start)
+                    if cell:
+                        cell.append(self.create_event_info(event))
+            ?>
+        </py:ready>
+
+    </py:cocktail.html.MonthCalendar>
+
+    <article py:def="event_info" py:args="event">
+        <h1 py:local_id="event_heading">
+            <span py:local_id="event_time" py:visible="@{self.show_time}">
+                ${translations(event.event_start.time(), include_seconds = False)}
+            </span>
+            <a py:local_id="event_link" href="${event.get_uri()}">
+                ${translations(event)}
+            </a>
+        </h1>
+    </article>
+
+</div>
+
