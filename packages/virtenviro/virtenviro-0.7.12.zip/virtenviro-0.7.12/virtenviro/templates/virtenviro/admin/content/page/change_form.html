@@ -1,0 +1,143 @@
+{% extends 'virtenviro/admin/base.html' %}{% load i18n staticfiles admin_tags %}
+
+{% block content %}
+<form method="POST" action="">
+    {% csrf_token %}
+    <ul class="nav nav-tabs" role="tablist" id="base-tabs">
+        <li role="presentation" class="active">
+            <a href="#page_tab" aria-controls="page_tab" role="tab" data-toggle="tab">
+            {% trans 'Page' %}
+            </a>
+        </li>
+        <li role="presentation">
+            <a href="#content_tab" aria-controls="content_tab" role="tab" data-toggle="tab">
+            {% trans 'Content' %}
+            </a>
+        </li>
+    </ul>
+    <div class="tab-content">
+        <div role="tabpanel" class="tab-pane active" id="page_tab">
+            <div class="form-group">
+                <label for="id_title" class="required">Название страницы:</label>
+                {{ page_form.title }}
+            </div>
+            <div class="form-group">
+                <label for="id_slug">Псевдостатический адрес:</label>
+                {{ page_form.slug }}
+            </div>
+            <div class="form-group col-md-6">
+                <label for="id_is_category" class="checkbox-inline">{{ page_form.is_category }} Является категорией</label>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="id_is_home" class="checkbox-inline">{{ page_form.is_home }} Является домашней страницей</label>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="id_published" class="checkbox-inline">{{ page_form.published }} Опубликовано</label>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="id_login_required" class="checkbox-inline">{{ page_form.login_required }} Требуется авторизация</label>
+            </div>
+            <div class="form-group">
+                <label for="id_template" class="required">Шаблон:</label>
+                <div class="input-group">
+                    {{ page_form.template }}
+                    <span class="input-group-addon">
+                        <a href="{% url 'vadmin:content_template_add' %}?_to_field=id&_popup=1"
+                           onclick="return showAddAnotherPopup(this);"
+                           id="add_id_{{ page_form.template.html_name }}"
+                           class="text-success">
+                            <span class="fa fa-plus"></span>
+                        </a>
+                    </span>
+                </div>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="id_parent">Родитель:</label>
+                {{ page_form.parent }}
+            </div>
+            <div class="form-group col-md-6">
+                <label for="id_ordering">Сортировка:</label>
+                {{ page_form.ordering }}
+            </div>
+            <div class="form-group col-md-4">
+                <label for="id_author">Автор:</label>
+                {{ page_form.author }}
+            </div>
+            <div class="form-group col-md-8">
+                <label for="id_pub_datetime">Дата и время создания:</label>
+                {{ page_form.pub_datetime }}
+            </div>
+            <div class="form-group col-md-4">
+                <label for="id_last_modified_by">Последний раз редактировал:</label>
+                {{ page_form.last_modified_by }}
+            </div>
+            <div class="clearfix"></div>
+        </div>
+
+        <div role="tabpanel" class="tab-pane" id="content_tab">
+            <!-- Nav tabs -->
+            <ul class="nav nav-tabs" role="tablist" id="content-tabs">
+                {% for language, language_name in settings.LANGUAGES %}
+                <li role="presentation"{% if forloop.counter == 1 %} class="active"{% endif %}>
+                    <a href="#content_form-{{ language }}" aria-controls="content_form-{{ language }}" role="tab" data-toggle="tab">
+                    {% trans language_name %}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            <!-- Tab panes -->
+            <div class="tab-content">
+                {% for language, language_name in settings.LANGUAGES %}
+                    {% get_from_dict content_forms language as content_form %}
+                <div role="tabpanel" class="tab-pane{% if forloop.counter == 1 %} active{% endif %}" id="content_form-{{ language }}">
+                    {{ content_form.as_p }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="buttons-panel">
+        <div class="container">
+            <div class="btn-group pull-right">
+                {% if request.GET.popup == '1' %}
+                    <a href="javascript:window.close()" class="btn btn-sm btn-danger">{% trans 'Cancel' %}</a>
+                {% else %}
+                    <a href="" class="btn btn-sm btn-danger">{% trans 'Cancel' %}</a>
+                {% endif %}
+                <button type="submit" class="btn btn-success btn-sm">{% trans 'Save' %}</button>
+            </div>
+        </div>
+    </div>
+</form>
+<!-- /.row -->
+{% endblock content %}
+
+{% block extrascripts %}
+    <script src="{% static 'vadmin/js/RelatedObjectLookups.js' %}"></script>
+
+    <script src="/static/ckeditor/ckeditor.js"></script>
+    <script src="/static/filebrowser/js/FB_CKEditor.js"></script>
+    <script src="/static/js/ckeditor.js"></script>
+    <script src="{% static 'vadmin/js/bootstrap/tab.js' %}"></script>
+    <script>
+        $('#base-tabs a').click(function (e) {
+            e.preventDefault()
+            $(this).tab('show')
+        })
+        $('#content-tabs a').click(function (e) {
+            e.preventDefault()
+            $(this).tab('show')
+        })
+    </script>
+    {{ page_form.media }}
+    {{ content_form.media }}
+{% endblock %}
+
+{% block extrastyles %}
+    <link rel="stylesheet" href="/static/css/ckeditor.css">
+{% endblock %}
+
+
+{% block navigation %}
+    {% with nav_pages as nodes %}{% include 'virtenviro/admin/content/page/navigation.html' %}{% endwith %}
+{% endblock navigation %}
