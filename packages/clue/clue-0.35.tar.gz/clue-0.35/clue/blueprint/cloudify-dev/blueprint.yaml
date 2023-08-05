@@ -1,0 +1,552 @@
+########
+# Copyright (c) 2016 GigaSpaces Technologies Ltd. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+############
+
+tosca_definitions_version: cloudify_dsl_1_2
+
+description: |
+  Each input specifies a different configurable aspect of the development
+  environment managed by clue.
+
+  Each time you make a modification to one of the inputs, 'clue apply' should
+  be executed. Make sure you 'clue env use' the right environment if you have
+  more than one environment.
+
+  Generally, most inputs are additive. e.g. if you remove a repo, it will not
+  be deleted, it will simply not be managed by clue anymore.
+
+  Moreover, some operations on the environment have to be performed manually.
+  e.g. if you change an organization for a repo, clue will not re-clone
+  the repo from the new organization. You will need to manually remove the existing
+  directory, so that clue can fetch it from the new organization.
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/3.3/types.yaml
+
+inputs:
+  repos:
+    description: |
+      Managed GitHub repositories.
+      Each specified repo will be cloned to 'repos_dir' if it doesn't exist
+      there already.
+    default:
+      cloudify-versions:
+        type: versions
+      cloudify-dsl-parser:
+        type: core
+      cloudify-rest-client:
+        type: core
+      cloudify-amqp-influxdb:
+        type: core
+      cloudify-plugins-common:
+        type: core
+        python:
+          dependencies:
+          - cloudify-rest-client
+      cloudify-manager:
+        type: core
+        properties:
+          project_dir: true
+          resources:
+          - resources
+        python:
+        - name: cloudify-rest-service
+          path: rest-service
+          dependencies:
+          - cloudify-dsl-parser
+          - flask-securest
+        - name: cloudify-workflows
+          path: workflows
+          dependencies:
+          - cloudify-plugins-common
+        - name: cloudify-riemann-controller-plugin
+          path: plugins/riemann-controller
+          dependencies:
+          - cloudify-plugins-common
+        - name: cloudify-integration-tests
+          path: tests
+          dependencies:
+          - cloudify-plugins-common
+          - cloudify-rest-client
+          - cloudify-script-plugin
+          - cloudify-diamond-plugin
+          - cloudify-dsl-parser
+          - cloudify-rest-service
+      cloudify-cli:
+        type: core
+        python:
+          dependencies:
+          - cloudify-dsl-parser
+          - cloudify-rest-client
+          - cloudify-plugins-common
+          - cloudify-script-plugin
+      cloudify-agent:
+        type: core
+        python:
+          dependencies:
+          - cloudify-plugins-common
+          - cloudify-script-plugin
+          - cloudify-diamond-plugin
+      cloudify-system-tests:
+        type: core
+        python:
+          dependencies:
+          - cloudify-cli
+      cloudify-packager:
+        type: core
+        python: false
+      cloudify-hello-world-example:
+        type: core
+        python: false
+      cloudify-nodecellar-example:
+        type: core
+        python: false
+      cloudify-manager-blueprints:
+        type: core
+        properties:
+          resources: true
+        python: false
+      cloudify-plugin-template:
+        type: core
+        python: false
+      cloudify-script-plugin:
+        type: plugin
+      cloudify-diamond-plugin:
+        type: plugin
+      cloudify-docker-plugin:
+        type: plugin
+      cloudify-chef-plugin:
+        type: plugin
+      cloudify-puppet-plugin:
+        type: plugin
+      cloudify-fabric-plugin:
+        type: plugin
+      cloudify-openstack-plugin:
+        type: plugin
+      cloudify-aws-plugin:
+        type: plugin
+      flask-securest: {}
+      docs.getcloudify.org:
+        python: false
+      docs.getcloudify.org-site:
+        python: false
+      cloudify-agent-packager:
+        python:
+          dependencies:
+          - cloudify-agent
+      claw:
+        properties:
+          organization: dankilman
+        python:
+          dependencies:
+          - cloudify-system-tests
+      claw-scripts:
+        properties:
+          organization: dankilman
+        python: false
+      je:
+        properties:
+          organization: dankilman
+  virtualenv_name:
+    description: |
+      The virtualenv name in which all managed python packages will be installed
+      in editable mode.
+      The virtualenv will be created using virtualenvwrapper, if doesn't exist already.
+    default: cloudify
+  repos_dir:
+    description: |
+      Directory that contains all managed repositories.
+      Each repo will be cloned to this directory if it doesn't exist there already.
+  organization:
+    description: |
+      Default organization for cloned repos.
+    default: cloudify-cosmo
+  clone_method:
+    description: |
+      Clone GitHub repos using 'ssh' or 'https'.
+    default: https
+  features_file:
+    description: |
+      Path to yaml file with feature definitions.
+      A default empty file is generated for each newly created env next to the
+      generated inputs file.
+  virtualenvwrapper_path:
+    description: |
+      Path to virtualenvwrapper script to be sourced before creating
+      the virtualenv.
+      If virtualenvwrapper is globally installed, and virtualevnwrapper.sh
+      exists in path, simply specifying 'virtualenvwrapper.sh' as the value
+      should suffice.
+    default: virtualenvwrapper.sh
+  git_prompt_paths:
+    description: |
+      Path to git prompt shell script.
+      Used to display git status branch state (using output from __git_ps1).
+      Iterates through paths, and uses the first one found.
+      If none is found, falls back to a simple 'git rev-parse' based method.
+    default:
+    - /usr/share/git/completion/git-prompt.sh
+    - /usr/lib/git-core/git-sh-prompt
+  register_python_argcomplete:
+    description: |
+      Names to register with python argcomplete when the virtualenv is activated.
+    default:
+    - cfy
+    - claw
+    - clue
+    - je
+  requirements:
+    description: |
+      Requirements to install in virtualenv.
+    default:
+    - tox
+    - testtools
+    - flake8
+    - nose
+    - nose-cov
+    - mock==1.0.1
+    - unittest2
+  constraints:
+    description: |
+      Constraints for all pip install commands.
+    default:
+    - requests==2.7.0
+    - Flask-RESTful==0.2.5
+    - jinja2==2.7.2
+    - six>=1.9.0
+    - pywinrm==0.0.3
+    - elasticsearch==1.6.0
+    - virtualenv>=13.1.2
+    - psutil==3.3.0
+  git_config:
+    description: |
+      Git config to apply to all repos.
+      e.g. "user.name: John Doe" will be set using
+      "git config user.name "John Doe"
+    default: {}
+
+node_types:
+
+  directory:
+    derived_from: cloudify.nodes.Root
+    properties:
+      location:
+        description: a directory node
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: self.operations.operations.makedirs
+          inputs:
+            location:
+              default: { get_property: [SELF, location] }
+
+  git_repo:
+    derived_from: cloudify.nodes.Root
+    properties:
+      name:
+        description: the repo name
+      organization:
+        description: the github organization
+        default: { get_input: organization }
+      clone_method:
+        description: clone with https or ssh
+        default: { get_input: clone_method }
+      branch:
+        description: the repo branch
+        default: master
+      features_file:
+        description: path to file with feature definitions
+        default: { get_input: features_file }
+      location:
+        default: { get_input: repos_dir }
+      repo_type:
+        description: >
+          One of: core, plugin, misc. Used by git checkout to figure out
+          build branch names.
+      git_config:
+        default: { get_input: git_config }
+      git_prompt_paths:
+        default: { get_input: git_prompt_paths }
+      project_dir:
+        description: >
+          Should this repo serve as the project dir for the generated idea
+          project.
+        default: false
+      resources:
+        description: >
+          Should this repo be added as a resources module to the generated
+          idea project.
+          Can also be a list of directories relative to the repository root
+        default: false
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create: self.operations.git.clone
+        configure: self.operations.git.configure
+      git:
+        pull: self.operations.git.pull
+        status:
+          implementation: self.operations.git.status
+          inputs:
+            active: {}
+        checkout:
+          implementation: self.operations.git.checkout
+          inputs:
+            branch:
+              description: |
+                Which branch to checkout out, if starts with a dot (.), it will be
+                treated as a core/plugin checkout and a version prefix will be attached
+                according to the repo_type.
+                A path to a yaml mapping file can also be supplied, in which
+                case only if there is a mapping for the specified repo,
+                the path can also be relative to branches dir.
+        diff:
+          implementation: self.operations.git.diff
+          inputs:
+            revision_range: {}
+            cached: {}
+            active: {}
+        rebase: self.operations.git.rebase
+        squash: self.operations.git.squash
+        reset:
+          implementation: self.operations.git.reset
+          inputs:
+            origin: {}
+            hard: {}
+        create_branch:
+          implementation: self.operations.git.create_branch
+          inputs:
+            branch: {}
+            base: {}
+        delete_branch:
+          implementation: self.operations.git.delete_branch
+          inputs:
+            branch: {}
+            force: {}
+        branch_exists:
+          implementation: self.operations.git.branch_exists
+          inputs:
+            branch: {}
+      hub:
+        ci_status: self.operations.git.ci_status
+        compare: self.operations.git.compare
+        pull_request:
+          implementation: self.operations.git.pull_request
+          inputs:
+            message: {}
+            file: {}
+
+  virtualenv:
+    derived_from: cloudify.nodes.Root
+    properties:
+      name:
+        description: the virtualenv name
+        default: env
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          executor: central_deployment_agent
+          implementation: operations/virtualenv.sh
+          inputs:
+            process:
+              default:
+                env:
+                  operation: mkvirtualenv
+                  virtualenvwrapper_path: { get_input: virtualenvwrapper_path }
+                  virtualenv_name: { get_property: [SELF, name] }
+
+  python_package:
+    derived_from: cloudify.nodes.Root
+    properties:
+      name:
+        description: the python package name
+      path:
+        description: >
+          path to package relative to the repo it depends on
+        default: ''
+      test:
+        description: >
+          path to root test package relative to [SELF, path]
+        default: ''
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          implementation: self.operations.pip.add_self_requirement
+          inputs:
+            package_path:
+              default: { get_attribute: [SELF, package_path] }
+      pip:
+        install:
+          implementation: self.operations.pip.install
+          inputs:
+            virtualenv_location:
+              default: { get_attribute: [SELF, virtualenv_location] }
+            package_path:
+              default: { get_attribute: [SELF, package_path] }
+      nose:
+        run:
+          implementation: self.operations.operations.nose_run
+          inputs:
+            virtualenv_location:
+              default: { get_attribute: [SELF, virtualenv_location] }
+            test_path:
+              default: { concat: [{ get_attribute: [SELF, package_path] }, '/',
+                                  { get_property: [SELF, test] }] }
+
+  requirements:
+    derived_from: cloudify.nodes.Root
+    properties:
+      requirements:
+        description: requirements that should get installed
+        default: []
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: self.operations.pip.add_requirements
+          inputs:
+            requirements:
+              default: { get_property: [SELF, requirements] }
+
+  package_installer:
+    derived_from: cloudify.nodes.Root
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: self.operations.pip.install_packages
+          inputs: {}
+
+  idea_project:
+    derived_from: cloudify.nodes.Root
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: self.operations.idea.create_idea_project
+          inputs:
+            virtualenv_name: {}
+
+relationships:
+
+  package_depends_on_repo:
+    derived_from: cloudify.relationships.depends_on
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        preconfigure:
+          implementation: self.operations.pip.configure_python_package_path
+          inputs:
+            repo_location:
+              default: { get_attribute: [TARGET, repo_location] }
+            base_package_path:
+              default: { get_property: [SOURCE, path] }
+
+  package_depends_on_virtualenv:
+    derived_from: cloudify.relationships.depends_on
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        preconfigure:
+          implementation: self.operations.pip.configure_virtualenv_location
+          inputs:
+            virtualenv_location:
+              default: { get_attribute: [TARGET, virtualenv_location] }
+
+  package_depends_on_package:
+    derived_from: cloudify.relationships.depends_on
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        preconfigure:
+          implementation: self.operations.pip.configure_package_dependency
+          inputs:
+            target_package_path:
+              default: { get_attribute: [TARGET, package_path] }
+
+  docs_site_depends_on_docs:
+    derived_from: cloudify.relationships.depends_on
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        postconfigure:
+          implementation: self.operations.operations.configure_docs_getcloudify_source
+          inputs:
+            docs_getcloudify_repo_location:
+              default: { get_attribute: [TARGET, repo_location] }
+
+node_templates:
+
+  repos_dir:
+    type: directory
+    properties:
+      location: { get_input: repos_dir }
+
+  virtualenv:
+    type: virtualenv
+    properties:
+      name: { get_input: virtualenv_name }
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          implementation: self.operations.pip.configure_virtualenv
+          inputs:
+            constraints: { get_input: constraints }
+            postactivate_resource_path: resources/postactivate
+            git_retag_cloudify_resource_path: resources/git-retag-cloudify
+            virtualenv_location: { get_attribute: [SELF, virtualenv_location] }
+            register_python_argcomplete: { get_input: register_python_argcomplete }
+    relationships:
+      - target: repos_dir
+        type: cloudify.relationships.depends_on
+
+  requirements:
+    type: requirements
+    properties:
+      requirements: { get_input: requirements }
+    relationships:
+      - target: virtualenv
+        type: package_depends_on_virtualenv
+
+  pre_package_installer:
+    type: package_installer
+    relationships:
+      - target: requirements
+        type: cloudify.relationships.depends_on
+      - target: virtualenv
+        type: cloudify.relationships.depends_on
+
+  package_installer:
+    type: package_installer
+    relationships:
+      - target: pre_package_installer
+        type: cloudify.relationships.depends_on
+
+  idea_project:
+    type: idea_project
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          inputs:
+            virtualenv_name: { get_property: [virtualenv, name] }
+
+workflows:
+  check_branch_exists:
+    mapping: self.operations.git.check_branch_exists
+    parameters:
+      branch: {}
+
+plugins:
+  self:
+    executor: central_deployment_agent
+    install: false
+
+outputs:
+  repositories:
+    value: { get_property: [repos_dir, location] }
+  virtualenv:
+    value: { get_attribute: [virtualenv, virtualenv_location] }

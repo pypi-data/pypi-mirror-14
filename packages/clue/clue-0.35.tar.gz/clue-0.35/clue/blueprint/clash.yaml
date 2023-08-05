@@ -1,0 +1,247 @@
+########
+# Copyright (c) 2016 GigaSpaces Technologies Ltd. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#        http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+############
+
+name: clue
+blueprint_path: cloudify-dev/blueprint.yaml
+user_config_path: { env: [CLUE_CONFIG_PATH, ~/.clue] }
+
+env_create:
+  args:
+    - name: [-d, --repos-dir]
+      help: where to clone stuff to
+      required: true
+    - name: --virtualenv-name
+      help: the virtualenwrapper virtualenv name to create/manage
+      default: cloudify
+    - name: --clone-method
+      choices: [https, ssh]
+      help: The clone method to be used when cloning GitHub repositories
+      default: https
+    - name: --organization
+      help: The default GitHub organization to use when cloning GitHub repositories
+      default: cloudify-cosmo
+  inputs:
+    repos_dir: { arg: repos_dir }
+    clone_method: { arg: clone_method }
+    virtualenv_name: { arg: virtualenv_name }
+    organization: { arg: organization }
+    features_file: { concat: [{ user_config: storage_dir }, '/features.yaml'] }
+
+hooks:
+  after_env_create: clue.hooks:after_env_create
+  before_init: clue.hooks:before_init
+
+templates:
+  - &zero_retries_task
+    retries: 0
+    retry_interval: 0
+  - &sequential_tasks
+    <<: *zero_retries_task
+    thread_pool_size: 1
+
+command_after_init_on_apply: install
+
+commands:
+  install:
+    workflow: install
+
+  feature:
+    list:
+      function: clue.feature:ls
+    create:
+      function: clue.feature:create
+      args:
+        - name: name
+          completer: clue.completion:features_completer
+        - name: [-b, --branch]
+          required: true
+        - name: --base
+    sync-repos:
+      function: clue.feature:sync_repos
+      args:
+        - name: [-n, --feature-name]
+          completer: clue.completion:features_completer
+    checkout:
+      function: clue.feature:checkout
+      args:
+        - name: name
+          completer: clue.completion:features_completer
+    deactivate:
+      function: clue.feature:deactivate
+    finish:
+      function: clue.feature:finish
+      args:
+        - name: [-n, --feature-name]
+          completer: clue.completion:features_completer
+    add-repo:
+      function: clue.feature:add_repo
+      args:
+        - name: repo
+          completer: clue.completion:repo_completer
+        - name: [-n, --feature-name]
+          completer: clue.completion:features_completer
+    remove-repo:
+      function: clue.feature:remove_repo
+      args:
+        - name: repo
+          completer: clue.completion:active_feature_repo_completer
+        - name: [-f, --force]
+          default: false
+        - name: [-n, --feature-name]
+          completer: clue.completion:features_completer
+    ci-status:
+      workflow: execute_operation
+      parameters:
+        operation: hub.ci_status
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+    compare:
+      workflow: execute_operation
+      parameters:
+        operation: hub.compare
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+    pull-request:
+      workflow: execute_operation
+      args:
+        - name: ['-f', '--file']
+        - name: ['-m', '--message']
+      parameters:
+        operation: hub.pull_request
+        operation_kwargs:
+          file: { arg: file }
+          message: { arg: message }
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+
+  pip:
+    install:
+      workflow: execute_operation
+      parameters:
+        operation: pip.install
+        run_by_dependency_order: true
+        type_names: [python_package]
+      event_cls: clue.output:NamedNodeEvent
+
+  git:
+    status:
+      args:
+        - name: [-a, --active]
+          help: only display active feature repos
+          default: false
+      task: *sequential_tasks
+      workflow: execute_operation
+      parameters:
+        operation: git.status
+        operation_kwargs:
+          active: { arg: active }
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+
+    diff:
+      args:
+        - name: [-r, --revision-range]
+          help: range to pass to git diff
+          default: ''
+        - name: [-a, --active]
+          help: only apply diff to active feature repos
+          default: false
+        - name: [-c, --cached]
+          help: pass --cached to underlying 'git diff' command
+          default: false
+      task: *sequential_tasks
+      workflow: execute_operation
+      parameters:
+        operation: git.diff
+        type_names: [git_repo]
+        allow_kwargs_override: true
+        operation_kwargs:
+          revision_range: { arg: revision_range }
+          active: { arg: active }
+          cached: { arg: cached }
+      event_cls: clue.output:NamedNodeEvent
+
+    pull:
+      workflow: execute_operation
+      parameters:
+        operation: git.pull
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+
+    squash:
+      task: *zero_retries_task
+      workflow: execute_operation
+      parameters:
+        operation: git.squash
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+
+    reset:
+      args:
+        - name: --origin
+          help: reset from this base
+          default: origin
+        - name: --hard
+          default: false
+      task: *zero_retries_task
+      workflow: execute_operation
+      parameters:
+        operation: git.reset
+        operation_kwargs:
+          origin: { arg: origin }
+          hard: { arg: hard }
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+
+    rebase:
+      task: *zero_retries_task
+      workflow: execute_operation
+      parameters:
+        operation: git.rebase
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+
+    checkout:
+      args:
+        - name: branch
+          help: branch name to checkout
+          completer: clue.completion:branches_completer
+      task: *zero_retries_task
+      workflow: execute_operation
+      parameters:
+        allow_kwargs_override: true
+        operation: git.checkout
+        operation_kwargs:
+          branch: { arg: branch }
+        type_names: [git_repo]
+      event_cls: clue.output:NamedNodeEvent
+
+  nose:
+    args:
+      - name: package
+        help: name of python package to run nosetests on
+        completer: clue.completion:package_completer
+    task: *sequential_tasks
+    workflow: execute_operation
+    parameters:
+      operation: nose.run
+      node_ids: [{ concat: [{ arg: package }, '-package'] }]
+    event_cls: clue.output:NoseEvent
+
+task:
+  retries: 5
+  retry_interval: 1
+  thread_pool_size: 20
