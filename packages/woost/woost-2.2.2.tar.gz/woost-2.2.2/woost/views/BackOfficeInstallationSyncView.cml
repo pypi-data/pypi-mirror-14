@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from woost import app
+from woost.models import File
+from woost.controllers.backoffice.useractions import \
+    add_view_action_context
+?>
+
+<py:woost.views.BackOfficeItemView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    sync_selection = ()
+    sync_request_error = None
+    incomming = None
+    modified = None
+    ?>
+
+    <?py
+    self.add_resource("/resources/scripts/BackOfficeInstallationSyncView.js")
+    add_view_action_context(self, "installation_sync")
+    ?>
+
+    <py:ready>
+        <?py
+        self.changes_exist = bool(self.incomming or self.modified)
+        ?>
+    </py:ready>
+
+    <py:with py:element="self.item_body">
+
+        <div
+            py:id="sync_request_error_report"
+            py:visible="@{self.sync_request_error is not None}">
+            @{translations("woost.views.BackOfficeInstallationSyncView.sync_request_error", error = self.sync_request_error)}
+        </div>
+
+        <div
+            py:id="no_changes_notice"
+            py:visible="@{not self.changes_exist and self.sync_request_error is None}">
+            ${translations("woost.views.BackOfficeInstallationSyncView.no_changes_notice")}
+        </div>
+
+        <section
+            py:id="incomming_section"
+            py:visible="@{bool(self.incomming)}">
+
+            <h1>@{translations("woost.views.BackOfficeInstallationSyncView.incomming_section")}</h1>
+
+            <ul py:local_id="item_list">
+                <py:ready>
+                    <li py:for="obj in self.incomming">
+                        <?py
+                        element.add_class("incomming_object")
+                        ?>
+                        <input
+                            py:local_id="item_check"
+                            type="checkbox"
+                            name="sync_selection"
+                            value="${obj.global_id}"
+                            checked="${obj.global_id in self.sync_selection}"/>
+
+                        <py:woost.views.ContentLink
+                            py:local_id="item_label"
+                            py:item="${obj}"
+                            py:icon_visible="${True}"
+                            py:image_factory="icon16"
+                            target="_blank">
+                            <?py
+                            @extend(element)
+                            def get_edit_url(item_label):
+                                return self.edited_item.url.rstrip("/") + "/cms/content/%s/fields" % item_label.item.global_id
+
+                            @extend(element)
+                            def create_icon(item_label):
+                                img = Element("img")
+                                img.add_class("icon")
+                                img["title"] = translations(item_label.item.__class__.__name__)
+                                img["src"] = self.edited_item.url.rstrip("/") + "/images/%s/%s" % (item_label.item.global_id, item_label.image_factory)
+                                return img
+                            ?>
+                        </py:woost.views.ContentLink>
+                    </li>
+                </py:ready>
+            </ul>
+        </section>
+
+        <section
+            py:id="modified_section"
+            py:visible="@{bool(self.modified)}">
+
+            <h1>@{translations("woost.views.BackOfficeInstallationSyncView.modified_section")}</h1>
+
+            <ul py:local_id="item_list">
+                <py:ready>
+                    <li py:for="change in self.modified.itervalues()">
+                        <?py
+                        element.add_class("modified_object")
+                        global_id = change['local'].global_id
+                        ?>
+                        <input
+                            py:local_id="item_check"
+                            type="checkbox"
+                            name="sync_selection"
+                            value="${global_id}"
+                            checked="${global_id in self.sync_selection}"/>
+                        <py:woost.views.ContentLink
+                            py:local_id="item_label"
+                            py:item="${change['local']}"
+                            py:icon_visible="${True}"
+                            py:image_factory="icon16"
+                            target="_blank"/>
+                        <py:woost.views.ObjectDiff
+                            py:local_id="object_diff"
+                            py:source="${change['local']}"
+                            py:target="${change['remote']}"
+                            py:changes="${change['diff']}">
+                            <py:with py:element="element.differences.header_row.previous_value">
+                                <?py element.empty() ?>
+                                ${translations("woost.views.BackOfficeInstallationSyncView.local_value")}
+                            </py:with>
+                            <py:with py:element="element.differences.header_row.new_value">
+                                <?py element.empty() ?>
+                                ${translations("woost.views.BackOfficeInstallationSyncView.remote_value", installation = self.edited_item)}
+                            </py:with>
+                            <?py
+                            @extend(element)
+                            def create_difference_row(object_diff, member, language):
+                                row = call_base(member, language)
+
+                                if member is File.file_hash:
+                                    row.member.empty()
+                                    row.member.append(translations("woost.views.BackOfficeInstallationSyncView.file_hash_diff_heading"))
+
+                                    # Link / thumbnail to the local file
+                                    local_file = object_diff.source
+                                    link = Element("a")
+                                    link["href"] = local_file.get_uri()
+                                    link["target"] = "_blank"
+                                    image = Element("img")
+                                    image["src"] = local_file.get_image_uri("backoffice_thumbnail")
+                                    link.append(image)
+                                    row.previous_value.empty()
+                                    row.previous_value.append(link)
+
+                                    # Link / thumbnail to the remote file
+                                    link = Element("a")
+                                    link["href"] = self.edited_item.url.rstrip("/") + "/" + local_file.global_id
+                                    link["target"] = "_blank"
+                                    image = Element("img")
+                                    image["src"] = self.edited_item.url.rstrip("/") + "/images/" + local_file.global_id + "/backoffice_thumbnail.png"
+                                    link.append(image)
+                                    row.new_value.empty()
+                                    row.new_value.append(link)
+
+                                return row
+                            ?>
+                        </py:woost.views.ObjectDiff>
+                    </li>
+                </py:ready>
+            </ul>
+        </section>
+
+        <div py:id="sync_buttons" py:visible="@{self.changes_exist}">
+            <button
+                py:id="sync_button"
+                type="submit"
+                name="sync_action"
+                value="sync">
+                ${translations("woost.views.BackOfficeInstallationSyncView.sync_button")}
+            </button>
+        </div>
+
+    </py:with>
+
+    <py:woost.views.Dialog
+        py:id="diff_dialog"
+        py:client_model="woost.views.BackOfficeInstallationSyncView.diffDialog"/>
+
+    <a
+        py:id="diff_dialog_button"
+        py:client_model="woost.views.BackOfficeInstallationSyncView.diffDialogButton"
+        href="javascript:">${translations("woost.views.BackOfficeInstallationSyncView.diff_dialog_button")}</a>
+
+    <div py:id="selection_controls"
+        py:client_model="woost.views.BackOfficeInstallationSyncView.selectionControls">
+        <a
+            py:id="select_all_button"
+            href="javascript:">${translations("woost.views.BackOfficeInstallationSyncView.select_all_button")}</a>
+        <a
+            py:id="select_none_button"
+            href="javascript:">${translations("woost.views.BackOfficeInstallationSyncView.select_none_button")}</a>
+    </div>
+
+</py:woost.views.BackOfficeItemView>

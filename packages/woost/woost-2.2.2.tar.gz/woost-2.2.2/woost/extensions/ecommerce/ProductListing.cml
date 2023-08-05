@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail import schema
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    products = ()
+    pagination = None
+    name_prefix = None
+    name_suffix = None
+    forms = None
+    currency = u"€"
+    _adapter = None
+    _adapted_schemas = None
+
+    def _get_adapted_schema(self, model, form):
+
+        if self._adapted_schemas is None:
+            self._adapted_schemas = {}
+
+        if self._adapter is None:
+            self._adapter = schema.Adapter()
+            self._adapter.implicit_copy = False
+
+        if model not in self._adapted_schemas:
+            adapted_schema = schema.Schema(form.form_id)
+
+            for member in model.get_options():
+                self._adapter.copy(member.name)
+
+            self._adapter.export_schema(model, adapted_schema)
+        else:
+            adapted_schema = self._adapted_schemas[model]
+
+        return adapted_schema
+
+    def create_entry(self, product, forms, product_index):
+        raise TypeError("%s doesn't implement the create_entry() method" % self)
+    ?>
+
+    <py:ready>
+        <?py
+        if not self.products and not self.pagination:
+            self.visible = False
+        ?>
+    </py:ready>
+
+    <py:woost.views.NotificationBox
+        py:id="product_added_notifications"
+        py:filter="product_added"/>
+
+    <ul py:id="product_list">
+        <py:ready>
+            <?py
+            if self.pagination:
+                sequence = self.pagination.current_page_items
+            else:
+                sequence = self.products
+
+            product_index = 0
+            ?>
+            <py:new
+                py:element="self.create_entry(product, self.forms, product_index)"
+                py:for="product in sequence">
+                <?py
+                element.depends_on(product)
+                product_index += 1
+                ?>
+            </py:new>
+        </py:ready>
+    </ul>
+
+    <py:cocktail.html.Pager
+        py:id="pager"
+        py:pagination="@{self.pagination}"
+        py:name_prefix="@{self.name_prefix}"
+        py:name_suffix="@{self.name_suffix}"/>
+
+    <py:woost.extensions.ecommerce.AddProductForm
+        py:def="add_product_form"
+        py:args="product, form"
+        py:product="${product}"
+        py:form="${form}"
+        method="post">
+
+        <py:with
+            py:element="element.product_added_notifications"
+            py:visible="${False}"/>
+
+        <?py
+        element.schema = self._get_adapted_schema(product.purchase_model, form)
+        if element.product is not form.product:
+            data = {}
+            element.schema.init_instance(data)
+            element.data = data
+        element.errors = schema.ErrorList()
+        ?>
+    </py:woost.extensions.ecommerce.AddProductForm>
+
+</div>
+
+
