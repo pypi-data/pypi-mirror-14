@@ -1,0 +1,352 @@
+#!python
+#
+# penny.py -- frontend to the molpy module
+#
+# Penny is a program designed to read Molcas HDF5 and INPORB formats, print the
+# orbitals (and other info) and store the wavefunction information in a range of
+# formats (Molcas HDF5, Molcas INPORB, Molden formatted file, Gaussian formatted
+# checkpoint file) The purpose of this program is to be able to use Molcas data
+# in other programs, connecting Molcas a wider world. This program is named
+# after Penny river in Alaska, connecting the land to the sea, and eventually to
+# the ocean.
+#
+# Copyright (c) 2016  Steven Vancoillie
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+# Written by Steven Vancoillie.
+#
+# Modified by Marcus Johansson to add SALC support.
+#
+
+
+import os
+import sys
+import argparse
+import numpy as np
+
+import molpy
+
+
+def argument_parser():
+    parser = argparse.ArgumentParser(
+        description="""
+        Orbital analysis for Molcas HDF5 files.
+        """)
+    parser.add_argument(
+        'infile',
+        type=str,
+        help='name of the Molcas INPORB/HDF5 input file'
+        )
+    parser.add_argument(
+        '-o',
+        '--outfile',
+        type=str,
+        help='name of the output file'
+        )
+    parser.add_argument(
+        '--joinorb',
+        type=str,
+        help='join with orbital file'
+        )
+    parser.add_argument(
+        '-c',
+        '--convert',
+        type=str,
+        choices=('inporb', 'inporb11', 'inporb20', 'h5', 'fchk', 'molden', 'moldengv'),
+        help='output format'
+        )
+    parser.add_argument(
+        '-f',
+        '--force',
+        action='store_true',
+        help='force output file overwrite'
+        )
+
+    parser.add_argument(
+        '-g',
+        '--guessorb',
+        action='store_true',
+        help='generate starting orbitals from a core-hamiltonian guess'
+        )
+
+    parser.add_argument(
+        '-n',
+        '--natorb',
+        action='store_true',
+        help='generate natural orbitals (use --root to specify states other than the first)'
+        )
+
+    parser.add_argument(
+        '--spinnatorb',
+        action='store_true',
+        help='generate spin natural orbitals (use --root to specify states other than the first)'
+        )
+
+    parser.add_argument(
+        '-r',
+        '--root',
+        type=int,
+        help='limit operations to a spicifc root (e.g. with --natorb)'
+        )
+
+    parser.add_argument(
+        '-s',
+        '--salcorb',
+        action='store_true',
+        help='generate starting orbitals from a core-hamiltonian guess and SALCs'
+        )
+
+    parser.add_argument(
+        '-p',
+        '--print_orbitals',
+        action='store_true',
+        help='print orbitals'
+        )
+    parser.add_argument(
+        '-q',
+        '--quick',
+        action='store_true',
+        help='quick print orbitals with default threshold and energy range'
+        )
+    parser.add_argument(
+        '--print_symmetry_species',
+        action='store_true',
+        help='print symmetry species'
+        )
+    parser.add_argument(
+        '-d',
+        '--desymmetrize',
+        action='store_true',
+        help='remove Molcas native symmetry handling from orbitals'
+        )
+    parser.add_argument(
+        '--symmetrize',
+        action='store_true',
+        help='symmetrize the orbitals'
+        )
+    parser.add_argument(
+        '--supsym',
+        action='store_true',
+        help='print a Molcas SUPSym input'
+        )
+    parser.add_argument(
+        '--mulliken',
+        action='store_true',
+        help='print a Mulliken population analysis'
+        )
+    parser.add_argument(
+        '--linewidth',
+        type=int,
+        default=10,
+        help='number of orbitals printed on a line'
+        )
+    parser.add_argument(
+        '-m',
+        '--match',
+        type=str,
+        help='only print basis functions with matching label'
+        )
+    parser.add_argument(
+        '-i',
+        '--index',
+        type=str,
+        nargs='*',
+        choices=('f', 'i', '1', '2', '3', 's', 'd'),
+        help='only print MOs with selected type ids'
+        )
+    parser.add_argument(
+        '-e',
+        '--erange',
+        type=float,
+        nargs=2,
+        help='only print MOs within the selected energy range'
+        )
+    parser.add_argument(
+        '-t',
+        '--threshold',
+        type=float,
+        help='only print basis functions with contributions over the threshold'
+        )
+
+    parser.add_argument(
+        '-v',
+        '--verbose',
+        action='store_true',
+        help='show informational messages'
+        )
+    parser.add_argument(
+        '-w',
+        '--warnings',
+        action='store_true',
+        help='show warning messages (e.g. about missing data)'
+        )
+
+    return parser
+
+
+
+def driver():
+    args = argument_parser().parse_args()
+
+    if args.quick:
+        args.print_orbitals = True
+        args.threshold = 0.1
+        args.erange = (-1.0, 0.5)
+
+    def check_outfile(outpath):
+        if os.path.isfile(outpath) and not args.force:
+            raise molpy.errors.UserError(
+                """
+                the requested output file already exists
+
+                To continue, please remove the file, use the
+                -f/--force option to overwrite the file, or
+                give another name with the -o/--outfile option
+                """)
+
+    if not os.path.isfile(args.infile):
+        print('The input file does not exist.')
+        sys.exit(1)
+    try:
+        wfn = molpy.Wavefunction.from_h5(args.infile)
+    except molpy.InvalidRequest:
+        try:
+            wfn = molpy.Wavefunction.from_inporb(args.infile)
+        except molpy.InvalidRequest:
+            print('You seem to be trying to read a file that is neither\n'
+                  'an HDF5 or INPORB file, or it does not exist.')
+            sys.exit(1)
+
+    if args.desymmetrize:
+        try:
+            wfn.destroy_native_symmetry()
+        except molpy.DataNotAvailable as e:
+            print(e)
+            sys.exit(1)
+
+    base, ext = os.path.splitext(args.infile)
+
+    if not args.joinorb is None:
+        if not os.path.isfile(args.joinorb):
+            print('The orbital file to join does not exist.')
+            sys.exit(1)
+        try:
+            orb = molpy.Wavefunction.from_inporb(args.joinorb)
+        except molpy.InvalidRequest:
+            print('You seem to be trying to read a file that is not\n'
+                  'an INPORB file, or it does not exist.')
+            sys.exit(1)
+
+        for key in orb.mo.keys():
+            orb.mo[key].basis_set = wfn.mo[key].basis_set
+
+        wfn.mo = orb.mo
+        wfn.n_sym = orb.n_sym
+        wfn.n_bas = orb.n_bas
+
+
+
+    if args.salcorb:
+        wfn = wfn.salcorb()
+
+    if args.guessorb:
+        try:
+            wfn.mo = wfn.guessorb()
+        except molpy.DataNotAvailable as e:
+            print(e)
+            sys.exit(1)
+
+    if args.natorb:
+        if args.root:
+            wfn.mo['restricted'] = wfn.natorb(root=args.root)
+        else:
+            wfn.mo['restricted'] = wfn.natorb()
+
+    if args.spinnatorb:
+        if args.root:
+            wfn.mo['restricted'] = wfn.spinnatorb(root=args.root)
+        else:
+            wfn.mo['restricted'] = wfn.spinnatorb()
+
+    if args.symmetrize:
+        wfn = wfn.symmetrize()
+
+    if args.convert:
+        outpath = args.outfile or '.'.join((base, args.convert))
+        if os.path.isfile(outpath) and not args.force:
+            print('The requested output file already exists.\n'
+                  'To continue, please remove the file, use the\n'
+                  '-f/--force option to overwrite the file, or\n'
+                  'give another name with the -o/--outfile option.')
+            sys.exit(1)
+        FileFormat = {
+            'h5': molpy.MolcasHDF5,
+            'inporb': molpy.MolcasINPORB,
+            'inporb11': molpy.MolcasINPORB11,
+            'inporb20': molpy.MolcasINPORB20,
+            'molden': molpy.MolcasMOLDEN,
+            'moldengv': molpy.MolcasMOLDENGV,
+            'fchk': molpy.MolcasFCHK,
+            }
+        f = FileFormat[args.convert](outpath, 'w')
+        try:
+            f.write(wfn)
+        except molpy.DataNotAvailable as e:
+            print(e)
+            sys.exit(1)
+        f.close()
+
+    if args.root:
+        print('Analysis for root {:d}'.format(args.root))
+
+    if args.print_orbitals:
+        try:
+            wfn.print_orbitals(
+                types=args.index,
+                pattern=args.match,
+                erange=args.erange,
+                threshold=args.threshold,
+                order='molcas')
+        except molpy.DataNotAvailable:
+            wfn.print_orbitals(
+                types=args.index,
+                pattern=args.match,
+                erange=args.erange,
+                threshold=threshold)
+
+    if args.print_symmetry_species:
+        print('Molecular Orbital Symmetry Species')
+        wfn.print_symmetry_species(types=args.index, pattern=args.match)
+
+    if args.supsym:
+        for kind in wfn.mo.keys():
+            orbitals = wfn.mo[kind]
+            irreps = np.unique(orbitals.irreps)
+            print('SUPSym')
+            print(len(irreps))
+            for irrep in irreps:
+                mo_set, = np.where(orbitals.irreps == irrep)
+                print(len(mo_set), '  ', *(1+mo_set))
+
+    if args.mulliken:
+        labels = wfn.basis_set.center_labels
+        coords = wfn.basis_set.center_coordinates
+        charges = wfn.mulliken_charges()
+        for center, coord, charge in zip(labels, coords, charges):
+            print('{:10s} {:f} {:f} {:f} {:f}'.format(center, coord, charge))
+
+if __name__ == '__main__':
+    driver()
