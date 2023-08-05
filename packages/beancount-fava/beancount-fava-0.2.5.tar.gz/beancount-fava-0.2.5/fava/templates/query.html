@@ -1,0 +1,92 @@
+{% extends "_layout.html" %}
+{% set active_page = 'query' %}
+{% set show_filters = False %}
+
+{% block javascript %}{% include "javascript/_editor.html" %}{% endblock %}
+
+{% block content %}
+    <h1>Custom Query (via <code>bean-query</code>)</h1>
+
+    <p class="description">
+        You can run custom querys (BQL) like with the <code>bean-query</code> tool. For a detailed explanation of how queries can be created see the <a href="http://furius.ca/beancount/doc/query">Beancount Query Lanugage Reference</a>, or more generally, the <a href="http://furius.ca/beancount/doc/index">Beancount Documentation Overview</a>.
+
+        Sample queries can be found <a href="http://aumayr.github.io/beancount-sql-queries/">here</a> (please submit your own queries if they might be useful for others).
+    </p>
+
+    {% if api.queries()|length == 0 %}
+        <p class="description">
+            If add <code>query</code>-Directives to your <a href="{{ url_for('source') }}">Source</a> these stored queries will be displayed as a dropdown to quickly select them.
+        </p>
+    {% else %}
+        <div class="stored-queries">
+            <label for="stored-queries">Load stored query:</label>
+            <select id="stored-queries">
+                <option value=""></option>
+                {% for query in api.queries() %}
+                    <option value="{{ url_for('get_stored_query', stored_query_hash=query['hash']) }}" data-stored-query-hash="{{query['hash']}}"{% if query['hash'] == query_hash %} selected="selected"{% endif %}>{{ query['name'] }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    {% endif %}
+
+    <form action="{{ url_for('query') }}" method="get">
+        <div class="editor-wrapper editor-wrapper-query">
+            <div class="editor" id="editor-query"><pre><code>{{ query or '' }}</code></pre></div>
+        </div>
+    </form>
+    <form class="editor-save editor-save-query" action="{{ url_for('query') }}" method="get">
+        <input type="submit" value="Submit Query">
+    </form>
+
+    {% if not error and not result %}
+        <div class="sample">
+            <h3>Sample Queries:</h3>
+            <ul>
+                <li><a href="{{ url_for('query', bql="balances from year = 2014") }}"><code>balances from year = 2014</code></a></li>
+                <li><a href="{{ url_for('query', bql="SELECT last(date) as last_date, cost(sum(position)) as cost;") }}"><code>SELECT last(date) as last_date, cost(sum(position)) as cost;</code></a></li>
+                <li><a href="{{ url_for('query', bql="SELECT date, account, position, balance WHERE account ~ 'Travel';") }}"><code>SELECT date, account, position, balance WHERE account ~ 'Travel';</code></a></li>
+                <li><a href="http://aumayr.github.io/beancount-sql-queries/">More sample queries</a>
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if error %}
+        <h3>Result</h3>
+        <p class="error">
+            {{ error }}
+        </p>
+    {% endif %}
+
+    {% if result %}
+        <h3>Result</h3>
+        <div class="queryresults-wrapper">
+            <p class="download">
+                Download as
+                <a class="download-csv" href="{{ url_for('query', bql=query, query_hash=query_hash, result_format='csv') }}">CSV</a>,
+                <a class="download-csv" href="{{ url_for('query', bql=query, query_hash=query_hash, result_format='xls') }}">XLS</a>,
+                <a class="download-csv" href="{{ url_for('query', bql=query, query_hash=query_hash, result_format='xlsx') }}">XLSX</a> or
+                <a class="download-csv" href="{{ url_for('query', bql=query, query_hash=query_hash, result_format='ods') }}">ODS</a>
+            </p>
+            <table class="queryresults sortable">
+                <thead>
+                    <tr>
+                        {% for name, type in result.0 %}
+                            <th>{{ name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in result.1 %}
+                        <tr>
+                            {% for name, type in result.0 %}
+                                {% with value = row[name]  %}
+                                    {% include "queryresults/_querycell.html" %}
+                                {% endwith %}
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endblock %}
