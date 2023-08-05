@@ -1,0 +1,358 @@
+#!/usr/bin/env python
+"""
+SNMP agent to check bind statistics files
+"""
+
+import json
+import os
+import re
+
+from collections import OrderedDict
+from datetime import datetime
+from subprocess import Popen, PIPE
+from systematic.process import Processes
+
+from seine.snmp.agent import SNMPAgent, Item
+
+NAMED_STATS_PATHS = (
+    '/var/db/named/named.stats',
+    '/var/stats/named/named.stats',
+)
+
+# Use BAYOUR-COM-MIB.txt
+OID_PREFIX = '1.3.6.1.4.1.8767'
+
+RE_DUMP_START = re.compile('^\+\+\+ Statistics Dump \+\+\+ \((?P<timestamp>\d+)\)$')
+RE_DUMP_END = re.compile('^--- Statistics Dump --- \((?P<timestamp>\d+)\)$')
+RE_SECTION_HEADER = re.compile('^\+\+ (?P<name>.*) \+\+$')
+RE_VIEW_HEADER = re.compile('^\[View: (?P<name>.*)\]$')
+
+DOMAIN_KEY_PREFIX = 'queries resulted in '
+
+SECTION_NAME_MAP = {
+    'Cache DB RRsets': 'cache_db_rrsets',
+    'Incoming Requests': 'incoming_requests',
+    'Incoming Queries': 'incoming_queries',
+    'Outgoing Queries': 'outgoing_queries',
+    'Resolver Statistics': 'resolver_statistics',
+    'Socket I/O Statistics': 'socket_io_statistics',
+    'Name Server Statistics': 'nameserver_statistics',
+    'Per Zone Query Statistics': 'zone_query_statistics',
+}
+
+RESULT_KEY_MAP = {
+    'responses with EDNS(0) sent': 'edns_responses_sent',
+    'requests with EDNS(0) received': 'ends_requests_received',
+    'duplicate queries received': 'duplicate_queries',
+    'truncated responses sent': 'truncated_responses_sent',
+    'truncated responses received': 'truncated_responses_received',
+    'TCP requests received': 'tcp_requests',
+    'queries resulted in nxrrset': 'nxrrset',
+    'queries resulted in NXDOMAIN': 'nxdomain',
+    'responses sent': 'responses',
+    'queries resulted in authoritative answer': 'authoritative',
+    'queries resulted in successful answer': 'success',
+    'queries caused recursion': 'recursion',
+    'queries resulted in non authoritative answer': 'non_authoritative',
+    'IPv4 requests received': 'ipv4_requests',
+    'queries resulted in SERVFAIL': 'servfail',
+    'QUERY': 'queries',
+    'IPv6 NS address fetches': 'ipv6_ns_address_fetches',
+    'IPv4 NS address fetches': 'ipv4_ns_address_fetches',
+    'IPv6 responses received': 'ipv6_responses_received',
+    'IPv4 NS address fetch failed': 'ipv4_ns_address_fetch_fail',
+    'IPv6 NS address fetch failed': 'ipv6_ns_address_fetch_fail',
+    'IPv6 queries sent': 'ipv6_queries_sent',
+    'IPv4 queries sent': 'ipv4_queries_sent',
+    'IPv4 responses received': 'ipv4_responses_received',
+    'queries with RTT < 10ms': 'rtt_10ms',
+    'queries with RTT 10-100ms': 'rtt_10_100ms',
+    'queries with RTT 100-500ms': 'rtt_100_500ms',
+    'queries with RTT 500-800ms': 'rtt_500_800ms',
+    'queries with RTT 800-1600ms': 'rtt_800_1600ms',
+    'NXDOMAIN received': 'nxdomain_received',
+    'other errors received': 'other_errors_received',
+    'query retries': 'query_retries',
+    'query timeouts': 'query_timeouts',
+    'EDNS(0) query failures': 'ends_query_failures',
+    'lame delegations received': 'lame_delegations_received',
+    'FORMERR received': 'formerr_received',
+    'SERVFAIL received': 'servfail_received',
+}
+
+
+class BindStatisticsCounterGroup(dict):
+    def __init__(self, name):
+        self.name = name
+
+    def split_counter_line(self, line):
+        try:
+            value, key = line.strip().split(None, 1)
+            value = int(value)
+            return key, value
+        except ValueError:
+            raise ValueError('Error parsing counters from line {0}'.format(line))
+
+    def parse_counter(self, line):
+        key, value = self.split_counter_line(line)
+
+        if key in RESULT_KEY_MAP:
+            key = RESULT_KEY_MAP[key]
+        else:
+            key = key.replace(' ', '_').replace('/','_').lower()
+
+        self[key] = value
+
+
+class BindDomainCounters(BindStatisticsCounterGroup):
+    def __init__(self, section, name):
+        super(BindDomainCounters, self).__init__(name)
+        self.section = section
+        self.section[self.name] = self
+
+    def parse_counter(self, line):
+        key, value = self.split_counter_line(line)
+
+        if key[:len(DOMAIN_KEY_PREFIX)] == DOMAIN_KEY_PREFIX:
+            key = key[len(DOMAIN_KEY_PREFIX):]
+
+        if key.split()[-1] == 'answer':
+            key = ' '.join(key.split()[:-1])
+
+        self[key] = value
+
+
+class BindView(BindStatisticsCounterGroup):
+    def __init__(self, section, name):
+        super(BindView, self).__init__(name)
+        self.section = section
+        if 'views' not in self.section:
+            self.section['views'] = {}
+        self.section['views'][self.name] = self
+
+
+class BindStatisticsSection(BindStatisticsCounterGroup):
+    def __init__(self, dump, name):
+        super(BindStatisticsSection, self).__init__(name)
+        self.dump = dump
+
+        if name in SECTION_NAME_MAP:
+            name = SECTION_NAME_MAP[name]
+
+        self.dump.sections[name] = self
+
+
+class BindStatisticsDump(object):
+    def __init__(self, counters, timestamp):
+        self.counters = counters
+        self.updated = datetime.utcfromtimestamp(long(timestamp))
+        self.sections = {}
+
+    def __cmp__(self, other):
+        return cmp(self.updated, other.updated)
+
+    def to_json(self):
+        return json.dumps(
+            {
+                'updated': self.updated.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'status': self.counters.agent.status,
+                'statistics': self.sections,
+            },
+            indent=2,
+        )
+
+
+class BindStatisticsCounters(object):
+    def __init__(self, agent, path):
+        self.agent = agent
+        self.path = path
+        self.dumps = []
+        self.load()
+
+    def parse_lines(self, lines):
+
+        dump = None
+        section = None
+        view = None
+        domain = None
+
+        for line in lines:
+            m = RE_DUMP_START.match(line)
+            if m:
+                dump = BindStatisticsDump(self, **m.groupdict())
+                section = None
+                view = None
+                domain = None
+                yield dump
+                continue
+
+            m = RE_SECTION_HEADER.match(line)
+            if m:
+                section = BindStatisticsSection(dump, **m.groupdict())
+                view = None
+                domain = None
+                continue
+
+            m = RE_VIEW_HEADER.match(line)
+            if m:
+                view = BindView(section, **m.groupdict())
+                domain = None
+                continue
+
+            if RE_DUMP_END.match(line):
+                dump = None
+                section = None
+                view = None
+                domain = None
+                continue
+
+            if section.name == 'Per Zone Query Statistics':
+                if line.startswith('[') and line.endswith(']'):
+                    domain = BindDomainCounters(section, line.strip('[]'))
+                    continue
+
+                if domain is not None:
+                    domain.parse_counter(line)
+
+            elif line == '[Common]':
+                continue
+
+            elif view is not None:
+                view.parse_counter(line)
+
+            elif section is not None:
+                section.parse_counter(line)
+
+    def load(self):
+        self.dumps = []
+
+        try:
+            with open(self.path, 'r') as fd:
+                for entry in self.parse_lines([line.strip() for line in fd.readlines()]):
+                    self.dumps.append(entry)
+
+        except IOError, (ecode, emsg):
+            return
+        except OSError, (ecode, emsg):
+            return
+
+        self.dumps.sort()
+
+
+    def purge_empty_keys(self):
+        for dump in self.dumps:
+            for name, section in dump.sections.items():
+                if not section:
+                    del dump.sections[name]
+                    continue
+
+                for name, entry in section.items():
+                    if not entry:
+                        del section[name]
+
+                if 'views' in section:
+                    for name, entry in section['views'].items():
+                        if not entry:
+                            del section['views'][name]
+
+
+class BindStatus(dict):
+    """Bind status
+
+    Parse rndc status and process arguments outputs
+    """
+    def __init__(self):
+
+        processes = [p for p in Processes() if p.basename in ["named"]]
+        if len(processes) == 1:
+            process = processes[0]
+            self['server'] = {
+                'pid': process.pid,
+                'uid': process.uid,
+                'vsz': process.vsz,
+                'rss': process.rss,
+                'command': process.command,
+            }
+        else:
+            self['server'] = None
+
+        p = Popen(['rndc', 'status'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        stdout, stderr = p.communicate()
+
+        if p.returncode == 0:
+
+            for line in stdout.splitlines():
+                try:
+                    key, value = [v.strip() for v in line.split(':', 1)]
+                except ValueError:
+                    continue
+
+                try:
+                    value = int(value)
+                except ValueError:
+                    pass
+
+                if key == 'tcp clients':
+                    fields = value.split('/')
+                    value = {
+                        'current': int(fields[0]),
+                        'hard_limit': int(fields[1]),
+                    }
+
+                if key == 'recursive clients':
+                    fields = value.split('/')
+                    value = {
+                        'current': int(fields[0]),
+                        'soft_limit': int(fields[1]),
+                        'hard_limit': int(fields[2]),
+                    }
+
+                self[key] = value
+
+        else:
+            self['status'] = 'error running rndc status'
+            self['error'] = stderr
+
+
+class BindStatisticsAgent(SNMPAgent):
+    def __init__(self):
+        super(BindStatisticsAgent, self).__init__(OID_PREFIX, reload_interval=60)
+
+        self.index_tree = self.register_tree('{0}.1'.format(OID_PREFIX))
+        self.versions_tree = self.register_tree('{0}.2'.format(OID_PREFIX))
+        self.names_tree = self.register_tree('{0}.3'.format(OID_PREFIX))
+
+    def discover_named_stats_path(self):
+        for path in NAMED_STATS_PATHS:
+            if os.path.isfile(path) and os.access(path, os.R_OK):
+                return path
+        return None
+
+    def parse_args(self):
+        args = super(BindStatisticsAgent, self).parse_args()
+        if args.path is None:
+            args.path = self.discover_named_stats_path()
+        return args
+
+    def reload(self):
+        self.parse_args()
+        self.clear()
+
+        self.status = BindStatus()
+
+        if self.args.path is None:
+            return None
+
+        counters = BindStatisticsCounters(self, self.args.path)
+        counters.purge_empty_keys()
+
+        if not counters.dumps:
+            return
+
+        print counters.dumps[-1].to_json()
+
+
+agent = BindStatisticsAgent()
+agent.add_argument('--path', help='Path to named.stats file')
+agent.reload()
+agent.run()
