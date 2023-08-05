@@ -1,0 +1,52 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+require "fileutils"
+
+ENV["VAGRANT_DEFAULT_PROVIDER"] ||= "docker"
+
+Vagrant.require_version ">= 1.6.0"
+
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.define "hadoop-master" do |master|
+    master.vm.provider "docker" do |docker|
+      docker.image = "teradatalabs/cdh5-hive"
+      docker.name = 'hadoop-master'
+      docker.ports = [ "10000:10000", "8088:8088", "50075:50075", "50070:50070" ]
+      docker.create_args = ["--memory=2048M"]
+    end
+    master.vm.hostname = "hadoop-master"
+  end
+
+  config.vm.define "presto-master" do |master|
+    master.vm.provider "docker" do |docker|
+      docker.image = "teradatalabs/presto-dev-env"
+      docker.name = "presto-master"
+      docker.ports = [ "8080:8080"]
+      docker.link("hadoop-master:hadoop-master")
+      docker.cmd = ["/presto/bin/launcher-wrapper.sh",
+                    "master",
+                    "-Dnode.id=presto-master",
+                    "run"]
+    end
+    master.vm.hostname = "presto-master"
+  end
+
+  (1..2).each do |i|
+    config.vm.define "presto-worker-#{i}" do |worker|
+      worker.vm.provider "docker" do |docker|
+        docker.image = "teradatalabs/presto-dev-env"
+        docker.name = "presto-worker-#{i}"
+        docker.link("hadoop-master:hadoop-master")
+        docker.link("presto-master:presto-master")
+        docker.cmd = ["/presto/bin/launcher-wrapper.sh",
+                      "worker",
+                      "-Dnode.id=presto-worker-#{i}",
+                      "run"]
+      end
+      worker.vm.hostname = "presto-worker-#{i}"
+    end
+  end
+end
