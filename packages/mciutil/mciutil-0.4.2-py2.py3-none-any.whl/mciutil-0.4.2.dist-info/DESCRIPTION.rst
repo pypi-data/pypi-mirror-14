@@ -1,0 +1,64 @@
+=========================
+MasterCard file utilities
+=========================
+
+.. image:: https://img.shields.io/travis/adelosa/mciutil.svg
+        :target: https://travis-ci.org/adelosa/mciutil
+
+.. image:: https://img.shields.io/pypi/v/mciutil.svg
+        :target: https://pypi.python.org/pypi/mciutil
+
+.. image:: https://coveralls.io/repos/adelosa/mciutil/badge.svg?branch=feature%2Fupdate-travis-ci-settings&service=github
+        :target: https://coveralls.io/github/adelosa/mciutil?branch=feature%2Fupdate-travis-ci-settings
+
+
+Set of command line utilities to work with various MasterCard files.
+
+* Free software: BSD license
+* Documentation: https://mciutil.readthedocs.org.
+
+Features
+--------
+
+Provides the following command line utilities:
+
+* paramconv: Utility for working with MasterCard MPE parameter extract files
+* mideu: Utility for working with MasterCard IPM files
+
+
+
+
+History
+=======
+0.4.2 (2016-03-13)
+------------------
+* Complete data elements added to default config.
+* Added versioneer support for easier package versions
+
+0.4.1 (2015-12-16)
+------------------
+* Additional data elements added to default config file.
+
+0.4.0 (2015-10-05)
+------------------
+* Now supporting python 2.6 (for all those still using RHEL 6)
+* Headers rows in mideu csv extracts don't work in 2.6
+
+0.3.0 (2015-10-03)
+------------------
+* added sub commands for mideu
+* mideu now supports IPM encoding conversion between ascii and ebcdic
+* Now faster using list comps instead of slow loops
+
+0.2.0 (2015-08-28)
+------------------
+* Support for config override for mideu - see usage doco
+* Progress bar while using mideu.. it takes a while
+* Now supports python 3.4, 3.5 and 2.7. Upgrade if you are using 2.6
+* New usage documentation
+
+0.1.0 (2015-08-20)
+------------------
+* First release.
+
+
