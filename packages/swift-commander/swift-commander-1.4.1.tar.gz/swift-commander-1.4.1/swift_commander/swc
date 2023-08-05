@@ -1,0 +1,1315 @@
+#! /bin/bash
+#  * Swift Commander *
+#  wrapper for python-swiftclient and curl that implements 
+#  toolset similar to known unix file system tools for easy
+#  interaction with the openstack swift object store 
+# 
+#  to do:
+#  * swc upload: dynmically adjust --segment-size to max performance
+#
+#  * V2 auth with tenants, currently using "eval swift auth"
+#  json=`curl -s -d '{"auth":{"passwordCredentials":{"username": "Swift__ADM_SciComp", "password": "RshBF0tLMuL0eEVS6jYB9pLED"},"tenantName": "AUTH_Swift__ADM_SciComp"}}' -H "Content-Type: application/json" https://tin.fhcrc.org/auth/v2.0/tokens`
+#  authtoken=`echo $json | jq -r '.access.token.id' - `
+#  storageurl=`echo $json | jq -r '.access.serviceCatalog[0].endpoints[0].publicURL' - `
+#
+
+scriptname=${0##*/}
+cwd=$(pwd)
+commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash arch unarch chgrp rw ro env auth search'
+
+### user definded functions ###
+echoerr(){
+  # echo to stderr instead of stdout
+  echo -e "$@" 1>&2
+}
+pathexist(){
+  if ! [[ -e $1 ]]; then
+    echoerr "Error: path '$1' does not exist\n"
+    exit
+  fi
+}
+printcommands(){
+  local pref=""
+  local cmdlist=""
+  if [[ "$scriptname" == "swc" ]]; then
+    pref="swc "
+  else
+    pref="sw-"
+  fi
+  for mycmd in $commands; do
+    cmdlist+="$pref$mycmd, "
+  done
+  echo $cmdlist
+}
+argexist(){
+if [[ -z $1 || "$1" == "--help" ]]; then
+  echoerr "\nusage: $scriptname $subcmd </file>"
+  echoerr "     ->   open file from swift object store\n"
+  echoerr "also please check these commands:"
+  printcommands
+  exit
+fi
+}
+splitpath(){
+  # splitting a standard path into container and object
+  # "splitpath input:$1"
+  local p="$1"
+  p=${p#./} # remove leading dot + slash
+  if [[ "$p" != /* ]]; then  # if folder does not start with a slash it's relative
+    #echo nostart
+    local c=`cat ~/.swift/current_folder_${swifttenant}`
+    if [[ "$c" == "/" ]]; then p=$c$p; else p=$c/$p; fi
+    #echo "rel p:$p"
+  fi
+  #echo "new p:$p"
+  cont=${p#/} # remove leading slash
+  cont=${cont%%/*} # #extract first/root dir
+  obj=${p#/} # remove leading slash
+  if [[ "$obj" =~ "/" ]]; then  # if path contains a slash 
+    obj=${obj#*/} # remove first/root dir from string
+  else
+    obj=""
+  fi
+  #echoerr "splitpath output: cont:$cont obj:$obj"
+}
+tempset() {
+  # custom script to create TMPDIR based on avail. of ssd, space, etc
+  if [[ tempcfg -gt 0 ]]; then
+    return
+  fi
+  if hash fhmktemp 2>/dev/null; then
+    export TMPDIR=`fhmktemp`
+  fi
+  if [[ -z $TMPDIR ]]; then
+    TMPDIR=`mktemp -d --tmpdir=/tmp $USER.XXXXX`
+  fi
+  tempcfg=1
+}
+urlencode() {
+    local data
+    data="$(curl -s -o /dev/null -w %{url_effective} --get --data-urlencode "$1" "")"
+    echo "${data##/?}"
+}
+arrayContains () { 
+  local array="$1[@]"
+  local seeking=$2
+  local in=1
+  for element in "${!array}"; do
+    if [[ $element == $seeking ]]; then
+      in=0
+      break
+    fi
+  done
+  return $in
+}
+swiftCreds() {
+  if ! [[ -z $OS_USERNAME ]]; then
+    swiftauthver="v2"
+    swifttenant=$OS_TENANT_NAME
+    swiftaccount=$OS_USERNAME
+    swiftpassword=$OS_PASSWORD
+    swiftauthurl=$OS_AUTH_URL
+  elif ! [[ -z $ST_USER ]]; then
+    swiftauthver="v1"
+    swifttenant="AUTH_$ST_USER"
+    swiftaccount=$ST_USER
+    swiftpassword=$ST_KEY
+    swiftauthurl=$ST_AUTH
+  elif ! [[ -z $OS_AUTH_URL ]]; then
+    swiftauthurl=$OS_AUTH_URL
+  else 
+    swiftauthurl=$ST_AUTH
+  fi
+}
+findRealUser() {
+  # get the real username, if script is run via sudo or su -
+  local thisPID=$$
+  local origUser=`whoami`
+  local thisUser=$origUser
+  local ARR=()
+  local myPPid=""
+  if [[ "$origUser" != "root" ]]; then
+    echo $origUser
+    return 0
+  fi
+  while [ "$thisUser" = "$origUser" ]; do
+    ARR=($(ps h -p$thisPID -ouser,ppid;))
+    thisUser="${ARR[0]}"
+    myPPid="${ARR[1]}"
+    thisPID=$myPPid
+    if [[ $thisPID == 0 ]]; then break ;fi
+  done
+  getent passwd "$thisUser" | cut -d: -f1
+}
+nicspeed() { 
+	local iface
+	local interface
+	local speed
+	local retcode
+	if [[ -f /sys/class/net/bonding_masters ]]; then 
+	    iface=$(head -n1 /sys/class/net/bonding_masters)
+	else
+	    for interface in $(ls /sys/class/net/ | grep -v lo); do
+	        if [[ $(cat /sys/class/net/$interface/operstate) == "up" ]]; then
+	            iface=$interface
+	        fi
+	    done
+	fi 
+	if [[ -n $iface ]]; then 
+	    speed=$(cat /sys/class/net/$iface/speed 2>/dev/null)
+	    retcode=$?
+	    if [[ $retcode = 0 ]]; then
+	        echo $speed
+	    else
+	        echo 0
+	    fi
+	else
+	    echo 0
+	fi
+}
+HTTPGetHeader () {
+  local old=$(shopt -p extglob)
+  shopt -s extglob # Required to trim whitespace; see below
+  while IFS=':' read key value; do
+    # trim whitespace in "value"
+    value=${value##+([[:space:]])}; value=${value%%+([[:space:]])}
+    case "$key" in
+        X-Static-Large-Object) head_slo="$value"
+                ;;
+        Content-Type) head_ct="$value"
+                ;;
+        Content-Length) head_cl="$value"
+                ;;
+        HTTP*) read PROTO http_status MSG <<< "$key{$value:+:$value}"
+                ;;
+     esac
+  done < <(curl -s --head -H "X-Auth-Token: ${OS_AUTH_TOKEN}" "${OS_STORAGE_URL}{$1}")
+  if ! [[ $? = 0 ]]; then
+    echoerr "Error executing 'curl' command to ${1}"
+    exit
+  fi  
+  eval "$old"
+  #echo $http_status
+  #echo $head_slo
+  #echo $head_ct
+  #echo $head_cl
+}
+
+openwith () {
+  if [[ -z $1 || -z $2 ]]; then
+    local app="<app>"
+    if [[ -n $1 ]]; then
+      app=$1
+    fi
+    echoerr "\nusage: $scriptname $app </file or /folder>"
+    echoerr "     ->   open file from swift object store with application\n"
+    echoerr "also please check these commands:"
+    printcommands
+    exit
+  fi
+  splitpath "$2"
+  tempset
+  target_local=$(swc download "$2" $TMPDIR | tail -n1)
+  if [[ -d "$target_local" ]]; then
+    echoerr "\n$2 is not a single file, multiple files " \
+		     "were downloaded and saved in\n"
+    echo $target_local
+  else
+    local before=$(stat -c %Y "$target_local")
+    $1 "$target_local"
+    local after=$(stat -c %Y "$target_local")
+    if ! [[ "$before" == "$after" ]]; then
+      # file was modified offer to upload to original location
+      echoerr "\nWARNING: File \"${target_local}\" has changed, please don't forget to upload the file using this command:"
+      echoerr "swc upload \"${target_local}\" \"/${cont}/${obj}\""
+      local plainfile=$(basename "${target_local}")
+      read -p "Do you want to upload \"${plainfile}\" now? (Y/N)" -n 1 -r
+	  if [[ $REPLY =~ ^[Yy]$ ]]; then
+        swc upload "${target_local}" "/${cont}/${obj}"
+      else
+        echoerr "\n"
+      fi
+    fi
+  fi
+}
+
+checkAuthToken () {  
+  local file=~/.swift/auth_token_${swiftauthver}_${swifttenant}
+  local maxage=$((24*60*60)) # seconds in a day, token is good for 24h
+  local fileage=$(($(date +%s) - $(stat -c '%Y' "$file")))
+  test $fileage -ge $maxage && {
+    ### new method using swift client 2.5
+    if [[ -z $OS_AUTH_TOKEN || -z $OS_STORAGE_URL ]]; then
+      if [[ -z $swiftpassword ]]; then        
+        read -t 60 -p "Enter your swift password/key for $swiftaccount: " -s mypass
+        if [[ -z $mypass ]]; then 
+          exit
+        fi      
+        if [[ -n $OS_USERNAME ]]; then
+          export OS_PASSWORD=$mypass
+        elif [[ -n $ST_USER ]]; then
+          export ST_KEY=$mypass
+        else
+          echoerr "no credentials set"
+        fi
+      fi
+    fi
+    echoerr "\nRefreshing credentials ....please wait"
+    eval `swift auth`
+    if [[ -n $OS_AUTH_TOKEN ]]; then
+      echo $OS_AUTH_TOKEN > $file
+    else
+      echoerr "Environment var OS_AUTH_TOKEN could not be set."
+    fi
+    if [[ -n $OS_STORAGE_URL ]]; then
+      echo $OS_STORAGE_URL > ~/.swift/storageurl_${swifttenant}
+    else
+      echoerr "Environment var OS_STORAGE_URL could not be set."
+    fi
+  }
+}
+
+############## main  script ##############################3
+red=$(tput setaf 1)      # set font color
+yellow=$(tput setaf 2)   # set font color
+blue=$(tput setaf 4)     # set font color
+endcolor=$(tput sgr0)    # reset the foreground colour
+oldifs=$IFS              # gets the current internal field seperator, default:  $IFS=$' \t\n'
+if [[ -z $oldifs ]]; then
+  oldifs=$' \t\n'
+fi
+tempcfg=0
+target_local=""          # local file name or dir set by download function
+
+# custom python loaded via "Environment Modules"
+if [ -d $MODULESHOME ]; then
+  module unload python3 > /dev/null 2>&1
+  module unload python2 > /dev/null 2>&1
+  #if [[ "$USER" == "petersen" ]]; then
+  module load python3/3.5.0 > /dev/null 2>&1
+fi
+# check if swift, curl and jq exist in path
+dependency_msg="The following linux packages are required:\npython-swiftclient, curl & jq"
+if ! hash swift 2>/dev/null; then
+  echoerr "no swift client installed, please install package 'python-swiftclient'"
+  echoerr $dependency_msg
+fi
+if ! hash curl 2>/dev/null; then
+  echoerr "curl not installed, please install package 'curl'"
+  echoerr $dependency_msg
+fi
+if ! hash jq 2>/dev/null; then 
+  echoerr "json processor jq not installed, please install package 'jq'"
+  echoerr $dependency_msg
+fi
+#if ! hash sw2account 2>/dev/null; then
+#  echoerr "no sw2account found, please install package 'swift-switch-account'"
+#fi
+# check if swift commander was invoked as swc with subcommands
+subcmd=""
+selector=$scriptname
+if [[ "$scriptname" == "swc" ]]; then
+  subcmd=$1
+  selector=$subcmd
+  shift
+fi 
+
+swifttenant=""
+swiftaccount=""
+swiftpassword=""
+swiftauthurl=""
+swiftauthver=""
+swiftCreds
+
+# get swift credentials
+if [[ "$scriptname" != "sw-cmd" ]]; then
+  if [[ -z $swiftauthurl ]]; then
+    echoerr "  Swift Authentication URL not set. Contact your Administrator or"
+    echoerr "  put something like this into your ~/.bashrc file and login again:"
+    echoerr "export OS_AUTH_URL=https://cluster.yourcompany.com/auth/v2.0"
+    echoerr "export OS_USERNAME=you"
+    echoerr "export OS_TENANT_NAME=AUTH_YourDepartment"
+    echoerr "  or, to switch frequently between multiple accounts install this:"
+    echoerr "https://github.com/FredHutch/swift-switch-account"
+    exit 1
+  fi
+  if [[ -z $swiftaccount && -z $OS_STORAGE_URL ]]; then
+    echoerr " *** Swift credentials not set. ***"
+    echoerr "Please execute 'sw2account <accountname>' to get credentials."
+    echoerr "Use 'sw2account --save <accountname>' to set them as default."
+    echoerr "  Example: sw2account lastname_f"
+    echoerr "If the 'sw2account' command does not exist please ask your"
+    echoerr "local System Administrator to install swift-switch-account."
+    exit 1
+  fi
+fi
+
+# create .swift folder to persist settings / temp data on file system
+if ! [[ -f ~/.swift/auth_token_${swiftauthver}_${swifttenant} ]]; then
+  mkdir -p ~/.swift
+  touch ~/.swift/storageurl_${swifttenant}
+  echo "/" > ~/.swift/current_folder_${swifttenant}
+  touch -d "1 day ago" ~/.swift/auth_token_${swiftauthver}_${swifttenant}
+  chmod 600 ~/.swift/auth_token_${swiftauthver}_${swifttenant}
+fi
+
+authfromenv=0
+if [[ -z $OS_AUTH_TOKEN || -z $OS_STORAGE_URL ]]; then
+  if [[ "$scriptname" != "sw-cmd" ]]; then
+    checkAuthToken
+  fi
+  export OS_AUTH_TOKEN=`cat ~/.swift/auth_token_${swiftauthver}_${swifttenant}`
+  export OS_STORAGE_URL=`cat ~/.swift/storageurl_${swifttenant}`
+else  
+  echoerr "  (..using token credentials from environment)"
+  echo "$OS_AUTH_TOKEN" > ~/.swift/auth_token_${swiftauthver}_${swifttenant}
+  echo "$OS_STORAGE_URL" > ~/.swift/storageurl_${swifttenant}
+  authfromenv=1 
+fi
+
+if [[ -z $SLURM_JOB_CPUS_PER_NODE ]]; then
+  # here we count the cores on a single socket so we use typically half the numbers of cores per system
+  cpusavail=$(grep -w "core id" /proc/cpuinfo | sort -u | wc -l)
+else
+  # or if this is running on a cluster use all CPUs reserved for this job 
+  cpusavail=$SLURM_JOB_CPUS_PER_NODE
+fi
+
+# how many swift client threads do we want to use
+threads=10
+# checking if this is a 10G connection
+if [[ $(nicspeed) -ge 10000 ]]; then
+  threads=25
+fi                  
+
+logger "swc ran by $USER with $@"
+
+#########  TEST ZONE  #################################
+
+#ret=`swift list something`
+#if ! [[ $? = 0 ]]; then
+#  echoerr "Error executing 'swift list' command."
+#fi
+#exit
+#env | grep ST_
+#env | grep OS_
+###
+if [[ "$USER" == "petersen" ]]; then
+  dummyvar=0
+fi
+
+######### END TEST ZONE ###############################
+
+case "$selector" in
+  *upload | up)
+    # need to fix upload to container root
+    # one level too much
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </source> </target>"
+      echoerr "     ->   uploading file or directory to swift object store\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit
+    fi
+    if [[ "$1" == "--symlinks" ]]; then
+      dosymlinks=1
+      shift
+    fi   
+    if [[ "$2" == "/" ]]; then
+      echoerr "you cannot upload to the root, please upload to a folder"
+      exit 1
+    fi
+    pathexist "$1"
+    src=${1%/}      #remove trailing slash from source
+    splitpath "$2"
+    if [[ "$cont" == "." ]]; then
+      echoerr "$cont/$obj is not a valid target name"
+      exit
+    fi
+    if [[ "$obj" == "." ]]; then
+      obj=""
+    fi
+    targ=""
+    if [[ "${2: -1}" = "/" || -z $obj ]]; then #
+      # if target ends with a / or if prefix is empty
+      if [[ -f "$src" ]]; then # if src is a file
+        targ="${1##*/}"        # extract filename from path $1
+      else
+        if [[ "$2" != "/$cont" ]]; then #only needed if targ!=container root
+          targ=`basename "$1"`
+        fi
+      fi
+      obj+=$targ # append file or base dir to target
+    fi
+    # check for addional meta data passed as commands
+    cmdcnt=0
+    metaheader=''
+    for myarg in "$@"; do
+      ((cmdcnt+=1))
+      if [[ $cmdcnt -ge 3 ]]; then
+        myarg=${myarg// /_}
+        metaheader+=" --header=X-Object-Meta-$myarg"
+      fi
+    done
+    # a text file with all symlink info in dumped into the current directory
+    if [[ dosymlinks == 1 ]]; then
+      swsymlinks.py --save --folder "$src"
+    fi
+    me=$(findRealUser)
+    # 2GB = 2147483648; 1GB = 1073741824, 0.5 = 536870912, 0.25 = 268435456
+    swiftcmd="swift upload --changed --segment-size=1073741824"
+    swiftcmd+=" --use-slo --segment-container=\".segments_$cont\""
+    swiftcmd+=" --object-threads=$threads --segment-threads=$threads"
+    swiftcmd+=" --header=\"X-Object-Meta-Uploaded-by:$me\"$metaheader --object-name=\"$obj\" \"$cont\" \"$src\""
+      # --skip-identical is better than --changed because it uses md5sum
+      # to compare, however there is a bug: 
+      # https://bugs.launchpad.net/python-swiftclient/+bug/1379252:
+      # --segment-size=2g is possible with latest swiftclient master 
+      # only, 2147483648 = gibibyte
+    echoerr "*** uploading $src ***"
+    echoerr "*** to ${yellow}${swifttenant}${endcolor}:/$cont/$obj ***"
+    echoerr "executing:$swiftcmd"
+    echoerr "*** please wait... ***" 
+    #ret=`swift upload --changed --segment-size=1073741824 \
+    #ret=`swift upload --changed --segment-size=1073741824 \
+    #   --use-slo --segment-container=".segments_$cont" \
+    #   --header="X-Object-Meta-Uploaded-by:$me"$metaheader --object-name="$obj" "$cont" "$src" 1>&2`
+    swift upload --changed --segment-size=1073741824 \
+       --use-slo --segment-container=".segments_$cont" \
+       --object-threads="$threads" --segment-threads="$threads" \
+       --header="X-Object-Meta-Uploaded-by:$me"$metaheader --object-name="$obj" "$cont" "$src"
+    retcode=$?
+    if [[ $retcode = 0 ]]; then
+      echo "/$cont/$obj"
+    else
+      echoerr "error $retcode uploading $src to /$cont/$obj"
+    fi
+    cd $cwd
+    ;;
+  *download | down)
+    if [[ -z "$1" || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd <source> <target>"
+      echoerr "   ->  downloading file or directory from swift object store\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit
+    fi
+    tempset
+    if [[ -z $2 ]]; then
+      echoerr "\nusage: $scriptname $subcmd <source> <target>"
+      echoerr "   ->  downloading file or directory from swift object store.\n"
+      echoerr "You cannot omit <target>. If you would like to download to"
+      echoerr "the current directory, please use a single dot . as target\n"
+      echoerr 'Another popular option is using the variable $TMPDIR as target.' 
+      echoerr "If \$TMPDIR is not set at login time, $scriptname $subcmd can generate"
+      echoerr "a \$TMPDIR such as $TMPDIR on the fly each time"
+      echoerr "it is run to ensure that it is empty. Use string SWCTMP as target.\n"
+      echoerr "Examples:"
+      echoerr "$scriptname $subcmd \"$1\" \$TMPDIR (if TMPDIR is already set)"
+      echoerr "$scriptname $subcmd \"$1\" SWCTMP (if swc needs to set TMPDIR)"
+      echoerr "\nalso please check these commands:"
+      printcommands
+      exit
+    fi
+    mkdirtarg=0
+    if [[ "$1" == "--mkdir" ]]; then
+      mkdirtarg=1
+      shift
+    fi
+    splitpath "$1"
+    dest="$2"
+    if [[ "$2" == "SWCTMP" ]]; then
+      dest=$TMPDIR
+      echoerr "using TMPDIR=$dest"
+    fi
+    swpget="0"
+    if hash swpget.py 2>/dev/null; then 
+      swpget="1"
+    fi
+    url=$(urlencode "/${cont}/${obj}")
+    HTTPGetHeader "$url"
+    #echo http_status: $http_status
+    #echo head_slo: $head_slo
+    #echo head_ct: $head_ct
+    #echo head_cl: $head_cl
+    if [[ $http_status == "200" ]]; then
+      # destination must be a file
+      #echo $http_status
+      if [[ $mkdirtarg == 1 ]]; then
+        mkdir -p "$dest"
+      fi
+      if [[ -d "$dest" ]]; then
+        # destination is still a directory
+        srcfile=$(basename "$1")
+      fi
+      workers=5
+      # checking if this is a 10G connection
+      if [[ $(nicspeed) -ge 10000 ]]; then
+         workers=25
+      fi     
+      if [[ $head_slo == "True" && $swpget == "1" ]]; then
+		swiftcmd="swpget.py -p $workers -l \"$dest\" -c \"$cont\" \"$obj\""
+      else
+        swiftcmd="swift download $cont --output=\"${dest}/${srcfile}\" --object-threads=$threads --container-threads=$threads"
+      fi
+    else
+      # destination must be a directory
+      #echo "directory: $http_status"
+      if [[ "$dest" == */ ]]; then       # if trailing slash
+        dest=${dest}`basename "$1"`      # add basename to target 
+      fi                                 # just like rsync
+      if ! [[ -d "$dest" ]]; then
+        mkdir -p "$dest"
+      fi
+      swiftcmd="swift download $cont --prefix=\"$obj\" --output-dir=\"$dest\" --remove-prefix --object-threads=$threads --container-threads=$threads"
+      #cd "$dest"
+    fi 
+    echoerr "...executing:$swiftcmd"
+    echoerr "...downloading $1 to $dest please wait..."    
+    if [[ $http_status == "200" ]]; then
+      # again, it must be a file 
+      #ret=`swift download --outputdir="$dest" --remove-prefix "$cont" "$obj" 1>&2`
+      if [[ -d $dest ]]; then
+        cd $dest
+      fi
+      if [[ $head_slo == "True" && $swpget == "1" ]]; then
+        swpget.py -p $workers -l "$dest" -c "$cont" "$obj"
+      else
+        swift download "$cont" "$obj" --output="${dest}/${srcfile}" --remove-prefix --object-threads=$threads --container-threads=$threads
+      fi
+      target_local="${dest}/${srcfile}"
+    else
+      # again, it must be a directory 
+      #ret=`swift download "$cont" --prefix="$obj" --output-dir="$dest" --remove-prefix 1>&2`
+      swift download "$cont" --prefix="$obj" --output-dir="$dest" --remove-prefix --object-threads=$threads --container-threads=$threads
+      swsymlinks.py --restore --folder "$dest"
+      target_local="${dest}"
+    fi
+    if [[ $? = 0 ]]; then
+      echo "$target_local"
+    else
+      echoerr "error downloading $1"
+    fi
+    cd "$cwd"
+    ;;
+  *cd)
+    if [[ -z $1 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd <folder>"
+      echoerr "     ->   change current folder in swift object store\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit
+    fi
+    splitpath "$1"
+    dest="$1"
+    if [[ "$dest" = "/" ]]; then
+      echo "$dest" > ~/.swift/current_folder_${swifttenant}
+      echo "$dest"
+      exit
+    fi
+    cur_fld=`cat ~/.swift/current_folder_${swifttenant}`
+    #echoerr "cd cur_fld:$cur_fld"
+    if ! [[ -z $cur_fld ]]; then
+      if [[ $dest = ".." ]]; then 
+        dest=`dirname "$cur_fld"`
+        #echoerr "dest:$dest"
+        if [[ -z $dest ]]; then
+          dest="/"
+        fi
+        echo "$dest" > ~/.swift/current_folder_${swifttenant}
+        echo "$dest"
+        exit 
+      fi
+      if [[ "${dest:0:1}" != "/" ]]; then  # relative cd (folder does not start with a /)
+        dest=${cur_fld%/}/$dest
+        #echoerr "splitpath dest:$dest"
+        splitpath "$dest"
+      fi
+    fi
+    dest="${dest%/}" # remove trailing slash
+    obj=${obj%/}  #remove trailing slash
+    #echoerr "cont:$cont"
+    #echoerr "obj:$obj"
+    IFS=$'\t\n'   # change internal field seperator
+    if [[ "$obj" = "" ]]; then
+      #objlist=(`swift list --delimiter=/ "$cont"`)
+      objlist=(`curl -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont/?delimiter=/"`)
+    else
+      #objlist=(`swift list --prefix="$obj/" --delimiter=/ "$cont"`) #add a trailing slash to ensure pseudo dir
+      objlist=(`curl -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont/?delimiter=/&prefix=$obj/"`)
+    fi
+    IFS=$oldifs
+    if [[ $? != 0 ]]; then
+      echoerr "error executing swift!"
+    fi
+    #echo "objlist:$objlist"
+    numobj=${#objlist[@]}
+    #echoerr "numobj2:$numobj"
+    if [[ $numobj -gt 0 ]]; then
+      dest="${dest%/}" # remove trailng slash
+      echo $dest > ~/.swift/current_folder_${swifttenant}
+      #echo "wrote $dest to .swift/current_folder_${swifttenant}"
+      echo $dest
+    else
+      if [[ "$obj" != "" ]]; then 
+        echoerr "folder $dest does not exist."
+      else
+        ret=`swift stat "$cont" 2>&1`
+        if [[ $? != 0 ]]; then
+          echoerr "folder $dest does not exist."
+        else
+          echoerr "folder $dest is empty."
+          echo $dest > ~/.swift/current_folder_${swifttenant}
+        fi
+      fi
+      cat ~/.swift/current_folder_${swifttenant}
+    fi
+    ;;
+  *pwd)
+    cat ~/.swift/current_folder_${swifttenant}
+    ;;
+  *ls)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "list contents of a folder"
+      exit
+    fi
+    lsbatch=0
+    if [[ "$1" == "--batch" ]]; then
+      echoerr "switching to batchmode"
+      lsbatch=1
+      shift
+    fi
+    dest="$1"
+    cur_fld=`cat ~/.swift/current_folder_${swifttenant}`
+    if ! [[ -z $dest ]]; then
+      if [[ $dest = ".." ]]; then
+        dest=`dirname "$cur_fld"`
+        #echoerr "dest:$dest"
+      fi
+      if [[ "${dest:0:1}" != "/" ]]; then  # relative cd (folder does not start with a /)
+        dest=${cur_fld%/}/$dest
+        #echoerr "splitpath dest:$dest"
+        splitpath "$dest"
+      fi
+    else
+      dest=$cur_fld
+    fi
+    splitpath "$dest"
+    #echoerr "cur_fld:$cur_fld"`
+    if [[ -z $dest ]]; then
+      echoerr "no current folder, use swc cd to change folder."
+      exit
+    fi
+    obj=${obj%/}  #remove trailing slash
+    objenc=${obj//" "/"%20"} #replace all whitespaces with %20
+    #echoerr "ls cont:$cont"
+    #echoerr "ls obj:$obj"
+    IFS=$'\t\n'   # change internal field seperator
+    if [[ "$obj" = "" ]]; then
+      #objlist=(`swift list --delimiter=/ "$cont"`)
+      objlist=(`curl -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont/?delimiter=/"`)
+    else
+      #bjlist=(`swift list --prefix="$obj/" --delimiter=/ "$cont"`)   #add a trailing slash       
+      objlist=(`curl -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont/?delimiter=/&prefix=$objenc/"`)
+    fi
+    retcode=$?
+    if [[ $retcode != 0 ]]; then
+      if [[ $retcode == 77 ]]; then
+        echoerr "curl has problems reading the SSL CA cert"
+      else
+        echoerr "curl error, return code:$retcode"
+      fi
+      echo "curl binary used:" 
+      which curl
+      exit 1
+    fi
+    IFS=$oldifs
+    if [[ "${objlist[0]}" =~ "<h1>Unauthorized</h1>" ]]; then
+      rm -f ~/.swift/auth_token_${swiftauthver}_${swifttenant}
+      echo "Removed outdated auth token. Please try again."
+      exit 1
+    fi 
+    numobj=${#objlist[@]}
+    #echo "numobj:$numobj"
+    if [[ $numobj -eq 0 ]]; then
+      echoerr "folder $dest is empty."
+      exit
+    fi
+    #echo "objlist:$objlist"
+    lenprefix=${#obj}
+    #echoerr "lenprefix:$lenprefix"
+    declare -a myfolders=()
+    for t in "${objlist[@]}"; do 
+      #echo "t:$t"
+      # looping through object list, 
+      recurpath="${t:$lenprefix}"       #   list cur dir recursively
+      recurpath=${recurpath#/}          #   remove leading slash
+      #echoerr "recurpath:$recurpath"
+      thislevel="${recurpath%%/*}"      #   extract everything left of first slash
+      #echoerr "thislevel:$thislevel"
+      if [[ "$recurpath" = "$thislevel" ]]; then
+        if [[ $thislevel != *_segments && $thislevel != .* ]]; then 
+          # ignore hidden folders and folders that just contain segments 
+          if [[ $cont == "" && $lsbatch == 0 ]]; then 
+            echo "${yellow}$thislevel${endcolor}" # print containers yellow
+          else
+            echo "$thislevel"
+          fi
+        fi
+      else
+        #echoerr "myfolders:${myfolders[@]}"
+        if ! ( arrayContains myfolders "$thislevel" ); then 
+          if [[ $thislevel != .* ]]; then
+            if [[ $lsbatch == 0 ]]; then
+              echo "${blue}$thislevel${endcolor}"
+            else
+              echo "$thislevel"
+            fi
+          fi
+          myfolders=("${myfolders[@]}" "$thislevel") # add element to array
+        fi
+      fi 
+    done
+    #IFS=$oldifs
+    echoerr "  ..current folder (${swifttenant}):"
+    echoerr "$cur_fld"
+    ;;
+  *list)
+    if [[ -z $1 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </path> [search string]"
+      echoerr "     ->   list all folders/files below path\n"
+      echoerr "optionally filter result by search string"
+      echoerr "also please check these commands:"
+      printcommands 
+      swift list --lh | grep -v ".trash-" | grep -v "_segments" | grep -v ".segments_"
+      exit
+    fi
+    dest=$1
+    splitpath "$dest"
+    #echoerr "obj:$obj"
+    #echoerr "cont:$cont"
+    if [[ -z $obj ]]; then
+      if [[ -z $cont ]]; then 
+        swift list --lh
+      else
+        if [[ -z $2 ]]; then
+          swift list --lh "$cont"
+        else
+          swift list --lh "$cont" | grep -i $2
+        fi
+      fi
+    else
+      if [[ -z $2 ]]; then
+        swift list --lh --prefix="$obj" "$cont"
+      else
+        swift list --lh --prefix="$obj" "$cont" | grep -i $2
+      fi
+    fi
+    ;;
+  search)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd [-i] <\"search string\"> </swift/folder>"
+      echoerr "     ->   simple full text search in text files"
+      echoerr "     ->   non-text files are excluded from search\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    casesensitive=""
+    if [[ "$1" == "-i" ]]; then
+      casesensitive="-i "
+      shift
+    fi       
+    splitpath "$2"
+    if ! hash swsearch.py 2>/dev/null; then
+      echoerr "swsearch.py not found."
+      exit 1
+    fi
+    # how many swift client processses do we want to use
+    procs=10
+    # checking if this is a 10G connection
+    if [[ $(nicspeed) -ge 10000 ]]; then
+      procs=30
+    fi
+    #obj=${obj%/} #remove trailing slash from source
+    echoerr "searching for \"$1\" ..."
+    swsearch.py ${casesensitive}-m $procs -c "$cont" -p "$obj" "$1"
+    ;;
+  *rm)  
+    if [[ -z $1 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd <path_to_delete>"
+      echoerr "     ->   delete files/objects from swift\n"      
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    rmforce=0
+    if [[ "$1" == "-rf" ]]; then
+      echoerr "force delete"
+      rmforce=1
+      shift
+    fi
+    dest="$1"
+    if [[ $dest = "/" ]]; then
+      echoerr "cannot delete root folder"
+      exit 1
+    fi
+    if [[ $dest != /* ]]; then
+      echoerr "$scriptname $subcmd currently does not support relative paths, path must start with '/'"
+      exit 1
+    fi
+    splitpath "$dest"
+    echoerr "using account ${yellow}${swifttenant}${endcolor}:"
+    if [[ $rmforce == 1 ]]; then
+      echoerr "...swrm.py -c $cont -p $obj --force"
+      swrm.py -c "$cont" -p "$obj" -f
+    else
+      echoerr "...swrm.py -c $cont -p $obj"
+      swrm.py -c "$cont" -p "$obj"
+    fi 
+    ;;
+  *meta)
+    if [[ -z $1 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </folder/file>"
+      echoerr "     ->   show meta data of a certain file\n"
+      echoerr "also please check these commands:"
+      printcommands
+      #swift list --lh | grep -v ".trash-" | grep -v "_segments" | grep -v ".segments_"
+      exit
+    fi
+    dest=$1
+    splitpath "$dest"
+    #echoerr "obj:$obj"
+    #echoerr "cont:$cont"
+    swift stat $cont $obj | grep Meta
+    ;;
+  *header)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </path>"
+      echoerr "     ->   show http header for this file or folder\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit
+    fi
+    dest=$1
+    splitpath "$dest"
+    curl --head -H "X-Auth-Token: $OS_AUTH_TOKEN" ${OS_STORAGE_URL}${dest}
+    ;;
+  mtime)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </path>"
+      echoerr "     ->   show the original mtime of this file before uploaded\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit
+    fi
+    dest=$1
+    splitpath "$dest"
+    ret=`curl -s --head -H "X-Auth-Token: $OS_AUTH_TOKEN" ${OS_STORAGE_URL}${dest} | grep -e "^X-Object-Meta-Mtime: "`
+    mtime=${ret/"X-Object-Meta-Mtime: "/""}
+    date -d@$mtime
+    ;;
+  hash)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </local/file> </swift/file>"
+      echoerr "     ->   compare the md5sum of a local file with a file in swift"
+      echoerr "          if /local/file does not exist, swc assumes the argument" 
+      echoerr "          to be an md5 hash if it is 32 chars long\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath "$2"
+    if ! hash swhashcomp.py 2>/dev/null; then
+      echoerr "swhashcomp.py not found."
+      exit 1
+    fi
+    swhashcomp.py --locfile="$1" --container=$cont --obj="$obj"
+    ;;
+  *compare)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder>"
+      echoerr "     ->   compare the size of a local folder with a swift folder\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    objdir=${obj%/} 
+    splitpath "$2"
+    if ! hash swfoldersize.py 2>/dev/null; then
+      echoerr "swfoldersize.py not found."
+      exit 1
+    fi
+    obj=${obj%/} # remove trailing slash
+    if ! [[ -z $obj ]]; then 
+      obj=$obj/ 
+    fi
+    if [[ -d "$1" && -d "$2" ]]; then
+      swfoldersize.py --posixfolder="$1" --posixfolder2="$2"
+    else
+      swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj"
+    fi
+    ;;
+  size)
+    if [[ -z $1 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </swift/folder>"
+      echoerr "     ->   get the size of a swift folder or local folder\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath "$1"
+    if ! hash swfoldersize.py 2>/dev/null; then
+      echoerr "swfoldersize.py not found."
+      exit 1
+    fi
+    if [[ -d $1 ]]; then
+      swfoldersize.py --posixfolder="$1"
+    else
+      swfoldersize.py --container=$cont --prefix="$obj"
+    fi
+    ;;
+  arch | archive)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder>"
+      echoerr "     ->   archive local folder structure to swift"
+      echoerr "     ->   create one tar.gz file per folder and level\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath "$2"
+    if ! hash swbundler.py 2>/dev/null; then
+      echoerr "swbundler.py not found."
+      exit 1
+    fi
+    tempset
+    src=${1%/}      #remove trailing slash from source
+    # check for addional meta data passed as commands
+    cmdcnt=0
+    metaheader=''
+    for myarg in "$@"; do
+      ((cmdcnt+=1))
+      if [[ $cmdcnt -ge 3 ]]; then
+        myarg=${myarg// /_}
+        #metaheader+=" --header=X-Object-Meta-$myarg"
+        metaheader+=" -m $myarg"
+      fi
+    done
+    swiftcmd="swbundler.py"
+    swiftcmd+=" -l \"$1\" -c $cont -p \"$obj\" -t \"$TMPDIR\" -P $cpusavail $metaheader"
+    echoerr "*** uploading $src ***"
+    echoerr "*** to ${yellow}${swifttenant}${endcolor}:/$cont/$obj ***"
+    echoerr "executing:$swiftcmd"
+    echoerr "*** please wait... ***"
+    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -P $cpusavail $metaheader 
+    retcode=$?
+    if [[ $retcode = 0 ]]; then
+      echo "/$cont/$obj"
+    else
+      echoerr "error $retcode uploading $src to /$cont/$obj"
+    fi
+    ;;
+  unarch | unarchive | unbundle | unbun)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </swift/folder> </local/folder>"
+      echoerr "     ->    extract archived swift folders to local folders\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath "$1"
+    if ! hash swbundler.py 2>/dev/null; then
+      echoerr "swbundler.py not found."
+      exit 1
+    fi
+    tempset
+    mkdir -p "$2"
+    src=${1%/}      #remove trailing slash from source
+    swiftcmd="swbundler.py -x"
+    swiftcmd+=" -l \"$2\" -c $cont -p \"$obj\" -t \"$TMPDIR\""
+    echoerr "*** downloading to $2 ***"
+    echoerr "*** from ${yellow}$swifttenant${endcolor}:/$cont/$obj ***"
+    echoerr "executing:$swiftcmd"
+    echoerr "*** please wait... ***"
+    swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR -P $cpusavail
+    retcode=$?
+    if [[ $retcode = 0 ]]; then
+      echo "/$cont/$obj"
+    else
+      echoerr "error $retcode downloading $src to /$cont/$obj"
+    fi
+    # consider SLURM_JOB_CPUS_PER_NODE
+    ;;
+  chgrp | rw | ro)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname chgrp|rw|ro  <security_group> [/root_folder]"
+      echoerr " ->    grant permissons to current swift account or container."
+      echoerr " ->    'chgrp' overwrites all previous permissions"
+      echoerr " ->    'rw' and 'ro' add to existing account permissions"
+      echoerr " ->    example: $scriptname chgrp lastname_f_grp "
+      echoerr " ->    example for removing permissions: "
+      echoerr " ->    $scriptname chgrp [/root_folder] \n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    if [[ -z $2 ]]; then
+      if [[ $1 == /* ]]; then
+        splitpath $1
+      fi
+    else
+      splitpath $2
+    fi
+    permission="read-write"
+    if [[ "$subcmd" == "ro" ]]; then
+      permission="read-only"
+    fi
+    curracl=$(curl -s --head -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL" | grep "X-Account-Access-Control:")
+    curracl=${curracl//"X-Account-Access-Control: "/""} #replace X-Header with empty string
+    #echo "curracl: $curracl"   
+    for grp in $(echo "$curracl" | jq -r '.["admin"] | .[]' 2>/dev/null); do
+      admacl+=",\"$grp\""      
+    done
+    for grp in $(echo "$curracl" | jq -r '.["read-only"] | .[]' 2>/dev/null); do
+      roacl+=",\"$grp\""      
+    done    
+    for grp in $(echo "$curracl" | jq -r '.["read-write"] | .[]' 2>/dev/null); do
+      rwacl+=",\"$grp\""      
+    done
+    if [[ -n $1 ]]; then
+      if [[ "$subcmd" == "ro" ]]; then 
+        if ! [[ "\"$roacl\"" =~ "\"$1\""  ]]; then 
+          if [[ "$1" == "AUTH_"* || "$1" == "LDAP_"* ]]; then
+            roacl+=",\"$1\""
+          else
+            roacl+=",\"LDAP_$1\""
+          fi
+        fi
+      elif [[ "$subcmd" == "rw" ]]; then 
+        if ! [[ "\"$rwacl\"" =~ "\"$1\""  ]]; then 
+          if [[ "$1" == "AUTH_"* || "$1" == "LDAP_"* ]]; then
+            rwacl+=",\"$1\""        
+          else
+            rwacl+=",\"LDAP_$1\""        
+          fi
+        fi
+      elif [[ "$subcmd" == "chgrp" ]]; then
+        roacl=""
+        if [[ "$1" == "AUTH_"* || "$1" == "LDAP_"* ]]; then
+          rwacl="\"$1\""          
+        else
+          rwacl="\"LDAP_$1\""
+        fi
+      fi
+    else
+      if [[ "$subcmd" == "chgrp" ]]; then  
+        rwacl=""
+        roacl=""
+      fi
+    fi
+    admacl=${admacl#,} 
+    roacl=${roacl#,} 
+    rwacl=${rwacl#,}     
+    #echo "admacl:$admacl"
+    #echo "roacl:$roacl"
+    #echo "rwacl:$rwacl"
+    
+    #scope="X-Container-Access-Control"
+    if [[ -z $cont ]]; then
+      # grant permission to account
+      if [[ -z $1 ]]; then
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Account-Access-Control: {}" "$OS_STORAGE_URL"
+        echoerr "permissions reset to default"
+      else
+         rwroacl=""
+        if [[ $roacl != "" ]]; then
+          #echo "read only exists"
+          rwroacl+=',"read-only":['$roacl']'
+        fi
+        if [[ $rwacl != "" ]]; then
+          #echo "read write exists"
+          rwroacl+=',"read-write":['$rwacl']'
+        fi        
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H 'X-Account-Access-Control: {"admin":["'${swifttenant}'"]'$rwroacl'}' "$OS_STORAGE_URL"
+      fi
+      # verify granted permission
+      echoerr "New permissions for account ${swifttenant}:"
+      curl -X HEAD -is -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL" | grep 'X-Account-Access-Control'
+    else
+      # grant permission to container
+      if [[ -z $2 ]]; then
+        #perm_cont=X-Remove${perm_cont#?}
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Remove-Container-Read: 0" "$OS_STORAGE_URL/$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Remove-Container-Read: 0" "$OS_STORAGE_URL/.segments_$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Remove-Container-Write: 0" "$OS_STORAGE_URL/$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Remove-Container-Write: 0" "$OS_STORAGE_URL/.segments_$cont"
+        echoerr "permissions reset to default"
+      else
+        curl -X PUT -s -o /dev/null -H "X-Auth-Token:$OS_AUTH_TOKEN" "$OS_STORAGE_URL/.segments_$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Container-Read: LDAP_$1" "$OS_STORAGE_URL/$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Container-Read: LDAP_$1" "$OS_STORAGE_URL/.segments_$cont"
+        if [[ "$subcmd" != "ro" ]]; then
+          curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Container-Write: LDAP_$1" "$OS_STORAGE_URL/$cont"
+          curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Container-Write: LDAP_$1" "$OS_STORAGE_URL/.segments_$cont"
+        fi
+      fi
+      # verify granted permission
+      echoerr "New permissions for container ${swifttenant}/$cont:"
+      curl -X HEAD -is -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont" | grep "X-Container-Read\|X-Container-Write"
+    fi
+    ;;
+  more | less | cat | editor | vi | emacs | nano)
+    # openwith downloads to TMP and opens the file with a certain command
+    openwith $subcmd "$1"
+    ;;
+  openwith)
+     if [[ -z $1 || -z $2 ]]; then
+      echoerr "\nusage: $scriptname $subcmd <application> </file or /folder>"
+      echoerr "     ->   open file from swift object store with application\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit
+    fi
+    openwith "$1" "$2"
+    ;;
+  *mkdir)
+    if [[ -z $1 ]]; then
+      echoerr "\nusage: $scriptname $subcmd <folder_to_create>"
+      echoerr "     ->   creates a folder / container in swift \n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    dest="$1"
+    if [[ $dest = "/" ]]; then
+      echoerr "no need to create a root folder"
+      exit 1
+    fi
+    if [[ $dest != /* ]]; then
+      echoerr "$scriptname $subcmd currently does not support relative paths, path must start with '/'"
+      exit 1
+    fi
+    splitpath "$dest"
+    ret=`swift post "$cont" 2>&1`
+    ;;
+  clean)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd"
+      echoerr "     ->   cleans out current settings / credentials\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    #if [[ -f ~/.swift/auth_token_${swiftauthver}_${swifttenant} ]]; then
+      rm -f ~/.swift/auth_token_${swiftauthver}_${swifttenant} 
+      rm -f ~/.swift/auth_token_v1_${swifttenant}    
+      rm -f ~/.swift/auth_token_v2_${swifttenant} 
+      rm -f ~/.swift/storageurl_${swifttenant}
+      rm -f ~/.swift/current_folder_${swifttenant}
+      echoerr "Removed settings / credentials for ${swifttenant}."
+    #fi    
+    ;;
+  env)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd"
+      echoerr "     ->   print all openstack env vars\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    echoerr "\n*** Swift authentication (v1) ***"
+    env | grep ^ST_
+    echoerr "\n*** Openstack authentication (v2/v3) ***"
+    if [[ authfromenv == 1 ]]; then
+      echo "authfromenv == 1"
+	  env | grep ^OS_ v "OS_PASSWORD"
+	else	  
+	  env | grep ^OS_ | grep -v "OS_STORAGE_URL\|OS_AUTH_TOKEN\|OS_PASSWORD"
+	fi
+    ;;
+  auth)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd"
+      echoerr "     ->   print auth token and storageurl\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    if [[ -n $OS_AUTH_URL ]]; then 
+	  echo "export OS_AUTH_URL=${OS_AUTH_URL}"
+	else
+	  echo "export OS_AUTH_URL=${ST_AUTH}"
+	fi
+    echo "export OS_STORAGE_URL=$(cat ~/.swift/storageurl_${swifttenant})"
+    echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_${swiftauthver}_${swifttenant})"    
+    ;;
+  sw-cmd)
+    if [[ "`whoami`" != "root" ]]; then
+      echo "sw-cmd is a tools collection that allows you to interact" \
+           "with an openstack swift cloud storage system (almost) as" \
+           "if it were a file system."
+      if ! hash "sw-mkdir" 2>/dev/null; then
+	  echoerr "please copy this script to a bin directory (e.g" \
+                   "/usr/local/bin/) and run it as root to create all" \
+                   "required aliases (symlinks) of this tools collection"
+      fi
+      exit 0
+    fi
+    cmddir=$(readlink -f $(dirname "$0"))
+    echoerr "creating symlinks for sw-cmd tool collection in $cmddir:"
+    printcommands
+    cd $cmddir
+    for mycmd in $commands; do
+      rm -f sw-$mycmd
+      ln -s sw-cmd sw-$mycmd
+    done
+    cd $cwd
+    echoerr "Done."
+    ;;
+  *)
+    #echo "this script is an alias or a copy of sw-cmd, however $scriptname $subcmd is currently not supported"
+    if [[ "$scriptname" == "swc" ]]; then
+      echoerr "\nSwift Commander (swc) allows you to easily work with a swift object store."
+      echoerr "swc supports sub commands that attempt to mimic standard unix file system tools."
+      echoerr "These sub commands are currently implemented: (Arguments in square brackets are "
+      echoerr "optional).\n"
+      echoerr "  $scriptname upload <src> <targ>   -  copy file / dirs from a file system to swift"
+      echoerr "  $scriptname download <src> <targ> -  copy files and dirs from swift to a file system" 
+      echoerr "  $scriptname cd <folder>           -  change current folder to <folder> in swift"
+      echoerr "  $scriptname ls [folder]           -  list contents of a folder - or the current one"
+      echoerr "  $scriptname mkdir <folder>        -  create a folder (works only at the root)"      
+      echoerr "  $scriptname rm <path>             -  delete all file paths that start with <path>"      
+      echoerr "  $scriptname pwd                   -  display the current swift folder name" 
+      echoerr "  $scriptname cat|more|less <file>  -  download a file to TMPDIR and view with cat, more or less"
+      echoerr "  $scriptname vi|emacs|nano <file>  -  download a file to TMPDIR and edit it with vi|emacs or nano"
+      echoerr "  $scriptname chgrp <group> <fld.>  -  grant/remove rw access to current swift account or container"
+      echoerr "  $scriptname rw <group> <folder>   -  add rw access to current swift account or container"
+      echoerr "  $scriptname ro <group> <folder>   -  add ro access to current swift account or container"
+      echoerr "  $scriptname list <folder> [filt]  -  list folder content (incl. subfolders) and filter"
+      echoerr "  $scriptname search <str> <folder> -  search for a string in text files under /folder"
+      echoerr "  $scriptname openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>" 
+      echoerr "  $scriptname header <file>         -  display the header of a file in swift"
+      echoerr "  $scriptname meta <file>           -  display custom meta data of a file in swift" 
+      echoerr "  $scriptname mtime <file>          -  show the original mtime of a file before uploaded"
+      echoerr "  $scriptname size <folder>         -  show the size of a swift or a local folder"
+      echoerr "  $scriptname compare <l.fld> <fld> -  compare size of a local folder with a swift folder"
+      echoerr "  $scriptname hash <locfile> <file> -  compare the md5sum of a local file with a swift file"
+      echoerr "  $scriptname arch <src> <targ>     -  create one tar archive for each folder level"
+      echoerr "  $scriptname unarch <src> <targ>   -  restore folders that have been archived"
+      echoerr "  $scriptname auth                  -  show current storage url and auth token"
+      echoerr "  $scriptname env                   -  show authentication env vars (ST_ and OS_)"
+      echoerr "  $scriptname clean                 -  remove current authtoken credential cache"
+      
+      echoerr "\nExamples:"
+      echoerr "  $scriptname upload /local/folder /swift/folder"
+      echoerr "  $scriptname upload --symlinks /local/folder /swift/folder (save symlinks)"
+      echoerr "  $scriptname compare /local/folder /swift/folder"
+      echoerr "  $scriptname download /swift/folder /scratch/folder"
+      echoerr "  $scriptname download /swift/folder \$TMPDIR"
+      echoerr "  $scriptname rm /archive/some_prefix"
+      echoerr "  $scriptname more /folder/some_file.txt"
+      echoerr "  $scriptname openwith emacs /folder/some_file.txt"
+    fi  
+    ;;
+esac
