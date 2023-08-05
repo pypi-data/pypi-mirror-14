@@ -1,0 +1,150 @@
+Objdiff
+=======
+Take 2 sets of containers and provide a (deep) delta between them
+
+This module is used by the author to diff yaml files and on disk file trees
+and best work out how to transition from one state to another (mainly for 
+work with containers).
+
+note: Requires python 3.3 or greater due to use of 'yield from'
+
+Why?
+-----
+At the time this module was started, no modules existed that had this 
+functionality. After poking the difflib module there was code that could be 
+reused to achieve part of what i wanted. functionality above and beyond this was 
+trivial to implement (diffing unsorted items)
+
+There are a number of libraries out there that provide diffing functionality 
+however a quick review of these has indicated they are mainly for display 
+output and do not provide an easy way for a program to diff 2 things and then 
+react based on the results (ie they require you to split lots of strings to get 
+at the information you need)
+
+How?
+----
+Objdiff uses difflib built into python for lists and tuples (basically sorted 
+things) and implements its own comparison code for dictionaries. User types are 
+detected via the collections.abc.Mapping type and instance comparison and are 
+treated as dictionaries (ie unsorted item => value mappings)
+
+What does this look like?
+-------------------------
+    >>> import objdiff
+    >>> a = {'a': 1, 'b':[1,2,3], 'c':None}
+    >>> b = {'a': 1, 'b':[1,4], 'c':'hello'}
+    >>> objdiff.obj_diff(a, b)
+    <generator object obj_diff at 0xb6a3da80>
+
+We return an iterator and make use of yield from so you can process large trees 
+of objects efficiently and incremental
+
+    >>> from pprint import pprint
+    >>> pprint(list(objdiff.obj_diff(a, b)))
+    [modified(path=['c'], old=None, new='hello'),
+     modified(path=['b'], old=[1, 2, 3], new=[1, 4]),
+     equal(path=['a'], old=1, new=1)]
+    
+Expanding out the generator we get back a bunch of tuples containing the 
+command value, key path and before and after value
+
+    >>> c = {'a':{1: None, 2: 2, 3: 3}, 'b': None}
+    >>> d = {'a':{1: 1, 2: 2}, 'b': {'1':{}, '2':{'2':2}}}
+    >>> pprint(list(objdiff.obj_diff(c, d)))
+    [modified(path=['b'], old=None, new={'1': {}, '2': {'2': 2}}),
+     modified(path=['a', 1], old=None, new=1),
+     equal(path=['a', 2], old=2, new=2),
+     deleted(path=['a', 3], val=3)]
+    
+Note in the above how you get a full list of keys to the destined object after 
+the command value.
+
+In total there are 4 types of command, as listed below with one internal type
+that can be ignored.
+
+ * added
+ * deleted
+ * modified
+ * equal (internal, scalar values are equal)
+
+Tricks
+-------
+Path navigation is one that comes up a lot when given a list of keys. to
+quickly and efficiently get a value given a path try using the following 
+pattern
+
+    >>> from functools import reduce
+    >>> from operator import getitem
+    >>> path = ['a', 1]
+    >>> d = {'a':{1: 1, 2: 2}, 'b': {'1':{}, '2':{'2':2}}}
+    >>> reduce(getitem, path, d)
+    1
+
+If you have 2 dictionaries where one has to be applied over the top of another. 
+eg one is a base config and the other is a profile that updates that base 
+config. Then this library may be of use.
+
+The Naive way of updating the old values based on the new values does not work 
+for deeply nested data, ie
+
+    >>> base = {'a': {1:1, 2:2, 3:3}, 'b': None}
+    >>> updates = {'a': {1:None}}
+    >>> base.update(updates)
+    >>> base
+    {'a': {1: None}, 'b': None}
+
+In the above we only wanted to update obj['a'][1] to be None, however the other
+keys where overwritten. with objdiff we can instead get the paths of the 
+updated objects and update in a 'deep' fashion (deep in the sense that the copy 
+module defines it, ie recursively).
+
+    >>> base = {'a': {1:1, 2:2, 3:3}, 'b': None}
+    >>> updates = {'a': {1:None}}
+    >>> commands = objdiff.obj_diff(base, updates)
+    >>> pprint(list(commands))
+    [modified(path=['a', 1], old=1, new=None),
+     deleted(path=['a', 2], val=2),
+     deleted(path=['a', 3], val=3),
+     deleted(path=['b'], val=None)]
+    >>> for cmd in commands:
+    ...     if isinstance(cmd, objdiff.modified):
+    ...         ptr = base
+    ...         # we need the last key for making the update
+    ...         for key in cmd.path[:-1]:
+    ...             ptr = ptr[key]
+    ...         ptr[cmd.path[-1]] = cmd.new
+    ...
+    >>> base
+    {'a': {1:None, 2:2, 3:3}, 'b': None}
+    
+In the above you can see we ignore all commands except add and modify, deleted 
+is discarded as the updated dictionary is only a subset of the original data and 
+has holes in it to be filled by the base data structure.
+
+As of objdiff 1.2, a function that is simmilar to the above is avalible as 
+'deep_update'
+
+
+Changelog
+---------
+
+1.2.1 2016-03-26
++++++++++++++++++
+ * Add 'version guard' to prevent install on python older than version 3.3
+ 
+1.2 2016-03-26
++++++++++++++++
+ * Documentation updates
+ * 'deep_update' function
+
+1.1 2016-03-24
++++++++++++++++
+ * Cleanups of code
+ * Documentation updates
+ * More infrastructure in src module
+
+1.0 2016-03-24
++++++++++++++++
+ * Initial release
+ * Working objdiff
+ * diffing of lists and dicts functions
