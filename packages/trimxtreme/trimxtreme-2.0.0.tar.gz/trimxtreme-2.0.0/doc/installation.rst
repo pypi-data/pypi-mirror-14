@@ -1,0 +1,87 @@
+============
+Installation
+============
+
+Quickstart
+----------
+
+The easiest way to install trimxtreme is to use ``pip`` on the command line::
+
+    pip install --user --upgrade trimxtreme
+
+This will download the software from `PyPI (the Python packaging
+index) <https://pypi.python.org/pypi/trimxtreme/>`_, and
+install the trimxtreme binary into ``$HOME/.local/bin``. If an old version of
+trimxtreme exists on your system, the ``--upgrade`` parameter is required in order
+to install a newer version. You can then run the program like this::
+
+    ~/.local/bin/trimxtreme --help
+
+If you want to avoid typing the full path, add the directory
+``$HOME/.local/bin`` to your ``$PATH`` environment variable.
+
+If the above does not work, keep reading.
+
+
+Dependencies
+------------
+
+Cutadapt requires this software to be installed:
+
+* One of Python 2.6, 2.7, 3.3 or 3.4. Python 2.7 is a bit faster than the other
+  versions.
+* A C compiler.
+
+Under Ubuntu, you may need to install the packages ``build-essential`` and
+``python-dev``.
+
+
+Installation
+------------
+
+If you have already downloaded and unpacked the ``.tar.gz`` file, then
+installation is done like this (replace "python" with "python3" to
+install the Python 3 version)::
+
+    python setup.py install --user
+
+If you get an error message::
+
+    error: command 'gcc' failed with exit status 1
+
+Then check the entire error message. If it says something about a missing ``Python.h``
+file, then you need to install the Python development packages. The
+appropriate package is called ``python-dev`` in Ubuntu (or ``python3-dev``
+for Python 3).
+
+
+System-wide installation
+------------------------
+
+If you have root access, then you can install trimxtreme system-wide by running::
+
+    sudo pip install trimxtreme
+
+This installs trimxtreme into `/usr/local/bin`.
+
+If you want to upgrade from an older version, use this command instead::
+
+    sudo pip install --upgrade trimxtreme
+
+
+Use without installation
+------------------------
+
+Build the C extension module (you can try to skip this step -- a
+compiled version of the module for Linux x86\_64 is already included)::
+
+    python setup.py build_ext -i
+
+Then simply run the script from where it is, similar to this::
+
+    bin/trimxtreme --help
+
+If you get any errors, first try to explicitly request a specific Python
+version by running trimxtreme like this::
+
+    python2.7 bin/trimxtreme --help
