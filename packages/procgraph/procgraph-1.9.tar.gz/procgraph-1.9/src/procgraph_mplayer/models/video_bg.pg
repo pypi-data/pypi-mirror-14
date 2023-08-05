@@ -1,0 +1,24 @@
+#!/usr/bin/env pg
+--- model video_bg
+
+""" Animates the moving part of a video. """
+
+config video "Input video"
+config bg "Background to subtract"
+config out "Output video"
+config every = 10
+config perc = 99
+
+|mplayer file=$video| -> |sieve n=$every| -> rgb 
+|static_image file=$bg| -> bg 
+
+rgb, bg -> |async| -> |bg_subtract perc=$perc weighted=True| -> rgba
+
+rgba -> |trans_avg| -> sub
+
+
+sub, bg -> |async| -> |alpha_add| -> out
+ 
+sub -> |to_rgb| -> |mencoder file="${out}.sub.mp4"|
+out -> |mencoder file=$out|
+
