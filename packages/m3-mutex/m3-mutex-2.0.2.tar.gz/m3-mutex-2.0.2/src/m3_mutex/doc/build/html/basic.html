@@ -1,0 +1,264 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Простое использование &mdash; m3-mutex  documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="m3-mutex  documentation" href="index.html" />
+    <link rel="prev" title="Установка" href="installation.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="installation.html" title="Установка"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">m3-mutex  documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="id1">
+<h1>Простое использование<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="id2">
+<h2>Простые примеры использования модуля<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>В качестве примера работы с m3-mutex реализуем небольшой класс-семафор, который будет блокировать повторное редактирование уже заданного объекта:</p>
+<div class="highlight-python"><pre>class ObjEditMutex(object):
+u"""Класс-семафор, блокирующий повторное редактирование объекта
+"""</pre>
+</div>
+<p>Добавим метод, который позволит нам получать id объекта:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">get_obj_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj_id</span><span class="p">):</span>
+    <span class="sd">u&quot;&quot;&quot;Подмена obj_id, для возможности переопределения класса.</span>
+<span class="sd">    Позволяет использовать свой уникальный obj_id</span>
+<span class="sd">    без изменения логики родительского класса.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">obj_id</span>
+</pre></div>
+</div>
+<p>Добавим метод, который позволит нам получать семафор по типу и id объекта:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">get_mutex_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">obj_id</span><span class="p">):</span>
+    <span class="sd">u&quot;&quot;&quot;Возвращает id семафора для указанного типа и id объекта</span>
+
+<span class="sd">    :param basestring mode: Тип объекта</span>
+<span class="sd">    :param int obj_id: id объекта</span>
+
+<span class="sd">    :rtype: int</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexID</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">obj_id</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Добавим метод, который позволит нам проверять наличие семафора:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">check</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj_id</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">request_id</span><span class="p">):</span>
+    <span class="sd">u&quot;&quot;&quot;Проверка на наличие семафора.</span>
+<span class="sd">    Возвращает True, если объект не заблокирован или заблокирован нами.</span>
+<span class="sd">    В противном случае возвращает False</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">obj_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_obj_id</span><span class="p">(</span><span class="n">obj_id</span><span class="p">)</span>
+    <span class="n">mutex_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mutex_id</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="n">obj_id</span><span class="o">=</span><span class="n">obj_id</span><span class="p">)</span>
+
+    <span class="c"># По умолчанию семафор занят</span>
+    <span class="n">is_free</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">mt</span> <span class="o">=</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">request_mutex</span><span class="p">(</span><span class="n">mutex_id</span><span class="p">)</span>
+
+    <span class="c"># Проверяем свободен ли семафор</span>
+    <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexState</span><span class="o">.</span><span class="n">FREE</span><span class="p">:</span>
+        <span class="n">is_free</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="c"># Если семафорт занят нами в текущем запросе, то тоже все ОК</span>
+    <span class="k">elif</span> <span class="n">state</span> <span class="o">==</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexState</span><span class="o">.</span><span class="n">CAPTURED_BY_ME</span><span class="p">:</span>
+        <span class="n">is_free</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">return</span> <span class="n">is_free</span>
+</pre></div>
+</div>
+<p>Добавим метод, который позволит нам создавать семафор для последующей его блокировки:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">block</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj_id</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">request_id</span><span class="p">):</span>
+    <span class="sd">u&quot;&quot;&quot;Создание семафора и его блокировка.</span>
+<span class="sd">    Передаётся id объекта, тип объекта и id запроса.</span>
+
+<span class="sd">    :param int obj_id: id объекта</span>
+<span class="sd">    :param basestring mode: тип объекта</span>
+<span class="sd">    :param int request_id: id запроса</span>
+
+<span class="sd">    :rtype: basestring or None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">blocker</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="n">obj_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_obj_id</span><span class="p">(</span><span class="n">obj_id</span><span class="p">)</span>
+    <span class="n">mutex_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mutex_id</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="n">obj_id</span><span class="o">=</span><span class="n">obj_id</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c"># Получаем состояние</span>
+        <span class="n">state</span><span class="p">,</span> <span class="n">mt</span> <span class="o">=</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">request_mutex</span><span class="p">(</span><span class="n">mutex_id</span><span class="p">)</span>
+
+        <span class="c"># Если mutex никем не занят, в том числе нами из другого места</span>
+        <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexState</span><span class="o">.</span><span class="n">FREE</span><span class="p">:</span>
+            <span class="c"># Захватываем mutex</span>
+            <span class="n">m3_mutex</span><span class="o">.</span><span class="n">capture_mutex</span><span class="p">(</span><span class="n">mutex_id</span><span class="p">,</span> <span class="n">status_data</span><span class="o">=</span><span class="n">request_id</span><span class="p">)</span>
+
+        <span class="c"># Иначе блокируем</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># Получаем владельца mutex</span>
+            <span class="n">blocker</span> <span class="o">=</span> <span class="n">mt</span><span class="o">.</span><span class="n">owner</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="c"># Если занят</span>
+    <span class="k">except</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexBusy</span><span class="p">:</span>
+        <span class="n">blocker</span> <span class="o">=</span> <span class="s">u&#39;Блокировщик неизвестен&#39;</span>
+
+    <span class="k">return</span> <span class="n">blocker</span>
+</pre></div>
+</div>
+<p>Добавим метод, который позволит нам обновлять блокировку семафора:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">refresh</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj_id</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">request_id</span><span class="p">):</span>
+    <span class="sd">u&quot;&quot;&quot;Обновление блокировки семафора, чтобы он не освободился по тайм-ауту.</span>
+<span class="sd">    Передаётся id объекта, тип объекта и id запроса.</span>
+
+<span class="sd">    :param int obj_id: id объекта</span>
+<span class="sd">    :param basestring mode: тип объекта</span>
+<span class="sd">    :param int request_id: id запроса</span>
+
+<span class="sd">    :rtype: basestring or None</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">obj_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_obj_id</span><span class="p">(</span><span class="n">obj_id</span><span class="p">)</span>
+    <span class="n">mutex_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_mutex_id</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="n">obj_id</span><span class="o">=</span><span class="n">obj_id</span><span class="p">)</span>
+
+    <span class="c"># Получаем состояние</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">mt</span> <span class="o">=</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">request_mutex</span><span class="p">(</span><span class="n">mutex_id</span><span class="p">)</span>
+
+    <span class="c"># Если заблокирован нами и не из другого запроса</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">state</span> <span class="o">==</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexState</span><span class="o">.</span><span class="n">CAPTURED_BY_ME</span>
+            <span class="ow">and</span> <span class="n">mt</span><span class="o">.</span><span class="n">status_data</span> <span class="o">==</span> <span class="n">request_id</span><span class="p">):</span>
+        <span class="c"># Обновляем блокировку для повторного захвата</span>
+        <span class="n">m3_mutex</span><span class="o">.</span><span class="n">capture_mutex</span><span class="p">(</span><span class="n">mutex_id</span><span class="p">,</span> <span class="n">status_data</span><span class="o">=</span><span class="n">request_id</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">u&quot;Блокировка объекта снята!&quot;</span>
+
+    <span class="k">return</span> <span class="bp">None</span>
+</pre></div>
+</div>
+<p>Добавим метод, который позволит нам освобождать семафор:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">release</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj_id</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">request_id</span><span class="p">):</span>
+    <span class="sd">u&quot;&quot;&quot;Освобождение семафора.</span>
+<span class="sd">    Передаётся id объекта, тип объекта и id запроса.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">obj_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_obj_id</span><span class="p">(</span><span class="n">obj_id</span><span class="p">)</span>
+    <span class="n">mutex_id</span> <span class="o">=</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexID</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="n">obj_id</span><span class="p">)</span>
+
+    <span class="n">state</span><span class="p">,</span> <span class="n">mt</span> <span class="o">=</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">request_mutex</span><span class="p">(</span><span class="n">mutex_id</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">state</span> <span class="o">==</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexState</span><span class="o">.</span><span class="n">CAPTURED_BY_ME</span><span class="p">:</span>
+        <span class="n">mt</span> <span class="o">=</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">capture_mutex</span><span class="p">(</span><span class="n">mutex_id</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">mt</span><span class="o">.</span><span class="n">status_data</span> <span class="o">==</span> <span class="n">request_id</span><span class="p">:</span>
+                <span class="n">m3_mutex</span><span class="o">.</span><span class="n">release_mutex</span><span class="p">(</span><span class="n">mutex_id</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">m3_mutex</span><span class="o">.</span><span class="n">MutexBusy</span><span class="p">:</span>
+            <span class="k">pass</span>
+    <span class="k">return</span> <span class="bp">None</span>
+</pre></div>
+</div>
+<p>После этого, данный семафор можно использовать следующим образом:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># создаем семафор</span>
+<span class="n">mutex</span> <span class="o">=</span> <span class="n">ObjEditMutex</span><span class="p">()</span>
+<span class="c"># создаем или получаем каким - либо образом объект</span>
+<span class="n">some_obj</span> <span class="o">=</span> <span class="n">SomeObjClass</span><span class="p">()</span>
+
+<span class="c"># блокируем объект</span>
+<span class="n">blocker</span> <span class="o">=</span> <span class="n">mutex</span><span class="o">.</span><span class="n">block</span><span class="p">(</span><span class="n">some_obj</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">some_obj</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">some_obj</span><span class="o">.</span><span class="n">uuid</span><span class="p">)</span>
+<span class="c"># если нам удалось заблокировать объект</span>
+<span class="k">if</span> <span class="n">blocker</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="c"># делаем что - то с объектом</span>
+        <span class="n">do_something</span><span class="p">(</span><span class="n">some_obj</span><span class="p">)</span>
+        <span class="c"># освобождаем объект</span>
+        <span class="n">mutex</span><span class="o">.</span><span class="n">release</span><span class="p">(</span><span class="n">some_obj</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">some_obj</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">some_obj</span><span class="o">.</span><span class="n">uuid</span><span class="p">)</span>
+        <span class="k">print</span> <span class="s">&#39;Операция с объектом завершена&#39;</span>
+<span class="k">else</span><span class="p">:</span>
+        <span class="c"># говорим, что объект занят</span>
+        <span class="k">print</span> <span class="s">u&#39;Объект занят&#39;</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Простое использование</a><ul>
+<li><a class="reference internal" href="#id2">Простые примеры использования модуля</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="installation.html"
+                        title="previous chapter">Установка</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/basic.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="installation.html" title="Установка"
+             >previous</a> |</li>
+        <li><a href="index.html">m3-mutex  documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2009-2014, BARS Group.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.
+    </div>
+  </body>
+</html>
