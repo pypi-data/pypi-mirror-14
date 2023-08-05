@@ -1,0 +1,18 @@
+/*!
+  * Copyright 2014,  Digital Reasoning
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  *
+  *     http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  *
+*/
+
+define(["jquery","knockout","underscore","bootbox","utils/utils"],function(e,t,n,r,i){"use strict";function s(e,n){var r=!1;typeof e=="string"&&(r=!0,e={name:e,url:"/api/groups/"+e+"/"}),this.raw=e,this.parent=n,this.name=t.observable(),r?this.waiting=this.reload():this._process(e)}return s.constructor=s,s.prototype._process=function(e){this.name(e.name)},s.prototype.reload=function(){var t=this;return e.ajax({method:"GET",url:this.raw.url}).done(function(e){t.raw=e,t._process(e)})},s.prototype._actionGroup=function(t,n){this.raw.action||(this.raw.action=this.raw.url+"action/");var s;typeof n.username=="function"?s=n.username():s=n.username;var o=this;return e.ajax({method:"POST",url:this.raw.action,data:JSON.stringify({action:t,user:s})}).done(function(e){var n="";switch(t){case"add-user":n="Added "+s+" to "+e.name;break;case"remove-user":n="Removed "+s+" from "+e.name;break;default:}i.growlAlert(n,"success"),o.parent.reload&&o.parent.reload()}).fail(function(e){console.log(e);var t="Error changing membership of group";t&&r.alert({title:"Error updating group",message:t})})},s.prototype.addUser=function(e){return this._actionGroup("add-user",e)},s.prototype.removeUser=function(e){return this._actionGroup("remove-user",e)},s.prototype.save=function(){var t=this;e.ajax({method:"PUT",url:this.raw.url,data:JSON.stringify({name:t.name()})}).done(function(e){i.growlAlert("Successfully saved group!","success")}).fail(function(t){var n="";try{var i=JSON.parse(t.responseText);for(var s in i)if(i.hasOwnProperty(s))if(keys.indexOf(s)>=0){var o=e("#"+s);o.addClass("has-error"),i[s].forEach(function(e){o.append('<span class="help-block">'+e+"</span>")})}else if(s==="non_field_errors")i[s].forEach(function(t){if(t.indexOf("name")>=0){var n=e("#name");n.addClass("has-error"),n.append('<span class="help-block">A group with this name already exists.</span>')}});else{var u=s.replace("_"," ");i[s].forEach(function(e){n+="<dt>"+u+"</dt><dd>"+e+"</dd>"})}n&&(n='<dl class="dl-horizontal">'+n+"</dl>")}catch(a){n="Oops... there was a server error.  This has been reported to your administrators."}n&&r.alert({title:"Error saving group",message:n})})},s.prototype.delete=function(){var t=this,i=n.escape(t.name());r.confirm({title:"Confirm delete of <strong>"+i+"</strong>",message:"Are you sure you want to delete <strong>"+i+"</strong>?",buttons:{confirm:{label:"Delete",className:"btn-danger"}},callback:function(n){n&&e.ajax({method:"DELETE",url:t.raw.url}).done(function(){window.location.pathname!=="/groups/"?window.location="/groups/":t.parent&&typeof t.parent.reload=="function"&&t.parent.reload()}).fail(function(e){var t;if(e.status===403)t="You are unauthorized to delete this group.";else try{var n=JSON.parse(e.responseText);t=n.detail.join("<br>")}catch(i){t="Oops... there was a server error.  This has been reported to your administrators."}r.alert({title:"Error deleting group",message:t})})}})},s});
