@@ -1,0 +1,352 @@
+Metadata-Version: 1.1
+Name: batou
+Version: 1.3b1
+Summary: A utility for automating multi-host, multi-environment software builds and deployments.
+Home-page: https://plan.flyingcircus.io/projects/batou
+Author: Christian Theune
+Author-email: ct@flyingcircus.io
+License: BSD (2-clause)
+Description: batou
+        =====
+        
+        batou helps you to automate your application deployments:
+        
+        * You create a model of your deployment using a simple but powerful Python API.
+        * You configure how the model applies to hosts in different environments.
+        * You verify and run the deployment with the batou utility.
+        
+        Getting started with a new project is easy::
+        
+            $ mkdir myproject
+            $ cd myproject
+            $ curl https://bitbucket.org/flyingcircus/batou/raw/tip/src/batou/bootstrap-template -o batou
+            $ chmod +x batou
+            $ ./batou
+        
+        Here's a minimal application model::
+        
+            $ mkdir -p components/myapp
+            $ cat > components/myapp/component.py
+            from batou.component import Component
+            from batou.lib.python import VirtualEnv, Package
+            from batou.lib.supervisor import Program
+        
+            class MyApp(Component):
+        
+                def configure(self):
+                    venv = VirtualEnv('2.7')
+                    self += venv
+                    venv += Package('myapp')
+                    self += Program('myapp',
+                        command='bin/myapp')
+        
+        And here's a minimal environment::
+        
+            $ mkdir environments
+            $ cat > environments/dev.cfg
+            [environment]
+            mode = local
+        
+            [hosts]
+            localhost = myapp
+        
+        To deploy this, you run::
+        
+            $ ./batou deploy dev
+        
+        Check the `detailed documentation <http://batou.readthedocs.org>`_ to get going with a more ambitious project.
+        
+        
+        Features
+        --------
+        
+        * Separate your application model from environments
+        * Supports idempotent operation for incremental deployments
+        * Deploy to multiple hosts simultaneously
+        * Automated dependency resolution for multi-host
+          scenarios
+        * No runtime requirements on your application
+        * Encrypted secrets with multiple access levels: store your
+          SSL certificates, SSH keys, service secrets and more to get true 1-button deployments.
+        * Deploy to local machines, Vagrant, or any SSH host
+        * Broad SSH feature support by using OpenSSH through execnet
+        * Only few dependencies required on the remote host
+        * Ships with a library of components for regularly needed
+          tasks
+        * self-bootstrapping and self-updating - no additional
+          scripting needed
+        
+        
+        Contribute
+        ----------
+        
+        - `Issue Tracker: <https://plan.flyingcircus.io/projects/batou>`_
+        - `Source Code: <https://bitbucket.org/flyingcircus/batou>`_
+        
+        Support
+        -------
+        
+        If you are having issues, please let us know.
+        We're around on IRC in #batou on freenode.
+        
+        License
+        -------
+        
+        The project is licensed under the 2-clause BSD license.
+        
+        
+        =========
+        Changelog
+        =========
+        
+        1.3b1 (2016-03-09)
+        ==================
+        
+        - Provided extended prediction support for deployments. In addition to ``-c``
+          which checks internal consistency of the configuration model you can pass
+          ``-P`` which causes verification to be run and predict which changes
+          will be applied when deploying.
+        
+        - Enhance support for multi-line members in secret files: order them and
+          indent them automatically. (#13040)
+        
+        1.2 (2016-01-29)
+        ================
+        
+        - Change default of supervisor PID file path to ensure it does something
+          useful out of the box.
+        
+          It's still a good idea to place it on a temporary filesystem that is wiped
+          after a reboot to ensure the PID is from a current system environment.
+        
+        
+        1.2b2 (2016-01-29)
+        ==================
+        
+        - Remove the deprecated 'remote' command alias.
+        
+        - Remove implicit dependency of Supervisor to Logrotation and Nagios.
+        
+          Supervisor now has the options ``logrotate`` and ``nagios`` that can
+          be enabled per environment.
+        
+          **Compatibility note:** if you update from an existing setup with supervisor
+          you should add this to your environments that actually use those features::
+        
+            [component:supervisor]
+            logrotate = True
+            nagios = True
+        
+          Otherwise environments will complain that the RotatedLogFile and
+          nagios.Service have unsatisfied resource requirements. Alternatively you
+          can drop the ``logrotate`` and ``nrpehost`` or ``nagiosserver`` components
+          in environments where you don't need them.
+        
+        1.2b1 (2016-01-28)
+        ==================
+        
+        - Add more utilities for managing secrets: get an overview of
+          all environments and what user keys are there, automatically
+          add or remove users to all, one, or multiple environments.
+        
+        - Improve component error reporting.
+        
+        - Add '--check' flag to deploy command. This causes batou to connect only
+          to the first host and report any configuration errors.
+        
+          The target will have their batou repository updated, so here's a friendly
+          reminder that your deployment should not depend on the content of the
+          repository directly but always only on things copied to the work environment.
+        
+        - Make the '--fast' and '-F' flags more robust.
+        
+        - Fix up some outdated examples (not all of them, though).
+        
+        - Fix configuration error reporting. Removing some code that would
+          never get run. Do not report configuration errors as deployment errors.
+        
+        - Display ignored hosts during connection sequence to make numbers add
+          up and clarify what's going on.
+        
+        1.1.2 (2016-01-20)
+        ==================
+        
+        - Improve error reporting for crontab component.
+        
+        - Fix error ordering.
+        
+        - Introduce syntax to disable deployment of hosts and components.
+          Prefix a hostname with '!' or a component name with '!' to have
+          it configured but not deployed. This supports temporary adjustments
+          while keeping a consistent config.
+        
+          We mark this red in the output because this really needs to be used
+          carefully.
+        
+          It replaces the approach in batou 1.0 where one would set up dummy
+          hosts and use "batou local dev localhost".
+        
+        1.1.1 (2016-01-11)
+        ==================
+        
+        - Fix supervisor's buildout dependency to avoid non-convergence of
+          the pip-installed package.
+        
+        1.1 (2016-01-03)
+        ================
+        
+        - Fix Debian supervisor's pid file attribute.
+        
+        - Update supervisor to 3.2.
+        
+        
+        1.1.0a12 (2015-11-24)
+        =====================
+        
+        - Fix curl initial bootstrap.
+        
+        - Allow to set the contact group of the Supervisor service check from
+          the environment::
+        
+            [component:supervisor]
+            check_contact_groups = group1, group2
+        
+        
+        1.1.0a11 (2015-11-24)
+        =====================
+        
+        - Allow to set the contact group of the Supervisor service check.
+        
+        
+        1.1.0a10 (2015-11-11)
+        =====================
+        
+        - Sort logfiles for logrotate to avoid superfluous reloading.
+        
+        
+        1.1.0a9 (2015-10-14)
+        ====================
+        
+        - Do not implicitly perform attribute conversions when applying overrides.
+          Due to the behaviour of `hasattr` this shadowed conversion exceptions
+          and also performed unnecessary computation or network access (e.g. DNS).
+        
+        
+        1.1.0a8 (2015-10-05)
+        ====================
+        
+        - Fix default pip arguments for installing packages. This stops rebuilds of
+          python/buildout components on each run.
+        
+        - Change default virtualenv download URL to https and use the current FCIO
+          mirror.
+        
+        
+        1.1.0a7 (2015-09-18)
+        ====================
+        
+        - Support Git < 2.0
+        
+        - Add support for managing Python 3.5 environments.
+        
+        - Update virtualenv to newest version for Python 2.7+ and all
+          Python 3 versions.
+        
+        - Drop support for Python 3.1.
+        
+        - Update supervisor: 3.0 -> 3.1.3
+        
+          Includes updated dependencies.
+        
+        - Make socketpath in supervisor configurable.
+        
+        - Fix broken Python compatibility tests.
+        
+        
+        1.1.0a6 (2015-09-17)
+        ====================
+        
+        - Adjust Git repositories to correctly perform fast-forward
+          merges.
+        
+        - Fix Mercurial repository tests that broke without noticing.
+        
+        - Add end-to-end test for our new error reporting which got a
+          regression (#17617)
+        
+        1.1.0a5 (2015-09-09)
+        ====================
+        
+        - Fix Mercurial repositories after refactorings for Git broke it.
+        
+        
+        1.1.0a4 (2015-09-06)
+        ====================
+        
+        - Actually get pull-based Git repositories to work. Still experimental, though.
+        
+        
+        1.1.0a3 (2015-09-05)
+        ====================
+        
+        - Initial support for managing batou projects with git. Git repositories
+          support pull-based and bundle-based shipping.
+        
+        - Add backwards compatibility for `batou remote` to help users
+          migrate their fingers.
+        
+        1.1.0a2 (2015-09-03)
+        ====================
+        
+        - Fix updating from Batou 1.0
+        
+        
+        1.1.0a1 (2015-09-03)
+        ====================
+        
+        - Do request an update for packages installed from requirements.txt within
+          the batou environment to help update VCS checkouts that are pinned.
+        
+        - Clear PYTHONPATH for bootstrapping to avoid accidental interaction with
+          unclean Python environments.
+        
+        - Provide '--fast' mode: do not perform bootstrapping.
+        
+          This is a first step to improve bootstrapping times. The switch is rather dumb but allows us to work a) offline
+          in some cases and b) develop faster.
+        
+        - Fix unicode encoding/decoding in File handling. See #14944.
+          (Ported from 1.0)
+        
+        - Fold the runner invocation for `local` and `remote` into
+          a single `deploy` command:
+        
+          $ ./batou deploy <environment>
+        
+          To force a local or remote invocation use --local and --remote. By default batou will assume a remote environment. To configure an environment's deployment mode use the `mode` attribute in the `environment` section::
+        
+              [environment]
+              mode = local
+        
+          To specify a manual override on the commandline you can provide the `--local` or `--remote` arguments to the `run` command.
+        
+        - Improve bootstrapping to give developers a better way
+          to get started without installing batou system-wide
+          or in a temporary virtualenv.
+        
+        - Revamp README and documentation.
+        
+        - Rework error handling and output management.
+        
+          batou will now show more errors at once, suppress unnecessary internal tracebacks and try to prioritize
+          different errors to make complex failure situations
+          easier to ingest.
+        
+        
+Keywords: deployment
+Platform: UNKNOWN
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 2 :: Only
