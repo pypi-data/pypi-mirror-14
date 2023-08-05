@@ -1,0 +1,181 @@
+Metadata-Version: 2.0
+Name: django-auth-adfs
+Version: 0.0.4
+Summary: A Django authentication backend for Microsoft ADFS
+Home-page: https://github.com/jobec/django-auth-adfs
+Author: Joris Beckers
+Author-email: joris.beckers@gmail.com
+License: BSD
+Download-URL: https://pypi.python.org/pypi/django-auth-adfs
+Keywords: django authentication adfs oauth2
+Platform: UNKNOWN
+Classifier: Environment :: Web Environment
+Classifier: Framework :: Django :: 1.7
+Classifier: Framework :: Django :: 1.8
+Classifier: Framework :: Django :: 1.9
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: End Users/Desktop
+Classifier: Operating System :: OS Independent
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: Dynamic Content
+Classifier: Topic :: Internet :: WWW/HTTP :: WSGI
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Development Status :: 4 - Beta
+Requires-Dist: cryptography
+Requires-Dist: django (>=1.7)
+Requires-Dist: pyjwt (>=1.0.1)
+Requires-Dist: requests
+
+ADFS Authentication for Django
+==============================
+
+.. image:: https://readthedocs.org/projects/django-auth-adfs/badge/?version=latest
+    :target: http://django-auth-adfs.readthedocs.org/en/latest/?badge=latest
+    :alt: Documentation Status
+.. image:: https://img.shields.io/pypi/v/django-auth-adfs.svg
+    :target: https://pypi.python.org/pypi/django-auth-adfs
+.. image:: https://travis-ci.org/jobec/django-auth-adfs.svg?branch=master
+    :target: https://travis-ci.org/jobec/django-auth-adfs
+.. image:: https://codecov.io/github/jobec/django-auth-adfs/coverage.svg?branch=master
+    :target: https://codecov.io/github/jobec/django-auth-adfs?branch=master
+
+A Django authentication backend for Microsoft ADFS
+
+* Free software: BSD License
+* Homepage: https://github.com/jobec/django-auth-adfs
+* Documentation: http://django-auth-adfs.readthedocs.org/
+
+Features
+--------
+
+* Integrates Django with Active Directory through Microsoft ADFS by using OAuth2.
+* Provides seamless single sign on (SSO) for your Django project on intranet environments.
+* Auto creates users and adds them to Django groups based on info in JWT claims received from ADFS.
+
+Installation
+------------
+
+Python package::
+
+    pip install django-auth-adfs
+
+In your project's ``settings.py``
+
+.. code-block:: python
+
+    AUTHENTICATION_BACKENDS = (
+        ...
+        'django_auth_adfs.backend.AdfsBackend',
+        ...
+    )
+
+    INSTALLED_APPS = (
+        ...
+        # Needed for the ADFS redirect URI to function
+        'django_auth_adfs',
+        ...
+
+    # checkout config.py for more settings
+    AUTH_ADFS = {
+        "ADFS_SERVER": "adfs.yourcompany.com",
+        "ADFS_CLIENT_ID": "your-configured-client-id",
+        "ADFS_RESOURCE": "your-adfs-RPT-name",
+        "ADFS_SIGNING_CERT": "/path/to/adfs-signing-certificate.pem",
+        # Make sure to read the documentation about the ADFS_AUDIENCE setting
+        # when you configured the identifier as a URL!
+        "ADFS_AUDIENCE": "microsoft:identityserver:your-RelyingPartyTrust-identifier",
+        "ADFS_ISSUER": "http://adfs.yourcompany.com/adfs/services/trust",
+        "ADFS_CA_BUNDLE": "/path/to/ca-bundle.pem",
+        "ADFS_CLAIM_MAPPING": {"first_name": "given_name",
+                               "last_name": "family_name",
+                               "email": "email"},
+        "ADFS_REDIR_URI": "https://www.yourcompany.com/oauth2/login",
+    }
+
+    ########################
+    # OPTIONAL SETTINGS
+    ########################
+    TEMPLATES = [
+        {
+            ...
+            'OPTIONS': {
+                'context_processors': [
+                    # Only needed if you want to use the variable ADFS_AUTH_URL in your templates
+                    'django_auth_adfs.context_processors.adfs_url',
+                    ...
+                ],
+            },
+        },
+    ]
+
+
+    MIDDLEWARE_CLASSES = (
+        ...
+        # With this you can force a user to login without using
+        # the @login_required decorator for every view function
+        #
+        # You can specify URLs for which login is not forced by
+        # specifying them in LOGIN_EXEMPT_URLS in setting.py.
+        # The values in LOGIN_EXEMPT_URLS are interpreted as regular expressions.
+        'django_auth_adfs.middleware.LoginRequiredMiddleware',
+    )
+
+In your project's ``urls.py``
+
+.. code-block:: python
+
+    urlpatterns = [
+        ...
+        # Needed for the redirect URL to function
+        # The namespace is important and shouldn't be changed
+        url(r'^oauth2/', include('django_auth_adfs.urls', namespace='auth_adfs')),
+        ...
+    ]
+
+The URL you have to configure as the redirect URL in ADFS depends on the url pattern you configure.
+In the example above you have to make the redirect url in ADFS point to ``https://yoursite.com/oauth2/login``
+
+Contributing
+------------
+Contributions to the code are more then welcome.
+For more details have a look at the ``CONTRIBUTION.rst`` file.
+
+
+Changelog
+---------
+
+0.0.4 (2016-03-14)
+~~~~~~~~~~~~~~~~~~
+* Made the absence of the group claim non-fatal to allow users without a group.
+
+0.0.3 (2016-02-21)
+~~~~~~~~~~~~~~~~~~
+
+* ADFS_REDIR_URI is now a required setting
+* Now supports Python 2.7, 3.4 and 3.5
+* Now supports Django 1.7, 1.8 and 1.9
+* Added debug logging to aid in troubleshooting
+* Added unit tests
+* Lot's of code cleanup
+
+0.0.2 (2016-02-11)
+~~~~~~~~~~~~~~~~~~
+
+* Fixed a possible issue with the cryptography package when used with apache + mod_wsgi.
+* Added a optional context processor to make the ADFS authentication URL available as a template variable (ADFS_AUTH_URL).
+* Added a optional middleware class to be able force an anonymous user to authenticate.
+
+0.0.1 (2016-02-09)
+~~~~~~~~~~~~~~~~~~
+
+* Initial release
+
+
