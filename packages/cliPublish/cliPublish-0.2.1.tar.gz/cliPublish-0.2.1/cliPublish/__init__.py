@@ -1,0 +1,1 @@
+from .cliPublish import main
