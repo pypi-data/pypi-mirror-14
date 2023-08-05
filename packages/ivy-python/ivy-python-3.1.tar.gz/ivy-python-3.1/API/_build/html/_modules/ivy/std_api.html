@@ -1,0 +1,376 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>ivy.std_api &mdash; ivy-python: a python library for the Ivy software bus 1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="ivy-python: a python library for the Ivy software bus 1.2 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">ivy-python: a python library for the Ivy software bus 1.2 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for ivy.std_api</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Implements the standard Ivy API.</span>
+
+<span class="sd">You can refer to the example code ``pyhello.py`` for an example of use.</span>
+
+<span class="sd">All methods in this module are frontends to a `ivy.IvyServer` instance, stored</span>
+<span class="sd">in the module&#39;s attributes `_IvyServer`.</span>
+
+<span class="sd">:group Connecting to/disconnecting from the Ivy bus:</span>
+<span class="sd">  IvyInit, IvyStart,IvyMainLoop, IvyStop</span>
+<span class="sd">:group Bindings: IvyBindMsg, IvyUnBindMsg, IvyBindDirectMsg</span>
+<span class="sd">:group Inspecting the Ivy bus:</span>
+<span class="sd">  IvyGetApplicationList, IvyGetApplication, IvyGetApplicationName,</span>
+<span class="sd">  IvyGetApplicationHost</span>
+<span class="sd">:group Interacting with other Ivy clients:</span>
+<span class="sd">  IvySendMsg, IvySendDieMsg, IvySendDirectMsg</span>
+<span class="sd">:group Timers: IvyTimerRepeatAfter, IvyTimerModify, IvyTimerRemove</span>
+
+<span class="sd">Copyright (c) 2005-2011 Sebastien Bigaret &lt;sbigaret@users.sourceforge.net&gt;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="n">_IvyServer</span> <span class="o">=</span> <span class="bp">None</span>
+
+<span class="kn">from</span> <span class="nn">ivy</span> <span class="kn">import</span> <span class="n">IvyApplicationConnected</span><span class="p">,</span> <span class="n">IvyApplicationDisconnected</span>
+<span class="kn">from</span> <span class="nn">ivy</span> <span class="kn">import</span> <span class="n">IvyRegexpAdded</span><span class="p">,</span> <span class="n">IvyRegexpRemoved</span>
+<span class="kn">from</span> <span class="nn">ivy</span> <span class="kn">import</span> <span class="n">void_function</span>
+<span class="kn">import</span> <span class="nn">signal</span>
+
+<div class="viewcode-block" id="IvyInit"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyInit">[docs]</a><span class="k">def</span> <span class="nf">IvyInit</span><span class="p">(</span><span class="n">agent_name</span><span class="p">,</span> <span class="n">ready_msg</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+            <span class="n">main_loop_type_ignored</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">on_cnx_fct</span><span class="o">=</span><span class="n">void_function</span><span class="p">,</span>
+            <span class="n">on_die_fct</span><span class="o">=</span><span class="n">void_function</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initializes the module. This method should be called exactly once before any</span>
+<span class="sd">    other method is called.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">global</span> <span class="n">_IvyServer</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="bp">None</span>
+    <span class="kn">from</span> <span class="nn">ivy</span> <span class="kn">import</span> <span class="n">IvyServer</span>
+    <span class="n">_IvyServer</span> <span class="o">=</span> <span class="n">IvyServer</span><span class="p">(</span><span class="n">agent_name</span><span class="p">,</span> <span class="n">ready_msg</span><span class="p">,</span> <span class="n">on_cnx_fct</span><span class="p">,</span> <span class="n">on_die_fct</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvyStart"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyStart">[docs]</a><span class="k">def</span> <span class="nf">IvyStart</span><span class="p">(</span><span class="n">ivybus</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Starts the Ivy server and fully activate the client.  Please refer to the</span>
+<span class="sd">    discussion in `IvyMainLoop()` &#39;s documentation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="n">_IvyServer</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">ivybus</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvyMainLoop"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyMainLoop">[docs]</a><span class="k">def</span> <span class="nf">IvyMainLoop</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Simulates the original main loop: simply waits for the server termination.</span>
+
+<span class="sd">    Note that while the original API requires this to be called, this module</span>
+<span class="sd">    does NOT rely in any way on this method. In particular, a client is</span>
+<span class="sd">    fully functional and begins to receive messages as soon as the `IvyStart()`</span>
+<span class="sd">    method is called.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="n">signal</span><span class="o">.</span><span class="n">signal</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">SIGINT</span><span class="p">,</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">arg</span><span class="p">:</span> <span class="n">IvyStop</span><span class="p">())</span>
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">_IvyServer</span><span class="o">.</span><span class="n">server_termination</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="mi">5</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="IvyStop"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyStop">[docs]</a><span class="k">def</span> <span class="nf">IvyStop</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="n">_IvyServer</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="IvyBindMsg"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyBindMsg">[docs]</a><span class="k">def</span> <span class="nf">IvyBindMsg</span><span class="p">(</span><span class="n">on_msg_fct</span><span class="p">,</span> <span class="n">regexp</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Registers a method that should be called each time a message matching</span>
+<span class="sd">    regexps is sent on the Ivy bus.</span>
+
+<span class="sd">    :return: an id identifying the binding, that can be used to unregister it</span>
+<span class="sd">      (see `IvyUnBindMsg()`)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">_IvyServer</span><span class="o">.</span><span class="n">bind_msg</span><span class="p">(</span><span class="n">on_msg_fct</span><span class="p">,</span> <span class="n">regexp</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvyBindDirectMsg"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyBindDirectMsg">[docs]</a><span class="k">def</span> <span class="nf">IvyBindDirectMsg</span><span class="p">(</span><span class="n">on_msg_fct</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Registers a method that should be called each time someone sends us</span>
+<span class="sd">    a direct message</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">_IvyServer</span><span class="o">.</span><span class="n">bind_direct_msg</span><span class="p">(</span><span class="n">on_msg_fct</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvyUnBindMsg"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyUnBindMsg">[docs]</a><span class="k">def</span> <span class="nf">IvyUnBindMsg</span><span class="p">(</span><span class="n">binding_id</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Unregisters a binding</span>
+
+<span class="sd">    :param binding_id: the binding&#39;s id, as previously returned by `IvyBindMsg()`.</span>
+<span class="sd">    :return: the regexp corresponding to the unsubscribed binding</span>
+<span class="sd">    :except KeyError: if no such subscription can be found</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">_IvyServer</span><span class="o">.</span><span class="n">unbind_msg</span><span class="p">(</span><span class="n">binding_id</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvyBindRegexpChange"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyBindRegexpChange">[docs]</a><span class="k">def</span> <span class="nf">IvyBindRegexpChange</span><span class="p">(</span><span class="n">regexp_change_callback</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">_IvyServer</span><span class="o">.</span><span class="n">bind_regexp_change</span><span class="p">(</span><span class="n">regexp_change_callback</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvySendMsg"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvySendMsg">[docs]</a><span class="k">def</span> <span class="nf">IvySendMsg</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sends a message on the bus</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">_IvyServer</span><span class="o">.</span><span class="n">send_msg</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvySendDieMsg"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvySendDieMsg">[docs]</a><span class="k">def</span> <span class="nf">IvySendDieMsg</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sends a &quot;die&quot; message to `client`, instructing him to terminate.</span>
+
+<span class="sd">    :param client: an `ivy.IvyClient` object,  as returned by</span>
+<span class="sd">      `IvyGetApplication()`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="n">client</span><span class="o">.</span><span class="n">send_die_message</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="IvySendDirectMsg"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvySendDirectMsg">[docs]</a><span class="k">def</span> <span class="nf">IvySendDirectMsg</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sends a message directly to an other Ivy client, with the supplied</span>
+<span class="sd">    numerical id and message.</span>
+<span class="sd">    </span>
+<span class="sd">    :Parameters:</span>
+<span class="sd">      - `client`: an `ivy.IvyClient` object, as returned by</span>
+<span class="sd">        `IvyGetApplication()`</span>
+<span class="sd">      - `num_id`: an additional integer to use. It may, or may not, be</span>
+<span class="sd">        meaningful, this only depends on the usage your application makes of</span>
+<span class="sd">        it, the Ivy protocol itself does not care and simply transmits it</span>
+<span class="sd">        along with the message.</span>
+<span class="sd">      - `msg`: the message to send</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="n">client</span><span class="o">.</span><span class="n">send_direct_message</span><span class="p">(</span><span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvySendError"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvySendError">[docs]</a><span class="k">def</span> <span class="nf">IvySendError</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">error_msg</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sends an &quot;error&quot; message to `client`</span>
+
+<span class="sd">    :Parameters:</span>
+<span class="sd">      - `client`: an `ivy.IvyClient` object, as returned by</span>
+<span class="sd">        `IvyGetApplication()`</span>
+<span class="sd">      - `num_id`: an additional integer to use. It may, or may not, be</span>
+<span class="sd">        meaningful, this only depends on the usage your application makes of</span>
+<span class="sd">        it, the Ivy protocol itself does not care and simply transmits it</span>
+<span class="sd">        along with the message.</span>
+<span class="sd">      - `error_msg`: the message to send</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="n">client</span><span class="o">.</span><span class="n">send_error</span><span class="p">(</span><span class="n">num_id</span><span class="p">,</span> <span class="n">error_msg</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvyGetApplicationList"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyGetApplicationList">[docs]</a><span class="k">def</span> <span class="nf">IvyGetApplicationList</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the names of the applications that are currently connected</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">_IvyServer</span><span class="o">.</span><span class="n">get_clients</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="IvyGetApplicationMessages"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyGetApplicationMessages">[docs]</a><span class="k">def</span> <span class="nf">IvyGetApplicationMessages</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns all subscriptions for that client</span>
+
+<span class="sd">    :param client: an `ivy.IvyClient` object,  as returned by</span>
+<span class="sd">      `IvyGetApplication()`</span>
+<span class="sd">    :return: list of tuples (idx, regexp)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">client</span><span class="o">.</span><span class="n">get_regexps</span><span class="p">()</span>
+
+</div>
+<div class="viewcode-block" id="IvyGetApplication"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyGetApplication">[docs]</a><span class="k">def</span> <span class="nf">IvyGetApplication</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns the Ivy client registered on the bus under the given name.</span>
+<span class="sd">    </span>
+<span class="sd">    .. warning:: if multiple applications are registered w/ the same name only</span>
+<span class="sd">      one is returned</span>
+<span class="sd">    </span>
+<span class="sd">    :returns: an `ivy.IvyClient` object</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="n">clients</span> <span class="o">=</span> <span class="n">_IvyServer</span><span class="o">.</span><span class="n">get_client_with_name</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">clients</span> <span class="ow">and</span> <span class="n">clients</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">or</span> <span class="bp">None</span>
+
+</div>
+<div class="viewcode-block" id="IvyGetApplicationName"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyGetApplicationName">[docs]</a><span class="k">def</span> <span class="nf">IvyGetApplicationName</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Equivalent to ``client.agent_name``</span>
+
+<span class="sd">    :param client: an `ivy.IvyClient` object, as returned by</span>
+<span class="sd">      `IvyGetApplication()`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">client</span><span class="o">.</span><span class="n">agent_name</span>
+
+</div>
+<div class="viewcode-block" id="IvyGetApplicationHost"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyGetApplicationHost">[docs]</a><span class="k">def</span> <span class="nf">IvyGetApplicationHost</span><span class="p">(</span><span class="n">client</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Equivalent to ``client.fqdn``. IP address is stored under ``client.ip``,</span>
+<span class="sd">    and port number under ``client.port``</span>
+
+<span class="sd">    :param client: an `ivy.IvyClient` object,  as returned by</span>
+<span class="sd">      `IvyGetApplication()`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">client</span><span class="o">.</span><span class="n">fqdn</span>
+
+</div>
+<span class="n">_timers</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<div class="viewcode-block" id="IvyTimerRepeatAfter"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyTimerRepeatAfter">[docs]</a><span class="k">def</span> <span class="nf">IvyTimerRepeatAfter</span><span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="n">delay</span><span class="p">,</span> <span class="n">callback</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Creates and activates a new timer</span>
+<span class="sd">    </span>
+<span class="sd">    :Parameters:</span>
+<span class="sd">      - `count`: nb of time to repeat the loop, ``0`` (zero) for an endless loop</span>
+<span class="sd">      - `delay`: the delay between ticks, in milliseconds</span>
+<span class="sd">      - `callback`: the function to call on every tick. That function is</span>
+<span class="sd">        called without any parameters.</span>
+
+<span class="sd">    :return: the timer&#39;s id</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">_IvyServer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+    <span class="kn">from</span> <span class="nn">ivy</span> <span class="kn">import</span> <span class="n">IvyTimer</span>
+    <span class="c"># The original python API relies on a callback called without any parameter</span>
+    <span class="n">cb</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">timer</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="n">callback</span><span class="p">:</span> <span class="n">callback</span><span class="p">()</span>
+    <span class="n">timer</span> <span class="o">=</span> <span class="n">IvyTimer</span><span class="p">(</span><span class="n">_IvyServer</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">delay</span><span class="p">,</span> <span class="n">cb</span><span class="p">)</span>
+    <span class="n">_timers</span><span class="p">[</span><span class="n">timer</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">timer</span>
+    <span class="n">timer</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">timer</span><span class="o">.</span><span class="n">id</span>
+
+</div>
+<div class="viewcode-block" id="IvyTimerModify"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyTimerModify">[docs]</a><span class="k">def</span> <span class="nf">IvyTimerModify</span><span class="p">(</span><span class="n">timer_id</span><span class="p">,</span> <span class="n">delay</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Modifies a timer&#39;s delay.  Note that the modification will happen after</span>
+<span class="sd">    the next tick.</span>
+<span class="sd">    </span>
+<span class="sd">    :Parameters:</span>
+<span class="sd">      - `timer_id`: id of the timer to modify, as returned by</span>
+<span class="sd">        `IvyTimerRepeatAfter()`</span>
+<span class="sd">      - `delay`: the delay, in milliseconds, between ticks</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_timers</span><span class="p">[</span><span class="n">timer_id</span><span class="p">]</span><span class="o">.</span><span class="n">delay</span> <span class="o">=</span> <span class="n">delay</span>
+
+</div>
+<div class="viewcode-block" id="IvyTimerRemove"><a class="viewcode-back" href="../../ivy.html#ivy.std_api.IvyTimerRemove">[docs]</a><span class="k">def</span> <span class="nf">IvyTimerRemove</span><span class="p">(</span><span class="n">timer_id</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Stops and removes a given timer.</span>
+<span class="sd">    </span>
+<span class="sd">    :param timer_id: id of the timer, as returned by `IvyTimerRepeatAfter`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">timer</span> <span class="o">=</span> <span class="n">_timers</span><span class="p">[</span><span class="n">timer_id</span><span class="p">]</span>
+    <span class="n">timer</span><span class="o">.</span><span class="n">abort</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="k">del</span> <span class="n">_timers</span><span class="p">[</span><span class="n">timer_id</span><span class="p">]</span>
+
+
+
+<span class="c">## copy/paste for quick tests w/ ivyprobe</span>
+<span class="c"># from ivy.std_api import *</span>
+<span class="c"># IvyInit(&#39;Test&#39;, &#39;test welcome&#39;, 0)</span>
+<span class="c"># IvyStart()</span>
+<span class="c"># def onmsgproc(*larg):</span>
+<span class="c">#    print larg</span>
+<span class="c">#</span>
+<span class="c"># IvyBindMsg(onmsgproc, &#39;(.*)&#39;)</span>
+<span class="c"># IvyGetApplicationList()</span>
+<span class="c"># app=IvyGetApplication(&#39;IVYPROBE&#39;)</span>
+<span class="c"># IvyGetApplicationName(app)</span>
+<span class="c"># IvyGetApplicationHost(app)</span>
+<span class="c"># IvySendDirectMsg(app, 765, &#39;glop&#39;)</span>
+<span class="c"># IvySendDieMsg(app)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">ivy-python: a python library for the Ivy software bus 1.2 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014, Sebastien Bigaret.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

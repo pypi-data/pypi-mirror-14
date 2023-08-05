@@ -1,0 +1,1476 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>ivy.ivy &mdash; ivy-python: a python library for the Ivy software bus 1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="ivy-python: a python library for the Ivy software bus 1.2 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">ivy-python: a python library for the Ivy software bus 1.2 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for ivy.ivy</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Using an IvyServer</span>
+<span class="sd">------------------</span>
+
+<span class="sd">The following code is a typical example of use:</span>
+
+<span class="sd">.. python::</span>
+<span class="sd">    from ivy.ivy import IvyServer</span>
+<span class="sd">    </span>
+<span class="sd">    class MyAgent(IvyServer):</span>
+<span class="sd">      def __init__(self, name):</span>
+<span class="sd">        IvyServer.__init__(self,&#39;MyAgent&#39;)</span>
+<span class="sd">        self.name = name</span>
+<span class="sd">        self.start(&#39;127.255.255.255:2010&#39;)</span>
+<span class="sd">        self.bind_msg(self.handle_hello, &#39;hello .*&#39;)</span>
+<span class="sd">        self.bind_msg(self.handle_button, &#39;BTN ([a-fA-F0-9]+)&#39;)</span>
+<span class="sd">        </span>
+<span class="sd">      def handle_hello(self, agent):</span>
+<span class="sd">        print &#39;[Agent %s] GOT hello from %r&#39;%(self.name, agent)</span>
+<span class="sd">      </span>
+<span class="sd">      def handle_button(self, agent, btn_id):</span>
+<span class="sd">        print &#39;[Agent %s] GOT BTN button_id=%s from %r&#39;%(self.name, btn_id, agent)</span>
+<span class="sd">        # let&#39;s answer!</span>
+<span class="sd">        self.send_msg(&#39;BTN_ACK %s&#39;%btn_id)</span>
+<span class="sd">    </span>
+<span class="sd">    a=MyAgent(&#39;007&#39;)</span>
+
+
+<span class="sd">Implementation details</span>
+<span class="sd">----------------------</span>
+
+<span class="sd">An Ivy client is made of several threads:</span>
+
+<span class="sd">  - an `IvyServer` instance</span>
+
+<span class="sd">  - a UDP server, launched by the Ivy server, listening to incoming UDP</span>
+<span class="sd">    broadcast messages</span>
+
+<span class="sd">  - `IvyTimer` objects </span>
+
+<span class="sd">:group Messages types: BYE, ADD_REGEXP, MSG, ERROR, DEL_REGEXP, END_REGEXP,</span>
+<span class="sd">  END_INIT, START_REGEXP, START_INIT, DIRECT_MSG, DIE</span>
+<span class="sd">:group Separators: ARG_START, ARG_END</span>
+<span class="sd">:group Misc. constants: DEFAULT_IVYBUS, PROTOCOL_VERSION, IVY_SHOULD_NOT_DIE</span>
+<span class="sd">  IvyApplicationConnected, IvyApplicationDisconnected, DEFAULT_TTL</span>
+<span class="sd">:group Objects and functions related to logging: ivylogger, debug, log, warn,</span>
+<span class="sd">  error, ivy_loghdlr, ivy_logformatter</span>
+
+<span class="sd">Copyright (c) 2005-2011 Sebastien Bigaret &lt;sbigaret@users.sourceforge.net&gt;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+<span class="kn">import</span> <span class="nn">struct</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+<span class="kn">import</span> <span class="nn">types</span>
+<span class="kn">import</span> <span class="nn">SocketServer</span>
+
+<span class="n">ivylogger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s">&#39;Ivy&#39;</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;IVY_LOG_TRACE&#39;</span><span class="p">):</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">TRACE</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">TRACE</span><span class="p">,</span> <span class="s">&#39;TRACE&#39;</span><span class="p">)</span>
+    <span class="n">trace</span> <span class="o">=</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">:</span> <span class="n">ivylogger</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">TRACE</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">trace</span> <span class="o">=</span> <span class="k">lambda</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">:</span> <span class="bp">None</span>
+
+<span class="n">debug</span> <span class="o">=</span> <span class="n">ivylogger</span><span class="o">.</span><span class="n">debug</span>
+<span class="n">info</span> <span class="o">=</span> <span class="n">log</span> <span class="o">=</span> <span class="n">ivylogger</span><span class="o">.</span><span class="n">info</span>
+<span class="n">warn</span> <span class="o">=</span> <span class="n">ivylogger</span><span class="o">.</span><span class="n">warning</span>
+<span class="n">error</span> <span class="o">=</span> <span class="n">ivylogger</span><span class="o">.</span><span class="n">error</span>
+
+<span class="n">ivy_loghdlr</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>  <span class="c"># stderr by default</span>
+<span class="n">ivy_logformatter</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%(asctime)s</span><span class="s"> </span><span class="si">%(levelname)s</span><span class="s"> </span><span class="si">%(message)s</span><span class="s">&#39;</span><span class="p">)</span>
+
+<span class="n">ivy_loghdlr</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">ivy_logformatter</span><span class="p">)</span>
+<span class="n">ivylogger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">ivy_loghdlr</span><span class="p">)</span>
+<span class="n">ivylogger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+
+<span class="c">##</span>
+<span class="n">DEFAULT_IVYBUS</span> <span class="o">=</span> <span class="s">&#39;127:2010&#39;</span>
+<span class="n">PROTOCOL_VERSION</span> <span class="o">=</span> <span class="mi">3</span>
+
+<span class="c"># Message types. Refer to &quot;The Ivy architecture and protocol&quot; for details</span>
+<span class="n">BYE</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">ADD_REGEXP</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">MSG</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">ERROR</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">DEL_REGEXP</span> <span class="o">=</span> <span class="mi">4</span>
+
+<span class="c"># START_REGEXP and END_REGEXP are the ones declared in ivy.c</span>
+<span class="c"># however we&#39;ll use the aliases START_INIT and END_INIT here</span>
+<span class="n">END_REGEXP</span> <span class="o">=</span> <span class="n">END_INIT</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">START_REGEXP</span> <span class="o">=</span> <span class="n">START_INIT</span> <span class="o">=</span> <span class="mi">6</span>
+
+<span class="n">DIRECT_MSG</span> <span class="o">=</span> <span class="mi">7</span>
+<span class="n">DIE</span> <span class="o">=</span> <span class="mi">8</span>
+
+<span class="n">PING</span> <span class="o">=</span> <span class="mi">9</span>
+<span class="n">PONG</span> <span class="o">=</span> <span class="mi">10</span>
+
+<span class="c"># Other constants</span>
+<span class="n">ARG_START</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\002</span><span class="s">&#39;</span>
+<span class="n">ARG_END</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\003</span><span class="s">&#39;</span>
+
+<span class="c"># for multicast, arbitrary TTL value taken from ivysocket.c:SocketAddMember</span>
+<span class="n">DEFAULT_TTL</span> <span class="o">=</span> <span class="mi">64</span>
+
+<span class="n">IvyApplicationConnected</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">IvyApplicationDisconnected</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="n">IvyRegexpAdded</span> <span class="o">=</span> <span class="mi">3</span>
+<span class="n">IvyRegexpRemoved</span> <span class="o">=</span> <span class="mi">4</span>
+
+<span class="n">IVY_SHOULD_NOT_DIE</span> <span class="o">=</span> <span class="s">&#39;Ivy Application Should Not Die&#39;</span>
+
+
+<div class="viewcode-block" id="void_function"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.void_function">[docs]</a><span class="k">def</span> <span class="nf">void_function</span><span class="p">(</span><span class="o">*</span><span class="n">arg</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A function that accepts any number of parameters and does nothing&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="UDP_init_and_listen"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.UDP_init_and_listen">[docs]</a><span class="k">def</span> <span class="nf">UDP_init_and_listen</span><span class="p">(</span><span class="n">broadcast_addr</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">socket_server</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Called by an IvyServer at startup; the method is responsible for:</span>
+
+<span class="sd">    - sending the initial UDP broadcast message,</span>
+
+<span class="sd">    - waiting for incoming UDP broadcast messages being sent by new clients</span>
+<span class="sd">      connecting on the bus.  When it receives such a message, a connection</span>
+<span class="sd">      is established to that client and that connection (a socket) is then</span>
+<span class="sd">      passed to the IvyServer instance.</span>
+
+<span class="sd">    :Parameters:</span>
+<span class="sd">      - `broadcast_addr`: the broadcast address used on the Ivy bus</span>
+<span class="sd">      - `port`: the port dedicated to the Ivy bus</span>
+<span class="sd">      - `socket_server`: instance of an IvyServer handling communications</span>
+<span class="sd">        for our client.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">log</span><span class="p">(</span><span class="s">&#39;Starting Ivy UDP Server on </span><span class="si">%r</span><span class="s">:</span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">broadcast_addr</span><span class="p">,</span> <span class="n">port</span><span class="p">))</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SOCK_DGRAM</span><span class="p">)</span>
+    <span class="n">on</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">SOL_SOCKET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SO_REUSEADDR</span><span class="p">,</span> <span class="n">on</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">socket</span><span class="p">,</span> <span class="s">&#39;SO_REUSEPORT&#39;</span><span class="p">):</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">SOL_SOCKET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SO_REUSEPORT</span><span class="p">,</span> <span class="n">on</span><span class="p">)</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">SOL_SOCKET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SO_BROADCAST</span><span class="p">,</span> <span class="n">on</span><span class="p">)</span>
+
+    <span class="n">s</span><span class="o">.</span><span class="n">bind</span><span class="p">((</span><span class="s">&#39;&#39;</span><span class="p">,</span> <span class="n">port</span><span class="p">))</span>  <span class="c"># &#39;&#39; means: INADDR_ANY</span>
+
+    <span class="c"># Multicast</span>
+    <span class="k">if</span> <span class="n">is_multicast</span><span class="p">(</span><span class="n">broadcast_addr</span><span class="p">):</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Broadcast address is a multicast address&#39;</span><span class="p">)</span>
+
+        <span class="n">ifaddr</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">INADDR_ANY</span>
+        <span class="n">mreq</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s">&#39;4sl&#39;</span><span class="p">,</span>
+                           <span class="n">socket</span><span class="o">.</span><span class="n">inet_aton</span><span class="p">(</span><span class="n">broadcast_addr</span><span class="p">),</span>
+                           <span class="n">socket</span><span class="o">.</span><span class="n">htonl</span><span class="p">(</span><span class="n">ifaddr</span><span class="p">))</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">IPPROTO_IP</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">IP_ADD_MEMBERSHIP</span><span class="p">,</span> <span class="n">mreq</span><span class="p">)</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">IPPROTO_IP</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">IP_MULTICAST_TTL</span><span class="p">,</span> <span class="n">DEFAULT_TTL</span><span class="p">)</span>
+    <span class="c"># /Multicast</span>
+
+    <span class="n">s</span><span class="o">.</span><span class="n">sendto</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%li</span><span class="s"> </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">PROTOCOL_VERSION</span><span class="p">,</span>
+                                 <span class="n">socket_server</span><span class="o">.</span><span class="n">port</span><span class="p">,</span>
+                                 <span class="n">socket_server</span><span class="o">.</span><span class="n">agent_id</span><span class="p">,</span>
+                                 <span class="n">socket_server</span><span class="o">.</span><span class="n">agent_name</span><span class="p">),</span>
+             <span class="p">(</span><span class="n">broadcast_addr</span><span class="p">,</span> <span class="n">port</span><span class="p">))</span>
+
+    <span class="n">s</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">socket_server</span><span class="o">.</span><span class="n">isAlive</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">udp_msg</span><span class="p">,</span> <span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">ivybus_port</span><span class="p">)</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">recvfrom</span><span class="p">(</span><span class="mi">1024</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">timeout</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;UDP got: </span><span class="si">%r</span><span class="s"> from: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">udp_msg</span><span class="p">,</span> <span class="n">ip</span><span class="p">)</span>
+
+        <span class="n">appid</span> <span class="o">=</span> <span class="n">appname</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">udp_msg_l</span> <span class="o">=</span> <span class="n">udp_msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">)</span>
+            <span class="n">protocol_version</span><span class="p">,</span> <span class="n">port_number</span> <span class="o">=</span> <span class="n">udp_msg_l</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">udp_msg_l</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="c"># &quot;new&quot; udp protocol, with id &amp; appname</span>
+                <span class="n">appid</span> <span class="o">=</span> <span class="n">udp_msg_l</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+                <span class="n">appname</span> <span class="o">=</span> <span class="s">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">udp_msg_l</span><span class="p">[</span><span class="mi">3</span><span class="p">:])</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s">&#39;IP </span><span class="si">%s</span><span class="s"> has id: </span><span class="si">%s</span><span class="s"> and name: </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">appid</span><span class="p">,</span> <span class="n">appname</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Received message w/o app. id &amp; name from </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">)</span>
+
+            <span class="n">port_number</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">port_number</span><span class="p">)</span>
+            <span class="n">protocol_version</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">protocol_version</span><span class="p">)</span>
+
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>  <span class="c"># unpack error, invalid literal for int()</span>
+            <span class="n">warn</span><span class="p">(</span><span class="s">&#39;Received an invalid UDP message (</span><span class="si">%r</span><span class="s">) from :&#39;</span><span class="p">,</span> <span class="n">udp_msg</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">protocol_version</span> <span class="o">!=</span> <span class="n">PROTOCOL_VERSION</span><span class="p">:</span>
+            <span class="n">error</span><span class="p">(</span><span class="s">&#39;Received a UDP broadcast msg. w/ protocol version:</span><span class="si">%s</span><span class="s"> , expected: </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">protocol_version</span><span class="p">,</span>
+                  <span class="n">PROTOCOL_VERSION</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="n">appid</span> <span class="o">==</span> <span class="n">socket_server</span><span class="o">.</span><span class="n">agent_id</span><span class="p">:</span>
+            <span class="c"># this is us!</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s">&#39;UDP from </span><span class="si">%r</span><span class="s">: ignored: we sent that one!&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="c"># build a new socket and delegate its handling to the SocketServer</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;New client connected: </span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port_number</span><span class="p">)</span>
+
+        <span class="n">new_socket</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SOCK_STREAM</span><span class="p">)</span>
+        <span class="n">new_socket</span><span class="o">.</span><span class="n">setsockopt</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">SOL_SOCKET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SO_REUSEADDR</span><span class="p">,</span> <span class="n">on</span><span class="p">)</span>
+        <span class="n">trace</span><span class="p">(</span><span class="s">&#39;New client </span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">, socket </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port_number</span><span class="p">,</span> <span class="n">new_socket</span><span class="p">)</span>
+        <span class="c"># Since we already have a client&#39;s name and id, lets register it</span>
+        <span class="c"># (this was previously done in IvyHandler&#39;s __init__() only)</span>
+        <span class="c"># but we want to check that we did not receive more than once a</span>
+        <span class="c"># broadcast coming from the same </span>
+        <span class="n">new_client</span> <span class="o">=</span> <span class="n">socket_server</span><span class="o">.</span><span class="n">_get_client</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port_number</span><span class="p">,</span> <span class="n">new_socket</span><span class="p">,</span>
+                                               <span class="n">appid</span><span class="p">,</span> <span class="n">appname</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new_client</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c"># an agent with that app-id is already registered</span>
+            <span class="n">info</span><span class="p">(</span><span class="s">&#39;UDP from </span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s"> (</span><span class="si">%s</span><span class="s">): discarding message, an application w/ id=</span><span class="si">%s</span><span class="s"> is already registered&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span>
+                 <span class="n">port_number</span><span class="p">,</span> <span class="n">appname</span><span class="p">,</span> <span class="n">appid</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">new_socket</span><span class="o">.</span><span class="n">connect</span><span class="p">((</span><span class="n">ip</span><span class="p">,</span> <span class="n">port_number</span><span class="p">))</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="c"># e.g., timeout on connect</span>
+            <span class="n">info</span><span class="p">(</span><span class="s">&#39;Client </span><span class="si">%r</span><span class="s">: failed to connect to its socket, ignoring it&#39;</span><span class="p">,</span>
+                 <span class="n">new_client</span><span class="p">)</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client </span><span class="si">%r</span><span class="s">: failed to connect to its socket, got:</span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span>
+                  <span class="n">new_client</span><span class="p">,</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">())</span>
+            <span class="n">socket_server</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port_number</span><span class="p">,</span>
+                                 <span class="n">trigger_application_callback</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">socket_server</span><span class="o">.</span><span class="n">process_request</span><span class="p">(</span><span class="n">new_socket</span><span class="p">,</span> <span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port_number</span><span class="p">))</span>
+    <span class="n">log</span><span class="p">(</span><span class="s">&#39;UDP Server stopped&#39;</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="is_multicast"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.is_multicast">[docs]</a><span class="k">def</span> <span class="nf">is_multicast</span><span class="p">(</span><span class="n">ip</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Tells whether the specified ip is a multicast address or not</span>
+
+<span class="sd">    :param ip: an IPv4 address in dotted-quad string format, for example</span>
+<span class="sd">      192.168.2.3</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">ip</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">224</span><span class="p">,</span> <span class="mi">239</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="decode_ivybus"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.decode_ivybus">[docs]</a><span class="k">def</span> <span class="nf">decode_ivybus</span><span class="p">(</span><span class="n">ivybus</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transforms the supplied string into the corresponding broadcast address</span>
+<span class="sd">    and port</span>
+
+<span class="sd">    :param ivybus: if ``None`` or empty, defaults to environment variable</span>
+<span class="sd">      ``IVYBUS``</span>
+
+<span class="sd">    :return: a tuple made of (broadcast address, port number). For example:</span>
+<span class="sd">      ::</span>
+
+<span class="sd">        &gt;&gt;&gt; print decode_ivybus(&#39;192.168.12:2010&#39;)</span>
+<span class="sd">        (&#39;192.168.12.255&#39;, 2010)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ivybus</span><span class="p">:</span>
+        <span class="n">ivybus</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s">&#39;IVYBUS&#39;</span><span class="p">,</span> <span class="n">DEFAULT_IVYBUS</span><span class="p">)</span>
+
+    <span class="n">broadcast</span><span class="p">,</span> <span class="n">port</span> <span class="o">=</span> <span class="n">ivybus</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">port</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">port</span><span class="p">)</span>
+    <span class="n">broadcast</span> <span class="o">=</span> <span class="n">broadcast</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">)</span>
+    <span class="n">broadcast</span> <span class="o">+=</span> <span class="s">&#39;.&#39;</span> <span class="o">+</span> <span class="s">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s">&#39;255&#39;</span><span class="p">,</span> <span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">4</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">broadcast</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">))))</span>
+    <span class="c"># if broadcast is multicast it had 4 elements -&gt; previous line added a &#39;.&#39;</span>
+    <span class="n">broadcast</span> <span class="o">=</span> <span class="n">broadcast</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">)</span>
+    <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Decoded ivybus </span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">broadcast</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">broadcast</span><span class="p">,</span> <span class="n">port</span>
+
+</div>
+<div class="viewcode-block" id="decode_msg"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.decode_msg">[docs]</a><span class="k">def</span> <span class="nf">decode_msg</span><span class="p">(</span><span class="n">msg</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    :return: msg_id, numerical_id, parameters</span>
+<span class="sd">    :except IvyMalformedMessage:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">msg_id</span><span class="p">,</span> <span class="n">_msg</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">msg_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">msg_id</span><span class="p">)</span>
+        <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">_msg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">ARG_START</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">num_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_id</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">ARG_END</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
+            <span class="c"># there is an extra ARG_END after the last parameter and</span>
+            <span class="c"># before the newline</span>
+            <span class="n">params</span> <span class="o">=</span> <span class="n">params</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">ARG_END</span><span class="p">)</span>
+
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">IvyMalformedMessage</span>
+    <span class="k">return</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span>
+
+</div>
+<div class="viewcode-block" id="encode_message"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.encode_message">[docs]</a><span class="k">def</span> <span class="nf">encode_message</span><span class="p">(</span><span class="n">msg_type</span><span class="p">,</span> <span class="n">numerical_id</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    params is string -&gt; added as-is</span>
+<span class="sd">    params is list -&gt; concatenated, separated by ARG_END</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">msg</span> <span class="o">=</span> <span class="s">&quot;</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">msg_type</span><span class="p">,</span> <span class="n">numerical_id</span><span class="p">)</span> <span class="o">+</span> <span class="n">ARG_START</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">params</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="n">params</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="n">ARG_END</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="n">ARG_END</span>
+    <span class="n">trace</span><span class="p">(</span><span class="s">&#39;encode_message(params: </span><span class="si">%s</span><span class="s">) -&gt; </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">params</span><span class="p">),</span> <span class="nb">repr</span><span class="p">(</span><span class="n">msg</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">msg</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span>
+
+</div>
+<div class="viewcode-block" id="IvyProtocolError"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyProtocolError">[docs]</a><span class="k">class</span> <span class="nc">IvyProtocolError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="IvyMalformedMessage"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyMalformedMessage">[docs]</a><span class="k">class</span> <span class="nc">IvyMalformedMessage</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="IvyIllegalStateError"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyIllegalStateError">[docs]</a><span class="k">class</span> <span class="nc">IvyIllegalStateError</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">):</span>
+    <span class="k">pass</span>
+</div>
+<span class="n">NOT_INITIALIZED</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">INITIALIZATION_IN_PROGRESS</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">INITIALIZED</span><span class="o">=</span><span class="mi">2</span>
+
+<div class="viewcode-block" id="IvyClient"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient">[docs]</a><span class="k">class</span> <span class="nc">IvyClient</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents a client connected to the bus. Every callback methods</span>
+<span class="sd">    registered by an agent receive an object of this type as their first</span>
+<span class="sd">    parameter, so that they know which agent on the bus is the cause of the</span>
+<span class="sd">    event which triggered the callback.    </span>
+
+<span class="sd">    An IvyClient is responsible for:</span>
+
+<span class="sd">      - managing the remote agent&#39;s subscriptions,</span>
+
+<span class="sd">      - sending messages to the remote agent.</span>
+
+<span class="sd">    It is **not** responsible for receiving messages from the client: another</span>
+<span class="sd">    object is in charge of that, namely an `IvyHandler` object.</span>
+
+<span class="sd">    The local IvyServer creates one IvyClient per agent on the bus.</span>
+
+<span class="sd">    MT-safety</span>
+<span class="sd">    ---------</span>
+<span class="sd">    See the discussion in `regexps`.</span>
+
+<span class="sd">    :group Protocol-related methods: start_init, end_init,</span>
+<span class="sd">      send_new_subscription, remove_subscription, wave_bye</span>
+<span class="sd">    :group Manipulating the remote agent&#39;s subscriptions:</span>
+<span class="sd">      add_regexp, remove_regexp</span>
+<span class="sd">    :group Sending messages: send_msg, send_direct_message, send_die_message</span>
+
+<span class="sd">    :ivar regexps: a dictionary mapping subscriptions&#39; ids (as delivered by</span>
+<span class="sd">      `add_regexp`) to the corresponding regular expressions. Precisely, it</span>
+<span class="sd">      maps ids to tuples being ``(regexp_as_string, compiled_regexp)``.  You</span>
+<span class="sd">      shouldn&#39;t directly access or manipulate this variable, use `add_regexp`</span>
+<span class="sd">      and `remove_regexp` instead; however if you really need/want to, you</span>
+<span class="sd">      must acquire the `regexp_lock` before accessing/modifying it.</span>
+
+<span class="sd">    :ivar regexp_lock: a non-reentrant lock protecting the variable</span>
+<span class="sd">      `regexps`. Used by methods `add_regexp`, `remove_regexp` and `send_msg`.</span>
+<span class="sd">    :type regexp_lock: `threading.Lock`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">client_socket</span><span class="p">,</span>
+                 <span class="n">agent_id</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">agent_name</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agent_id</span> <span class="o">=</span> <span class="n">agent_id</span>
+        <span class="c"># agent_name will be overridden when start_init() is called</span>
+        <span class="c"># but nevermind,</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agent_name</span> <span class="o">=</span> <span class="n">agent_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ip</span> <span class="o">=</span> <span class="n">ip</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="n">port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">socket</span> <span class="o">=</span> <span class="n">client_socket</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexps</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c"># maps regexp_id to (regexp_string, compiled_regexp)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fqdn</span> <span class="o">=</span> <span class="n">socket</span><span class="o">.</span><span class="n">getfqdn</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">NOT_INITIALIZED</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">socket</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+
+        <span class="c"># regexps are modified w/ add_regexp and remove_regexp, called</span>
+        <span class="c"># by the server, while they are accessed by send_message()</span>
+        <span class="c"># called by the corresponding IvyHandler-thread --&gt; needs to be</span>
+        <span class="c"># protected against concurrent access.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>  <span class="c"># non-reentrant, faster than RLock</span>
+
+<div class="viewcode-block" id="IvyClient.start_init"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.start_init">[docs]</a>    <span class="k">def</span> <span class="nf">start_init</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">agent_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Finalizes the initialization process by setting the client&#39;s</span>
+<span class="sd">        agent_name.  This is a Ivy protocol requirement that an application</span>
+<span class="sd">        sends its agent-name only once during the initial handshake (beginning</span>
+<span class="sd">        with message of type ``START_INIT`` and ending with a type</span>
+<span class="sd">        ``END_INIT``).  After this method is called, we expect to receive the</span>
+<span class="sd">        initial subscriptions for that client (or none); the initialization</span>
+<span class="sd">        process completes after `end_init` is called.</span>
+<span class="sd">        </span>
+<span class="sd">        :except IvyIllegalStateError: if the method has already been called</span>
+<span class="sd">          once</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="n">NOT_INITIALIZED</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">IvyIllegalStateError</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agent_name</span> <span class="o">=</span> <span class="n">agent_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">INITIALIZATION_IN_PROGRESS</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client:</span><span class="si">%r</span><span class="s">: Starting initialization&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyClient.end_init"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.end_init">[docs]</a>    <span class="k">def</span> <span class="nf">end_init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Should be called when the initialization process ends.</span>
+<span class="sd">        </span>
+<span class="sd">        :except IvyIllegalStateError: if the method has already been called</span>
+<span class="sd">          (and ``self.status`` has already been set to ``INITIALIZED``)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">INITIALIZED</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">IvyIllegalStateError</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client:</span><span class="si">%r</span><span class="s">: Initialization ended&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">INITIALIZED</span>
+</div>
+<div class="viewcode-block" id="IvyClient.add_regexp"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.add_regexp">[docs]</a>    <span class="k">def</span> <span class="nf">add_regexp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">regexp_id</span><span class="p">,</span> <span class="n">regexp</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :except IvyIllegalStateError: if the client has not been fully</span>
+<span class="sd">          initialized yet (see `start_init`)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">INITIALIZATION_IN_PROGRESS</span><span class="p">,</span> <span class="n">INITIALIZED</span><span class="p">):</span>
+            <span class="c"># initialization has not begun</span>
+            <span class="k">raise</span> <span class="n">IvyIllegalStateError</span>
+
+        <span class="c"># TODO: handle error on compile</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client:</span><span class="si">%r</span><span class="s">: Adding regexp id=</span><span class="si">%s</span><span class="s">: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">regexp_id</span><span class="p">,</span> <span class="n">regexp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">regexps</span><span class="p">[</span><span class="n">regexp_id</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">regexp</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">regexp</span><span class="p">))</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyClient.remove_regexp"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.remove_regexp">[docs]</a>    <span class="k">def</span> <span class="nf">remove_regexp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">regexp_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Removes a regexp</span>
+<span class="sd">        </span>
+<span class="sd">        :return: the regexp that has been removed</span>
+<span class="sd">        :except IvyIllegalStateError: if the client has not been fully</span>
+<span class="sd">          initialized yet (see `start_init`)</span>
+<span class="sd">        :except KeyError: if no such subscription exists</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">INITIALIZATION_IN_PROGRESS</span><span class="p">,</span> <span class="n">INITIALIZED</span><span class="p">):</span>
+            <span class="c"># initialization has not begun</span>
+            <span class="k">raise</span> <span class="n">IvyIllegalStateError</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client:</span><span class="si">%r</span><span class="s">: removing regexp id=</span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">regexp_id</span><span class="p">)</span>
+        <span class="n">regexp</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">regexp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">regexps</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">regexp_id</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">regexp</span>
+</div>
+<div class="viewcode-block" id="IvyClient.get_regexps"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.get_regexps">[docs]</a>    <span class="k">def</span> <span class="nf">get_regexps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[(</span><span class="n">idx</span><span class="p">,</span> <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regexps</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyClient.send_msg"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.send_msg">[docs]</a>    <span class="k">def</span> <span class="nf">send_msg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sends the message to the client.  The client will receive one message</span>
+<span class="sd">        for each of its subscriptions (regexps) that the message matches.</span>
+<span class="sd">        </span>
+<span class="sd">        :return: ``True`` if the message was actually sent to the client, that</span>
+<span class="sd">          is: if there is one or more regexps matching the message in the</span>
+<span class="sd">          client&#39;s subscriptions; returns ``False`` otherwise.</span>
+<span class="sd">        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="n">INITIALIZED</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client:</span><span class="si">%r</span><span class="s">: Searching subscriptions matching msg </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+        <span class="c"># For each regexp that the msg matches, send the corresponding message</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+
+            <span class="k">for</span> <span class="n">num_id</span><span class="p">,</span> <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">regexps</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">captures</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">captures</span><span class="p">:</span>
+                    <span class="c"># Value for an optional group not participating in the</span>
+                    <span class="c"># match defaults to the empty string</span>
+                    <span class="n">captures</span> <span class="o">=</span> <span class="n">captures</span><span class="o">.</span><span class="n">groups</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+
+                    <span class="c"># The following is needed to reproduce the very same</span>
+                    <span class="c"># behaviour observed w/ the C library</span>
+                    <span class="c"># (tested w/ pyhello.py and ivyprobe)</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">captures</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">captures</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+                    <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client:</span><span class="si">%r</span><span class="s">: msg being sent: </span><span class="si">%r</span><span class="s"> (regexp: </span><span class="si">%r</span><span class="s">)&#39;</span><span class="p">,</span>
+                          <span class="bp">self</span><span class="p">,</span> <span class="n">captures</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_send</span><span class="p">(</span><span class="n">MSG</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">captures</span><span class="p">)</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">regexps_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyClient.send_direct_message"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.send_direct_message">[docs]</a>    <span class="k">def</span> <span class="nf">send_direct_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sends a direct message</span>
+
+<span class="sd">        Note: the message will be encoded by `encode_message` with</span>
+<span class="sd">        ``numerical_id=num_id`` and ``params==msg``; this means that if `msg`</span>
+<span class="sd">        is not a string but a list or a tuple, the direct message will contain</span>
+<span class="sd">        more than one parameter.  This is an **extension** of the original Ivy</span>
+<span class="sd">        design, supported by python, but if you want to inter-operate with</span>
+<span class="sd">        applications using the standard Ivy API the message you send *must* be</span>
+<span class="sd">        a string. See in particular in ``ivy.h``::</span>
+<span class="sd">        </span>
+<span class="sd">          typedef void (*MsgDirectCallback)( IvyClientPtr app, void *user_data, int id, char *msg ) ;</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">INITIALIZED</span><span class="p">:</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client:</span><span class="si">%r</span><span class="s">: a direct message being sent: id: </span><span class="si">%r</span><span class="s"> msg: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span>
+                  <span class="bp">self</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_send</span><span class="p">(</span><span class="n">DIRECT_MSG</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyClient.send_die_message"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.send_die_message">[docs]</a>    <span class="k">def</span> <span class="nf">send_die_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_id</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">msg</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sends a die message</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">INITIALIZED</span><span class="p">:</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Client:</span><span class="si">%r</span><span class="s">: die msg being sent: num_id: </span><span class="si">%r</span><span class="s"> msg: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span>
+                  <span class="bp">self</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_send</span><span class="p">(</span><span class="n">DIE</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyClient.send_new_subscription"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.send_new_subscription">[docs]</a>    <span class="k">def</span> <span class="nf">send_new_subscription</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">regexp</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Notifies the remote agent that we (the local agent) subscribe to</span>
+<span class="sd">        a new type of messages</span>
+
+<span class="sd">        :Parameters:</span>
+<span class="sd">          - `idx`: the index/id of the new subscription. It is the</span>
+<span class="sd">            responsibility of the local agent to make sure that every</span>
+<span class="sd">            subscription gets a unique id.</span>
+<span class="sd">          - `regexp`: a regular expression. The subscription consists in</span>
+<span class="sd">            receiving messages matching the regexp.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_send</span><span class="p">(</span><span class="n">ADD_REGEXP</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">regexp</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyClient.remove_subscription"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.remove_subscription">[docs]</a>    <span class="k">def</span> <span class="nf">remove_subscription</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Notifies the remote agent that we (the local agent) are not</span>
+<span class="sd">        interested in a given subscription.</span>
+
+<span class="sd">        :Parameters:</span>
+<span class="sd">          - `idx`: the index/id of a subscription previously registered with</span>
+<span class="sd">            `send_new_subscription`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_send</span><span class="p">(</span><span class="n">DEL_REGEXP</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyClient.wave_bye"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.wave_bye">[docs]</a>    <span class="k">def</span> <span class="nf">wave_bye</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_id</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Notifies the remote agent that we are about to quit&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_send</span><span class="p">(</span><span class="n">BYE</span><span class="p">,</span> <span class="n">num_id</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyClient.send_error"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyClient.send_error">[docs]</a>    <span class="k">def</span> <span class="nf">send_error</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sends an error message</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_send</span><span class="p">(</span><span class="n">ERROR</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        cf. dict[client] or dict[(ip,port)] UNNEEDED FOR THE MOMENT</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">IvyClient</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span> <span class="o">==</span> <span class="n">client</span><span class="o">.</span><span class="n">ip</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">==</span> <span class="n">client</span><span class="o">.</span><span class="n">port</span>
+
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">client</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">TupleType</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">ListType</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">client</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ip</span> <span class="o">==</span> <span class="n">client</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">==</span> <span class="n">client</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;``hash((self.ip, self.port))``&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns ``&#39;ip:port (agent_name)&#39;``&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s"> (</span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ip</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">agent_name</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns ``&#39;agent_name@FQDN&#39;``&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">@</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">agent_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fqdn</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_send</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_type</span><span class="p">,</span> <span class="o">*</span><span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Internally used to send message to the remote agent through the opened</span>
+<span class="sd">        socket `self.socket`.  This method catches all exceptions</span>
+<span class="sd">        `socket.error` and `socket.timeout` and ignores them, simply logging</span>
+<span class="sd">        them at the &quot;info&quot; level.</span>
+
+<span class="sd">        The errors that can occur are for example::</span>
+
+<span class="sd">            socket.timeout: timed out</span>
+<span class="sd">            socket.error: (104, &#39;Connection reset by peer&#39;)</span>
+<span class="sd">            socket.error: (32, &#39;Broken pipe&#39;)</span>
+
+<span class="sd">        They can happen after a client disconnects abruptly (because it was</span>
+<span class="sd">        killed, because the network is down, etc.). We assume here that if and</span>
+<span class="sd">        when an error happens here, a disconnection will be detected shortly</span>
+<span class="sd">        afterwards by the server which then removes this agent from the bus.</span>
+<span class="sd">        Hence, we ignore the error; please also note that not ignoring the</span>
+<span class="sd">        error can have an impact on code, for example, IyServer.send_msg()</span>
+<span class="sd">        does not expect that IvyClient.send() fails and if it fails, it is</span>
+<span class="sd">        possible that the server does not send the message to all possible</span>
+<span class="sd">        subscribers.</span>
+
+<span class="sd">        .. note:: ``ivysocket.c:SocketSendRaw()`` also ignores error, simply</span>
+<span class="sd">           logging them.</span>
+<span class="sd">        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">socket</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">encode_message</span><span class="p">(</span><span class="n">msg_type</span><span class="p">,</span> <span class="o">*</span><span class="n">params</span><span class="p">))</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">timeout</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span><span class="p">),</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">log</span><span class="p">(</span><span class="s">&#39;[ignored] Error on socket with </span><span class="si">%r</span><span class="s">: </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="IvyServer"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer">[docs]</a><span class="k">class</span> <span class="nc">IvyServer</span><span class="p">(</span><span class="n">SocketServer</span><span class="o">.</span><span class="n">ThreadingTCPServer</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An Ivy server is responsible for receiving and handling the messages</span>
+<span class="sd">    that other clients send on an Ivy bus to a given agent.</span>
+
+<span class="sd">    An IvyServer has two important attributes: `usesDaemons` and</span>
+<span class="sd">    `server_termination`.</span>
+
+
+<span class="sd">    :ivar usesDaemons:</span>
+<span class="sd">      whether the threads are daemonic or not.  Daemonic</span>
+<span class="sd">      threads do not prevent python from exiting when the main thread stop,</span>
+<span class="sd">      while non-daemonic ones do.  Default is False.  This attribute should</span>
+<span class="sd">      be set through at `__init__()` time and should not be modified</span>
+<span class="sd">      afterwards.</span>
+
+<span class="sd">    :ivar server_termination:</span>
+<span class="sd">      a `threading.Event` object that is set on server shutdown.  It can be</span>
+<span class="sd">      used either to test whether the server has been stopped</span>
+<span class="sd">      (``server_termination.isSet()``) or to wait until it is stopped</span>
+<span class="sd">      (``server_termination.wait()``).  Application code should not try to set</span>
+<span class="sd">      the Event directly, rather it will call `stop()` to terminate the</span>
+<span class="sd">      server.</span>
+
+<span class="sd">    :ivar port: tells on which port the TCP server awaits connection</span>
+
+<span class="sd">    MT-safety</span>
+<span class="sd">    ---------</span>
+<span class="sd">    All public methods (not starting with an underscore ``_``) are</span>
+<span class="sd">    MT-safe</span>
+
+<span class="sd">    :group Communication on the ivybus: start, send_msg, send_direct_message,</span>
+<span class="sd">      send_ready_message, handle_msg, stop</span>
+
+<span class="sd">    :group Inspecting the ivybus: get_clients, _get_client, get_client_with_name</span>
+
+<span class="sd">    :group Our own subscriptions: get_subscriptions, bind_msg, unbind_msg,</span>
+<span class="sd">      _add_subscription, _remove_subscription, _get_fct_for_subscription</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># Impl. note: acquiring/releasing the global lock in methods</span>
+    <span class="c">#  requiring it could be done w/ a decorator instead of repeating</span>
+    <span class="c">#  the acquire-try-finally-release block each time, but then we</span>
+    <span class="c">#  won&#39;t be compatible w/ py &lt; 2.4 and I do not want this</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">agent_name</span><span class="p">,</span> <span class="n">ready_msg</span><span class="o">=</span><span class="s">&#39;&#39;</span><span class="p">,</span>
+                 <span class="n">app_callback</span><span class="o">=</span><span class="n">void_function</span><span class="p">,</span>
+                 <span class="n">die_callback</span><span class="o">=</span><span class="n">void_function</span><span class="p">,</span>
+                 <span class="n">usesDaemons</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Builds a new IvyServer.  A client only needs to call `start()` on the</span>
+<span class="sd">        newly created instances to connect to the corresponding Ivy bus and to</span>
+<span class="sd">        start communicating with other applications.</span>
+
+<span class="sd">        MT-safety: both functions `app_callback` and `die_callback` must be</span>
+<span class="sd">        prepared to be called concurrently</span>
+<span class="sd">        </span>
+<span class="sd">        :Parameters:</span>
+<span class="sd">          - `agent_name`: the client&#39;s agent name</span>
+<span class="sd">          - `ready_msg`: a message to send to clients when they connect</span>
+<span class="sd">          - `app_callback`: a function called each time a client connects or</span>
+<span class="sd">            disconnects. This function is called with a single parameter</span>
+<span class="sd">            indicating which event occurred: `IvyApplicationConnected` or</span>
+<span class="sd">            `IvyApplicationDisconnected`.</span>
+<span class="sd">          - `die_callback`: called when the IvyServer receives a DIE message</span>
+<span class="sd">          - `usesDaemons`: see above.</span>
+
+<span class="sd">        :see: `bind_msg()`, `start()`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="c"># the empty string is equivalent to INADDR_ANY</span>
+        <span class="n">SocketServer</span><span class="o">.</span><span class="n">TCPServer</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">IvyHandler</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">port</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">socket</span><span class="o">.</span><span class="n">getsockname</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c">#self.allow_reuse_address=True</span>
+
+        <span class="c"># private, maps (ip,port) to IvyClient!</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c"># idx -&gt; (regexp, function), see bind_msg() for details, below</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptions</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c"># the next index to use within the _subscriptions map.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_next_subst_idx</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">agent_name</span> <span class="o">=</span> <span class="n">agent_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ready_message</span> <span class="o">=</span> <span class="n">ready_msg</span>
+
+        <span class="c"># app_callback&#39;s parameter event=CONNECTED / DISCONNECTED</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_callback</span> <span class="o">=</span> <span class="n">app_callback</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">die_callback</span> <span class="o">=</span> <span class="n">die_callback</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">direct_callback</span> <span class="o">=</span> <span class="n">void_function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexp_change_callback</span> <span class="o">=</span> <span class="n">void_function</span>
+
+        <span class="c"># the global_lock protects: _clients, _subscriptions</span>
+        <span class="c"># and _next_subst_idx</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">RLock</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">usesDaemons</span> <span class="o">=</span> <span class="n">usesDaemons</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">server_termination</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Event</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">agent_id</span> <span class="o">=</span> <span class="n">agent_name</span> <span class="o">+</span> <span class="n">time</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s">&#39;%Y%m</span><span class="si">%d</span><span class="s">%H%M%S&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;</span><span class="si">%05i</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">99999</span><span class="p">)</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">)</span>
+
+<div class="viewcode-block" id="IvyServer.serve_forever"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.serve_forever">[docs]</a>    <span class="k">def</span> <span class="nf">serve_forever</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Handle requests (calling `handle_request()`) until doomsday... or</span>
+<span class="sd">        until `stop()` is called.</span>
+
+<span class="sd">        This method is registered as the target method for the thread.</span>
+<span class="sd">        It is also responsible for launching the UDP server in a separate</span>
+<span class="sd">        thread, see `UDP_init_and_listen` for details.</span>
+<span class="sd">        </span>
+<span class="sd">        You should not need to call this method, use `start` instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">broadcast</span><span class="p">,</span> <span class="n">port</span> <span class="o">=</span> <span class="n">decode_ivybus</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ivybus</span><span class="p">)</span>
+        <span class="n">l</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">server</span><span class="o">=</span><span class="bp">self</span><span class="p">:</span> <span class="n">UDP_init_and_listen</span><span class="p">(</span><span class="n">broadcast</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">server</span><span class="p">)</span>
+        <span class="n">t2</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">l</span><span class="p">)</span>
+        <span class="n">t2</span><span class="o">.</span><span class="n">setDaemon</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usesDaemons</span><span class="p">)</span>
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;Starting UDP listener&#39;</span><span class="p">)</span>
+        <span class="n">t2</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">socket</span><span class="o">.</span><span class="n">settimeout</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">server_termination</span><span class="o">.</span><span class="n">isSet</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">handle_request</span><span class="p">()</span>
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;TCP Ivy Server terminated&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyServer.start"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.start">[docs]</a>    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ivybus</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Binds the server to the ivybus. The server remains connected until</span>
+<span class="sd">        `stop` is called, or until it receives and accepts a &#39;die&#39; message.</span>
+
+<span class="sd">        :except IvyIllegalStateError: if the server has already been</span>
+<span class="sd">          started</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">error</span><span class="p">(</span><span class="s">&#39;Cannot start: IvyServer already started&#39;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">IvyIllegalStateError</span><span class="p">(</span><span class="s">&#39;not running&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ivybus</span> <span class="o">=</span> <span class="n">ivybus</span>
+
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;Starting IvyServer on port </span><span class="si">%li</span><span class="s">&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">server_termination</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">serve_forever</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span><span class="o">.</span><span class="n">setDaemon</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">usesDaemons</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyServer.stop"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.stop">[docs]</a>    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Disconnects the server from the ivybus. It also sets the</span>
+<span class="sd">        `server_termination` event.</span>
+
+<span class="sd">        :except IvyIllegalStateError: if the server is not running started</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">isAlive</span><span class="p">():</span>
+            <span class="n">error</span><span class="p">(</span><span class="s">&#39;Cannot stop: not running&#39;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">IvyIllegalStateError</span><span class="p">(</span><span class="s">&#39;not running&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">client</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">wave_bye</span><span class="p">()</span>
+                <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span><span class="p">:</span>
+                    <span class="k">pass</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">server_termination</span><span class="o">.</span><span class="n">set</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span> <span class="o">=</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="IvyServer.isAlive"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.isAlive">[docs]</a>    <span class="k">def</span> <span class="nf">isAlive</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_thread</span><span class="o">.</span><span class="n">isAlive</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyServer.get_clients"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.get_clients">[docs]</a>    <span class="k">def</span> <span class="nf">get_clients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the list of the agent names of all connected clients</span>
+
+<span class="sd">        :see: get_client_with_name</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">agent_name</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">INITIALIZED</span><span class="p">]</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+    <span class="k">def</span> <span class="nf">_get_client</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">client_socket</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                    <span class="n">agent_id</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">agent_name</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the corresponding client, and create a new one if needed.</span>
+
+<span class="sd">        If agent_id is not None, the method checks whether a client with the</span>
+<span class="sd">        same id is already registered; if it exists, the method exits by</span>
+<span class="sd">        returning None.</span>
+
+<span class="sd">        You should not need to call this, use `get_client_with_name` instead</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c"># if agent_id is provided, check whether it was already registered</span>
+            <span class="k">if</span> <span class="n">agent_id</span> <span class="ow">and</span> <span class="n">agent_id</span> <span class="ow">in</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">agent_id</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">values</span><span class="p">()]:</span>
+                <span class="k">return</span> <span class="bp">None</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">setdefault</span><span class="p">((</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">),</span> <span class="n">IvyClient</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">client_socket</span><span class="p">,</span>
+                                                                  <span class="n">agent_id</span><span class="p">,</span> <span class="n">agent_name</span><span class="p">))</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+<div class="viewcode-block" id="IvyServer.get_client_with_name"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.get_client_with_name">[docs]</a>    <span class="k">def</span> <span class="nf">get_client_with_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the list of the clients registered with a given agent-name</span>
+
+<span class="sd">        :see: get_clients</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">clients</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">client</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">client</span><span class="o">.</span><span class="n">agent_name</span> <span class="o">==</span> <span class="n">name</span><span class="p">:</span>
+                    <span class="n">clients</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">clients</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyServer.handle_new_client"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.handle_new_client">[docs]</a>    <span class="k">def</span> <span class="nf">handle_new_client</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Completes connection with the client</span>
+<span class="sd">        TODO: maybe add a flag (while connecting) on the client, that would prevent sending msg. etc..</span>
+<span class="sd">        as CNX. not confirmed</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">app_callback</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">IvyApplicationConnected</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyServer.handle_die_message"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.handle_die_message">[docs]</a>    <span class="k">def</span> <span class="nf">handle_die_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">from_client</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;  &quot;&quot;&quot;</span>
+        <span class="n">should_die</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">die_callback</span><span class="p">(</span><span class="n">from_client</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">)</span> <span class="o">!=</span> <span class="n">IVY_SHOULD_NOT_DIE</span><span class="p">)</span>
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;Received a die msg from: </span><span class="si">%s</span><span class="s"> with id: </span><span class="si">%s</span><span class="s"> -- should die=</span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span>
+            <span class="n">from_client</span> <span class="ow">or</span> <span class="s">&#39;&lt;unknown&gt;&#39;</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">should_die</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">should_die</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">should_die</span>
+</div>
+<div class="viewcode-block" id="IvyServer.handle_direct_msg"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.handle_direct_msg">[docs]</a>    <span class="k">def</span> <span class="nf">handle_direct_msg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param client:</span>
+<span class="sd">        :param num_id:</span>
+<span class="sd">        :param msg:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;Received a direct msg from: </span><span class="si">%s</span><span class="s"> with id: </span><span class="si">%s</span><span class="s"> -- </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span>
+            <span class="n">client</span> <span class="ow">or</span> <span class="s">&#39;&lt;unknown&gt;&#39;</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">direct_callback</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyServer.handle_regexp_change"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.handle_regexp_change">[docs]</a>    <span class="k">def</span> <span class="nf">handle_regexp_change</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">regexp</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;Regexp change: </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s"> regexp </span><span class="si">%d</span><span class="s">: </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span>
+            <span class="n">client</span> <span class="ow">or</span> <span class="s">&#39;&lt;unknown&gt;&#39;</span><span class="p">,</span>
+            <span class="n">event</span> <span class="o">==</span> <span class="n">ADD_REGEXP</span> <span class="ow">and</span> <span class="s">&#39;add&#39;</span> <span class="ow">or</span> <span class="s">&#39;remove&#39;</span><span class="p">,</span>
+            <span class="n">num_id</span><span class="p">,</span> <span class="n">regexp</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">event</span> <span class="o">==</span> <span class="n">ADD_REGEXP</span><span class="p">:</span>
+            <span class="n">event</span> <span class="o">=</span> <span class="n">IvyRegexpAdded</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">event</span> <span class="o">=</span> <span class="n">IvyRegexpRemoved</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexp_change_callback</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">regexp</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyServer.remove_client"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.remove_client">[docs]</a>    <span class="k">def</span> <span class="nf">remove_client</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">trigger_application_callback</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Removes a registered client</span>
+
+<span class="sd">        This method is responsible for calling ``server.app_callback``</span>
+
+<span class="sd">        :return: the removed client, or None if no such client was found</span>
+
+<span class="sd">        .. note:: NO NETWORK CLEANUP IS DONE</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">removed_client</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="p">[(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Trying to remove a non registered client </span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">None</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Removing client </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">removed_client</span><span class="p">)</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="p">[</span><span class="n">removed_client</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">trigger_application_callback</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">app_callback</span><span class="p">(</span><span class="n">removed_client</span><span class="p">,</span> <span class="n">IvyApplicationDisconnected</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">removed_client</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyServer.send_msg"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.send_msg">[docs]</a>    <span class="k">def</span> <span class="nf">send_msg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Examine the message and choose to send a message to the clients</span>
+<span class="sd">        that subscribed to such a msg</span>
+
+<span class="sd">        :return: the number of clients to which the message was sent</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">client</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">client</span><span class="o">.</span><span class="n">send_msg</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
+                    <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">count</span>
+</div>
+<div class="viewcode-block" id="IvyServer.send_direct_message"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.send_direct_message">[docs]</a>    <span class="k">def</span> <span class="nf">send_direct_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">agent_name</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">stop_on_first</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sends a direct message to the agent named ``agent_name``.  If there</span>
+<span class="sd">        is more than one agent with that name on the bus, parameter</span>
+<span class="sd">        `stop_on_first` determines the behaviour.</span>
+
+<span class="sd">        :Parameters:</span>
+<span class="sd">          - `agent_name`: the name of the agent(s) to which the direct message</span>
+<span class="sd">            should be sent.</span>
+<span class="sd">          - `num_id`: a numerical identifier attached to the direct message</span>
+<span class="sd">          - `msg`: the direct message itself</span>
+<span class="sd">          - `stop_on_first`: if ``True``, the message to all agents having the</span>
+<span class="sd">            same name will receive the message; if ``False`` the method exits</span>
+<span class="sd">            after the first message has been sent.</span>
+
+<span class="sd">        :return: ``True`` if at least one direct message was sent</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">for</span> <span class="n">client</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">client</span><span class="o">.</span><span class="n">agent_name</span> <span class="o">==</span> <span class="n">agent_name</span><span class="p">:</span>
+                    <span class="n">client</span><span class="o">.</span><span class="n">send_direct_message</span><span class="p">(</span><span class="n">num_id</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+                    <span class="n">status</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">if</span> <span class="n">stop_on_first</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">status</span>
+            <span class="k">return</span> <span class="n">status</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyServer.send_ready_message"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.send_ready_message">[docs]</a>    <span class="k">def</span> <span class="nf">send_ready_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ready_message</span><span class="p">:</span>
+            <span class="n">client</span><span class="o">.</span><span class="n">send_msg</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ready_message</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">_add_subscription</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">regexp</span><span class="p">,</span> <span class="n">fct</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Registers a new regexp and binds it to the supplied fct. The id</span>
+<span class="sd">        assigned to the subscription and returned by method is **unique**</span>
+<span class="sd">        to that subscription for the life-time of the server object: even in</span>
+<span class="sd">        the case when a subscription is unregistered, its id will _never_</span>
+<span class="sd">        be assigned to another subscription.</span>
+
+<span class="sd">        :return: the unique id for that subscription</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># explicit lock here: even if this method is private, it is</span>
+        <span class="c"># responsible for the uniqueness of a subscription&#39;s id, so we</span>
+        <span class="c"># prefer to lock it one time too much than taking the risk of</span>
+        <span class="c"># forgetting it (hence, the need for a reentrant lock)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_subst_idx</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_next_subst_idx</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptions</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">regexp</span><span class="p">,</span> <span class="n">fct</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">idx</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_remove_subscription</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Unregisters the corresponding regexp</span>
+
+<span class="sd">        .. warning:: this method is not MT-safe, callers must acquire the</span>
+<span class="sd">           global lock</span>
+
+<span class="sd">        :return: the regexp that has been removed</span>
+<span class="sd">        :except KeyError: if no such subscription can be found</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptions</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">idx</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">_get_fct_for_subscription</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        .. warning:: this method is not Multi-Thread-safe, callers must acquire the</span>
+<span class="sd">           global lock</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptions</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">idx</span><span class="p">)][</span><span class="mi">1</span><span class="p">]</span>
+
+<div class="viewcode-block" id="IvyServer.handle_msg"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.handle_msg">[docs]</a>    <span class="k">def</span> <span class="nf">handle_msg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="o">*</span><span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Simply call the function bound to the subscription id `idx` with</span>
+<span class="sd">        the supplied parameters.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_fct_for_subscription</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">idx</span><span class="p">))(</span><span class="n">client</span><span class="p">,</span> <span class="o">*</span><span class="n">params</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="c"># it is possible that we receive a message for a regexp that</span>
+                <span class="c"># was subscribed then unregistered</span>
+                <span class="n">warn</span><span class="p">(</span><span class="s">&#39;Asked to handle an unknown subscription: id:</span><span class="si">%r</span><span class="s"> params: </span><span class="si">%r</span><span class="s">&#39;</span>
+                     <span class="s">&#39; --ignoring&#39;</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyServer.get_subscriptions"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.get_subscriptions">[docs]</a>    <span class="k">def</span> <span class="nf">get_subscriptions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[(</span><span class="n">idx</span><span class="p">,</span> <span class="n">s</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_subscriptions</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="IvyServer.bind_direct_msg"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.bind_direct_msg">[docs]</a>    <span class="k">def</span> <span class="nf">bind_direct_msg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">on_direct_msg_fct</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">direct_callback</span> <span class="o">=</span> <span class="n">on_direct_msg_fct</span>
+</div>
+<div class="viewcode-block" id="IvyServer.bind_regexp_change"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.bind_regexp_change">[docs]</a>    <span class="k">def</span> <span class="nf">bind_regexp_change</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">on_regexp_change_callback</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">regexp_change_callback</span> <span class="o">=</span> <span class="n">on_regexp_change_callback</span>
+</div>
+<div class="viewcode-block" id="IvyServer.bind_msg"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.bind_msg">[docs]</a>    <span class="k">def</span> <span class="nf">bind_msg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">on_msg_fct</span><span class="p">,</span> <span class="n">regexp</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Registers a new subscriptions, by binding a regexp to a function, so</span>
+<span class="sd">        that this function is called whenever a message matching the regexp</span>
+<span class="sd">        is received.</span>
+
+<span class="sd">        :Parameters:</span>
+<span class="sd">          - `on_msg_fct`: a function accepting as many parameters as there is</span>
+<span class="sd">            groups in the regexp. For example:</span>
+
+<span class="sd">            - the regexp ``&#39;^hello .*&#39;`` corresponds to a function called w/ no</span>
+<span class="sd">              parameter,</span>
+<span class="sd">            - ``&#39;^hello (.*)&#39;``: one parameter,</span>
+<span class="sd">            - ``&#39;^hello=([^ ]*) from=([^ ]*)&#39;``: two parameters</span>
+
+<span class="sd">          - `regexp`: (string) a regular expression</span>
+
+<span class="sd">        :return: the binding&#39;s id, which can be used to unregister the binding</span>
+<span class="sd">          with `unbind_msg()`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_subscription</span><span class="p">(</span><span class="n">regexp</span><span class="p">,</span> <span class="n">on_msg_fct</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">client</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">send_new_subscription</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">regexp</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">idx</span>
+</div>
+<div class="viewcode-block" id="IvyServer.unbind_msg"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyServer.unbind_msg">[docs]</a>    <span class="k">def</span> <span class="nf">unbind_msg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">num_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Unbinds a subscription</span>
+
+<span class="sd">        :param num_id: the binding&#39;s id, as returned by `bind_msg()`</span>
+
+<span class="sd">        :return: the regexp corresponding to the unsubscribed binding</span>
+<span class="sd">        :except KeyError: if no such subscription can be found</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">acquire</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">regexp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_remove_subscription</span><span class="p">(</span><span class="n">num_id</span><span class="p">)</span>  <span class="c"># KeyError</span>
+            <span class="c"># notify others that we have no interest anymore in this regexp</span>
+            <span class="k">for</span> <span class="n">client</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_clients</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">remove_subscription</span><span class="p">(</span><span class="n">num_id</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_global_lock</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">regexp</span>
+
+</div></div>
+<div class="viewcode-block" id="IvyHandler"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyHandler">[docs]</a><span class="k">class</span> <span class="nc">IvyHandler</span><span class="p">(</span><span class="n">SocketServer</span><span class="o">.</span><span class="n">StreamRequestHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An IvyHandler is associated to one IvyClient connected to our server.</span>
+
+<span class="sd">    It runs into a dedicate thread as long as the remote client is connected</span>
+<span class="sd">    to us.</span>
+
+<span class="sd">    It is in charge of examining all messages that are received and to</span>
+<span class="sd">    take any appropriate actions.</span>
+
+<span class="sd">    Implementation note: the IvyServer is accessible in ``self.server``</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="IvyHandler.handle"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyHandler.handle">[docs]</a>    <span class="k">def</span> <span class="nf">handle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># self.request is the socket object</span>
+        <span class="c"># self.server is the IvyServer</span>
+
+        <span class="n">bufsize</span> <span class="o">=</span> <span class="mi">1024</span>
+        <span class="n">client_socket</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">request</span>
+        <span class="n">ip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client_address</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">port</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">client_address</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">trace</span><span class="p">(</span><span class="s">&#39;New IvyHandler for </span><span class="si">%s</span><span class="s">:</span><span class="si">%s</span><span class="s">, socket </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">client_socket</span><span class="p">)</span>
+
+        <span class="n">client</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">_get_client</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">client_socket</span><span class="p">)</span>
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Got a request from ip=</span><span class="si">%s</span><span class="s"> port=</span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+
+        <span class="c"># First, send our initial subscriptions</span>
+        <span class="n">client_socket</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">encode_message</span><span class="p">(</span><span class="n">START_INIT</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">port</span><span class="p">,</span>
+                                   <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">agent_name</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">subscr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">get_subscriptions</span><span class="p">():</span>
+            <span class="n">client_socket</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">encode_message</span><span class="p">(</span><span class="n">ADD_REGEXP</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">subscr</span><span class="p">))</span>
+        <span class="n">client_socket</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">encode_message</span><span class="p">(</span><span class="n">END_REGEXP</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+
+        <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">isAlive</span><span class="p">():</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">msgs</span> <span class="o">=</span> <span class="n">client_socket</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="n">bufsize</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">timeout</span><span class="p">:</span>
+                <span class="n">debug</span><span class="p">(</span><span class="s">&#39;timeout on socket bound to client </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">error</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">log</span><span class="p">(</span><span class="s">&#39;Error on socket with </span><span class="si">%r</span><span class="s">: </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">remove_client</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+                <span class="k">break</span>  <span class="c"># the server will close the TCP connection</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">msgs</span><span class="p">:</span>
+                <span class="c"># client is not connected anymore</span>
+                <span class="n">log</span><span class="p">(</span><span class="s">&#39;Lost connection with </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">remove_client</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+                <span class="k">break</span>  <span class="c"># the server will close the TCP connection</span>
+
+            <span class="c"># Sometimes the message is not fully read on the first try,</span>
+            <span class="c"># so we insist to get the final newline</span>
+            <span class="k">if</span> <span class="n">msgs</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">:]</span> <span class="o">!=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">:</span>
+
+                <span class="c"># w/ the following idioms (also replicated a second time below)</span>
+                <span class="c"># we make sure that we wait until we get a message containing</span>
+                <span class="c"># the final newline, or if the server is terminated we stop</span>
+                <span class="c"># handling the request</span>
+                <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">isAlive</span><span class="p">():</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">_msg</span> <span class="o">=</span> <span class="n">client_socket</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="n">bufsize</span><span class="p">)</span>
+                        <span class="k">break</span>
+                    <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">timeout</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">isAlive</span><span class="p">():</span>
+                    <span class="k">break</span>
+
+                <span class="n">msgs</span> <span class="o">+=</span> <span class="n">_msg</span>
+                <span class="k">while</span> <span class="n">_msg</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">:]</span> <span class="o">!=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">isAlive</span><span class="p">():</span>
+
+                    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">isAlive</span><span class="p">():</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">_msg</span> <span class="o">=</span> <span class="n">client_socket</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="n">bufsize</span><span class="p">)</span>
+                            <span class="k">break</span>
+                        <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">timeout</span><span class="p">:</span>
+                            <span class="k">continue</span>
+
+                    <span class="n">msgs</span> <span class="o">+=</span> <span class="n">_msg</span>
+
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">isAlive</span><span class="p">():</span>
+                    <span class="k">break</span>
+
+            <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Got a request from ip=</span><span class="si">%s</span><span class="s"> port=</span><span class="si">%s</span><span class="s">: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">msgs</span><span class="p">)</span>
+
+            <span class="n">msgs</span> <span class="o">=</span> <span class="n">msgs</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="n">msgs</span> <span class="o">=</span> <span class="n">msgs</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">msgs</span><span class="p">:</span>
+                <span class="n">keep_connection_alive</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_ivymessage</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">keep_connection_alive</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">remove_client</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span> <span class="n">port</span><span class="p">)</span>
+                    <span class="k">break</span>
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;Closing connection to client </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="IvyHandler.process_ivymessage"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyHandler.process_ivymessage">[docs]</a>    <span class="k">def</span> <span class="nf">process_ivymessage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">client</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Examines the message (after passing it through the `decode_msg()`</span>
+<span class="sd">        filter) and takes the appropriate actions depending on the message</span>
+<span class="sd">        types.  Please refer to the document `The Ivy Architecture and</span>
+<span class="sd">        Protocol &lt;http://www.tls.cena.fr/products/ivy/documentation&gt;`_ and to</span>
+<span class="sd">        the python code for further details.</span>
+<span class="sd">        </span>
+<span class="sd">        </span>
+<span class="sd">        :Parameters:</span>
+<span class="sd">          - `msg`: (should not include a newline at end)</span>
+
+<span class="sd">        :return: ``False`` if the connection should be terminated, ``True``</span>
+<span class="sd">          otherwise</span>
+<span class="sd">        </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c"># cf. static void Receive() in ivy.c</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">msg_id</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">decode_msg</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">IvyMalformedMessage</span><span class="p">:</span>
+            <span class="n">warn</span><span class="p">(</span><span class="s">&#39;Received an incorrect message: </span><span class="si">%r</span><span class="s"> from: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+            <span class="c"># TODO: send back an error message</span>
+            <span class="k">return</span> <span class="bp">True</span>
+
+        <span class="n">debug</span><span class="p">(</span><span class="s">&#39;Got: msg_id: </span><span class="si">%r</span><span class="s">, num_id: </span><span class="si">%r</span><span class="s">, params: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span>
+              <span class="n">msg_id</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+
+        <span class="n">err_msg</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">BYE</span><span class="p">:</span>
+                <span class="c"># num_id: not meaningful. No parameter.</span>
+                <span class="n">log</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> waves bye-bye: disconnecting&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">False</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">ADD_REGEXP</span><span class="p">:</span>
+                <span class="c"># num_id=id for the regexp, one parameter: the regexp</span>
+                <span class="n">err_msg</span> <span class="o">=</span> <span class="s">&#39;Client </span><span class="si">%r</span><span class="s"> was not properly initialized&#39;</span> <span class="o">%</span> <span class="n">client</span>
+                <span class="n">log</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> sending a new subscription id:</span><span class="si">%r</span><span class="s"> regexp:</span><span class="si">%r</span><span class="s"> &#39;</span><span class="p">,</span>
+                    <span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">add_regexp</span><span class="p">(</span><span class="n">num_id</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">handle_regexp_change</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">ADD_REGEXP</span><span class="p">,</span>
+                                                 <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                <span class="c"># TODO: handle errors (e.g. 2 subscriptions w/ the same id)</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">DEL_REGEXP</span><span class="p">:</span>
+                <span class="c"># num_id=id for the regexp to removed, no parameter</span>
+                <span class="n">err_msg</span> <span class="o">=</span> <span class="s">&#39;Client </span><span class="si">%r</span><span class="s"> was not properly initialized&#39;</span> <span class="o">%</span> <span class="n">client</span>
+                <span class="n">log</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> removing subscription id:</span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">regexp</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">remove_regexp</span><span class="p">(</span><span class="n">num_id</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">handle_regexp_change</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">DEL_REGEXP</span><span class="p">,</span>
+                                                     <span class="n">num_id</span><span class="p">,</span> <span class="n">regexp</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="c"># TODO: what else?</span>
+                    <span class="n">warn</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> tried to remove a non-registered subscription w/ id:</span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">MSG</span><span class="p">:</span>
+                <span class="c"># num_id: regexp_id, parameters: the substrings captured by</span>
+                <span class="c"># the regexp</span>
+                <span class="n">log</span><span class="p">(</span><span class="s">&#39;From </span><span class="si">%s</span><span class="s">: (regexp=</span><span class="si">%s</span><span class="s">) </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">handle_msg</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="o">*</span><span class="n">params</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">ERROR</span><span class="p">:</span>
+                <span class="c"># num_id: not meaningful, parameter=error msg</span>
+                <span class="n">warn</span><span class="p">(</span><span class="s">&#39;Client </span><span class="si">%r</span><span class="s"> sent a protocol error: </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                <span class="c"># TODO: send BYE and close connection, as in ivy.c?</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">START_INIT</span><span class="p">:</span>
+                <span class="c"># num_id: tcp port number, parameter: the client&#39;s agentname</span>
+                <span class="n">err_msg</span> <span class="o">=</span> <span class="s">&#39;Client </span><span class="si">%r</span><span class="s"> sent the initial subscription more than once&#39;</span> <span class="o">%</span> <span class="n">client</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">start_init</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+                <span class="n">log</span><span class="p">(</span><span class="s">&#39;</span><span class="si">%s</span><span class="s"> connected from </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">END_INIT</span><span class="p">:</span>
+                <span class="c"># num_id: not meaningful. No parameter.</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">end_init</span><span class="p">()</span>
+                <span class="c"># app. callback</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">handle_new_client</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+                <span class="c"># send ready message</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">send_ready_message</span><span class="p">(</span><span class="n">client</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">DIE</span><span class="p">:</span>
+                <span class="c"># num_id: not meaningful. No parameter.</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">handle_die_message</span><span class="p">(</span><span class="n">num_id</span><span class="p">,</span> <span class="n">client</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">DIRECT_MSG</span><span class="p">:</span>
+                <span class="c"># num_id: not meaningful. </span>
+                <span class="n">log</span><span class="p">(</span><span class="s">&#39;Client </span><span class="si">%r</span><span class="s"> sent us a direct msg num_id:</span><span class="si">%s</span><span class="s"> msg:</span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span>
+                    <span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">handle_direct_msg</span><span class="p">(</span><span class="n">client</span><span class="p">,</span> <span class="n">num_id</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="n">msg_id</span> <span class="o">==</span> <span class="n">PING</span><span class="p">:</span>
+                <span class="n">client</span><span class="o">.</span><span class="n">_send</span><span class="p">(</span><span class="n">PONG</span><span class="p">,</span> <span class="n">num_id</span><span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">warn</span><span class="p">(</span><span class="s">&#39;Unhandled msg from </span><span class="si">%r</span><span class="s">: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">client</span><span class="p">,</span> <span class="n">msg</span><span class="p">)</span>
+
+        <span class="k">except</span> <span class="n">IvyIllegalStateError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">IvyProtocolError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">True</span>
+
+</div></div>
+<div class="viewcode-block" id="IvyTimer"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyTimer">[docs]</a><span class="k">class</span> <span class="nc">IvyTimer</span><span class="p">(</span><span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An IvyTimer object is responsible for calling a function regularly.  It is</span>
+<span class="sd">    bound to an IvyServer and stops when its server stops.</span>
+
+<span class="sd">    Interacting with a timer object</span>
+<span class="sd">    -------------------------------</span>
+
+<span class="sd">    - Each timer gets a unique id, stored in the attribute ``id``. Note that</span>
+<span class="sd">      a dead timer&#39;s id can be reassigned to another one (a dead timer is a</span>
+<span class="sd">      timer that has been stopped)</span>
+
+<span class="sd">    - To start a timer, simply call its method ``start()``</span>
+<span class="sd">    </span>
+<span class="sd">    - To modify a timer&#39;s delay: simply assign ``timer.delay``, the</span>
+<span class="sd">      modification will be taken into account after the next tick. The delay</span>
+<span class="sd">      should be given in milliseconds.</span>
+
+<span class="sd">    - to stop a timer, assign ``timer.abort`` to ``True``, the timer will stop</span>
+<span class="sd">      at the next tick (the callback won&#39;t be called)</span>
+
+<span class="sd">    MT-safety</span>
+<span class="sd">    ---------</span>
+<span class="sd">    **Please note:** ``start()`` starts a new thread; if the same function is</span>
+<span class="sd">    given as the callback to different timers, that function should be</span>
+<span class="sd">    prepared to be called concurrently.  Specifically, if the callback</span>
+<span class="sd">    accesses shared variables, they should be protected against concurrency</span>
+<span class="sd">    problems (using locks e.g.).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">server</span><span class="p">,</span> <span class="n">nbticks</span><span class="p">,</span> <span class="n">delay</span><span class="p">,</span> <span class="n">callback</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates a new timer.  After creation, call the timer&#39;s ``start()``</span>
+<span class="sd">        method to activate it.</span>
+<span class="sd">        </span>
+<span class="sd">        :Parameters:</span>
+<span class="sd">          - `server`: the `IvyServer` related to this timer --when the server</span>
+<span class="sd">            stops, so does the timer.</span>
+<span class="sd">          - `nbticks`: the number of repetition to make. ``0`` (zero) means:</span>
+<span class="sd">            endless loop</span>
+<span class="sd">          - `delay`: the delay, in milliseconds, between two ticks</span>
+<span class="sd">          - `callback`: a function called at each tick. This function is</span>
+<span class="sd">            called with one parameter, the timer itself</span>
+<span class="sd">            </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">server</span> <span class="o">=</span> <span class="n">server</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nbticks</span> <span class="o">=</span> <span class="n">nbticks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">delay</span> <span class="o">=</span> <span class="n">delay</span>       <span class="c"># milliseconds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">callback</span> <span class="o">=</span> <span class="n">callback</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">abort</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="nb">id</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setDaemon</span><span class="p">(</span><span class="n">server</span><span class="o">.</span><span class="n">usesDaemons</span><span class="p">)</span>
+
+<div class="viewcode-block" id="IvyTimer.run"><a class="viewcode-back" href="../../ivy.html#ivy.ivy.IvyTimer.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ticks</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">server</span><span class="o">.</span><span class="n">isAlive</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">abort</span> <span class="ow">and</span> <span class="n">ticks</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">nbticks</span><span class="p">:</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">nbticks</span><span class="p">:</span>  <span class="c"># 0 means: endless</span>
+                <span class="n">ticks</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">callback</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delay</span> <span class="o">/</span> <span class="mf">1000.0</span><span class="p">)</span>
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;IvyTimer </span><span class="si">%s</span><span class="s"> terminated&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+
+</div></div>
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="n">IvyServer</span><span class="p">(</span><span class="n">agent_name</span><span class="o">=</span><span class="s">&#39;TEST_APP&#39;</span><span class="p">,</span>
+                  <span class="n">ready_msg</span><span class="o">=</span><span class="s">&#39;[Youkou]&#39;</span><span class="p">)</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">dflt_fct</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="n">log</span><span class="p">(</span><span class="s">&#39;DFLT_FCT: Received: </span><span class="si">%r</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">regexp</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;^test .*&#39;</span><span class="p">,</span> <span class="s">&#39;^test2 (.*)$&#39;</span><span class="p">,</span> <span class="s">&#39;test3 ([^-]*)-?(.*)&#39;</span><span class="p">,</span> <span class="s">&#39;(.*)&#39;</span><span class="p">):</span>
+        <span class="n">s</span><span class="o">.</span><span class="n">bind_msg</span><span class="p">(</span><span class="n">dflt_fct</span><span class="p">,</span> <span class="n">regexp</span><span class="p">)</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">s</span><span class="o">.</span><span class="n">send_msg</span><span class="p">(</span><span class="s">&#39;glop pas glop -et paf&#39;</span><span class="p">)</span>
+    <span class="n">s</span><span class="o">.</span><span class="n">send_msg</span><span class="p">(</span><span class="s">&#39;glosp pas glop -et paf&#39;</span><span class="p">)</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1000000</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">ivy-python: a python library for the Ivy software bus 1.2 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014, Sebastien Bigaret.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>
