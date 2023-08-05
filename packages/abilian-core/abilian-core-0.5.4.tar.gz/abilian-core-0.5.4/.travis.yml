@@ -1,0 +1,60 @@
+language: python
+python:
+  - "2.7"
+
+sudo: false
+
+env:
+  global:
+    - LD_LIBRARY_PATH=~/sqlite-3.9.1/lib
+  matrix:
+    - SQLALCHEMY_DATABASE_URI="sqlite://"
+    - SQLALCHEMY_DATABASE_URI="postgres://postgres@localhost:5432/abilian_core"
+
+services:
+  - redis-server
+
+addons:
+  postgresql: "9.3"
+  apt:
+    packages:
+      - poppler-utils
+      - nodejs
+
+# Install OS dependencies
+before_install:
+  - export NPM_CONFIG_PREFIX=~/npm-packages
+  - mkdir "${NPM_CONFIG_PREFIX}"
+  - npm install -g less
+  - export PATH=~/npm-packages/bin:$PATH
+  - wget 'http://jenkins.abilian.com/_fixtures/libsqlite-3.9.1-precise-bin.tar.gz'
+  - tar xpvzf libsqlite-3.9.1-precise-bin.tar.gz -C ~
+  - echo $LD_LIBRARY_PATH
+  - ls ~/sqlite-3.9.1/lib
+
+# Install Python dependencies
+install:
+  - pip install -e '.[dev]'
+
+# Create DB
+before_script:
+  - psql -c 'create database abilian_core;' -U postgres
+
+# Run tests
+script:
+  - py.test --tb=short -q --cov abilian abilian tests
+  - sphinx-build -W -b html docs/ docs/_build/
+
+# Report coverage
+after_success:
+  - pip install codecov coveralls
+  - coveralls
+  - codecov
+
+notifications:
+  slack: 
+    rooms:
+      - abilian:dTtRD7DHS4Dw3jfRrqytQWU6#code
+    on_success: change
+    on_failure: always
+
