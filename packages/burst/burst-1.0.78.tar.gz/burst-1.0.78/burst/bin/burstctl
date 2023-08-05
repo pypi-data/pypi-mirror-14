@@ -1,0 +1,372 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import json
+import time
+from collections import OrderedDict
+
+import click
+from netkit.box import Box
+from netkit.contrib.tcp_client import TcpClient
+
+import burst
+from burst.share import constants
+
+
+class BurstCtl(object):
+
+    address_uri = None
+
+    timeout = None
+    username = None
+    password = None
+
+    tcp_client = None
+
+    def __init__(self, address_uri, timeout, username, password, extra=None):
+        self.address_uri = address_uri
+        self.timeout = timeout
+        self.username = username
+        self.password = password
+
+    def make_send_box(self, cmd, username, password, payload=None):
+        return Box(dict(
+            cmd=cmd,
+            body=json.dumps(
+                dict(
+                    auth=dict(
+                        username=username,
+                        password=password,
+                    ),
+                    payload=payload,
+                )
+            )
+        ))
+
+    def output(self, s):
+        print '/' + '-' * 80
+        print s
+        print '-' * 80 + '/'
+
+    def start(self):
+
+        address = self._parse_address_uri(self.address_uri)
+
+        self.tcp_client = TcpClient(Box, address=address, timeout=self.timeout)
+
+        try:
+            self.tcp_client.connect()
+        except Exception, e:
+            self.output('connect fail: %s' % e)
+            return False
+
+        return True
+
+    def handle_stat(self, loop, diff):
+        """
+        :param loop:
+        :return:
+        """
+        last_result = None
+        loop_times = 0
+
+        while True:
+
+            result = self._get_stat_once()
+
+            if not result:
+                break
+
+            if diff:
+                if last_result is not None:
+                    output_result = self._diff_dicts(last_result, result)
+                else:
+                    output_result = None
+
+                last_result = result
+            else:
+                output_result = result
+
+            if output_result is not None:
+                self.output(json.dumps(self._sort_stat_dict(output_result), indent=4))
+
+            loop_times += 1
+            if loop_times >= loop > 0:
+                break
+
+            try:
+                time.sleep(1)
+            except KeyboardInterrupt:
+                break
+
+    def handle_change_group(self, group_id, count):
+        send_box = self.make_send_box(
+            constants.CMD_ADMIN_CHANGE_GROUP,
+            self.username, self.password,
+            payload=dict(
+                group_id=group_id,
+                count=count,
+            )
+        )
+        self.tcp_client.write(send_box)
+
+        rsp_box = self.tcp_client.read()
+
+        if not rsp_box:
+            self.output('disconnected.')
+            return False
+
+        if rsp_box.ret != 0:
+            self.output('fail. rsp_box.ret=%s' % rsp_box.ret)
+            return False
+
+        self.output('succ.')
+
+    def handle_reload_workers(self):
+        send_box = self.make_send_box(
+            constants.CMD_ADMIN_RELOAD_WORKERS,
+            self.username, self.password,
+        )
+        self.tcp_client.write(send_box)
+
+        rsp_box = self.tcp_client.read()
+
+        if not rsp_box:
+            self.output('disconnected.')
+            return False
+
+        if rsp_box.ret != 0:
+            self.output('fail. rsp_box.ret=%s' % rsp_box.ret)
+            return False
+
+        self.output('succ.')
+
+    def handle_restart_workers(self):
+        send_box = self.make_send_box(
+            constants.CMD_ADMIN_RESTART_WORKERS,
+            self.username, self.password,
+        )
+        self.tcp_client.write(send_box)
+
+        rsp_box = self.tcp_client.read()
+
+        if not rsp_box:
+            self.output('disconnected.')
+            return False
+
+        if rsp_box.ret != 0:
+            self.output('fail. rsp_box.ret=%s' % rsp_box.ret)
+            return False
+
+        self.output('succ.')
+
+    def handle_stop(self):
+        send_box = self.make_send_box(
+            constants.CMD_ADMIN_STOP,
+            self.username, self.password,
+        )
+        self.tcp_client.write(send_box)
+
+        rsp_box = self.tcp_client.read()
+
+        if not rsp_box:
+            self.output('disconnected.')
+            return False
+
+        if rsp_box.ret != 0:
+            self.output('fail. rsp_box.ret=%s' % rsp_box.ret)
+            return False
+
+        self.output('succ.')
+
+    def _parse_address_uri(self, uri):
+        """
+        解析uri为可用的address
+        :param uri: 127.0.0.1:5555, file:///data/release/ipc.sock
+        :return: address
+        """
+
+        if uri.startswith('file://'):
+            # 文件
+            return uri.replace('file://', '')
+        else:
+            host, port = uri.split(':')
+            port = int(port)
+            return (host, port)
+
+    def _sort_stat_dict(self, body_dict):
+        """
+        对统计的结果进行排序
+        """
+        output_items = []
+        for key in ('clients', 'busy_workers', 'idle_workers', 'pending_tasks',
+                    'client_req', 'client_rsp', 'worker_req', 'worker_rsp'):
+
+            output_items.append((key, body_dict.get(key)))
+
+        def tasks_time_cmp_func(item1, item2):
+            k1 = item1[0]
+            k2 = item2[0]
+            if k1 == 'more':
+                return 1
+            if k2 == 'more':
+                return -1
+
+            return cmp(int(k1), int(k2))
+
+        tasks_time_items = sorted(body_dict['tasks_time'].items(), cmp=tasks_time_cmp_func)
+
+        output_items.append(('tasks_time', OrderedDict(tasks_time_items)))
+
+        # OrderedDict在通过json打印的时候，会保持原来的顺序
+        return OrderedDict(output_items)
+
+    def _get_stat_once(self):
+        send_box = self.make_send_box(constants.CMD_ADMIN_SERVER_STAT, self.username, self.password)
+        self.tcp_client.write(send_box)
+
+        rsp_box = self.tcp_client.read()
+
+        if not rsp_box:
+            self.output('disconnected.')
+            return False
+
+        if rsp_box.ret != 0:
+            self.output('fail. rsp_box.ret=%s' % rsp_box.ret)
+            return False
+
+        return json.loads(rsp_box.body)
+
+    def _diff_dicts(self, old_dict, new_dict):
+        """
+        对两个dict的数据进行差值处理
+        """
+
+        result_dict = dict()
+
+        key_list = set(old_dict.keys()) | set(new_dict.keys())
+
+        for key in key_list:
+            if key not in old_dict:
+                # 一定在new_dict里
+                value = new_dict[key]
+                if isinstance(value, dict):
+                    result_dict[key] = self._diff_dicts(dict(), value)
+                else:
+                    result_dict[key] = value
+
+            elif key not in new_dict:
+                # 一定在old_dict里
+                value = old_dict[key]
+                if isinstance(value, dict):
+                    result_dict[key] = self._diff_dicts(value, dict())
+                else:
+                    result_dict[key] = -value
+
+            else:
+                old_value = old_dict[key]
+                new_value = new_dict[key]
+
+                assert type(old_value) == type(new_value)
+
+                if isinstance(old_value, dict):
+                    result_dict[key] = self._diff_dicts(old_value, new_value)
+                else:
+                    result_dict[key] = new_value - old_value
+
+        return result_dict
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+def version():
+    """
+    版本号
+    """
+    print burst.__version__
+
+
+@cli.command()
+@click.option('-a', '--address', default='file://admin.sock',
+              help='burst admin address. file://admin.sock or 127.0.0.1:9910')
+@click.option('-o', '--timeout', type=int, help='connect/send/receive timeout', default=10)
+@click.option('-u', '--username', help='username', default=None)
+@click.option('-p', '--password', help='password', default=None)
+@click.option('--loop', type=int, help='loop times, <=0 means infinite loop', default=-1)
+@click.option('--diff', is_flag=True, help='show diff values between 1 seconds', default=False)
+def stat(address, timeout, username, password, loop, diff):
+    """
+    查看统计
+    """
+    ctl = BurstCtl(address, timeout, username, password)
+    ctl.start()
+    ctl.handle_stat(loop, diff)
+
+
+@cli.command()
+@click.option('-a', '--address', default='file://admin.sock',
+              help='burst admin address. file://admin.sock or 127.0.0.1:9910')
+@click.option('-o', '--timeout', type=int, help='connect/send/receive timeout', default=10)
+@click.option('-u', '--username', help='username', default=None)
+@click.option('-p', '--password', help='password', default=None)
+@click.option('--group', help='group id', required=True, type=int)
+@click.option('--count', help='workers count ', required=True, type=int)
+def change_group(address, timeout, username, password, group, count):
+    """
+    修改group配置，比如workers数量
+    """
+    ctl = BurstCtl(address, timeout, username, password)
+    ctl.start()
+    ctl.handle_change_group(group, count)
+
+
+@cli.command()
+@click.option('-a', '--address', default='file://admin.sock',
+              help='burst admin address. file://admin.sock or 127.0.0.1:9910')
+@click.option('-o', '--timeout', type=int, help='connect/send/receive timeout', default=10)
+@click.option('-u', '--username', help='username', default=None)
+@click.option('-p', '--password', help='password', default=None)
+def reload_workers(address, timeout, username, password):
+    """
+    更新workers
+    """
+    ctl = BurstCtl(address, timeout, username, password)
+    ctl.start()
+    ctl.handle_reload_workers()
+
+
+@cli.command()
+@click.option('-a', '--address', default='file://admin.sock',
+              help='burst admin address. file://admin.sock or 127.0.0.1:9910')
+@click.option('-o', '--timeout', type=int, help='connect/send/receive timeout', default=10)
+@click.option('-u', '--username', help='username', default=None)
+@click.option('-p', '--password', help='password', default=None)
+def restart_workers(address, timeout, username, password):
+    """
+    重启workers. 与reload不同，会等待所有workers退出之后，再开始启动新workers
+    """
+    ctl = BurstCtl(address, timeout, username, password)
+    ctl.start()
+    ctl.handle_restart_workers()
+
+
+@cli.command()
+@click.option('-a', '--address', default='file://admin.sock',
+              help='burst admin address. file://admin.sock or 127.0.0.1:9910')
+@click.option('-o', '--timeout', type=int, help='connect/send/receive timeout', default=10)
+@click.option('-u', '--username', help='username', default=None)
+@click.option('-p', '--password', help='password', default=None)
+def stop(address, timeout, username, password):
+    """
+    安全停止整个服务
+    """
+    ctl = BurstCtl(address, timeout, username, password)
+    ctl.start()
+    ctl.handle_stop()
+
+if __name__ == '__main__':
+    cli()
