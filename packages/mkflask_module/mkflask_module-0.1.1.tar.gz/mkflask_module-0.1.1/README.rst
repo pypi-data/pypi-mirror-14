@@ -1,0 +1,19 @@
+kickass_flask_template_module(KFT) version 0.1.01:
+
+Welcome and thank you for considering the KFT module. The purpose of this module is to streamline the process of starting a new project in flask.
+
+This project is aimed at students of python who are faced with starting new projects constantly in an effort to learn the framework and the in's and out's of python.
+
+For your convenience the KFT module works on both windows and *nix based systems. (Tested on Windows 8, OSX and Linux Mint)
+
+Usage is as follows:
+
+	KFT is initialized from the command line, if you don't have Python installed in your path you will have to navigate to wherever python is installed to use it.
+
+	KFT module will ask you a series of questions pertaining to your project. Simply answer with either a 1 or anything else. Inputs are configured to execute code based on input of either 1 or not 1, so anything besides 1 is considered "other".
+
+	This module executes as it runs meaning once you've answered a question or two things get moving to create your project. Keep this in mind as you answer the questions because things will be happening in the background.
+
+	KFT is capable of creating your base folder structure and any template pages you may need during your project. KFT will add routes in the server.py file for each page you choose to create in your templates.
+
+	Have fun and thanks for using KFT module!
