@@ -1,0 +1,96 @@
+escpos-xml
+==========
+
+escpos-xml is a library to parse XML defined receipt and print it on ESC/POS
+Printer using python-escpos library.
+
+The module contains a RELAX NG schema for the XML: `escpos_xml/escpos.rng`.
+The syntax is quite similar to HTML.
+
+Example:
+--------
+
+    >>> import os
+    >>> from io import BytesIO, open
+    >>> from escpos.printer import Usb
+    >>> from escpos_xml import parse
+    >>> xml = BytesIO('''
+    ... <receipt width="48">
+    ...     <h1>Receipt!</h1>
+    ...     <ul>
+    ...         <li>
+    ...             <span align="left" width="22">Product</span>
+    ...             <span align="right" width="24">0.15€</span>
+    ...         </li>
+    ...     </ul>
+    ...     <hr/>
+    ...     <p size="2h">
+    ...         <span align="left" width="24">TOTAL</span>
+    ...         <span align="right" width="24">0.15€</span>
+    ...     </p>
+    ...     <barcode encoding='ean13'>
+    ...         5449000000996
+    ...     </barcode>
+    ...     <cashdraw pin="2"/>
+    ...     <cut/>
+    ... </receipt>''')
+    >>> printer = Usb(0x0483, 0x5743)
+    >>> parse(printer, xml)
+    >>> parse(printer,
+    ...      open(os.path.join('escpos_xml', 'tests', 'image.xml'), 'rb'))
+
+Documenation:
+-------------
+
+Root
+~~~~
+
+The root element is `receipt` with the optional attribute `width` which is the
+number of character in a line.
+
+In-lines:
+~~~~~~~~~
+
+The tags for in-line elements are: `bold`, `b` and `span`.
+The attribute available are: `bold`, `underline`, `size`, `font`, `inverted`
+and `color`.
+The `span` element can have also the attributes `align` and `width`.
+
+Blocks:
+~~~~~~~
+
+The tags for block element are: `p`, `h(1-5)` and `hr`.
+The attributes are the same as the in-line elements with in addition the
+`align` which could be `left`, `right` or `center`.
+
+Lists:
+~~~~~~
+
+It is possible to have ordered or unordered lists with the elements `ol` and
+`ul`. The type of bullet is defined by the attribute `type`. For ordered list,
+the start number can be specify with the `start` attribute.
+Each item is defined by an element `li` which has the same attributes as the
+in-line elements.
+
+The list can be nested.
+
+Barcode:
+~~~~~~~~
+
+The `barcode` element print the code using the `encoding` attribute as format.
+Other attributes are: `width`, `height`, `position` and `font`.
+
+Image:
+~~~~~~
+
+The `img` element print the image defined by the `src` attribute using a base64
+data-url format.
+Example::
+
+    <img src="data:image/png;base64,AAABAAMAEBAAAAEAIABoBAAANgAAAC..."/>
+
+Operations:
+~~~~~~~~~~~
+
+Some operations are available: `cut`, `partialcut` and `cashdraw`.
+The `cashdraw` element requires a `pin` attribute.
