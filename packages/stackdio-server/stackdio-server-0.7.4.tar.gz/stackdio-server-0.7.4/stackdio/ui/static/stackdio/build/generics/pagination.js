@@ -1,0 +1,18 @@
+/*!
+  * Copyright 2014,  Digital Reasoning
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  *
+  *     http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  *
+*/
+
+define(["jquery","knockout","utils/class","fuelux"],function(e,t,n){"use strict";return n.extend({breadcrumbs:[],model:null,baseUrl:null,initialUrl:null,sortableFields:[],autoRefresh:!0,detailRequiresAdvanced:!1,pageNum:t.observable(),pageSize:t.observable(),currentPage:t.observable(),previousPage:t.observable(),nextPage:t.observable(),count:t.observable(),objects:t.observableArray([]),loading:t.observable(),sortKey:t.observable(),sortAsc:t.observable(!0),permissionsMap:window.stackdio.permissionsMap,sortedObjects:null,startNum:null,endNum:null,numPages:null,searchInput:e("#search-input"),shouldReset:!0,init:function(){this.reset();var n=this,r=e("#pagination-search");r.search(),r.on("searched.fu.search",function(){n.currentPage(n.initialUrl+"?q="+n.searchInput.val()),n.shouldReset=!1,n.reset()}),r.on("cleared.fu.search",function(){n.reset()}),this.sortedObjects=t.computed(function(){var e=this.sortKey();if(!this.sortableFields)return this.objects();var t=this.sortableFields.map(function(e){return e.name}),n=this,r=n.objects();return t.indexOf(e)<0?r:r.sort(function(t,r){if(!n.sortAsc()){var i=t;t=r,r=i}return t[e]()<r[e]()?-1:t[e]()>r[e]()?1:0})},this),this.startNum=t.computed(function(){return this.pageSize()===null?this.count()>0?1:0:(this.pageNum()-1)*this.pageSize()+1},this),this.endNum=t.computed(function(){return this.pageSize()===null?this.objects().length:this.startNum()+Math.min(this.pageSize(),this.objects().length)-1},this),this.numPages=t.computed(function(){if(this.pageSize()===null)return 1;var e=this.count()/this.pageSize();return this.count()%this.pageSize()==0?e:e+1},this),this.autoRefresh&&(this.intervalId=setInterval(function(e){return function(){e.reload()}}(this),3e3))},reset:function(){this.pageNum(1),this.pageSize(null),this.shouldReset&&(this.currentPage(this.initialUrl),this.sortKey(null),this.sortAsc(!0)),this.previousPage(null),this.nextPage(null),this.count(0),this.objects([]),this.loading(!1),this.shouldReset=!0,this.reload(!0)},changeSortKey:function(e){var t=this.sortKey();e.name===t?this.sortAsc(!this.sortAsc()):this.sortKey(e.name)},goToDetailPage:function(e){if(this.detailRequiresAdvanced&&!window.stackdio.advancedView)return;window.location=this.baseUrl+e.id+"/"},goToNextPage:function(){this.nextPage()!==null&&(this.currentPage(this.nextPage()),this.pageNum(this.pageNum()+1),this.reload(!0))},goToPreviousPage:function(){this.previousPage()!==null&&(this.currentPage(this.previousPage()),this.pageNum(this.pageNum()-1),this.reload(!0))},processObject:function(e){},extraReloadSteps:function(){},filterObject:function(e){return!0},reload:function(t){typeof t=="undefined"&&(t=!1),t&&this.loading(!0);var n=this;e.ajax({method:"GET",url:this.currentPage()}).done(function(e){n.count(e.count),n.previousPage(e.previous),n.nextPage(e.next),e.next!==null&&n.pageSize(e.results.length),n.objects(e.results.filter(n.filterObject).map(function(e){var t=new n.model(e,n);return n.processObject(t),t})),n.extraReloadSteps()}).fail(function(e){e.status==403?window.location.reload(!0):n.reset()}).always(function(){n.loading(!1)})}})});

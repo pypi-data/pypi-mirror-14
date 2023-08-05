@@ -1,0 +1,18 @@
+/*!
+  * Copyright 2014,  Digital Reasoning
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  *
+  *     http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  *
+*/
+
+define(["jquery","knockout","bootbox","utils/utils","models/host-definition"],function(e,t,n,r,i){"use strict";function s(e,n){var r=!1;typeof e=="string"&&(e=parseInt(e)),typeof e=="number"&&(r=!0,e={id:e,url:"/api/blueprints/"+e+"/"}),this.raw=e,this.parent=n,this.id=e.id,this.title=t.observable(),this.description=t.observable(),this.createUsers=t.observable(),this.properties=t.observable({}),this.hostDefinitions=t.observableArray([]),this.formulaVersions=t.observableArray([]),r?this.waiting=this.reload():this._process(e)}return s.constructor=s,s.prototype._process=function(e){this.title(e.title),this.description(e.description),this.createUsers(e.create_users)},s.prototype.reload=function(){var t=this;return e.ajax({method:"GET",url:this.raw.url}).done(function(e){t.raw=e,t._process(e)})},s.prototype.loadProperties=function(){var t=this;return this.raw.hasOwnProperty("properties")||(this.raw.properties=this.raw.url+"properties/"),e.ajax({method:"GET",url:this.raw.properties}).done(function(e){t.properties(e)})},s.prototype.saveProperties=function(){e.ajax({method:"PUT",url:this.raw.properties,data:JSON.stringify(this.properties())}).done(function(e){r.growlAlert("Successfully saved blueprint properties!","success")}).fail(function(e){var t;try{var n=JSON.parse(e.responseText);t=n.properties.join("<br>")}catch(i){t="Oops... there was a server error."}t+="  Your properties were not saved.",r.growlAlert(t,"danger")})},s.prototype.loadHostDefinitions=function(){function r(s){e.ajax({method:"GET",url:s}).done(function(e){n.push.apply(n,e.results.map(function(e){return new i(e,t.parent)})),e.next===null?t.hostDefinitions(n):r(e.next)})}var t=this,n=[];r(this.raw.host_definitions)},s.prototype.save=function(){var t=this,n=["title","description","create_users"];n.forEach(function(t){var n=e("#"+t);n.removeClass("has-error");var r=n.find(".help-block");r.remove()}),e.ajax({method:"PUT",url:t.raw.url,data:JSON.stringify({title:t.title(),description:t.description(),create_users:t.createUsers()})}).done(function(e){r.growlAlert("Successfully saved blueprint!","success");try{t.parent.blueprintTitle(e.title)}catch(n){}}).fail(function(e){r.parseSaveError(e,"blueprint",n)})},s.prototype.launch=function(){window.location="/stacks/create/?blueprint="+this.id},s.prototype.delete=function(){var t=this,r=this.title();n.confirm({title:"Confirm delete of <strong>"+r+"</strong>",message:"Are you sure you want to delete <strong>"+r+"</strong>?",buttons:{confirm:{label:"Delete",className:"btn-danger"}},callback:function(r){r&&e.ajax({method:"DELETE",url:t.raw.url}).done(function(){window.location.pathname!=="/blueprints/"?window.location="/blueprints/":t.parent&&typeof t.parent.reload=="function"&&t.parent.reload()}).fail(function(e){var t;try{var r=JSON.parse(e.responseText);t=r.detail.join("<br>"),Object.keys(r).indexOf("stacks")>=0&&(t+="<br><br>Stacks:<ul><li>"+r.stacks.join("</li><li>")+"</li></ul>")}catch(i){t="Oops... there was a server error.  This has been reported to your administrators."}n.alert({title:"Error deleting blueprint",message:t})})}})},s});

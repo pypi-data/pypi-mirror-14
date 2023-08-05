@@ -1,0 +1,18 @@
+/*!
+  * Copyright 2014,  Digital Reasoning
+  * 
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  * 
+  *     http://www.apache.org/licenses/LICENSE-2.0
+  * 
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  * 
+*/
+
+define(["jquery","knockout","bloodhound","bootbox","utils/class","utils/utils","typeahead"],function(e,t,n,r,i,s){"use strict";return i.extend({breadcrumbs:[],permsUrl:null,saveUrl:null,availableUserPermissions:t.observableArray([]),availableGroupPermissions:t.observableArray([]),userPermissions:t.observableArray([]),groupPermissions:t.observableArray([]),init:function(){this.users=this.getBloodhound("user",this.userPermissions),this.groups=this.getBloodhound("group",this.groupPermissions),this.createTypeahead("user",this.userPermissions,this.availableUserPermissions),this.createTypeahead("group",this.groupPermissions,this.availableGroupPermissions),this.loadPermissions()},getBloodhound:function(e,t){var r;switch(e){case"user":r="username";break;case"group":r="name"}return new n({datumTokenizer:n.tokenizers.whitespace,queryTokenizer:n.tokenizers.whitespace,remote:{url:"/api/"+e+"s/?"+r+"=%QUERY",wildcard:"%QUERY",transform:function(n){var i=[],s=t().map(function(t){return t[e]});return n.results.forEach(function(e){s.indexOf(e[r])<0&&i.push(e)}),i}}})},createTypeahead:function(n,r,i){var s=e("#add-"+n+" .typeahead"),o;switch(n){case"user":o="username";break;case"group":o="name"}s.typeahead({highlight:!0},{name:n+"s",display:o,source:this[n+"s"]}),s.bind("typeahead:select",function(e,u){var a=[];i().forEach(function(e){a[e]=t.observable(!1)});var f={permissions:a};f[n]=u[o],r.push(f),s.typeahead("val",null)})},transformPermissions:function(e){var n=this[e+"Permissions"],r=this["available"+e.capitalize()+"Permissions"];return function(e){e.results.forEach(function(n){var r={};e.available_permissions.forEach(function(e){r[e]=t.observable(!1)}),n.permissions.forEach(function(e){r[e](!0)}),n.permissions=r}),n(e.results),r(e.available_permissions)}},savePermissions:function(t,n,r){var i=[];return n.forEach(function(n){var s=[];r.forEach(function(e){n.permissions[e]()&&s.push(e)});var o={permissions:s};o[t]=n[t],o=JSON.stringify(o);var u;n.hasOwnProperty("url")?u=e.ajax({method:"PUT",url:n.url,data:o}):u=e.ajax({method:"POST",url:this.permsUrl+t+"s/",data:o}),i.push(u)},this),i},loadPermissions:function(){e.ajax({method:"GET",url:this.permsUrl+"users/"}).done(this.transformPermissions("user")).fail(function(e){s.alertError(e,"Error fetching permissions")}),e.ajax({method:"GET",url:this.permsUrl+"groups/"}).done(this.transformPermissions("group")).fail(function(e){s.alertError(e,"Error fetching permissions")})},save:function(){var t=this.savePermissions("user",this.userPermissions(),this.availableUserPermissions());t.push.apply(t,this.savePermissions("group",this.groupPermissions(),this.availableGroupPermissions()));var n=this.saveUrl;e.when.apply(this,t).done(function(){window.location=n}).fail(function(e){s.alertError(e,"Error saving permissions")})}})});
