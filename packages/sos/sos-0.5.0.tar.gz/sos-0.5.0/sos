@@ -1,0 +1,117 @@
+#!/usr/bin/env python2.7
+#
+# This file is part of Script of Scripts (sos), a workflow system
+# for the execution of commands and scripts in different languages.
+# Please visit https://github.com/bpeng2000/SOS for more information.
+#
+# Copyright (C) 2016 Bo Peng (bpeng@mdanderson.org)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
+import sys
+import argparse
+
+from pysos import __version__, SOS_FULL_VERSION, env, sos_run, sos_dryrun, sos_show
+
+def addCommonArgs(parser):
+    parser.add_argument('-v', '--verbosity', type=int, choices=range(5),
+            help='''Output error (0), warning (1), info (2), debug (3) and trace (4)
+            information to standard output (default to 2).'''),
+
+if __name__ == '__main__':
+    master_parser = argparse.ArgumentParser(description='''A workflow system
+            for the execution of commands and scripts.''',
+        prog='SoS',
+        fromfile_prefix_chars='@',
+        epilog='''Use 'sos cmd -h' for details about each subcommand. Please
+            contact Bo Peng (bpeng at mdanderson.org) if you have any question.''')
+
+    master_parser.add_argument('--version', action='version',
+        version='%(prog)s {}'.format(SOS_FULL_VERSION))
+    subparsers = master_parser.add_subparsers(title='subcommands')
+    workflow_spec =  '''Name of the workflow to execute. This option can be
+        ignored if the script defines a default workflow (with no name or with
+        name `default`) or defines only a single workflow. A subworkflow or a 
+        combined workflow can also be specified, where a subworkflow executes a
+        subset of workflow (`name_steps` where `steps` can be `n` (a step `n`),
+        `-n` (up to step `n`), `n-m` (from step `n` to `m`), and `n-` (from step
+        `n`)), and a combined workflow executes to multiple (sub)workflows
+        combined by `+` (e.g. `A_0+B+B`).'''
+    workflow_options = '''Arbitrary parameters defined by the [parameters] step
+        of the script, and [parameters] steps of other scripts if nested workflows
+        are defined in other SoS files (option `source`). The name, default and
+        type of the parameters are specified in the script. Single value parameters
+        should be passed using option `--name value` and multi-value parameters
+        should be passed using option `--name value1 value2`. '''
+    #
+    # command run
+    parser = subparsers.add_parser('run',
+        help='Execute a SoS script')
+    parser.add_argument('script', metavar='SCRIPT',
+        help='A SoS script that defines one or more workflows.')
+    parser.add_argument('workflow', metavar='WORKFLOW', nargs='?',
+        help=workflow_spec)
+    parser.add_argument('-j', type=int, metavar='JOBS', default=1, dest='__max_jobs__',
+        help='''Number of concurrent process allowed. A workflow is by default
+            executed sequentially (-j 1). If a greater than 1 number is specified
+            SoS will execute the workflow in parallel mode and execute up to 
+            specified processes concurrently. These include looped processes
+            within a step (with runtime option `concurrent=True`) and steps with
+            non-missing required files.''')
+    parser.add_argument('-d', action='store_true', dest='__dryrun__',
+        help='''Execute the workflow in dryrun mode in which step processes
+            are executed normally but with most SoS actions return directly.
+            SoS also produces diagnoistic warning messages in this mode.''')
+    parser.add_argument('options', metavar='WORKFLOW_OPTIONS', 
+        nargs=argparse.REMAINDER, help=workflow_options)
+    addCommonArgs(parser)
+    parser.set_defaults(func=sos_run)
+    #
+    # command dryrun
+    parser = subparsers.add_parser('dryrun',
+        help='Execute a SoS script in dryrun mode')
+    parser.add_argument('script', metavar='SCRIPT',
+        help='A SoS script that defines one or more workflows.')
+    parser.add_argument('workflow', metavar='WORKFLOW', nargs='?',
+        help=workflow_spec)
+    parser.add_argument('options', metavar='WORKFLOW_OPTIONS', 
+        nargs=argparse.REMAINDER, help=workflow_options)
+    addCommonArgs(parser)
+    parser.set_defaults(func=sos_dryrun)
+    #
+    # command show
+    parser = subparsers.add_parser('show',
+        help='Show details of a SoS script')
+    parser.add_argument('script', metavar='SCRIPT',
+        help='A SoS script that defines one or more workflows.')
+    parser.add_argument('workflow', metavar='WORKFLOW', nargs='?',
+        help=workflow_spec)
+    parser.add_argument('options', metavar='WORKFLOW_OPTIONS', 
+        nargs=argparse.REMAINDER, help=workflow_options)
+    addCommonArgs(parser)
+    parser.set_defaults(func=sos_show)
+    #
+    args = master_parser.parse_args()
+    # FIXME: -h at the end will trigger the master help message, not the
+    # subparser message because at this point we do not know which subparser
+    # was triggered. The problem is caused by the 'options' argument with 
+    # argparse.REMAINDER which sends everything afterwards to a subsequent
+    # parser (supposedly to the script) but some arguments belong to the
+    # main parser (e.g. -d, -d) can be contained there.
+    if hasattr(args, 'options') and '-h' in args.options:
+        master_parser.print_help()
+        master_parser.exit()
+    # calling the associated functions
+    args.func(args)
