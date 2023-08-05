@@ -1,0 +1,52 @@
+language: python
+
+python:
+  - '2.7'
+  - '3.3'
+  - '3.4'
+  - '3.5'
+
+sudo: false
+
+addons:
+  apt:
+    packages:
+    - python-numpy
+    - gfortran
+
+env:
+
+  global:
+    LD_PRELOAD=/lib/x86_64-linux-gnu/libSegFault.so
+
+  matrix:
+    - TOXENV=extension-coveralls,coveralls,codecov
+      TESTSCRIPT="py.test --cov=apexpy --cov-report=term-missing"
+
+    - TOXENV=nocover
+      TESTSCRIPT="py.test"
+
+before_install:
+  - python --version
+  - uname -a
+  - lsb_release -a
+
+install:
+  - pip install pytest-capturelog coveralls pytest-cov coverage codecov
+  - python setup.py clean --all build_ext --force --inplace
+  - python setup.py develop
+
+script:
+  $TESTSCRIPT
+
+after_success:
+  - coverage combine
+  - coverage report
+  - coveralls --merge=extension-coveralls.json []
+  - coveralls
+  - codecov
+
+notifications:
+  email:
+    on_success: never
+    on_failure: always
