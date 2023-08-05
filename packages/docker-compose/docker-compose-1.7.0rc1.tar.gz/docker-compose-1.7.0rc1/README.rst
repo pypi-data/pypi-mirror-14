@@ -1,0 +1,84 @@
+Docker Compose
+==============
+
+.. figure:: https://github.com/docker/compose/raw/master/logo.png?raw=true
+   :alt: Docker Compose Logo
+
+   Docker Compose
+
+Compose is a tool for defining and running multi-container Docker
+applications. With Compose, you use a Compose file to configure your
+application's services. Then, using a single command, you create and
+start all the services from your configuration. To learn more about all
+the features of Compose see `the list of
+features <https://github.com/docker/compose/blob/release/docs/overview.md#features>`__.
+
+Compose is great for development, testing, and staging environments, as
+well as CI workflows. You can learn more about each case in `Common Use
+Cases <https://github.com/docker/compose/blob/release/docs/overview.md#common-use-cases>`__.
+
+Using Compose is basically a three-step process.
+
+1. Define your app's environment with a ``Dockerfile`` so it can be
+   reproduced anywhere.
+2. Define the services that make up your app in ``docker-compose.yml``
+   so they can be run together in an isolated environment:
+3. Lastly, run ``docker-compose up`` and Compose will start and run your
+   entire app.
+
+A ``docker-compose.yml`` looks like this:
+
+::
+
+    web:
+      build: .
+      ports:
+       - "5000:5000"
+      volumes:
+       - .:/code
+      links:
+       - redis
+    redis:
+      image: redis
+
+For more information about the Compose file, see the `Compose file
+reference <https://github.com/docker/compose/blob/release/docs/compose-file.md>`__
+
+Compose has commands for managing the whole lifecycle of your
+application:
+
+-  Start, stop and rebuild services
+-  View the status of running services
+-  Stream the log output of running services
+-  Run a one-off command on a service
+
+Installation and documentation
+------------------------------
+
+-  Full documentation is available on `Docker's
+   website <https://docs.docker.com/compose/>`__.
+-  If you have any questions, you can talk in real-time with other
+   developers in the #docker-compose IRC channel on Freenode. `Click
+   here to join using
+   IRCCloud. <https://www.irccloud.com/invite?hostname=irc.freenode.net&channel=%23docker-compose>`__
+-  Code repository for Compose is on
+   `Github <https://github.com/docker/compose>`__
+-  If you find any problems please fill out an
+   `issue <https://github.com/docker/compose/issues/new>`__
+
+Contributing
+------------
+
+|Build Status|
+
+Want to help build Compose? Check out our `contributing
+documentation <https://github.com/docker/compose/blob/master/CONTRIBUTING.md>`__.
+
+Releasing
+---------
+
+Releases are built by maintainers, following an outline of the `release
+process <https://github.com/docker/compose/blob/master/project/RELEASE-PROCESS.md>`__.
+
+.. |Build Status| image:: http://jenkins.dockerproject.org/buildStatus/icon?job=Compose%20Master
+   :target: http://jenkins.dockerproject.org/job/Compose%20Master/
