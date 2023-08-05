@@ -1,0 +1,113 @@
+{% extends "layout.html" %}
+{% from "macros.html" import list_out, list_out_bytes, igv_link, ucsc_link, genemania_single_link, ensemble_link, all_link, igv_open_file %}
+{% block caption %}{% endblock %}
+{% block title %}Recessive{% endblock %}
+
+{% block body %}
+    <div class="row left">
+	<div class="columns small-12 medium-8 large-8">
+        <ul class="accordion" data-accordion="myAccordionGroup" style="margin-left:0px">
+            <li class="accordion-navigation">
+                <a href="#panel1c">Parameters</a>
+                <div id="panel1c" class="content">
+                    <div class="small-12 medium-12 large-12 columns left">
+                        <table>
+                            <thead>
+                                <tr><th>Name</th><th>Value</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Index</td>
+                                    <td>
+                                        {{ query.index }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Mother</td>
+                                    <td>
+                                        {{ query.parent1 }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Father</td>
+                                    <td>
+                                        {{ query.parent2 }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>min Qual</td>
+                                    <td>{{ query.min_qual }}</td>
+                                </tr>
+                                <tr>
+                                    <td>min Samples per Gene</td>
+                                    <td>{{ query.min_samples_per_gene }}</td>
+                                </tr>
+                                <tr>
+                                    <td>min Samples per Variant</td>
+                                    <td>{{ query.min_samples_per_variant }}</td>
+                                </tr>
+                                <tr>
+                                    <td>min Variants per Gene</td>
+                                    <td>{{ query.min_variants_per_gene }}</td>
+                                </tr>
+                            </tbody>
+                        </table>    
+                    </div>
+                </div>
+            </li>
+        </ul>
+    </div>
+    <button class="columns right small-12 medium-2 large-2 exportbutton" onclick="$(table2excel).toCSV('recessive.csv')">Export to .csv</button>
+    <button class="columns right small-12 medium-2 large-2 exportbutton" onclick="tableToExcel('table2excel', 'recessive.xls')">Export to .xls</button>
+    </div>
+
+
+    <div class="row left">
+        <table id="table2excel" class="datatable" style="margin-top: 20px;">
+        <thead>
+            <tr>
+                <th></th>
+                <th>#</th>
+                <th>Symbol</th>
+                <th>C</th>
+                <th>Samples</th>
+                <th>M</th>
+                <th>F</th>
+                <th>Effect</th>
+                <th>Het</th>
+                <th>Alt</th>
+                <th>Qual</th>
+                <th>Location</th>
+                <th>Links</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td><a href="{{ url_for('variant_detail', chrom=r.chrom, position=r.position, typ=r.typ, sample=query.index) }}">+</a></td>
+                <td>{{ loop.index }}</td>
+                <td>
+                {% for symbol in r.symbols %}
+                    {% set s = symbol.decode() %}
+                    {{ ensemble_link(s) }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+                </td>
+                <td>{{ r.common | length }}</td>
+                <td>{{ igv_open_file(url_for('bam', accession=query.index + '.bam'), query.index) }}</td>
+                <td>{% if r.inp1 %}{{ igv_open_file(url_for('bam', accession=query.parent1 + '.bam'), "x") }}{% endif %}</td>
+                <td>{% if r.inp2 %}{{ igv_open_file(url_for('bam', accession=query.parent2 + '.bam'), "x") }}{% endif %}</td>
+                <td>{{ r.effect|effects }}</td>
+                <td>{{ r.heterozygot|heterozygosity}}</td>
+                <td>{{ r.ref }}>{{ "ACGTMIDE"[r.typ] }}</td>
+                <td>{{ r.maxqual }}</td>
+                <td>{{ r.chrom }}:{{ r.position }}</td>
+                <td>
+                    <span>{{ all_link(r.chrom, r.position) }}</span>
+                </td>
+            </tr>
+            {% endfor%}
+        </tbody>
+        </table>
+    </div>
+{% endblock %}
+

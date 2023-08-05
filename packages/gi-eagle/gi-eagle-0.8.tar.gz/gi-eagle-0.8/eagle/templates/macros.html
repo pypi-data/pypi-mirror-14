@@ -1,0 +1,174 @@
+{% macro igv_link(chrom, start, end) -%}
+    <a href="http://localhost:60151/goto?genome={{ config['REFERENCE'] }}&amp;locus={{ chrom }}:{{ (start | int)-1 }}-{{ (end | int)-1 }}">IGV</a>
+{%- endmacro -%}
+
+{% macro igv_open_file(filename, linkname) -%}
+    <a href="http://localhost:60151/load?file={{ request.url_root }}{{ filename.lstrip('/') }}&amp;genome={{ config['REFERENCE'] }}">{{ linkname }}</a>
+{%- endmacro -%}
+
+{% macro list_out(list) -%}
+    {% for item in list %}{{ item }}{% if not loop.last %}, {% endif %}{% endfor%}
+{%- endmacro -%}
+
+{% macro list_out_bytes(list) -%}
+    {% for item in list %}{{ item.decode() }}{% if not loop.last %}, {% endif %}{% endfor%}
+{%- endmacro -%}
+
+{% macro ensemble_link(gene_name) %}
+<a href="http://www.ensembl.org/id/{{gene_name}}">{{ gene_name }}</a>
+{%- endmacro -%}
+
+{% macro ucsc_link(chrom, pos) %}
+<a href="http://genome.ucsc.edu/cgi-bin/hgTracks?db={{ config['REFERENCE'] }}&amp;position=chr{{ chrom }}:{{ pos|int - 1 }}-{{ pos|int + 1}}">UCSC</a>
+{%- endmacro -%}
+
+{%- macro genemania_single_link(gene_name) -%}
+<a href="http://genemania.org/link?o=human&amp;g={{ gene_name }}">GM</a>
+{%- endmacro -%}
+
+{%- macro omim_link(gene_name) -%}
+<a href="http://www.omim.org/search?index=entry&amp;search={{ gene_name }}">OMIM</a>
+{%- endmacro -%}
+
+{%- macro thousandgenomes_link(chrom, pos) -%}
+<a href="http://browser.1000genomes.org/Homo_sapiens/Location/Chromosome?r={{ chrom }}:{{ pos }}">1000G</a>
+{%- endmacro -%}
+
+{% macro ncbi_link(chrom, pos) -%}
+<a href="http://www.ncbi.nlm.nih.gov/variation/tools/1000genomes/?chr={{ chrom }}&from={{ pos }}&to={{ pos }}">NCBI</a>
+{%- endmacro -%}
+
+{% macro dbsnp_link(rsid) -%}
+<a href="http://www.ncbi.nlm.nih.gov/projects/SNP/snp_ref.cgi?rs={{ rsid }}">{{ rsid }}</a>
+{%- endmacro -%}
+
+{% macro all_link(chrom, pos) -%}
+    {{ igv_link(chrom, pos, pos) }},
+    {{ ucsc_link(chrom, pos) }},
+    {{ thousandgenomes_link(chrom, pos) }},
+    {{ ncbi_link(chrom, pos) }}
+{%- endmacro -%}
+
+{%- macro case_control_selection(available_samples, available_groups) -%}
+<div class="row left">
+    <div class="small-12 medium-8 large-6 columns left">
+        <fieldset>
+            <label>select <b>case</b> of samples</label>
+            <select autofocus="autofocus" multiple name="case">
+            {% for sample in available_samples %}
+                <option value="{{ sample.samplename }}">{{ sample.samplename }} - {{ sample.disease }}</option>
+            {% endfor %}
+            </select>
+            <label>select <b>groups of cases</b></label>
+            <select multiple name="case_group">
+            {% for disease in available_samples | diseases %}
+                <option value="{{ disease }}">{{ disease }} </option>
+            {% endfor %}
+            </select>
+        </fieldset>
+    </div>
+
+    <div class="small-12 medium-8 large-6 columns left">
+        <fieldset>
+            <label>select <b>control</b> of samples</label>
+            <select multiple name="control">
+            {% for sample in available_samples %}
+                <option value="{{ sample.samplename }}">{{ sample.samplename }} - {{ sample.disease }}</option>
+            {% endfor %}
+            </select>
+            <label>select <b>groups of control</b></label>
+            <select multiple name="control_group">
+            {% for disease in available_samples | diseases %}
+                <option value="{{ disease }}" {% if disease=="Healthy" %}selected='selected' {% endif %}>{{ disease }}</option>
+            {% endfor %}
+            </select>
+        </fieldset>
+    </div>
+</div>
+{%- endmacro -%}
+
+
+{%- macro gene_selection() -%}
+<div class="small-12 medium-8 large-4 columns left">
+    <fieldset>
+    <input id="searchall" name="searchall" type="checkbox" checked=True><label for="searchall">search all available <b>genes</b></label>
+    <label>— or —</label>
+    <label>following <b>genes</b></label>
+    <textarea rows="5" cols="30" name="genes" id="genes">
+ARID1A
+ARID1B
+ARID2
+SMARCA2
+SMARCA4
+SMARCB1
+    </textarea>
+    </fieldset>
+</div>
+{%- endmacro -%}
+
+{%- macro effect_selection(effect_names, exon_effects) -%}
+<div class="small-12 medium-12 large-12 columns left">
+    <fieldset>
+    <label>show this <b>effects</b></label>
+        <div style="margin-top: 10px">
+            <a href="#" class="button small" id="btnexonic">exonic</a>
+            <a href="#" class="button small" id="btnall">all</a>
+            <a href="#" class="button small" id="btnnone">none</a>
+        </div>
+        <select class="select2" data-role="chosen" id="effects" multiple name="effects">
+        {% for e in effect_names %}
+            <option value="{{ e.value }}" {% if e in exon_effects %} selected {% endif %}>{{ effect_names[e] }}</option>
+        {% endfor %}
+        </select>
+
+    </fieldset>
+</div>
+{%- endmacro -%}
+
+{%- macro heterozygosity_selection() -%}
+<div class="small-12 medium-8 large-4 columns left">
+    <fieldset>
+    <label><b>heterozygosity</b></label>
+        <div class="row">
+            <input id="ckbignorehet" type="checkbox" checked="checked" name="ignore_heterozygosity"><label for="ckbignorehet">ignore heterozygosity</label>
+        </div>
+    </fieldset>
+</div>
+{%- endmacro -%}
+
+{%- macro contraint_selection() -%}
+<div class="small-12 medium-8 large-4 columns left">
+    <fieldset>
+    <label><b>constraints</b></label>
+        <div class="row">
+            <div class="small-6 columns">
+                <label for="right-label" class="right inline">quality ></label>
+            </div>
+            <div class="small-6 columns">
+                <input type="text" id="minquality" name="minquality" value="50"/>
+            </div>
+        </div>
+        <div class="row">
+            <div class="small-6 columns">
+                <label for="right-label" class="right inline">mapping quality ></label>
+            </div>
+            <div class="small-6 columns">
+                <input type="text" id="minmappingquality" name="minmappingquality" value="40"/>
+            </div>
+        </div>
+    </fieldset>
+</div>
+{%- endmacro -%}
+
+{%- macro db_selection(available_databases) -%}
+<div class="small-12 medium-12 large-12 columns left">
+    <fieldset>
+        <label>filter <b>databases</b></label>
+        <select select class="select2" data-role="chosen" id="db" multiple name="db">
+            {% for database in available_databases %}
+                <option value="{{ database }}" {% if database=="dbsnp142_full" %}selected='selected' {% endif %}>{{ database }}</option>
+            {% endfor %}
+        </select>
+    </fieldset>
+</div>
+{%- endmacro -%}
