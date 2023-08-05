@@ -1,0 +1,697 @@
+-*- coding: utf-8 -*-
+
+Contents
+
+  1. A word about FFGo's page on the FlightGear wiki
+  2. Ready-to-use packages
+  3. Manual installation
+    a) Overview of FFGo's dependencies
+    b) Tips for Windows users
+    c) Easiest procedure
+    d) Standard procedure
+  4. Installation from the Git repository
+
+  Appendices
+
+    A. What is a "working pip setup"?
+    B. Maintenance of a virtual environment
+
+-------------------------------------------------------------------------------
+
+A WORD ABOUT FFGO'S PAGE ON THE FLIGHTGEAR WIKI
+
+This file is supposed to document in a relatively detailed, but also general
+way, how to install the particular version of FFGo it was shipped with. It is
+as such partly redundant with FFGo's page on the FlightGear wiki:
+
+  http://wiki.flightgear.org/FFGo
+
+At the time of this writing, the installation instructions found on this wiki
+page are often less general than those from the file you are reading, on
+purpose; thus, you may find the wiki instructions easier to follow for the
+following reasons:
+  - more practically-oriented, at the expense of being a bit less general
+    sometimes;
+  - the HTML format used for the wiki allows nicer formatting and hyperlinks.
+
+See for yourself what you prefer!
+
+-------------------------------------------------------------------------------
+
+READY-TO-USE PACKAGES
+
+Debian packages for FFGo and its dependencies are available, see README.rst
+for specific instructions (or, equivalently, the FFGo home page at
+<http://people.via.ecp.fr/~flo/projects/FFGo/>).
+
+Apart from Debian, it may be that your distribution offers a ready-to-use
+package of FFGo. Please check on its website and contact me (email address at
+the end of this file) if this is the case to allow me to mention it here.
+
+-------------------------------------------------------------------------------
+
+MANUAL INSTALLATION
+
+Overview of FFGo's dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+FFGo's dependencies are:
+  - Python 3.4 or later;
+  - Tkinter (for the aforementioned Python interpreter);
+  - CondConfigParser;
+  - Pillow (optional; only used to display aircraft thumbnails);
+  - GeographicLib's MagneticField program (optional; used to display the
+    magnetic variation at a particular place and to compute magnetic headings
+    from true headings);
+  - GeographicLib's implementation for Python 3 (optional; used for geodesic
+    calculations, e.g., to compute the distance and azimuths between two
+    airports, or a runway length and heading based on the latitude and
+    longitude of the two runway ends as found in apt.dat). FFGo includes
+    algorithms for “basic” geodesic calculations (Vincenty's formula and a few
+    others); these should be sufficient in most cases. However, there are rare
+    cases (calculation of the shortest path between nearly antipodal points)
+    in which these algorithms don't work, whereas Karney's algorithm,
+    implemented in GeographicLib, does;
+  - the 'pkg_resources' Python 3 module (optional; normally shipped with
+    setuptools; not needed when using ffgo-launcher.py). Since setuptools
+    should always be available when working with pip, this dependency should
+    only be a concern when FFGo has been installed via a distribution package
+    lacking a dependency on a package providing 'pkg_resources'.
+
+Let's examine them one by one:
+
+- Python 3.x should be available in any Linux distribution (package 'python3',
+  or 'python', or 'python3.4', etc.). If your distribution doesn't have
+  Python 3.4 or later, download the latest Python version from
+  <https://www.python.org/>, compile and install it following the instructions
+  in the top-level README file found in the downloaded tarball.
+
+- Tkinter is normally shipped with Python when installing Python from source.
+  However, when installing it from a Linux distribution package manager,
+  Tkinter is often provided as a separate package such as python3-tk or
+  python-tk.
+
+  The nice point is that Tkinter is part of the Python standard library. As a
+  consequence, assuming you installed it for a given Python interpreter, it is
+  always available in virtual environments created from that interpreter, even
+  if you created them without the '--system-site-packages' option.
+
+  Note: very old versions of Tkinter/Tk that don't have the Ttk widget set
+        (cf. <https://docs.python.org/3/library/tkinter.ttk.html>) are not
+        supported starting from FFGo 1.8.0. Tk 8.5 should be recent enough.
+
+- CondConfigParser is straightforward to install once you have a “working pip
+  setup” (cf. Appendix A): all that is needed is to run
+  'pip install CondConfigParser'. Otherwise, it is available as a Debian
+  package, see its home page for details.
+
+- Pillow can be installed similarly ('pip install Pillow'), but this will only
+  work if you have already installed the software required to compile Pillow.
+  An alternative is to use a Pillow package from your distribution (for
+  instance, Pillow is shipped as python3-pil.imagetk in Debian).
+
+  The potentially tricky part in the latter case is to make sure *all*
+  dependencies are available to the *same* Python interpreter. For Debian, it
+  is easy since all dependencies are available as Debian packages, and even
+  FFGo itself actually. Otherwise, supposing for instance that you wanted to
+  install all dependencies but CondConfigParser as Debian packages, one way to
+  do that could be to install CondConfigParser in a virtual environment
+  created with the '--system-site-packages' option and the other packages via
+  your distribution package manager. I am not pretending this would be
+  particularly useful now that there are Debian packages for FFGo and
+  CondConfigParser; this is only to give non-Debian users ideas of what can be
+  done to install the dependencies as easily as possible.
+
+- GeographicLib's implementation for Python 3: the situation is similar in
+  some ways to that of CondConfigParser. Once you have a “working pip setup”
+  (cf. Appendix A), all that is needed is to run 'pip install geographiclib'.
+  This does not require any compilation.
+
+- GeographicLib's MagneticField  program: it comes with the GeographicLib C++
+  library. Note that this program requires a particular dataset to be
+  installed in order to work properly.
+
+  On Debian, the program is part of the geographiclib-tools package, which
+  also provides a script called geographiclib-get-magnetic. Running a command
+  such as '/usr/sbin/geographiclib-get-magnetic minimal' with root privileges
+  will automatically download and install a minimal dataset under
+  /usr/share/GeographicLib/magnetic, where it can be found by MagneticField
+  (not registering the added files with dpkg, which is a bit ugly,
+  cf. <https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=687253>).
+
+  For Windows, details are given below in section “Tips for Windows users”.
+
+- the 'pkg_resources' Python 3 module should be available everywhere (being
+  part of setuptools, which is a fundamental component of pip). In
+  Debian, this module is shipped in the python3-pkg-resources package.
+
+
+Tips for Windows users
+~~~~~~~~~~~~~~~~~~~~~~
+
+In order to install FFGo on Windows, I recommend to use the “Standard
+procedure” described a few paragraphs below. But before doing so, in the
+Python installer:
+
+  - make sure to enable the 'Tcl/tk' and 'pip' components (this may be under
+    a label such as “Customize installation”);
+
+  - don't change the default value for the Python installation folder,
+    otherwise you are likely to run into permission problems (except for old
+    versions of Windows, writing to “Program Files”, at least, is subject to
+    special restrictions that may cause the 'pip install FFGo' step to fail);
+
+  - if you are not comfortable with the command line (“Command Prompt”), it is
+    suggested you choose “Add python.exe to Path” / “Add Python X.Y to PATH”
+    (the precise wording depends on the Python version). This way, you will be
+    able to run pip and ffgo directly at the Command Prompt without having to
+    specify their full paths.
+
+    If you don't do that, you'll have to type things such as
+    'C:\PythonXY\Scripts\pip install ...' instead of 'pip install ...', where
+    XY would be 35 for a Python 3.5 installation, for instance. Alternatively,
+    you could change to the directory containing 'pip.exe':
+
+      C:
+      cd \PythonXY\Scripts
+
+    and then run the commands without any path qualifier, like this:
+
+      pip install ...
+
+Then, when installing FFGo and its dependencies: since there is no system
+Python on Windows, you can use pip directly on your Python installation. There
+should be *no need to create a virtual environment* for typical Windows users.
+Of course, if you are comfortable with virtual environments and want to use
+one, no problem, go ahead.
+
+If you want to install GeographicLib's MagneticField program:
+
+  1. Go to <http://geographiclib.sourceforge.net/html/install.html#binaryinst>
+     (“Using a binary installer”) and run the appropriate installer for your
+     system. This will install the MagneticField.exe executable. Take note of
+     the directory it is installed to, because you'll have to tell the full
+     path of this program to FFGo, unless you let the GeographicLib installer
+     modify your PATH environment variable.
+
+  2. MagneticField.exe needs one or more datasets to be installed, otherwise
+     it can't work properly. To get such a dataset, go to
+     <http://geographiclib.sourceforge.net/html/magnetic.html> and install the
+     magnetic model data of your choice. 'wmm2015' should be fine until 2020.
+     You may also install the 'emm2015' dataset, however I can't say whether
+     this will bring any visible change for typical aviation usage.
+
+  3. If you let the GeographicLib installer modify your PATH in step 1, there
+     is nothing else to do. Otherwise, you have to tell FFGo where to find
+     MagneticField.exe. For this, start FFGo and choose Preferences in the
+     Settings menu. In the Miscellaneous tab, there should be a field where
+     you can enter the full path to the MagneticField.exe executable.
+
+Note: installation of GeographicLib's implementation for Python 3 is a
+      different thing, and is covered by the “Standard procedure” below. In
+      short, it can be done with 'pip install geographiclib'.
+
+For Windows-specific instructions concerning Python installation and use, you
+may refer to <https://docs.python.org/3/using/windows.html>.
+
+In case pip doesn't work for you when following the “Standard procedure”:
+
+  1. Write down exactly what you did, copy the error messages, take
+     screenshots to make sure you won't miss anything, and report your problem
+     in FFGo's thread on the FlightGear forum (at the time of this writing:
+     <http://forum.flightgear.org/viewtopic.php?f=18&t=27054>).
+
+  2. If you feel adventurous and want to solve the problem all by yourself,
+     you may try running 'py -3 -m ensurepip' from a Command Prompt, or using
+     the get-pip.py script as explained on the pip home page at
+     <https://pip.pypa.io/>.
+
+
+Easiest procedure
+~~~~~~~~~~~~~~~~~
+
+It is possible to run FFGo without installing it. For this:
+  - unpack the archive wherever you want;
+  - make sure that all software requirements are met;
+  - run 'ffgo-launcher.py' with the Python interpreter you installed the
+    requirements for.
+
+The potentially difficult step here if you are not familiar with Python is the
+second one, "make sure that all software requirements are met". If you
+carefully read the instructions below about setting up a virtual environment
+and using pip inside it, you should be able to install and later upgrade
+everything easily. But if you want to cut the procedure as short as possible
+and test FFGo right away, here is how (this method requires an OS supporting
+symbolic links):
+
+  0. You may install Pillow and/or GeographicLib (with the MagneticField tool)
+     through your distribution package manager; it's usually easy, but
+     entirely optional.
+
+  1. Unpack the CondConfigParser archive wherever you want, under your normal
+     user account:
+
+       cd ~/src
+       tar -xjf CondConfigParser-x.y.z.tar.bz2
+
+     (assuming you downloaded the tarball as
+     ~/src/CondConfigParser-x.y.z.tar.bz2)
+
+  2. Do the same with the FFGo archive:
+
+       cd ~/src
+       tar -xzf FFGo-a.b.c.tar.gz
+
+  3. Create a symbolic link to allow FFGo to find CondConfigParser:
+
+       ln -s ~/src/CondConfigParser-x.y.z/condconfigparser \
+             ~/src/FFGo-a.b.c/condconfigparser
+
+     (assuming the previous step created the ~/src/FFGo-a.b.c directory,
+     leaving an ffgo-launcher.py executable script at
+     ~/src/FFGo-a.b.c/ffgo-launcher.py)
+
+That's all! You should be able to run the ffgo-launcher.py executable
+mentioned in step 3. In case you need to explicitely specify the Python
+interpreter to use, you can do so with a command such as:
+
+  python3.4 ~/src/FFGo-a.b.c/ffgo-launcher.py
+
+
+Standard procedure
+~~~~~~~~~~~~~~~~~~
+
+The "standard procedure" is what Python users generally expect to have to do
+in order to install a Python package. In short, if you have Internet access
+and your pip is properly setup, all you have to do is 'pip install FFGo'.
+Optionally, you can also install Pillow with 'pip install Pillow', but this
+may fail if you don't have some particular software installed (see below). You
+may also want to install GeographicLib's implementation for Python 3 with
+'pip install geographiclib', and more importantly GeographicLib's
+MagneticField program using instructions from GeographicLib's home page.
+
+Besides being cleaner in concept, the "standard procedure" makes upgrades and
+removals easier than the "easiest procedure" described above, and makes it
+very easy to see when a given dependency is out of date. For this method, you
+need to have a "working pip setup", as described in Appendix A, and the
+dependencies installed *in that environment*. Then, all you have to do is:
+
+  pip install FFGo       (which normally installs from PyPI)
+
+or
+
+  pip install /path/to/FFGo-a.b.c.tar.gz
+              (something like C:\path\to\FFGo-a.b.c.tar.gz on Windows)
+or
+
+  pip install https://url/to/FFGo-a.b.c.tar.gz
+
+or
+
+  pip install http://url/to/FFGo-a.b.c.tar.gz
+
+Note: old versions of pip don't support https.
+
+The above commands automatically pull in the required dependencies (i.e.,
+CondConfigParser, but not Pillow nor GeographicLib's implementation for
+Python 3, nor GeographicLib's MagneticField program since they are optional).
+After that, you will have an 'ffgo' executable in the directory where pip
+installs scripts ('bin' subdirectory of the virtual environment if your pip
+runs in a venv, something such as C:\PythonXY\Scripts on Windows if you ran
+pip outside a venv, where “XY” is for instance “34” for a Python 3.4
+installation).
+
+Note for Windows users:
+
+  If you chose “Add python.exe to Path” in the Python installer and ran pip
+  outside a venv, then the FFGo executables should also be in your PATH,
+  allowing you to run FFGo by just typing 'ffgo' or 'ffgo-noconsole' (without
+  the quotes) in a Command Prompt.
+
+  The 'ffgo.exe' and 'ffgo-noconsole.exe' executables (likely located in
+  C:\PythonXY\Scripts) both run FFGo. You can simply double-click on the one
+  you want in order to start FFGo. The difference between them is that
+  'ffgo.exe' opens a Windows terminal (“console”) containing all FFGo
+  messages, while 'ffgo-noconsole.exe' doesn't. You can safely use the latter
+  most of the time. Should FFGo refuse to start for some reason, running
+  'ffgo.exe' and examining/reporting the printed messages would certainly be
+  helpful.
+
+Upgrades can be done by simply passing '--upgrade' or '-U' to the
+'pip install' command, as in:
+
+  pip install --upgrade FFGo
+
+Uninstallation should be as easy as:
+
+  pip uninstall FFGo
+
+For more information about pip and venv.py/pyvenv, see "References" at the end
+of this document.
+
+
+Hints concerning installation of the dependencies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* CondConfigParser
+
+  As a required dependency of FFGo, CondConfigParser is automatically
+  installed when you run the command:
+
+    pip install FFGo
+
+  Therefore, you only need to explicitely install it in particular cases such
+  as when on a machine without Internet access.
+
+  You may get it as a package from your distribution if it's available (for
+  Debian, there is a package called python3-condconfigparser, cf. the
+  CondConfigParser home page). Otherwise, supposing you already have a working
+  pip setup (see appendix), all you need to do is:
+
+    pip install CondConfigParser
+
+  This normally requires Internet access, downloading packages from PyPI. If
+  you are installing on a machine without Internet access, you need to have
+  somehow obtained a tarball or zip file of CondConfigParser's source code
+  first, then you can do something like:
+
+    pip install /path/to/CondConfigParser-x.y.z.tar.gz
+
+  (or something like 'pip install C:\path\to\CondConfigParser-x.y.z.tar.gz'
+  on Windows)
+
+* Pillow
+
+  Pillow is optional for FFGo, only used to display aircraft thumbnails. You
+  can either get it as a package from your distribution or install it yourself
+  with pip (the package name is python3-pil.imagetk in Debian, sometimes
+  python3-imaging-tk, this depends on the distribution).
+
+  a) In the first case (getting Pillow as a system package), if you are
+     working in a virtual environment, you'll probably have to (re-)create
+     that virtual environment with the '--system-site-packages' option in
+     order to make system-installed packages visible to the virtual
+     environment.
+
+  b) In the second case (installing Pillow yourself), assuming you already
+     have a working pip setup (see appendix), all you need to do is:
+
+    * Install the programs and/or libraries necessary for Pillow's
+      compilation. On Debian unstable (July 2015), the following is likely to
+      be sufficent:
+
+        # apt-get install gcc libpython3-dev tcl-dev tk-dev
+        (tcl8.6-dev and tk8.6-dev can do as well)
+
+      or, installing more packages:
+
+        # apt-get build-dep python3-pil.imagetk
+
+    * Then, you should be able to run:
+
+        pip install Pillow
+
+    Note: on some platforms (e.g., Windows), Pillow can be installed with
+          'pip install Pillow' even if the system doesn't have the compiler
+          and headers necessary to compile Pillow. This is because
+          <https://pypi.python.org/pypi/Pillow> ships binary Pillow
+          distributions for some combinations of platform and Python version.
+
+* GeographicLib's implementation for Python 3
+
+  The situation is similar to that of Pillow, except this one doesn't need to
+  be compiled. In general, it can be installed with
+  'pip install geographiclib'. Alternatively, it may be available as a
+  distribution package under a name such as python3-geographiclib. If not, it
+  may be a good idea to request or contribute its packaging for your
+  distribution.
+
+* GeographicLib's MagneticField program
+
+  This program should be installed using instructions from GeographicLib's
+  home page. See hints at the top of this file.
+
+Of course, these are just hints; the authoritative source for installation
+procedures is obviously the documentation for the particular piece of software
+you want to install.
+
+-------------------------------------------------------------------------------
+
+INSTALLATION FROM THE GIT REPOSITORY
+
+First, make sure you have the following programs installed in addition to the
+dependencies listed in the README_ll file (where 'll' stands for the language
+code of your choice):
+  - GNU Make
+  - GNU gettext
+  - librsvg's rsvg-convert program
+  - ImageMagick's convert program
+
+Then download the source code:
+
+  cd /some/directory
+  git clone https://github.com/frougon/FFGo.git
+
+(alternatively, you may download a Zip-compressed snapshot of the repository
+by clicking on "Download ZIP" at <https://github.com/frougon/FFGo>)
+
+Then prepare the source (icons and translation files) with:
+
+  cd FFGo
+  make
+
+This 'make' run in the top-level directory must be done after each 'git clone'
+or 'git pull' operation. From this point on, you can follow the instructions
+given in the MANUAL INSTALLATION section. The most straightforward way to
+start FFGo, assuming you have installed all dependencies, would be to run the
+ffgo-launcher.py script located in the top-level directory of the repository.
+
+Optional:
+
+  If you have Sphinx installed and want to generate the HTML version of the
+  'README.conditional-config' document, you can run:
+
+    make doc
+
+  from the same (top-level) directory. The result will end up in
+  'docs/README.conditional-config.source/_build/html'.
+
+-------------------------------------------------------------------------------
+
+APPENDICES
+
+What is a "working pip setup"?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the previous paragraphs, a few instructions have been given assuming you
+had a "working pip setup". In the last 15 years, the Python ecosystem has
+grown several frameworks for packaging Python software in a distribution and
+OS-agnostic way, each of which offers a different way of installing said
+software for the users. With distutils, the user had to run "setup.py
+install"; later, with setuptools, he had to install and use a program named
+easy_install. Today, the winning framework seems to be a combination of
+setuptools and pip, the latter offering the end-user interface for installing,
+upgrading and removing Python-made software (setuptools being used internally,
+in a way that is not directly visible to the user).
+
+All this to say that there are many ways to install Python-made software, even
+on the same operating system. Each way having its own upsides and downsides,
+this makes it difficult to give simple and clear installation instructions
+understandable by non-Pythonistas.
+
+The method I am giving hints about here is the one relying on the
+setuptools+pip combination, because:
+  - it is basically officially endorsed by the Python project, since the
+    inclusion of ensurepip in Python 3.4;
+  - once properly setup, it allows easy installation, upgrade and removal of
+    packages into or from a particular Python installation.
+
+Before diving into details, you may want to consult the official Python
+end-user documentation concerning installation of Python modules:
+
+  <https://docs.python.org/3/installing/index.html>
+
+(which is not FFGo-specific, but may prove useful anyway)
+
+So, you have a Python installation and want to install FFGo and its
+dependencies to use this installation. The first thing you need to know is how
+to invoke its Python interpreter from a command line. This may be 'python',
+'python3', 'python3.4', or a full path such as '/opt/python3/bin/python',
+'/home/tartampion/src/Python-3.4.3/python', etc. I can't guess it for you, it
+depends on how you installed this particular Python interpreter. For the
+following paragraphs, we'll assume it is 'python3'.
+
+First, check the version of this interpreter and make sure it is compatible
+with the requirements stated in the README file:
+
+  % python3 --version
+  Python 3.4.3
+
+(here, the '% ' represents a normal user prompt: there is no need to run this
+command as super-user)
+
+Now that you have precisely identified the Python installation to use, you
+could theoretically use pip to install Python packages into it, BUT there is
+one thing that requires paying attention to before doing so:
+
+  - If this Python installation was installed all by yourself, i.e., *not*
+    through a package manager such as dpkg/apt-get, rpm/yum, etc., then all is
+    fine. pip is probably already installed; and if for some reason, it is
+    not, you can make it available with:
+
+      % python3 -m ensurepip
+
+    as explained at <https://docs.python.org/3/library/ensurepip.html>.
+    Then, run the command:
+
+      % python3 -m pip --version
+
+    to make sure it is going to act on the Python installation you want, and
+    not for instance on the Python installed by your package manager. It
+    should print something like this:
+
+      pip 7.0.3 from /home/tartampion/python-venv/default-3/lib/python3.4/site-packages (python 3.4)
+
+    If the path starts with /usr/lib, don't use that pip (unless you know what
+    you are doing), as that would modify your system Python installation.
+
+    Depending on your installation, it may be that the 'pip', or 'pip3', or
+    'pip3.4', etc. command is equivalent to 'python3 -m pip'. Simply run the
+    commands with the '--version' option as above to make sure which Python
+    installation they are working on.
+
+  - On the other hand, if the Python interpreter was installed with your
+    distribution package manager, it is advised *not* to use pip directly on
+    this installation, as it could cause problems by stepping on the package
+    manager's toes. However, there is a way to prevent this conflict between
+    pip and the distribution package manager: using pip inside a virtual
+    environment. As a bonus, this method allows to install, upgrade and remove
+    Python packages under a normal user account (no need for root privileges).
+
+    Quoting <https://docs.python.org/3/library/venv.html#venv-def>:
+
+      A virtual environment (also called a venv) is a Python environment such
+      that the Python interpreter, libraries and scripts installed into it are
+      isolated from those installed in other virtual environments, and (by
+      default) any libraries installed in a “system” Python, i.e. one which is
+      installed as part of your operating system.
+
+    In other words, you may create as many virtual environments from a given
+    “base” Python installation as you want. Then, when you install, upgrade or
+    remove a Python package from one of these virtual environments, it will
+    have no effect on the other virtual environments nor on the base
+    installation. Since virtual environment creation and package installation
+    with pip is very quick and easy, virtual environments are quite convenient
+    to experiment with Python packages without taking the risk of messing up
+    your system.
+
+    Python 3.3 and later ship with the 'venv' module to create and manage
+    virtual environments, so this is what we are going to use here. To create
+    a virtual environment (venv) in subdirectory 'foo-venv' of the current
+    directory, you can simply run:
+
+      % python3 -m venv foo-venv
+
+    (depending on your setup, something like 'pyvenv foo-venv' may do the
+    same, but you have to make sure it uses the base installation you want in
+    case you have several Python installations)
+
+    Once this is done, you'll have a few executables in the 'foo-venv/bin'
+    directory, in particular 'python' and probably also 'pip' (if 'pip' is not
+    present, run 'foo-venv/bin/python -m ensurepip'). Whenever you run one of
+    these programs, it will use the 'foo-venv' virtual environment. Therefore,
+    if you want to install FFGo inside 'foo-venv', you can do:
+
+      % foo-venv/bin/pip install FFGo
+
+    If you want to remove it:
+
+      % foo-venv/bin/pip uninstall FFGo
+
+    If you want to upgrade it (-U is equivalent to --upgrade):
+
+      % foo-venv/bin/pip install --upgrade FFGo
+
+    To see the list of packages seen by pip in the 'foo-venv' venv:
+
+      % foo-venv/bin/pip list
+
+    And to obtain the list of packages for which a newer version is available
+    on the Python Package Index (PyPI, <https://pypi.python.org/pypi>):
+
+      % foo-venv/bin/pip list --outdated
+
+    For installing Pillow, this is the same:
+
+      % foo-venv/bin/pip install Pillow
+
+    except you have to make sure you have the required libraries installed on
+    your OS before, because this command compiles Pillow in the 'foo-venv'
+    virtual environment (something like
+    'apt-get install libpython3-dev tcl-dev tk-dev' is likely to to the trick
+    on Debian).
+
+    Notes:
+
+      - if you have many commands to run using the same venv, 'foo-venv' in
+        our case, and you don't want to type the 'foo-venv/bin/' prefix every
+        time, you can run 'source foo-venv/bin/activate' in your shell. Then,
+        the commands from 'foo-venv/bin' will take precedence in this shell
+        until you run 'deactivate'. Note that this relies on a modification of
+        the PATH environment variable and may need to be done differently on
+        exotic shells.
+
+      - if you have a 'pip', or 'pip3', or 'pip3.4'... in your PATH and want
+        to know which Python installation it is bound to, simply run it with
+        the '--version' option, as in 'pip --version'.
+
+      - by default, a newly created venv has access to the Python standard
+        library only. It is possible, however, to create venvs that have
+        access to all packages of the base Python installation used to create
+        the venv. In order to do this, you have to pass the
+        '--system-site-packages' option to the venv creation command, as in:
+
+          % python3 -m venv --system-site-packages foo-venv
+
+    Once you have installed FFGo and maybe Pillow and/or GeographicLib's
+    implementation for Python 3 in your venv (and maybe also GeographicLib's
+    MagneticField program), you will want to run FFGo using the Python
+    interpreter from this venv. The 'ffgo' executable should be in
+    'foo-venv/bin'. You may run it like this:
+
+      % foo-venv/bin/ffgo
+
+    or add the full path to the 'foo-venv/bin' directory to your PATH for more
+    convenience.
+
+
+Maintenance of a virtual environment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Normally, venvs don't need much maintenance except for keeping them
+up-to-date, as you should already do with your distribution. In short:
+
+  % foo-venv/bin/pip list --outdated
+  % foo-venv/bin/pip install --upgrade pkg1 pkg2 ...
+
+In case a venv stops working after an update of the underlying base
+installation, 'python3 -m venv --upgrade foo-venv' might be helpful.
+Otherwise, you can keep a little script around that contains all commands you
+used to create and populate your venv. Since venv creation is very quick, you
+can rerun the script whenever needed.
+
+
+References:
+
+  - Installing Python Modules (official Python documentation)
+      <https://docs.python.org/3/installing/index.html>
+  - Using Python on Windows   (official Python documentation)
+      <https://docs.python.org/3/using/windows.html>
+  - pip home page
+      <https://pip.pypa.io/>
+  - 'venv' module of the Python standard library
+      <https://docs.python.org/3/library/venv.html>
+  - 'ensurepip' module of the Python standard library
+      <https://docs.python.org/3/library/ensurepip.html>
+
+-- Florent Rougon <f.rougon@free.fr>
