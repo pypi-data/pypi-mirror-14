@@ -1,0 +1,469 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dns_sprockets_lib.validators &mdash; dns_sprockets 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="dns_sprockets 1.0 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dns_sprockets_lib.validators</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">__init__.py - Validators library for dns_sprockets zone validator.</span>
+<span class="sd">------------------------------------------------------------------</span>
+
+<span class="sd">.. Copyright (c) 2015 Neustar, Inc. All rights reserved.</span>
+<span class="sd">.. See COPYRIGHT.txt for full notice.  See LICENSE.txt for terms and conditions.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+
+<span class="kn">import</span> <span class="nn">dns.rdatatype</span>
+<span class="kn">import</span> <span class="nn">dns.name</span>
+<span class="kn">import</span> <span class="nn">dns.rdata</span>
+<span class="kn">import</span> <span class="nn">dns.rdtypes</span>
+<span class="kn">import</span> <span class="nn">dns.rdtypes.ANY</span>
+<span class="kn">import</span> <span class="nn">dns.node</span>
+
+<span class="kn">import</span> <span class="nn">dns_sprockets_lib.utils</span> <span class="kn">as</span> <span class="nn">utils</span>
+<span class="kn">import</span> <span class="nn">dns_sprockets_lib.dns_utils</span> <span class="kn">as</span> <span class="nn">dns_utils</span>
+
+
+<span class="c"># Test types:</span>
+<span class="p">(</span><span class="n">ZONE_TEST</span><span class="p">,</span>   <span class="c"># A test type that validates entire zone.</span>
+ <span class="n">NODE_TEST</span><span class="p">,</span>   <span class="c"># A test type that validates nodes in the zone.</span>
+ <span class="n">RRSET_TEST</span><span class="p">,</span>  <span class="c"># A test type that validates RRSets in the zone.</span>
+ <span class="n">REC_TEST</span>     <span class="c"># A test type that validates individual records in the zone.</span>
+<span class="p">)</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="test_type_to_str"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.test_type_to_str">[docs]</a><span class="k">def</span> <span class="nf">test_type_to_str</span><span class="p">(</span><span class="n">test_type</span><span class="p">,</span> <span class="n">test_rrtype</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Convert a test_type and test_rrtype to a string for output purposes.</span>
+
+<span class="sd">    :param int test_type: The TEST_TYPE attribute from the test.</span>
+<span class="sd">    :param str test_rrtype: The string describing record type(s) covered by the test.</span>
+<span class="sd">    :return: Description string for test.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">specific</span> <span class="o">=</span> <span class="n">test_rrtype</span> <span class="ow">and</span> <span class="s">&#39;[</span><span class="si">%s</span><span class="s">]&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">test_rrtype</span><span class="p">)</span> <span class="ow">or</span> <span class="s">&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">test_type</span> <span class="o">==</span> <span class="n">ZONE_TEST</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;ZONE_TEST&#39;</span> <span class="o">+</span> <span class="n">specific</span>
+    <span class="k">elif</span> <span class="n">test_type</span> <span class="o">==</span> <span class="n">NODE_TEST</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;NODE_TEST&#39;</span> <span class="o">+</span> <span class="n">specific</span>
+    <span class="k">elif</span> <span class="n">test_type</span> <span class="o">==</span> <span class="n">RRSET_TEST</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;RRSET_TEST&#39;</span> <span class="o">+</span> <span class="n">specific</span>
+    <span class="k">elif</span> <span class="n">test_type</span> <span class="o">==</span> <span class="n">REC_TEST</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&#39;REC_TEST&#39;</span> <span class="o">+</span> <span class="n">specific</span>
+
+</div>
+<div class="viewcode-block" id="rec_to_abbrev_text"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.rec_to_abbrev_text">[docs]</a><span class="k">def</span> <span class="nf">rec_to_abbrev_text</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">ttl</span><span class="p">,</span> <span class="n">klass</span><span class="p">,</span> <span class="n">rdata</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Translates a record to abbreviated text.  For most records, this is the</span>
+<span class="sd">    same as the to_text(); for others (such as RRSIG), it is truncated to</span>
+<span class="sd">    attempt to fit on a single terminal line.</span>
+
+<span class="sd">    :param str name: The owner name of the record.</span>
+<span class="sd">    :param int ttl: The TTL for the record.</span>
+<span class="sd">    :param int/str klass: The class of the record.</span>
+<span class="sd">    :param obj rdata: The rdata of the record.</span>
+<span class="sd">    :return: Text description of the record.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rdata</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdtypes</span><span class="o">.</span><span class="n">ANY</span><span class="o">.</span><span class="n">RRSIG</span><span class="o">.</span><span class="n">RRSIG</span><span class="p">):</span>
+        <span class="c"># pylint: disable=protected-access</span>
+        <span class="n">sig</span> <span class="o">=</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdata</span><span class="o">.</span><span class="n">_base64ify</span><span class="p">(</span><span class="n">rdata</span><span class="o">.</span><span class="n">signature</span><span class="p">)</span>
+        <span class="n">rdata_txt</span> <span class="o">=</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s"> </span><span class="si">%d</span><span class="s"> </span><span class="si">%d</span><span class="s"> </span><span class="si">%d</span><span class="s"> </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s"> </span><span class="si">%d</span><span class="s"> </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">to_text</span><span class="p">(</span><span class="n">rdata</span><span class="o">.</span><span class="n">type_covered</span><span class="p">),</span>
+            <span class="n">rdata</span><span class="o">.</span><span class="n">algorithm</span><span class="p">,</span>
+            <span class="n">rdata</span><span class="o">.</span><span class="n">labels</span><span class="p">,</span>
+            <span class="n">rdata</span><span class="o">.</span><span class="n">original_ttl</span><span class="p">,</span>
+            <span class="n">dns</span><span class="o">.</span><span class="n">rdtypes</span><span class="o">.</span><span class="n">ANY</span><span class="o">.</span><span class="n">RRSIG</span><span class="o">.</span><span class="n">posixtime_to_sigtime</span><span class="p">(</span><span class="n">rdata</span><span class="o">.</span><span class="n">expiration</span><span class="p">),</span>
+            <span class="n">dns</span><span class="o">.</span><span class="n">rdtypes</span><span class="o">.</span><span class="n">ANY</span><span class="o">.</span><span class="n">RRSIG</span><span class="o">.</span><span class="n">posixtime_to_sigtime</span><span class="p">(</span><span class="n">rdata</span><span class="o">.</span><span class="n">inception</span><span class="p">),</span>
+            <span class="n">rdata</span><span class="o">.</span><span class="n">key_tag</span><span class="p">,</span>
+            <span class="n">rdata</span><span class="o">.</span><span class="n">signer</span><span class="p">,</span>
+            <span class="s">&#39;</span><span class="si">%s</span><span class="s">...</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">sig</span><span class="p">[:</span><span class="mi">6</span><span class="p">],</span> <span class="n">sig</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span> <span class="o">-</span> <span class="mi">6</span><span class="p">:]))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rdata_txt</span> <span class="o">=</span> <span class="n">rdata</span><span class="o">.</span><span class="n">to_text</span><span class="p">(</span><span class="n">relativize</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="n">klass_txt</span> <span class="o">=</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">))</span>
+        <span class="ow">and</span> <span class="n">klass</span> <span class="ow">or</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdataclass</span><span class="o">.</span><span class="n">to_text</span><span class="p">(</span><span class="n">klass</span><span class="p">))</span>
+    <span class="k">return</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s"> </span><span class="si">%d</span><span class="s"> </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+        <span class="n">name</span><span class="p">,</span> <span class="n">ttl</span><span class="p">,</span> <span class="n">klass_txt</span><span class="p">,</span> <span class="n">rdata</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">rdata_txt</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="dnssec_filter_tests_by_context"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.dnssec_filter_tests_by_context">[docs]</a><span class="k">def</span> <span class="nf">dnssec_filter_tests_by_context</span><span class="p">(</span><span class="n">tests</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Removes any tests from the tests list that do not apply to the context.</span>
+
+<span class="sd">    :param list tests: List of tests to filter.</span>
+<span class="sd">    :param obj context: The context being used.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">remove_tests</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">test</span> <span class="ow">in</span> <span class="n">tests</span><span class="p">:</span>
+        <span class="n">rem_test</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">dnssec_type</span> <span class="o">==</span> <span class="s">&#39;unsigned&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_DNSSECTYPE</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">rem_test</span> <span class="o">=</span> <span class="n">test</span>
+        <span class="k">elif</span> <span class="n">context</span><span class="o">.</span><span class="n">dnssec_type</span> <span class="o">==</span> <span class="s">&#39;NSEC&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_DNSSECTYPE</span> <span class="o">==</span> <span class="s">&#39;NSEC3&#39;</span><span class="p">:</span>
+                <span class="n">rem_test</span> <span class="o">=</span> <span class="n">test</span>
+        <span class="k">elif</span> <span class="n">context</span><span class="o">.</span><span class="n">dnssec_type</span> <span class="o">==</span> <span class="s">&#39;NSEC3&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_DNSSECTYPE</span> <span class="o">==</span> <span class="s">&#39;NSEC&#39;</span><span class="p">:</span>
+                <span class="n">rem_test</span> <span class="o">=</span> <span class="n">test</span>
+
+        <span class="k">if</span> <span class="n">rem_test</span><span class="p">:</span>
+            <span class="n">remove_tests</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rem_test</span><span class="p">)</span>
+            <span class="k">print</span> <span class="s">&#39;# Skipping test: </span><span class="si">%s</span><span class="s">  (DNSSEC type for zone: </span><span class="si">%s</span><span class="s">, for test: </span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span>
+                <span class="n">rem_test</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">,</span>
+                <span class="n">context</span><span class="o">.</span><span class="n">dnssec_type</span><span class="p">,</span>
+                <span class="n">test</span><span class="o">.</span><span class="n">TEST_DNSSECTYPE</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">test</span> <span class="ow">in</span> <span class="n">remove_tests</span><span class="p">:</span>
+        <span class="n">tests</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">test</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="filter_node"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.filter_node">[docs]</a><span class="k">def</span> <span class="nf">filter_node</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">test_rrtype</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Returns a node that has rdatasets that match the test RR types.  If the</span>
+<span class="sd">    test_rrtype is specified, a new, temporary node for use by the validator</span>
+<span class="sd">    will be generated, which only has those rdatasets mentioned.</span>
+
+<span class="sd">    :param obj node: The node to inspect.</span>
+<span class="sd">    :param str test_rrtype: The string description of RR type(s) that the test covers.</span>
+<span class="sd">    :return: The node for the validator to examine.</span>
+<span class="sd">    :rtype: obj</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">test_rrtype</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">node</span>
+    <span class="n">rrtypes_txt</span> <span class="o">=</span> <span class="n">test_rrtype</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span>
+    <span class="n">rrtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">rrtypes_txt</span><span class="p">]</span>
+    <span class="n">new_node</span> <span class="o">=</span> <span class="n">dns</span><span class="o">.</span><span class="n">node</span><span class="o">.</span><span class="n">Node</span><span class="p">()</span>
+    <span class="n">new_node</span><span class="o">.</span><span class="n">rdatasets</span> <span class="o">=</span> <span class="p">[</span><span class="n">rds</span> <span class="k">for</span> <span class="n">rds</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">rdatasets</span>
+                          <span class="k">if</span> <span class="n">rds</span><span class="o">.</span><span class="n">rdtype</span> <span class="ow">in</span> <span class="n">rrtypes</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">new_node</span>
+
+</div>
+<div class="viewcode-block" id="test_covers_type"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.test_covers_type">[docs]</a><span class="k">def</span> <span class="nf">test_covers_type</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="n">rdtype</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Checks to see if a test covers a RR type.</span>
+
+<span class="sd">    :param obj test: The test to examine.</span>
+<span class="sd">    :param int rdtype: The dns.rdatatype for the rdataset/record under consideration.</span>
+<span class="sd">    :return: True if the test covers the type; False if not.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_RRTYPE</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">True</span>
+    <span class="n">rrtypes_txt</span> <span class="o">=</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_RRTYPE</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span>
+    <span class="n">rrtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">rrtypes_txt</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">rdtype</span> <span class="ow">in</span> <span class="n">rrtypes</span>
+
+</div>
+<div class="viewcode-block" id="make_suggested_tested"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.make_suggested_tested">[docs]</a><span class="k">def</span> <span class="nf">make_suggested_tested</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Generates a description for the test being run.  A test description is</span>
+<span class="sd">    printed for each test instance being run against zone, node, rrset, or</span>
+<span class="sd">    record, and this is the suggested description.  Usually, specific test</span>
+<span class="sd">    instances will use this value for &#39;tested&#39; return variable, but are free</span>
+<span class="sd">    to ignore this description in favor of their own if desired.</span>
+
+<span class="sd">    :param obj test: The test being run.</span>
+<span class="sd">    :param obj context: The testing context.</span>
+<span class="sd">    :param dict kwargs: Optional, test-type-specific parameters.</span>
+<span class="sd">    :return: A string describing the test instance being run.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_TYPE</span> <span class="o">==</span> <span class="n">ZONE_TEST</span><span class="p">:</span>
+        <span class="n">suggested_tested</span> <span class="o">=</span> <span class="s">&#39;ZONE(</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">context</span><span class="o">.</span><span class="n">zone_name</span><span class="p">,</span>
+            <span class="n">dns</span><span class="o">.</span><span class="n">rdataclass</span><span class="o">.</span><span class="n">to_text</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">rdclass</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_TYPE</span> <span class="o">==</span> <span class="n">NODE_TEST</span><span class="p">:</span>
+        <span class="n">suggested_tested</span> <span class="o">=</span> <span class="s">&#39;NODE(</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">],</span>
+            <span class="n">dns</span><span class="o">.</span><span class="n">rdataclass</span><span class="o">.</span><span class="n">to_text</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">rdclass</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_TYPE</span> <span class="o">==</span> <span class="n">RRSET_TEST</span><span class="p">:</span>
+        <span class="n">suggested_tested</span> <span class="o">=</span> <span class="s">&#39;RRSET(</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">],</span>
+            <span class="n">dns</span><span class="o">.</span><span class="n">rdataclass</span><span class="o">.</span><span class="n">to_text</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">rdclass</span><span class="p">),</span>
+            <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">to_text</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;rdataset&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">rdtype</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">test</span><span class="o">.</span><span class="n">TEST_TYPE</span> <span class="o">==</span> <span class="n">REC_TEST</span><span class="p">:</span>
+        <span class="n">suggested_tested</span> <span class="o">=</span> <span class="s">&#39;REC(</span><span class="si">%s</span><span class="s">)&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">rec_to_abbrev_text</span><span class="p">(</span>
+                <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;name&#39;</span><span class="p">],</span>
+                <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;ttl&#39;</span><span class="p">],</span>
+                <span class="n">context</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">rdclass</span><span class="p">,</span>
+                <span class="n">kwargs</span><span class="p">[</span><span class="s">&#39;rdata&#39;</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">suggested_tested</span>
+
+</div>
+<div class="viewcode-block" id="Context"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.Context">[docs]</a><span class="k">class</span> <span class="nc">Context</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="c"># pylint: disable=too-few-public-methods</span>
+    <span class="c"># pylint: disable=too-many-instance-attributes</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    A testing context containing the zone name, zone_obj, etc.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+<div class="viewcode-block" id="Context.__init__"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.Context.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">zone_obj</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Ctor.</span>
+
+<span class="sd">        :param obj args: The application arguments.</span>
+<span class="sd">        :param obj zone_obj: The dns.zone.Zone instance.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">zone_name</span> <span class="o">=</span> <span class="n">dns</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">zone</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span> <span class="o">=</span> <span class="n">zone_obj</span>
+
+        <span class="c"># Get DNSSEC-ordered list of names in zone, including any Empty Non-</span>
+        <span class="c"># Terminals implied by wildcard names:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">node_names</span> <span class="o">=</span> <span class="n">dns_utils</span><span class="o">.</span><span class="n">calc_node_names</span><span class="p">(</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">nodes</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+
+        <span class="c"># Get SOA if available:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">soa_rdataset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">get_rdataset</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">zone_name</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">SOA</span><span class="p">)</span>
+
+        <span class="c"># Get DNSKEY(s) if available:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dnskey_rdataset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">get_rdataset</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">zone_name</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">DNSKEY</span><span class="p">)</span>
+
+        <span class="c"># Get NSEC3PARAM(s) if available:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nsec3param_rdataset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">get_rdataset</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">zone_name</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">NSEC3PARAM</span><span class="p">)</span>
+
+        <span class="c"># Get delegated zones if any:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">delegated_names</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">name</span> <span class="k">for</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">_</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">iterate_rdatasets</span><span class="p">(</span><span class="s">&#39;NS&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">zone_name</span><span class="p">]</span>
+
+        <span class="c"># Force or detect zone&#39;s DNSSEC type:</span>
+        <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">force_dnssec_type</span> <span class="o">!=</span> <span class="s">&#39;detect&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dnssec_type</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">force_dnssec_type</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># See if there are any NSEC or NSEC3&#39;s:</span>
+            <span class="n">has_nsec</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">iterate_rdatasets</span><span class="p">(</span><span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">NSEC</span><span class="p">),</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="n">has_nsec3</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nsec3param_rdataset</span> <span class="ow">or</span>
+                <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">iterate_rdatasets</span><span class="p">(</span><span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">NSEC3</span><span class="p">),</span> <span class="bp">None</span><span class="p">))</span>
+
+            <span class="c"># See if this appears to be a signed zone (note: can&#39;t seem to practically</span>
+            <span class="c"># check all RRSIG&#39;s since they &quot;cover&quot; other records, which would require</span>
+            <span class="c"># us to iterate all possible &quot;covers&quot; values, so just try a few obvious ones):</span>
+            <span class="n">seems_signed</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dnskey_rdataset</span> <span class="ow">or</span>
+                <span class="n">has_nsec</span> <span class="ow">or</span>
+                <span class="n">has_nsec3</span> <span class="ow">or</span>
+                <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">iterate_rdatasets</span><span class="p">(</span>
+                    <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">DS</span><span class="p">),</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">iterate_rdatasets</span><span class="p">(</span>
+                    <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">RRSIG</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">SOA</span><span class="p">),</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">iterate_rdatasets</span><span class="p">(</span>
+                    <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">RRSIG</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">NS</span><span class="p">),</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">iterate_rdatasets</span><span class="p">(</span>
+                    <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">RRSIG</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">A</span><span class="p">),</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">zone_obj</span><span class="o">.</span><span class="n">iterate_rdatasets</span><span class="p">(</span>
+                    <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">RRSIG</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdatatype</span><span class="o">.</span><span class="n">AAAA</span><span class="p">),</span> <span class="bp">None</span><span class="p">))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">dnssec_type</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">has_nsec3</span> <span class="ow">and</span> <span class="s">&#39;NSEC3&#39;</span> <span class="ow">or</span>
+                <span class="n">has_nsec</span> <span class="ow">and</span> <span class="s">&#39;NSEC&#39;</span> <span class="ow">or</span>
+                <span class="n">seems_signed</span> <span class="ow">and</span> <span class="s">&#39;NSEC3&#39;</span> <span class="ow">or</span>  <span class="c"># assume NSEC3-type</span>
+                <span class="s">&#39;unsigned&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Context.is_delegated"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.Context.is_delegated">[docs]</a>    <span class="k">def</span> <span class="nf">is_delegated</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        :return: True if name is delegated w.r.t. the context.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">dns_utils</span><span class="o">.</span><span class="n">is_delegated</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delegated_names</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+<span class="c">#</span>
+<span class="c"># For validator classes, use short docstrings, which will be used for the actual</span>
+<span class="c"># test descriptions!</span>
+<span class="c">#</span>
+
+</div></div>
+<span class="k">class</span> <span class="nc">_Validator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="c"># pylint: disable=too-few-public-methods</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for validator classes]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_NAME</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Automatically set in __init__.</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Override expected!  e.g.: ZONE_TEST</span>
+    <span class="n">TEST_DNSSECTYPE</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Override possible!  one of: None, True, &#39;NSEC&#39; or &#39;NSEC3&#39;</span>
+    <span class="n">TEST_RRTYPE</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Override possible!  e.g.: &#39;A&#39;, or &#39;RRSIG,NSEC3PARAM&#39;</span>
+    <span class="n">TEST_OPTARGS</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c"># Override possible!  e.g.: {&#39;now&#39;: (None, &#39;Time to use for now&#39;)}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Ctor, caches the arguments used to run the application, and grabs any</span>
+<span class="sd">        optional test arguments.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="c"># pylint: disable=invalid-name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">camelcase_to_underscores</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
+
+        <span class="n">utils</span><span class="o">.</span><span class="n">process_optargs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_OPTARGS</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ZoneTest"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.ZoneTest">[docs]</a><span class="k">class</span> <span class="nc">ZoneTest</span><span class="p">(</span><span class="n">_Validator</span><span class="p">):</span>
+    <span class="c"># pylint: disable=too-few-public-methods</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for zone-type validators]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="n">ZONE_TEST</span>
+
+<div class="viewcode-block" id="ZoneTest.run"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.ZoneTest.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+        <span class="c"># pylint: disable=unused-argument</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the zone-type validator.</span>
+
+<span class="sd">        :param str suggested_tested: A suggested tested value.</span>
+<span class="sd">        :param obj context: The testing context.</span>
+<span class="sd">        :return: A tuple (tested, result)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;OOPS!&#39;</span><span class="p">,</span> <span class="s">&#39;ERROR: run() not overridden for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">))</span>
+
+</div></div>
+<div class="viewcode-block" id="NodeTest"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.NodeTest">[docs]</a><span class="k">class</span> <span class="nc">NodeTest</span><span class="p">(</span><span class="n">_Validator</span><span class="p">):</span>
+    <span class="c"># pylint: disable=too-few-public-methods</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for node-type validators.  Derived classes *may* be restricted</span>
+<span class="sd">    to specific RRType&#39;s by specifying a TEST_RRTYPE]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="n">NODE_TEST</span>
+
+<div class="viewcode-block" id="NodeTest.run"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.NodeTest.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c"># pylint: disable=unused-argument</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the node-type validator.  If a TEST_RRTYPE specified, the node</span>
+<span class="sd">        presented to the validator will be filtered accordingly.</span>
+
+<span class="sd">        :param obj context: The testing context.</span>
+<span class="sd">        :param str suggested_tested: A suggested tested value.</span>
+<span class="sd">        :param str name: The name being tested.</span>
+<span class="sd">        :param obj node: The dns.Node corresponding to the name.</span>
+<span class="sd">        :return: A tuple (tested, result)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;OOPS!&#39;</span><span class="p">,</span> <span class="s">&#39;ERROR: run() not overridden for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">))</span>
+
+</div></div>
+<div class="viewcode-block" id="RRSetTest"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.RRSetTest">[docs]</a><span class="k">class</span> <span class="nc">RRSetTest</span><span class="p">(</span><span class="n">_Validator</span><span class="p">):</span>
+    <span class="c"># pylint: disable=too-few-public-methods</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for rrset-type validators.  Derived classes *may* be restricted</span>
+<span class="sd">    to specific RRType&#39;s by specifying a TEST_RRTYPE]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="n">RRSET_TEST</span>
+
+<div class="viewcode-block" id="RRSetTest.run"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.RRSetTest.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">rdataset</span><span class="p">):</span>
+        <span class="c"># pylint: disable=unused-argument</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the name-type validator.  If a TEST_RRTYPE is specified, the RRSet</span>
+<span class="sd">        presented to the validator will be filtered accordingly.</span>
+
+<span class="sd">        :param obj context: The testing context.</span>
+<span class="sd">        :param str suggested_tested: A suggested tested value.</span>
+<span class="sd">        :param str name: The name being tested.</span>
+<span class="sd">        :param obj rdataset: The dns.rdataset corresponding to the name.</span>
+<span class="sd">        :return: A tuple (tested, result)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;OOPS!&#39;</span><span class="p">,</span> <span class="s">&#39;ERROR: run() not overridden for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">))</span>
+
+</div></div>
+<div class="viewcode-block" id="RecTest"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.RecTest">[docs]</a><span class="k">class</span> <span class="nc">RecTest</span><span class="p">(</span><span class="n">_Validator</span><span class="p">):</span>
+    <span class="c"># pylint: disable=too-few-public-methods</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for record-type validators.  Derived classes *may* be restricted</span>
+<span class="sd">    to specific RRType&#39;s by specifying a TEST_RRTYPE]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="n">REC_TEST</span>
+
+<div class="viewcode-block" id="RecTest.run"><a class="viewcode-back" href="../../dns_sprockets_lib.validators.html#dns_sprockets_lib.validators.RecTest.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ttl</span><span class="p">,</span> <span class="n">rdata</span><span class="p">):</span>
+        <span class="c"># pylint: disable=too-many-arguments</span>
+        <span class="c"># pylint: disable=unused-argument</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the record-type validator.  If a TEST_RRTYPE is specified, the</span>
+<span class="sd">        validator will only see those types of records.</span>
+
+<span class="sd">        :param obj context: The testing context.</span>
+<span class="sd">        :param str suggested_tested: A suggested tested value.</span>
+<span class="sd">        :param str name: The name of the record being tested.</span>
+<span class="sd">        :param int ttl: The TTL of the record being tested.</span>
+<span class="sd">        :param obj rdata: The dns.rdata.Rdata object being tested.</span>
+<span class="sd">        :return: A tuple (tested, result)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;OOPS!&#39;</span><span class="p">,</span> <span class="s">&#39;ERROR: run() not overridden for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">))</span>
+
+<span class="c"># end of file</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/sprocket.jpeg" alt="Logo"/>
+            </a></p><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Neustar, Inc..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

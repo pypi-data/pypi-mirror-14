@@ -1,0 +1,769 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dns_sprockets &mdash; dns_sprockets 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="dns_sprockets 1.0 documentation" href="#" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="dns-sprockets">
+<h1><strong>dns_sprockets</strong><a class="headerlink" href="#dns-sprockets" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this headline">¶</a></h2>
+<p><strong>dns_sprockets</strong> is a command-line framework for loading and validating DNS zones.
+It is written in Python and uses the excellent <a class="reference external" href="http://www.dnspython.org">dnspython</a>
+library for much of its functionality.</p>
+<p>&#8220;Why call it dns_sprockets?&#8221;  Well, if you think of a DNS zone as being a chain
+of resource records (thinking especially of NSEC3 records), this application is a
+set of sprockets that tests every link of the chain.  <em>Hey, it kind of works ;)</em></p>
+<div class="section" id="audience">
+<h3>Audience<a class="headerlink" href="#audience" title="Permalink to this headline">¶</a></h3>
+<p>Possible users include DNS code developers and quality assurance, internet
+customer service, system administrators, and end-users who are interested to
+know if their DNS zones are valid.</p>
+</div>
+<div class="section" id="features">
+<h3>Features<a class="headerlink" href="#features" title="Permalink to this headline">¶</a></h3>
+<p>The command-line tool returns useful return codes, supporting automated build
+systems.  It is built around the concept of plug-ins for implementing both the
+zone loading and zone validating functions, and easily allows end-users the
+ability to define new loaders and validators.</p>
+<ul>
+<li><p class="first">Zones may be loaded using various means.  The framework supports &#8220;loader&#8221;
+plug-ins that pull DNS zone data from any source.  Initially provided are
+&#8216;File&#8217; and &#8216;Xfr&#8217; plugins to pull zone data from host files and XFR servers,
+respectively.</p>
+</li>
+<li><p class="first">Validations are modular pieces of code that may be selectively enabled.  The
+framework supports &#8220;validator&#8221; plug-ins that operate in one of four views:</p>
+<ul class="simple">
+<li>Zone: Some aspect of the entire zone is validated.</li>
+<li>Node: Every node (i.e. list of RRSets with the same owner name) can be validated.</li>
+<li>RRSet: Every RRSet can be validated.</li>
+<li>Record: Every DNS record can be validated.</li>
+</ul>
+<p>Initially provided in this package are some basic zone validators, and a
+fairly complete set of DNSSEC-type zone validators.</p>
+</li>
+</ul>
+<p>The Node, RRSet, and Record views may be optionally filtered by one or more
+resource record types, to simplify and focus the validation code.  Additionally,
+each validator can be marked to run for non-DNSSEC zones, NSEC1-style DNSSEC
+zones, or NSEC3-style DNSSEC zones.</p>
+</div>
+</div>
+<div class="section" id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
+<p>Easy!  Use pip (preferably in a virtual python environment):</p>
+<div class="highlight-python"><div class="highlight"><pre>$ pip install dns_sprockets
+</pre></div>
+</div>
+</div>
+<div class="section" id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this headline">¶</a></h2>
+<p>Once installed, simply issue the dns_sprockets command.  For example to get a
+usage message:</p>
+<div class="highlight-python"><div class="highlight"><pre>$ dns_sprockets --help
+
+# dns_sprockets (1.0.0) - A DNS zone validation tool
+usage: dns_sprockets [-h] [-z s] [-l s] [-s s] [-i s] [-x s] [-d s] [-f s]
+                     [-e] [-v]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -z s, --zone s        Name of zone to validate [www.ultradns.com]
+  -l s, --loader s      Zone loader method to use (one of: file, xfr) [xfr]
+  -s s, --source s      Loader source to use [127.0.0.1#53]
+  -i s, --include s     Only include this test (can use multiple times)
+  -x s, --exclude s     Exclude this test (can use multiple times)
+  -d s, --define s      Define other params (can use multiple times)
+  -f s, --force-dnssec-type s
+                        Use DNSSEC type (one of: detect, unsigned, NSEC,
+                        NSEC3) [detect]
+  -e, --errors-only     Show validation errors only [False]
+  -v, --verbose         Show detailed processing info [False]
+
+Use @filename to read some/all arguments from a file.
+
+Use -d&#39;s to define optional, module-specific parameters if desired (e.g. to tell
+&#39;xfr&#39; loader to use a specific source address, use &quot;-d xfr_source=1.2.3.4&quot;).
+The optional parameters are listed under each loader and test description in
+DEFINE lines, if available.
+
+By default, all tests are run.  Use -i&#39;s to explicitly specify desired tests,
+or -x&#39;s to eliminate undesired tests.
+
+The list of available loaders is:
+---------------------------------------------------------------------------
+LOADER: file - Loads a zone from a file in AXFR-type or Bind host-type format.
+    DEFINE: file_allow_include - Allow file to include other files (default=1)
+    DEFINE: file_rdclass - Class of records to pull (default=IN)
+LOADER: xfr - Loads a zone by XFR from a name server.
+    DEFINE: xfr_af - The address family to use, AF_INET or AF_INET6 (default=None)
+    DEFINE: xfr_keyalgorithm - The TSIG algorithm to use, one of: HMAC-MD5.SIG-ALG.REG.INT. hmac-sha1. hmac-sha224. hmac-sha256. hmac-sha384. hmac-sha512. (default=HMAC-MD5.SIG-ALG.REG.INT.)
+    DEFINE: xfr_keyname - The name of the TSIG to use (default=None)
+    DEFINE: xfr_keyring - The TSIG keyring to use, a text dict of name-&gt;base64_secret e.g. &quot;{&#39;n1&#39;:&#39;H477A900&#39;,&#39;n2&#39;:&#39;K845CL21&#39;}&quot; (default=None)
+    DEFINE: xfr_lifetime - Total seconds to wait for complete transfer (default=None)
+    DEFINE: xfr_rdclass - Class of records to pull (default=IN)
+    DEFINE: xfr_rdtype - Type of XFR to perform, AXFR or IXFR (default=AXFR)
+    DEFINE: xfr_serial - SOA serial number to use as base for IXFR diff (default=0)
+    DEFINE: xfr_source - Source address for the transfer (default=None)
+    DEFINE: xfr_source_port - Source port for the transfer (default=0)
+    DEFINE: xfr_timeout - Seconds to wait for each response message (default=5.0)
+    DEFINE: xfr_use_udp - Use UDP for IXFRing (default=0)
+
+The list of available tests is:
+---------------------------------------------------------------------------
+TEST: dnskey_bits (REC_TEST[DNSKEY]) - Checks DNSKEY flags and protocol.
+TEST: dnskey_origin (ZONE_TEST) - Checks for a ZSK at zone origin.
+TEST: dnssectype_ambiguous (ZONE_TEST) - Checks for existence of both NSEC and NSEC3 in the zone.
+TEST: ns_origin (ZONE_TEST) - Checks for at least one NS at zone origin.
+TEST: nsec3_chain (ZONE_TEST) - Checks for valid NSEC3 chain.
+TEST: nsec3_missing (RRSET_TEST) - Checks that all (non-NSEC3/RRSIG, non-delegated) RRSets are covered with an NSEC3.
+TEST: nsec3_orphan (REC_TEST[NSEC3]) - Checks for orphan or invalid-covers NSEC3s.
+TEST: nsec3param_origin (ZONE_TEST) - Checks for an NSEC3PARAM at zone origin for nsec3-type zones.
+TEST: nsec_chain (ZONE_TEST) - Checks for valid NSEC chain.
+TEST: nsec_missing (RRSET_TEST) - Checks that all (non-NSEC/RRSIG, non-delegated) RRSets are covered with an NSEC.
+TEST: nsec_orphan (REC_TEST[NSEC]) - Checks for orphan or invalid-covers NSECs.
+TEST: nsecx_ttls_match (REC_TEST[NSEC,NSEC3]) - Checks that NSECx TTL&#39;s match SOA&#39;s minimum.
+TEST: rrsig_covers (REC_TEST[RRSIG]) - Checks RRSIG&#39;s don&#39;t cover RRSIG&#39;s.
+TEST: rrsig_missing (RRSET_TEST) - Checks that all (non-RRSIG, non-delegated) RRSets are covered with an RRSIG.
+    DEFINE: rrsig_missing_now - Time to use for validating RRSIG time windows, e.g. 20150101123000 (default=None)
+TEST: rrsig_orphan (REC_TEST[RRSIG]) - Checks for orphan RRSIGs.
+    DEFINE: rrsig_orphan_now - Time to use for validating RRSIG time windows, e.g. 20150101123000 (default=None)
+TEST: rrsig_signer_match (REC_TEST[RRSIG]) - Checks RRSIG signers match the zone.
+TEST: rrsig_time (REC_TEST[RRSIG]) - Checks RRSIG&#39;s inception &lt;= expiration.
+TEST: rrsig_ttls_match (REC_TEST[RRSIG]) - Checks RRSIG TTL&#39;s match original and covered TTL&#39;s.
+TEST: soa_origin (ZONE_TEST) - Checks for an SOA at zone origin.
+TEST: soa_unique (ZONE_TEST) - Checks for a single SOA in the zone.
+</pre></div>
+</div>
+<div class="section" id="sample-usage">
+<h3>Sample Usage<a class="headerlink" href="#sample-usage" title="Permalink to this headline">¶</a></h3>
+<p>Let&#8217;s say you want to validate and only see errors an NSEC3-style DNSSEC zone
+called &#8220;example&#8221;, from a file, and wish to run all available/applicable validations.
+Since this will check RRSIG signatures, you&#8217;ll need to add a few defines to properly
+state the &#8220;now&#8221; time to use for two of the validators.  Assuming a bash-like shell:</p>
+<div class="highlight-python"><div class="highlight"><pre>$ ZONE_FILE=$VIRTUAL_ENV/lib/python2.7/site-packages/dns_sprockets_lib/tests/data/rfc5155_example.
+
+$ TIME_NOW=20100101000000
+
+$ dns_sprockets -z example -l file -s $ZONE_FILE -e \
+    -d rrsig_missing_now=$TIME_NOW -d rrsig_orphan_now=$TIME_NOW
+
+# dns_sprockets (1.0.0) - A DNS Zone validation tool
+# Checking zone: example.
+# Loader: file from: rfc5155_example. elapsed=0.018354 secs
+# Zone appears to be DNSSEC type: NSEC3
+# Extra defines: [&#39;rrsig_missing_now=20100101000000&#39;, &#39;rrsig_orphan_now=20100101000000&#39;]
+# Skipping test: nsec_chain  (DNSSEC type for zone: NSEC3, for test: NSEC)
+# Skipping test: nsec_missing  (DNSSEC type for zone: NSEC3, for test: NSEC)
+# Skipping test: nsec_orphan  (DNSSEC type for zone: NSEC3, for test: NSEC)
+# Running tests: [&#39;dnskey_origin&#39;, &#39;dnssectype_ambiguous&#39;, &#39;ns_origin&#39;, &#39;nsec3_chain&#39;, &#39;nsec3param_origin&#39;, &#39;soa_origin&#39;, &#39;soa_unique&#39;, &#39;nsec3_missing&#39;, &#39;rrsig_missing&#39;, &#39;dnskey_bits&#39;, &#39;nsec3_orphan&#39;, &#39;nsecx_ttls_match&#39;, &#39;rrsig_covers&#39;, &#39;rrsig_orphan&#39;, &#39;rrsig_signer_match&#39;, &#39;rrsig_time&#39;, &#39;rrsig_ttls_match&#39;]
+# END RESULT: 0 ERRORS in 229 tests
+# TOTAL ELAPSED TIME: 0.063526 SECS  LOAD TIME: 0.018354 SECS  TEST TIME: 0.045172 SECS
+
+$ echo $?
+0
+</pre></div>
+</div>
+<p>OK, all tests passed, but that&#8217;s not too interesting.  Let&#8217;s repeat that, except
+with a slightly modified zone file: one of the NSEC3&#8217;s (and its associated RRSIG
+record) has been removed:</p>
+<div class="highlight-python"><div class="highlight"><pre>$ ZONE_FILE=$VIRTUAL_ENV/lib/python2.7/site-packages/dns_sprockets_lib/tests/data/rfc5155_example._nsec3_missing
+
+$ dns_sprockets -z example -l file -s $ZONE_FILE -e \
+    -d rrsig_missing_now=$TIME_NOW -d rrsig_orphan_now=$TIME_NOW
+
+# dns_sprockets (1.0.0) - A DNS Zone validation tool
+# Checking zone: example.
+# Loader: file from: dns_sprockets_lib/tests/data/rfc5155_example._nsec3_missing elapsed=0.023993 secs
+# Zone appears to be DNSSEC type: NSEC3
+# Extra defines: [&#39;rrsig_missing_now=20100101000000&#39;, &#39;rrsig_orphan_now=20100101000000&#39;]
+# Skipping test: nsec_chain  (DNSSEC type for zone: NSEC3, for test: NSEC)
+# Skipping test: nsec_missing  (DNSSEC type for zone: NSEC3, for test: NSEC)
+# Skipping test: nsec_orphan  (DNSSEC type for zone: NSEC3, for test: NSEC)
+# Running tests: [&#39;dnskey_origin&#39;, &#39;dnssectype_ambiguous&#39;, &#39;ns_origin&#39;, &#39;nsec3_chain&#39;, &#39;nsec3param_origin&#39;, &#39;soa_origin&#39;, &#39;soa_unique&#39;, &#39;nsec3_missing&#39;, &#39;rrsig_missing&#39;, &#39;dnskey_bits&#39;, &#39;nsec3_orphan&#39;, &#39;nsecx_ttls_match&#39;, &#39;rrsig_covers&#39;, &#39;rrsig_orphan&#39;, &#39;rrsig_signer_match&#39;, &#39;rrsig_time&#39;, &#39;rrsig_ttls_match&#39;]
+TEST nsec3_chain(ZONE(example. IN)) =&gt; FAIL: Chain broken at R53BQ7CC2UVMUBFU5OCMM6PERS9TK9EN (next=T644EBQK9BIBCNA874GIVR6JOJ62MLHV doesn&#39;t exist)
+TEST nsec3_missing(RRSET(xx.example. IN A)) =&gt; FAIL: No NSEC3&#39;s found for name: t644ebqk9bibcna874givr6joj62mlhv.example.
+TEST nsec3_missing(RRSET(xx.example. IN HINFO)) =&gt; FAIL: No NSEC3&#39;s found for name: t644ebqk9bibcna874givr6joj62mlhv.example.
+TEST nsec3_missing(RRSET(xx.example. IN AAAA)) =&gt; FAIL: No NSEC3&#39;s found for name: t644ebqk9bibcna874givr6joj62mlhv.example.
+# END RESULT: 4 ERRORS in 221 tests
+# TOTAL ELAPSED TIME: 0.064603 SECS  LOAD TIME: 0.023993 SECS  TEST TIME: 0.040610 SECS
+
+$ echo $?
+4
+</pre></div>
+</div>
+<p>This time, we get errors from two validators.  The nsec3_chain validator issues a
+&#8220;chain broken&#8221; error, and the nsec3_missing validator sees three RRSet&#8217;s with the
+same owner name that are &#8220;not covered&#8221; by the missing NSEC3.</p>
+<p>Incidentally, these two data files (and others) are included in the package for
+unit testing purposes, but can be useful to play with to see how dns_sprockets
+reports various problems.</p>
+</div>
+<div class="section" id="return-codes">
+<h3>Return Codes<a class="headerlink" href="#return-codes" title="Permalink to this headline">¶</a></h3>
+<p>The application returns a numerical value back to the user:</p>
+<ul class="simple">
+<li><strong>0</strong> If there were no failed validations.</li>
+<li><strong>1-254</strong> The number of failed validations, up to a limit of 254.</li>
+<li><strong>255</strong> A special code for fatal exceptions.</li>
+</ul>
+</div>
+</div>
+<div class="section" id="developer-information">
+<h2>Developer Information<a class="headerlink" href="#developer-information" title="Permalink to this headline">¶</a></h2>
+<p>This <em>long</em> section discusses dns_sprockets for those who may be interested in
+adding more loaders or validators.  If that&#8217;s you, great!  Please consider
+contributing your work to the project, it is most welcome!</p>
+<div class="section" id="framework-architecture">
+<h3>Framework Architecture<a class="headerlink" href="#framework-architecture" title="Permalink to this headline">¶</a></h3>
+<p>Inspiration for this application comes from a similar tool written in Perl called
+<a class="reference external" href="http://www.dnssec-tools.org">donuts</a>.  It too uses the concept of plugins for
+its validators.</p>
+<p>This framework essentially revolves around the two types of plugins: Loaders and
+validator plugins, which are stored in two project subfolders
+(dns_sprockets_lib/loaders and dns_sprockets_lib/validators, respectively).  At
+runtime, the app scans both folders and makes their contents available for use:</p>
+<div class="highlight-python"><div class="highlight"><pre>A note on the naming conventions: plugins are stored in files with
+underscore-style names (e.g. nsec3_chain.py) and are expected to
+contain a class that implements the plugin, with a camelcase-style
+name that corresponds to the file name (e.g. Nsec3Chain).
+</pre></div>
+</div>
+<p>The main logic of the app resides in the DNSSprocketsImpl.run() method (in
+dns_sprockets_lib/dns_sprockets_impl.py).  Pseudo-code is:</p>
+<ul>
+<li><p class="first">Scan zone loaders and load them into memory as Python classes.</p>
+</li>
+<li><p class="first">Create an instance of the specified zone loader.</p>
+</li>
+<li><p class="first">Scan validators and load them into memory as Python classes.</p>
+</li>
+<li><p class="first">Instantiate specified validators and categorize by validator type.</p>
+</li>
+<li><p class="first">Run the specified zone loader instance to obtain a dns.zone.Zone object.</p>
+</li>
+<li><p class="first">Construct a &#8220;Context&#8221; instance, initialized by the dns.zone.Zone object.</p>
+</li>
+<li><p class="first">Filter-out any validator instances that do not make sense for the DNSSEC type of the zone.</p>
+</li>
+<li><p class="first">Run the zone-type validators against the Context.</p>
+</li>
+<li><dl class="first docutils">
+<dt>Iterate Nodes in the zone object:</dt>
+<dd><ul class="first last">
+<li><p class="first">Run the node-type validators against the Context and Node.</p>
+</li>
+<li><dl class="first docutils">
+<dt>Iterate RRSets in the Node:</dt>
+<dd><ul class="first last">
+<li><p class="first">Run the RRSet-type validators against the Context and RRSet.</p>
+</li>
+<li><dl class="first docutils">
+<dt>Iterate Records in the RRSet:</dt>
+<dd><ul class="first last simple">
+<li>Run the record-type validators against the Context and Record.</li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+<p>The use of the <a class="reference external" href="http://www.dnspython.org">dnspython</a> library pervades the
+application (so if you&#8217;re familiar with it already, you&#8217;ve got an excellent start):
+The loaders read from some source and return a dnspython dns.zone.Zone object to
+the framework.  Similarly, the framework presents to the validators the same
+dns.zone.Zone object for examination.</p>
+</div>
+<div class="section" id="zone-loaders">
+<h3>Zone Loaders<a class="headerlink" href="#zone-loaders" title="Permalink to this headline">¶</a></h3>
+<p>Zone loaders are classes derived from dns_sprockets_lib.loaders.ZoneLoader
+(in the dns_sprockets_lib/loaders/__init__.py file), which defines the interface
+expected by the framework:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">ZoneLoader</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for zone loaders]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">LOADER_NAME</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Automatically set in __init__.</span>
+    <span class="n">LOADER_OPTARGS</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c"># Override possible!  e.g.: {&#39;now&#39;: (None, &#39;Time to use for now&#39;)}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Ctor, caches the arguments used to run the application, and grabs any</span>
+<span class="sd">        optional test arguments.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">LOADER_NAME</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">camelcase_to_underscores</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
+
+        <span class="n">utils</span><span class="o">.</span><span class="n">process_optargs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">LOADER_OPTARGS</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">LOADER_NAME</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the zone loader -- must override!</span>
+
+<span class="sd">        :return: A dns.zone.Zone instance.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">pass</span>
+</pre></div>
+</div>
+<p>Two class variables are expected:</p>
+<ul class="simple">
+<li><strong>LOADER_NAME</strong> Contains the underscore-style name of the loader, and is
+automatically set up in the __init__() method.</li>
+<li><strong>LOADER_OPTARGS</strong> Contains any plugin-specific parameters that may be set from
+the command-line <em>...more on this later</em>.</li>
+</ul>
+<p>Two methods are expected:</p>
+<ul class="simple">
+<li><strong>__init__()</strong> Takes the arguments object containing the command-line
+options passed by the user to the application.</li>
+<li><strong>run()</strong> Invokes the zone loader functionality and returns a dns.zone.Zone
+object.</li>
+</ul>
+<p>As an example, the code for the File loader is show here.  It is almost trivial
+because it takes advantage of the built-in host file loading available in the
+dnspython library:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">File</span><span class="p">(</span><span class="n">loaders</span><span class="o">.</span><span class="n">ZoneLoader</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Loads a zone from a file in AXFR-type or Bind host-type format.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">LOADER_OPTARGS</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s">&#39;rdclass&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;IN&#39;</span><span class="p">,</span> <span class="s">&#39;Class of records to pull&#39;</span><span class="p">),</span>
+        <span class="s">&#39;allow_include&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;1&#39;</span><span class="p">,</span> <span class="s">&#39;Allow file to include other files&#39;</span><span class="p">)}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Ctor.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rdclass</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">allow_include</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">File</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        :return: A dns.zone.Zone instance.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">other_args</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;origin&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">zone</span><span class="p">,</span>
+            <span class="s">&#39;relativize&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+            <span class="s">&#39;filename&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+            <span class="s">&#39;check_origin&#39;</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+            <span class="s">&#39;rdclass&#39;</span><span class="p">:</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdataclass</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rdclass</span><span class="p">),</span>
+            <span class="s">&#39;allow_include&#39;</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">allow_include</span><span class="p">))}</span>
+
+        <span class="k">return</span> <span class="n">dns</span><span class="o">.</span><span class="n">zone</span><span class="o">.</span><span class="n">from_file</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">source</span><span class="p">,</span> <span class="o">**</span><span class="n">other_args</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Please note the __init__() method calls back into the base class to include its
+useful and necessary functionality!  Also be aware that the class docstring is
+used for the description of the loader, as shown in the &#8211;help output (keep it
+brief!)</p>
+</div>
+<div class="section" id="validation-context">
+<h3>Validation Context<a class="headerlink" href="#validation-context" title="Permalink to this headline">¶</a></h3>
+<p>Once the framework obtains a dns.zone.Zone instance from the specified zone
+loader, it constructs a Context instance from it, which is passed to the
+validators.  In addition to the application&#8217;s command-line arguments (as
+<strong>context.args</strong>) and the actual dns.zone.Zone instance created by the loader
+(as <strong>context.zone_obj</strong>), it contains some other attributes for the convenience
+of validators (code for the Context class can be found in the
+dns_sprockets_lib/validators/__init__.py file).  Some of these are useful to
+some validators, but can be ignored if not useful:</p>
+<ul class="simple">
+<li><strong>context.node_names</strong> Contains DNSSEC-ordered list of all node names present
+in the zone (<em>including</em> empty-non-terminal names implied by wildcard names).</li>
+<li><strong>context.soa_rdataset</strong> Contains the zone&#8217;s SOA RRSet.</li>
+<li><strong>context.dnskey_rdataset</strong> Contains the zone&#8217;s DNSKEY RRSet.</li>
+<li><strong>context.nsec3param_rdataset</strong> Contains the zone&#8217;s NSEC3PARAM RRSet.</li>
+<li><strong>context.delegated_names</strong> Contains list of any delegated names in the zone.</li>
+<li><strong>context.dnssec_type</strong> Indicates the DNSSEC type of the zone.</li>
+</ul>
+<p>A method called <strong>is_delegated()</strong> is also available, which lets clients easily
+determine if a given owner name is delegated.</p>
+</div>
+<div class="section" id="validators">
+<h3>Validators<a class="headerlink" href="#validators" title="Permalink to this headline">¶</a></h3>
+<p>Validators are classes <em>ultimately</em> derived from dns_sprockets_lib.validators._Validator
+(in the dns_sprockets_lib/validators/__init__.py file).  This is the base class
+for the four more specialized validator classes (ZoneTest, NodeTest, RRSetTest, and
+RecordTest):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">_Validator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for validator classes]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_NAME</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Automatically set in __init__.</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Override expected!  e.g.: ZONE_TEST</span>
+    <span class="n">TEST_DNSSECTYPE</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Override possible!  one of: None, True, &#39;NSEC&#39; or &#39;NSEC3&#39;</span>
+    <span class="n">TEST_RRTYPE</span> <span class="o">=</span> <span class="bp">None</span>  <span class="c"># Override possible!  e.g.: &#39;A&#39;, or &#39;RRSIG,NSEC3PARAM&#39;</span>
+    <span class="n">TEST_OPTARGS</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c"># Override possible!  e.g.: {&#39;now&#39;: (None, &#39;Time to use for now&#39;)}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Ctor, caches the arguments used to run the application, and grabs any</span>
+<span class="sd">        optional test arguments.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">camelcase_to_underscores</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
+
+        <span class="n">utils</span><span class="o">.</span><span class="n">process_optargs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_OPTARGS</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Five class variables are expected:</p>
+<ul class="simple">
+<li><strong>TEST_NAME</strong> Contains the underscore-style name of the validator, and is
+automatically set up in the __init__() method.</li>
+<li><strong>TEST_TYPE</strong> Indicates the type of validator.</li>
+<li><strong>TEST_DNSSECTYPE</strong> Indicates the DNSSEC-type of the validator.</li>
+<li><strong>TEST_RRTYPE</strong> Indicates zero or more resource record types the validator is
+specialized for.  If no types specified, ALL types are assumed.</li>
+<li><strong>TEST_OPTARGS</strong> Contains any plugin-specific parameters that may be set from
+the command-line <em>...more on this later</em>.</li>
+</ul>
+<p>One method is provided:</p>
+<ul class="simple">
+<li><strong>__init__()</strong> Convenince method for use by sub-classes.</li>
+</ul>
+<p>There are four _Validator-derived classes for use by plugins (also defined in the
+dns_sprockets_lib/validators/__init__.py file).  They provide slight convenience
+by defining <strong>TEST_TYPE</strong> properly, but more importantly expose different
+<strong>run()</strong> signatures, specific to each type of validator:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">ZoneTest</span><span class="p">(</span><span class="n">_Validator</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for zone-type validators]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="n">ZONE_TEST</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the zone-type validator.</span>
+
+<span class="sd">        :param str suggested_tested: A suggested tested value.</span>
+<span class="sd">        :param obj context: The testing context.</span>
+<span class="sd">        :return: A tuple (tested, result)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;OOPS!&#39;</span><span class="p">,</span> <span class="s">&#39;ERROR: run() not overridden for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">NodeTest</span><span class="p">(</span><span class="n">_Validator</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for node-type validators.  Derived classes *may* be restricted</span>
+<span class="sd">    to specific RRType&#39;s by specifying a TEST_RRTYPE]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="n">NODE_TEST</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the node-type validator.  If a TEST_RRTYPE specified, the node</span>
+<span class="sd">        presented to the validator will be filtered accordingly.</span>
+
+<span class="sd">        :param obj context: The testing context.</span>
+<span class="sd">        :param str suggested_tested: A suggested tested value.</span>
+<span class="sd">        :param str name: The name being tested.</span>
+<span class="sd">        :param obj node: The dns.Node corresponding to the name.</span>
+<span class="sd">        :return: A tuple (tested, result)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;OOPS!&#39;</span><span class="p">,</span> <span class="s">&#39;ERROR: run() not overridden for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">RRSetTest</span><span class="p">(</span><span class="n">_Validator</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for rrset-type validators.  Derived classes *may* be restricted</span>
+<span class="sd">    to specific RRType&#39;s by specifying a TEST_RRTYPE]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="n">RRSET_TEST</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">rdataset</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the name-type validator.  If a TEST_RRTYPE is specified, the RRSet</span>
+<span class="sd">        presented to the validator will be filtered accordingly.</span>
+
+<span class="sd">        :param obj context: The testing context.</span>
+<span class="sd">        :param str suggested_tested: A suggested tested value.</span>
+<span class="sd">        :param str name: The name being tested.</span>
+<span class="sd">        :param obj rdataset: The dns.rdataset corresponding to the name.</span>
+<span class="sd">        :return: A tuple (tested, result)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;OOPS!&#39;</span><span class="p">,</span> <span class="s">&#39;ERROR: run() not overridden for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">RecTest</span><span class="p">(</span><span class="n">_Validator</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    [Base class for record-type validators.  Derived classes *may* be restricted</span>
+<span class="sd">    to specific RRType&#39;s by specifying a TEST_RRTYPE]</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_TYPE</span> <span class="o">=</span> <span class="n">REC_TEST</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ttl</span><span class="p">,</span> <span class="n">rdata</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Runs the record-type validator.  If a TEST_RRTYPE is specified, the</span>
+<span class="sd">        validator will only see those types of records.</span>
+
+<span class="sd">        :param obj context: The testing context.</span>
+<span class="sd">        :param str suggested_tested: A suggested tested value.</span>
+<span class="sd">        :param str name: The name of the record being tested.</span>
+<span class="sd">        :param int ttl: The TTL of the record being tested.</span>
+<span class="sd">        :param obj rdata: The dns.rdata.Rdata object being tested.</span>
+<span class="sd">        :return: A tuple (tested, result)</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;OOPS!&#39;</span><span class="p">,</span> <span class="s">&#39;ERROR: run() not overridden for </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">TEST_NAME</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>The <strong>suggested_tested</strong> string contains a default name of the object being tested,
+be it a zone, node, RRSet or record.  It can be used in most instances as the first
+item in the returned tuple from <strong>run()</strong>:</p>
+<div class="highlight-python"><div class="highlight"><pre>Notes on the run() return tuple (tested, result):
+
+- If a validation is skipped for whatever reason, the &#39;tested&#39;
+  value should be None, which causes the framework to ignore the
+  run.  Otherwise, a value describing the object being tested
+  should be set (and as mentioned &#39;suggested_tested&#39; is a good
+  value).
+
+- The actual result of an un-skipped test is returned in
+  &#39;result&#39;.  If the test passes, simply return None.  Otherwise,
+  return a string describing the failure.
+</pre></div>
+</div>
+<p>As an example, the code for the RrsigTime validator is as follows.  The
+<strong>TEST_DNSSECTYPE</strong> is set to True to indicate the validation only makes sense
+for DNSSEC-type zones.  It is a record-type test, and only receives RRSIG records
+due to the <strong>TEST_RRTYPE</strong> filtering applied.  The &#8220;context&#8221;, &#8220;name&#8221; and &#8220;ttl&#8221;
+parameters are ignored for this validation.  The &#8220;rdata&#8221; parameter is used,
+and is of type dns.rdata.Rdata (a type defined in dnspython):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">class</span> <span class="nc">RrsigTime</span><span class="p">(</span><span class="n">validators</span><span class="o">.</span><span class="n">RecTest</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Checks RRSIG&#39;s inception &lt;= expiration.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">TEST_DNSSECTYPE</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="n">TEST_RRTYPE</span> <span class="o">=</span> <span class="s">&#39;RRSIG&#39;</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">suggested_tested</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ttl</span><span class="p">,</span> <span class="n">rdata</span><span class="p">):</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">rdata</span><span class="o">.</span><span class="n">inception</span> <span class="o">&gt;</span> <span class="n">rdata</span><span class="o">.</span><span class="n">expiration</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="s">&#39;Inception time greater than expiration time&#39;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">suggested_tested</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Please note that if your validator needs to define an <strong>__init__()</strong> method,
+it must call the base&#8217;s <strong>__init__()</strong> to receive its useful and necessary
+functionality!  Also be aware that the class docstring is used for the
+description of the validator, as shown in the &#8211;help output (keep it brief!)</p>
+</div>
+<div class="section" id="plugin-specific-arguments">
+<h3>Plugin-Specific Arguments<a class="headerlink" href="#plugin-specific-arguments" title="Permalink to this headline">¶</a></h3>
+<p>Loaders and validators may have parameters that are specific to themselves.
+The framework&#8217;s &#8211;define command-line switch is used to pass these parameters
+to the plugins.</p>
+<p>The names of the &#8211;define parameters are of the form: &lt;pluginname&gt;_&lt;paramname&gt;
+(e.g. &#8220;rrsig_missing_now&#8221; specifies the &#8220;now&#8221; parameter for the rrsig_missing
+validator), and are translated and set as plugin attributes as &lt;paramname&gt;
+(e.g. self.now in rrsig_missing methods).</p>
+<p>As an example (and shown earlier), the File zone loader plugin defines two
+parameters specific to loading zone files:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">LOADER_OPTARGS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s">&#39;rdclass&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;IN&#39;</span><span class="p">,</span> <span class="s">&#39;Class of records to pull&#39;</span><span class="p">),</span>
+    <span class="s">&#39;allow_include&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;1&#39;</span><span class="p">,</span> <span class="s">&#39;Allow file to include other files&#39;</span><span class="p">)}</span>
+</pre></div>
+</div>
+<p><strong>LOADER_OPTARGS</strong> (and <strong>TEST_OPTARGS</strong> for validators) is a dictionary of
+parameter descriptors; each entry is keyed by &lt;paramname&gt;, and indexes a 2-tuple
+of (&lt;defaultvalue&gt;, &lt;description&gt;).  If no &#8211;define for the parameter is passed,
+the &lt;defaultvalue&gt; will be set.  The &lt;description&gt; is used for &#8211;help output,
+so keep it brief please!</p>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+</div>
+</div>
+<div class="section" id="indices-and-tables">
+<h2>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><a class="reference internal" href="genindex.html"><span>Index</span></a></li>
+<li><a class="reference internal" href="py-modindex.html"><span>Module Index</span></a></li>
+<li><a class="reference internal" href="search.html"><span>Search Page</span></a></li>
+</ul>
+</div>
+<div class="section" id="change-list">
+<h2>Change List<a class="headerlink" href="#change-list" title="Permalink to this headline">¶</a></h2>
+<ul>
+<li><p class="first">2015-07-09 (Version 1.0.3)</p>
+<blockquote>
+<div><ul class="simple">
+<li>Add some more &#8220;Sample Usage&#8221; in README.rst.</li>
+<li>Add &#8220;Developer Information&#8221; section in README.rst.</li>
+<li>Switch some function/method docstrings to sphinx-style (more to do...)</li>
+<li>New utils.process_optargs() function contains common code.</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p class="first">2015-07-08 (Version 1.0.2)</p>
+<blockquote>
+<div><ul class="simple">
+<li>More fix &#8220;Sample Usage&#8221; example in README.rst.</li>
+<li>Change project homepage to ultradns GitHub group.</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p class="first">2015-07-07 (Version 1.0.1)</p>
+<blockquote>
+<div><ul class="simple">
+<li>Fix &#8220;Sample Usage&#8221; example in README.rst.</li>
+</ul>
+</div></blockquote>
+</li>
+<li><p class="first">2015-07-06 (Version 1.0.0)</p>
+<blockquote>
+<div><ul class="simple">
+<li>Initial GitHub/PyPI version.</li>
+<li>Loaders/validators framework completed.</li>
+<li>From-file and from-XFR zone loaders present.</li>
+<li>Some validators (focus mainly on DNSSEC-types) present.</li>
+<li>Nosetests added for code, loaders, and validators.</li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</div>
+<div class="section" id="contributors">
+<h2>Contributors<a class="headerlink" href="#contributors" title="Permalink to this headline">¶</a></h2>
+<p>A list of people who have contributed to dns_sprockets, in order of their first
+contribution.  The following uses the format of &#8220;Name &lt;<a class="reference external" href="mailto:email&#37;&#52;&#48;domain&#46;tld">email<span>&#64;</span>domain<span>&#46;</span>tld</a>&gt; (url)&#8221;
+with the (url) being optional.</p>
+<p>Ashley Roeckelein &lt;<a class="reference external" href="mailto:roeckelein&#37;&#52;&#48;gmail&#46;com">roeckelein<span>&#64;</span>gmail<span>&#46;</span>com</a>&gt; (<a class="reference external" href="http://www.ultradns.com/">http://www.ultradns.com/</a>)</p>
+</div>
+<div class="section" id="copyright-notice">
+<h2>Copyright Notice<a class="headerlink" href="#copyright-notice" title="Permalink to this headline">¶</a></h2>
+<p>Copyright 2015 Neustar, Inc. All rights reserved.</p>
+<p>Neustar, the Neustar logo and related names and logos are registered trademarks,
+service marks or tradenames of Neustar, Inc. All other product names, company
+names, marks, logos and symbols may be trademarks of their respective owners.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="#">
+              <img class="logo" src="_static/sprocket.jpeg" alt="Logo"/>
+            </a></p>
+  <h3><a href="#">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#"><strong>dns_sprockets</strong></a><ul>
+<li><a class="reference internal" href="#overview">Overview</a><ul>
+<li><a class="reference internal" href="#audience">Audience</a></li>
+<li><a class="reference internal" href="#features">Features</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#installation">Installation</a></li>
+<li><a class="reference internal" href="#usage">Usage</a><ul>
+<li><a class="reference internal" href="#sample-usage">Sample Usage</a></li>
+<li><a class="reference internal" href="#return-codes">Return Codes</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#developer-information">Developer Information</a><ul>
+<li><a class="reference internal" href="#framework-architecture">Framework Architecture</a></li>
+<li><a class="reference internal" href="#zone-loaders">Zone Loaders</a></li>
+<li><a class="reference internal" href="#validation-context">Validation Context</a></li>
+<li><a class="reference internal" href="#validators">Validators</a></li>
+<li><a class="reference internal" href="#plugin-specific-arguments">Plugin-Specific Arguments</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+<li><a class="reference internal" href="#change-list">Change List</a></li>
+<li><a class="reference internal" href="#contributors">Contributors</a></li>
+<li><a class="reference internal" href="#copyright-notice">Copyright Notice</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="#">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Neustar, Inc..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+      |
+      <a href="_sources/index.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

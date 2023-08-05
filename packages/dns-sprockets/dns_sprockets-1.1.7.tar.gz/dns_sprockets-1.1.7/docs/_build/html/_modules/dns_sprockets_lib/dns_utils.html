@@ -1,0 +1,224 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dns_sprockets_lib.dns_utils &mdash; dns_sprockets 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="dns_sprockets 1.0 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dns_sprockets_lib.dns_utils</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">dns_utils - Misc. DNS utility functions not present in dnspython.</span>
+
+<span class="sd">.. Copyright (c) 2015 Neustar, Inc. All rights reserved.</span>
+<span class="sd">.. See COPYRIGHT.txt for full notice.  See LICENSE.txt for terms and conditions.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+
+<span class="kn">import</span> <span class="nn">dns.name</span>
+
+
+<div class="viewcode-block" id="is_delegated"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dns_utils.is_delegated">[docs]</a><span class="k">def</span> <span class="nf">is_delegated</span><span class="p">(</span><span class="n">delegated_names</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Tests a name to see if it is in a delegated zone.</span>
+<span class="sd">    @param delegated_names List of non-apex dns.name.Names in zone with NS RRSets.</span>
+<span class="sd">    @param name The dns.name.Name to test.</span>
+<span class="sd">    @return True if name is delegated, False otherwise.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">for</span> <span class="n">deleg_name</span> <span class="ow">in</span> <span class="n">delegated_names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">is_subdomain</span><span class="p">(</span><span class="n">deleg_name</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">True</span>
+    <span class="k">return</span> <span class="bp">False</span>
+
+</div>
+<div class="viewcode-block" id="dns_name_cmp_to_key"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dns_utils.dns_name_cmp_to_key">[docs]</a><span class="k">def</span> <span class="nf">dns_name_cmp_to_key</span><span class="p">():</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Convert dns.name.Name.fullcompare method into a key= &quot;function&quot;, which is a</span>
+<span class="sd">    class suitable for the key= argument for sort/sorted.</span>
+<span class="sd">    @return Class that uses fullcompare() on dns.name.Name&#39;s.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">class</span> <span class="nc">Key</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+        <span class="c"># pylint: disable=too-few-public-methods</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Wraps a dns.name.Name object with comparison operators that use the</span>
+<span class="sd">        dns.name.Name.fullcompare() method.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="o">*</span><span class="n">_args</span><span class="p">):</span>
+            <span class="c"># pylint: disable=unused-argument</span>
+            <span class="sd">&#39;&#39;&#39; Ctor, initializes a Key instance. &#39;&#39;&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span>
+
+        <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39; Less-than operator. &#39;&#39;&#39;</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">fullcompare</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span>
+
+        <span class="k">def</span> <span class="nf">__gt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39; Greater-than operator. &#39;&#39;&#39;</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">fullcompare</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+        <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39; Equality operator. &#39;&#39;&#39;</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">fullcompare</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
+
+        <span class="k">def</span> <span class="nf">__le__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39; Less-than-or-equal operator. &#39;&#39;&#39;</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">fullcompare</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">0</span>
+
+        <span class="k">def</span> <span class="nf">__ge__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39; Greater-than-or-equal operator. &#39;&#39;&#39;</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">fullcompare</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+
+        <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="sd">&#39;&#39;&#39; Non-equality operator. &#39;&#39;&#39;</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="o">.</span><span class="n">fullcompare</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span>
+
+    <span class="k">return</span> <span class="n">Key</span>
+
+</div>
+<div class="viewcode-block" id="dnssec_sort_names"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dns_utils.dnssec_sort_names">[docs]</a><span class="k">def</span> <span class="nf">dnssec_sort_names</span><span class="p">(</span><span class="n">names</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Sorts names to DNSSEC sorted order.</span>
+<span class="sd">    @param names Container of dns.name.Names.</span>
+<span class="sd">    @return List of DNSSEC-sorted order dns.name.Names.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">names</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">dns_name_cmp_to_key</span><span class="p">(),</span> <span class="n">reverse</span><span class="o">=</span><span class="n">reverse</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="calc_node_names"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dns_utils.calc_node_names">[docs]</a><span class="k">def</span> <span class="nf">calc_node_names</span><span class="p">(</span><span class="n">node_names</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Calculates list of node names in a zone, including any Empty Non-Terminals</span>
+<span class="sd">    implied by wildcard records, ordered in DNSSEC name order.</span>
+<span class="sd">    @param node_names The list of names from Zone.nodes.keys().</span>
+<span class="sd">    @return Sorted list of all node names.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c"># Split explicit node names into wildcard and non-wildcard lists:</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">wc_names</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">node_names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;*&#39;</span><span class="p">:</span>
+            <span class="n">wc_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="c"># Get list of wildcard base names:</span>
+    <span class="n">base_wc_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">dns</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">Name</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">wc_names</span><span class="p">]</span>
+
+    <span class="c"># Add wildcard base names to names if not already accounted for:</span>
+    <span class="k">for</span> <span class="n">base_wc_name</span> <span class="ow">in</span> <span class="n">base_wc_names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">base_wc_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+            <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">base_wc_name</span><span class="p">)</span>
+
+    <span class="c"># Sort wildcard base names most-specific to least:</span>
+    <span class="n">base_wc_names</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">n</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">labels</span><span class="p">),</span> <span class="n">reverse</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="c"># For each non-wildcard name, look for any Empty Non-Terminals:</span>
+    <span class="n">ent_names</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+
+        <span class="c"># Compare against all wildcard base names:</span>
+        <span class="k">for</span> <span class="n">base_wc_name</span> <span class="ow">in</span> <span class="n">base_wc_names</span><span class="p">:</span>
+
+            <span class="c"># If the name is a (non-equal) subdomain of the base wild card name,</span>
+            <span class="c"># then there are potential ENT&#39;s present:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="o">!=</span> <span class="n">base_wc_name</span> <span class="ow">and</span> <span class="n">name</span><span class="o">.</span><span class="n">is_subdomain</span><span class="p">(</span><span class="n">base_wc_name</span><span class="p">):</span>
+
+                <span class="c"># First potential ENT is parent of name:</span>
+                <span class="n">pot_ent_name</span> <span class="o">=</span> <span class="n">dns</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">Name</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+
+                <span class="c"># While potential ENT is not equal to the base wildcard name:</span>
+                <span class="k">while</span> <span class="n">pot_ent_name</span> <span class="o">!=</span> <span class="n">base_wc_name</span><span class="p">:</span>
+
+                    <span class="c"># Add potential name if not already accounted for:</span>
+                    <span class="k">if</span> <span class="n">pot_ent_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">names</span> <span class="o">+</span> <span class="n">ent_names</span><span class="p">:</span>
+                        <span class="n">ent_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pot_ent_name</span><span class="p">)</span>
+
+                    <span class="c"># Proceed to it&#39;s parent:</span>
+                    <span class="c"># pylint: disable=no-member</span>
+                    <span class="n">pot_ent_name</span> <span class="o">=</span> <span class="n">dns</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">Name</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">pot_ent_name</span><span class="o">.</span><span class="n">labels</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
+
+    <span class="c"># Gather all names and sort in DNSEC name order:</span>
+    <span class="k">return</span> <span class="n">dnssec_sort_names</span><span class="p">(</span><span class="n">names</span> <span class="o">+</span> <span class="n">wc_names</span> <span class="o">+</span> <span class="n">ent_names</span><span class="p">)</span>
+
+<span class="c"># end of file</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/sprocket.jpeg" alt="Logo"/>
+            </a></p><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Neustar, Inc..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

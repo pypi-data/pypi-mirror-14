@@ -1,0 +1,236 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>dns_sprockets_lib.dnssec_nsecx &mdash; dns_sprockets 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="dns_sprockets 1.0 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for dns_sprockets_lib.dnssec_nsecx</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">dnssec_nsec3 - Stuff for dealing with NSEC3-type zones.</span>
+<span class="sd">-------------------------------------------------------</span>
+<span class="sd">(maybe contribute somehow to dnspython?)</span>
+
+<span class="sd">.. Copyright (c) 2015 Neustar, Inc. All rights reserved.</span>
+<span class="sd">.. See COPYRIGHT.txt for full notice.  See LICENSE.txt for terms and conditions.</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+
+<span class="kn">import</span> <span class="nn">base64</span>
+
+<span class="kn">import</span> <span class="nn">Crypto.Hash.SHA</span>
+<span class="kn">import</span> <span class="nn">dns.name</span>
+<span class="kn">import</span> <span class="nn">dns.rdtypes.ANY.NSEC3</span>
+
+
+<div class="viewcode-block" id="encode_salt"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dnssec_nsecx.encode_salt">[docs]</a><span class="k">def</span> <span class="nf">encode_salt</span><span class="p">(</span><span class="n">bin_salt</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Encodes binary NSEC3-type &quot;salt&quot; values to hexadecimal representation.</span>
+
+<span class="sd">    :param str bin_salt: The binary salt to encode.</span>
+<span class="sd">    :return: Lowercase hexadecimal representation of the salt.</span>
+<span class="sd">    :rtype: str, or None on failure</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">bin_salt</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&#39;hex-codec&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">StandardError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+</div>
+<div class="viewcode-block" id="decode_salt"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dnssec_nsecx.decode_salt">[docs]</a><span class="k">def</span> <span class="nf">decode_salt</span><span class="p">(</span><span class="n">hex_salt</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Decodes hexedecimal representation of NSEC3-type &quot;salt&quot; values to binary.</span>
+
+<span class="sd">    :param str hex_salt: The hex-encoded salt to decode.</span>
+<span class="sd">    :return: Binary value of the salt value.</span>
+<span class="sd">    :rtype: str, or None on failure</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">hex_salt</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s">&#39;hex-codec&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">StandardError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+</div>
+<div class="viewcode-block" id="hash_nsec3_name"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dnssec_nsecx.hash_nsec3_name">[docs]</a><span class="k">def</span> <span class="nf">hash_nsec3_name</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">salt</span><span class="p">,</span> <span class="n">algo</span><span class="p">,</span> <span class="n">addl_iters</span><span class="p">,</span> <span class="n">salt_is_binary</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Hashes a domain name using indicated hashing algorithm / iterations.</span>
+
+<span class="sd">    :param str name: The domain name to hash.</span>
+<span class="sd">    :param str salt: The salt to use (or empty string).</span>
+<span class="sd">    :param int algo: The hashing algorithm to use.</span>
+<span class="sd">    :param int addl_iters: The additional iterations to be applied.</span>
+<span class="sd">    :param bool salt_is_binary: Set True if the salt is binary; False if hex-encoded.</span>
+<span class="sd">    :return: The (lowercase) base32hex-encoded result.</span>
+<span class="sd">    :rtype: str, or None on failure</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c"># Check name:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">dns</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">Name</span><span class="p">):</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+    <span class="c"># We only know how to do SHA-1:</span>
+    <span class="k">if</span> <span class="n">algo</span> <span class="o">!=</span> <span class="n">dns</span><span class="o">.</span><span class="n">rdtypes</span><span class="o">.</span><span class="n">ANY</span><span class="o">.</span><span class="n">NSEC3</span><span class="o">.</span><span class="n">SHA1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+    <span class="c"># Decode salt if necessary:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">salt_is_binary</span><span class="p">:</span>
+        <span class="n">salt</span> <span class="o">=</span> <span class="n">decode_salt</span><span class="p">(</span><span class="n">salt</span><span class="p">)</span>
+
+    <span class="c"># Convert name to lowercase and wire format:</span>
+    <span class="n">bin_hash</span> <span class="o">=</span> <span class="n">dns</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">from_text</span><span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span><span class="o">.</span><span class="n">to_wire</span><span class="p">()</span>
+
+    <span class="c"># Iterate hashing according to RFC5155 section 5:</span>
+    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">addl_iters</span><span class="p">)):</span>
+        <span class="n">bin_hash</span> <span class="o">=</span> <span class="n">Crypto</span><span class="o">.</span><span class="n">Hash</span><span class="o">.</span><span class="n">SHA</span><span class="o">.</span><span class="n">new</span><span class="p">(</span><span class="n">bin_hash</span> <span class="o">+</span> <span class="n">salt</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">()</span>
+
+    <span class="c"># Convert result to lowercase base32hex:</span>
+    <span class="k">return</span> <span class="n">base64</span><span class="o">.</span><span class="n">b32encode</span><span class="p">(</span><span class="n">bin_hash</span><span class="p">)</span><span class="o">.</span><span class="n">translate</span><span class="p">(</span>
+        <span class="n">dns</span><span class="o">.</span><span class="n">rdtypes</span><span class="o">.</span><span class="n">ANY</span><span class="o">.</span><span class="n">NSEC3</span><span class="o">.</span><span class="n">b32_normal_to_hex</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+</div>
+<span class="k">def</span> <span class="nf">_windows_covers</span><span class="p">(</span><span class="n">windows</span><span class="p">,</span> <span class="n">rrtype</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Check to see if an NSECx windows list covers a type.</span>
+
+<span class="sd">    :param list windows: An NSEC or NSEC3 windows list.</span>
+<span class="sd">    :param int rrtype: The dns.rdatatype to test.</span>
+<span class="sd">    :return: True if the windows covers the type; False if not.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">window</span> <span class="o">=</span> <span class="n">rrtype</span> <span class="o">//</span> <span class="mi">256</span>
+    <span class="k">for</span> <span class="n">win</span> <span class="ow">in</span> <span class="n">windows</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">win</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">window</span><span class="p">:</span>
+            <span class="n">bitmap</span> <span class="o">=</span> <span class="n">win</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="n">rrtype</span> <span class="o">%</span> <span class="mi">256</span>
+            <span class="n">byte</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">//</span> <span class="mi">8</span>
+            <span class="k">if</span> <span class="n">bitmap</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">bitmap</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">byte</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">bit</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">%</span> <span class="mi">8</span>
+                <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">ord</span><span class="p">(</span><span class="n">bitmap</span><span class="p">[</span><span class="n">byte</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="mh">0x80</span> <span class="o">&gt;&gt;</span> <span class="n">bit</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="bp">False</span>
+
+
+<div class="viewcode-block" id="covers"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dnssec_nsecx.covers">[docs]</a><span class="k">def</span> <span class="nf">covers</span><span class="p">(</span><span class="n">nsecx_rdata</span><span class="p">,</span> <span class="n">rrtype</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Check to see if an NSECx covers a type.</span>
+
+<span class="sd">    :param obj nsec_rdata: An NSEC or NSEC3 instance.</span>
+<span class="sd">    :param int rrtype: The dns.rdatatype to test.</span>
+<span class="sd">    :return: True if the NSECx covers the type; False if not.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">_windows_covers</span><span class="p">(</span><span class="n">nsecx_rdata</span><span class="o">.</span><span class="n">windows</span><span class="p">,</span> <span class="n">rrtype</span><span class="p">)</span>
+
+</div>
+<span class="k">def</span> <span class="nf">_windows_get_covered_types</span><span class="p">(</span><span class="n">windows</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Gets list of types covered by an NSECx windows list.</span>
+
+<span class="sd">    :param list windows: An NSEC or NSEC3 windows list.</span>
+<span class="sd">    :return: List of dns.rdatatype&#39;s that the NSECx covers.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">types</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">win</span> <span class="ow">in</span> <span class="n">windows</span><span class="p">:</span>
+        <span class="n">window</span> <span class="o">=</span> <span class="n">win</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">bitmap</span> <span class="o">=</span> <span class="n">win</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">bitmap</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">byte</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">bitmap</span><span class="p">)):</span>
+                <span class="n">bits</span> <span class="o">=</span> <span class="nb">ord</span><span class="p">(</span><span class="n">bitmap</span><span class="p">[</span><span class="n">byte</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">bits</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">bit</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">8</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">bits</span> <span class="o">&amp;</span> <span class="p">(</span><span class="mh">0x80</span> <span class="o">&gt;&gt;</span> <span class="n">bit</span><span class="p">):</span>
+                            <span class="n">types</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">window</span> <span class="o">*</span> <span class="mi">256</span> <span class="o">+</span> <span class="n">byte</span> <span class="o">*</span> <span class="mi">8</span> <span class="o">+</span> <span class="n">bit</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">types</span>
+
+
+<div class="viewcode-block" id="get_covered_types"><a class="viewcode-back" href="../../dns_sprockets_lib.html#dns_sprockets_lib.dnssec_nsecx.get_covered_types">[docs]</a><span class="k">def</span> <span class="nf">get_covered_types</span><span class="p">(</span><span class="n">nsecx_rdata</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Gets list of types covered by an NSECx.</span>
+
+<span class="sd">    :param obj nsecx_rdata: The NSEC or NSEC3 instance.</span>
+<span class="sd">    :return: List of dns.rdatatype&#39;s that the NSECx covers.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">_windows_get_covered_types</span><span class="p">(</span><span class="n">nsecx_rdata</span><span class="o">.</span><span class="n">windows</span><span class="p">)</span>
+
+<span class="c"># end of file</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../index.html">
+              <img class="logo" src="../../_static/sprocket.jpeg" alt="Logo"/>
+            </a></p><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2015, Neustar, Inc..
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
