@@ -1,0 +1,473 @@
+#!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
+# eval "$(register-python-argcomplete ripe-atlas-monitor)"
+
+# Copyright (C) 2016 Pier Carlo Chiodi
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import argparse
+from dateutil import parser
+from importlib import import_module
+import os
+import re
+import sys
+
+import argcomplete
+from argcomplete.completers import ChoicesCompleter
+
+from pierky.ripeatlasmonitor.Config import Config
+from pierky.ripeatlasmonitor.Errors import RIPEAtlasMonitorError, \
+                                           InvalidDateTimeError, \
+                                           ArgumentError
+from pierky.ripeatlasmonitor.Logging import logger
+from pierky.ripeatlasmonitor.version import __version__, COPYRIGHT_YEAR
+
+
+def validator_datetime(val):
+    try:
+        return parser.parse(val)
+    except:
+        raise InvalidDateTimeError(
+            "Times must be specified in ISO 8601 format, UTC. "
+            "Example: 2010-10-01T00:00:00 or 2010-10-01"
+        )
+
+def validator_monitorname(val):
+    pat = "[A-Za-z0-9_\-\.]"
+    if not re.match(r"^{}+$".format(pat), val):
+        raise ArgumentError(
+            "Invalid monitor name: {}. It must contain only {}.".format(
+                val, pat
+            )
+        )
+    else:
+        return val
+
+def validator_commaseparated_list_of_int(val):
+    try:
+        ret = val.split(",")
+        assert all(str(_).strip().isdigit() for _ in ret)
+        assert len(ret) > 0
+        return list(map(int, ret))
+    except:
+        raise ArgumentError()
+
+def validator_probes_list(val):
+    try:
+        return validator_commaseparated_list_of_int(val)
+    except ArgumentError:
+        raise ArgumentError(
+            "Invalid list of probe IDs: it must be a comma-separated list "
+            "of integers (example: '157,10006')."
+        )
+
+def validator_country(val):
+    cc = val.strip()
+    if not re.match(r"^[a-zA-Z][a-zA-Z]$", cc):
+        raise ArgumentError(
+            "Invalid country code: {}".format(cc)
+        )
+    return cc.upper()
+
+def validator_countries_list(val):
+    ret = []
+    try:
+        for cc in val.split(","):
+            ret.append(validator_country(cc))
+    except Exception as e:
+        raise ArgumentError(
+            "Invalid list of countries: {}. It must be a comma-separated list "
+            "of two-letter ISO codes.".format(str(e))
+        )
+    return ret
+
+def monitor_list_for_autocomplete():
+    ret = []
+
+    try:
+        Config.load(Config.get_default_path())
+        var_dir = Config.get("var_dir")
+        files = os.listdir("{}/{}".format(var_dir, "monitors"))
+        for f in files:
+            if f.endswith(".yaml"):
+                try:
+                    ret.append(validator_monitorname(f[0:-5]))
+                except:
+                    pass
+        return ret
+    except:
+        return ()
+
+def add_probes_filter_arguments(parser):
+    group = parser.add_argument_group(
+        title="Probes filter",
+        description="Criteria will be combined with the AND boolean operator.")
+
+    group.add_argument(
+        "--probes",
+        help="Comma-separated list of probe ids; only results from "
+             "these probes will be fetched and processed.",
+        type=validator_probes_list,
+        dest="probes")
+
+    group.add_argument(
+        "--countries",
+        help="Comma-separated list of probes' country codes; only results "
+             "of probes from these countries will be processed.",
+        type=validator_countries_list,
+        dest="countries")
+
+def main():
+    monitor_list = monitor_list_for_autocomplete()
+
+    parser = argparse.ArgumentParser(
+        description="RIPE Atlas Monitor v{}: a tool to monitor results "
+                    "collected by RIPE Atlas probes and verify that "
+                    "they match against predefined "
+                    "expectations.".format(__version__),
+        epilog="Copyright (c) {} - Pier Carlo Chiodi - "
+               "https://pierky.com".format(COPYRIGHT_YEAR))
+
+    parser.add_argument(
+        "--cfg",
+        help="Global configuration file. Default: {}".format(
+            Config.get_default_path()
+        ),
+        default=Config.get_default_path(),
+        metavar="cfg_file",
+        dest="cfg_file")
+
+    subparsers = parser.add_subparsers(
+        title="commands",
+        help="Run 'ripe-atlas-monitor <command> -h' for more details.",
+        dest="command")
+    subparsers.required = True
+
+    # init-config
+
+    sub_parser = subparsers.add_parser(
+        "init-config",
+        help="Initialize/edit the global configuration file.")
+
+    # init-monitor command
+
+    sub_parser = subparsers.add_parser(
+        "init-monitor",
+        help="Initialize a new monitor configuration file.")
+
+    sub_parser.add_argument(
+        "-m", "--monitor",
+        required=True,
+        help="Monitor to be created.",
+        metavar="monitor_name",
+        dest="monitor_name")
+
+    sub_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite any existing monitor with the "
+             "brand new configuration template.",
+        dest="force")
+
+    # check-monitor command
+
+    sub_parser = subparsers.add_parser(
+        "check-monitor",
+        help="Verify a monitor configuration file.")
+
+    sub_parser.add_argument(
+        "-m", "--monitor",
+        required=True,
+        type=validator_monitorname,
+        help="Monitor to be verified.",
+        metavar="monitor_name",
+        dest="monitor_name").completer = ChoicesCompleter(monitor_list)
+
+    sub_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Display a description of rules and expected results.",
+        dest="verbose")
+
+    sub_parser.add_argument(
+        "--silent",
+        action="store_true",
+        help="Don't ask user but silently fails.",
+        dest="silent")
+
+    # edit-monitor command
+
+    sub_parser = subparsers.add_parser(
+        "edit-monitor",
+        help="Edit a monitor configuration file with the "
+             "default text editor.")
+
+    sub_parser.add_argument(
+        "-m", "--monitor",
+        required=True,
+        type=validator_monitorname,
+        help="Monitor to edit.",
+        metavar="monitor_name",
+        dest="monitor_name").completer = ChoicesCompleter(monitor_list)
+
+    sub_parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Display a description of rules and expected results.",
+        dest="verbose")
+
+    # run command
+
+    sub_parser = subparsers.add_parser(
+        "run",
+        help="Run a monitor.")
+
+    sub_parser.add_argument(
+        "-m", "--monitor",
+        required=True,
+        type=validator_monitorname,
+        help="Monitor to be used.",
+        metavar="monitor_name",
+        dest="monitor_name").completer = ChoicesCompleter(monitor_list)
+
+    sub_parser.add_argument(
+        "-v", "--verbose",
+        action="count",
+        help="Verbosity level; may be specified multiple times to "
+             "increase value.",
+        dest="verbose")
+
+    group = sub_parser.add_argument_group(
+        title="Monitor configuration override arguments",
+        description="The following arguments can be used "
+                    "to override the options specified in "
+                    "the monitor configuration file.")
+
+    group.add_argument(
+        "--measurement-id",
+        help="Measurement ID.",
+        type=int,
+        metavar="msm_id",
+        dest="measurement_id")
+
+    group.add_argument(
+        "--key",
+        help="RIPE Atlas API key.",
+        metavar="key",
+        dest="key")
+
+    group.add_argument(
+        "--stream",
+        help="Process measurement's results in real-time while they "
+             "are collected by probes. More info here: "
+             "https://atlas.ripe.net/docs/result-streaming/",
+        action="store_true",
+        dest="stream")
+
+    group.add_argument(
+        "--stream-timeout",
+        help="Stop execution if no results are received for "
+             "S seconds.",
+        type=int,
+        metavar="S",
+        dest="stream_timeout")
+
+    add_probes_filter_arguments(sub_parser)
+
+    group = sub_parser.add_argument_group(
+        title="Results timeframe",
+        description="The following arguments can be used only when the "
+                    "results streaming is disabled. By default, for "
+                    "measurements which are still running results are "
+                    "fetched continously every <measurement's interval> "
+                    "seconds, starting from the time of the last received "
+                    "result.")
+
+    group.add_argument(
+        "--start-time",
+        help="Results are fetched starting by this date/time. "
+             "If omitted, results are fetched from the time of the "
+             "last processed result.",
+        type=validator_datetime,
+        metavar="YYYY-MM-DDThh:mm:ss",
+        dest="start_time")
+
+    subgroup = group.add_mutually_exclusive_group()
+
+    subgroup.add_argument(
+        "--stop-time",
+        help="Results are fetched up to this date/time.",
+        type=validator_datetime,
+        metavar="YYYY-MM-DDThh:mm:ss",
+        dest="stop_time")
+
+    subgroup.add_argument(
+        "--dont-wait",
+        action="store_true",
+        help="For measurements which are still running, fetch results but "
+             "don't wait for the measurement's interval before processing "
+             "new results again.",
+        dest="dont_wait")
+
+    group.add_argument(
+        "-l", "--latest",
+        action="store_true",
+        help="Retrieve only the latest results.",
+        dest="latest_results"
+    )
+
+    # daemonize command
+
+    sub_parser = subparsers.add_parser(
+        "daemonize",
+        help="Run one or more monitors and go to background.")
+
+    sub_parser.add_argument(
+        "-m", "--monitor",
+        action="append",
+        required=True,
+        type=validator_monitorname,
+        help="Monitor(s) to be used. Use multiple times to run more "
+             "than one monitor.",
+        metavar="monitor_name",
+        dest="monitor_name").completer = ChoicesCompleter(monitor_list)
+
+    sub_parser.add_argument(
+        "-v", "--verbose",
+        action="count",
+        help="Verbosity level; may be specified multiple times to "
+             "increase value.",
+        dest="verbose")
+
+    # analyze command
+
+    sub_parser = subparsers.add_parser(
+        "analyze",
+        help="Analyze a measurement's results.")
+
+    group = sub_parser.add_mutually_exclusive_group(required=True)
+
+    group.add_argument(
+        "-m", "--monitor",
+        type=validator_monitorname,
+        help="Monitor to be used to gather measurement's ID to analyze.",
+        metavar="monitor_name",
+        dest="monitor_name").completer = ChoicesCompleter(monitor_list)
+
+    group.add_argument(
+        "--measurement-id",
+        help="Measurement ID.",
+        type=int,
+        metavar="msm_id",
+        dest="measurement_id")
+
+    sub_parser.add_argument(
+        "--key",
+        help="RIPE Atlas API key.",
+        metavar="key",
+        dest="key")
+
+    add_probes_filter_arguments(sub_parser)
+
+    group = sub_parser.add_argument_group(
+        title="Statistics and aggregate results options")
+
+    group.add_argument(
+        "--show-all-rtts",
+        help="Show the full list of RTTs, even if very long.",
+        action="store_true",
+        dest="show_full_rtts")
+
+    group.add_argument(
+        "--show-all-aspaths",
+        help="Show the full list of AS paths, even if very long.",
+        action="store_true",
+        dest="show_full_aspaths")
+
+    group.add_argument(
+        "--show-all-dest-asns",
+        help="Show the full list of destination ASNs, even if very long.",
+        action="store_true",
+        dest="show_full_destasn")
+
+    group.add_argument(
+        "--show-all-upstream-asns",
+        help="Show the full list of upstream ASNs, even if very long.",
+        action="store_true",
+        dest="show_full_upstreamasn")
+
+    group.add_argument(
+        "--show-all-edns-nsid",
+        help="Show the full list of EDNS NSID options, even if very long.",
+        action="store_true",
+        dest="show_full_edns_nsid")
+
+    group.add_argument(
+        "--show-stats",
+        action="store_true",
+        help="Show statistics about probes distribution by country and "
+             "by source AS.",
+        dest="show_stats")
+
+    group.add_argument(
+        "--top-countries",
+        type=int,
+        help="Produce individual reports for the N top most probes-populated "
+             "countries.",
+        metavar="N",
+        dest="top_countries")
+
+    group.add_argument(
+        "--top-asns",
+        type=int,
+        help="Produce individual reports for the N top most probes-populated "
+             "source ASNs.",
+        metavar="N",
+        dest="top_asns")
+
+    argcomplete.autocomplete(parser)
+
+    args = parser.parse_args()
+
+    if args.command == "init-config":
+        module = import_module("pierky.ripeatlasmonitor.commands.init_config")
+        return module.execute(args)
+
+    Config.load(args.cfg_file)
+    Config.verify_dirs()
+
+    if args.command in ("init-monitor", "check-monitor", "edit-monitor" ):
+        module_name = "pierky.ripeatlasmonitor.commands.monitors_management"
+        module = import_module(module_name)
+        return module.execute(args)
+
+    elif args.command == "analyze":
+        module_name = "pierky.ripeatlasmonitor.commands.analyze"
+        module = import_module(module_name)
+        return module.execute(args)
+
+    elif args.command in ["run", "daemonize"]:
+        module_name = "pierky.ripeatlasmonitor.commands.run"
+        module = import_module(module_name)
+        return module.execute(args)
+
+try:
+    sys.exit(main())
+except RIPEAtlasMonitorError as e:
+    logger.error(e)
+    sys.exit(1)
+except Exception as e:
+    logger.error(e, exc_info=True)
+    sys.exit(1)
