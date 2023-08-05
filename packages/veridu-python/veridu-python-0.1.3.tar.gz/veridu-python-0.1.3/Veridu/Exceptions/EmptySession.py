@@ -1,0 +1,2 @@
+class EmptySession(Exception):
+    pass

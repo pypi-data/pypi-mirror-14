@@ -1,0 +1,2 @@
+class NonceMismatch(Exception):
+    pass
