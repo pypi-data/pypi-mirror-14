@@ -1,0 +1,5 @@
+base116676
+
+A library to cram data in the fewest number of code points humanly possible.
+
+
