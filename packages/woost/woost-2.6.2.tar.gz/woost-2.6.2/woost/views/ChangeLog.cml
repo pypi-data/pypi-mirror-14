@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from collections import Counter
+from cocktail.stringutils import normalize
+from cocktail import schema
+from cocktail.html.uigeneration import UIGenerator
+from woost.models import (
+    ChangeSet,
+    Change,
+    ReadMemberPermission,
+    get_current_user
+)
+from woost.views.uigeneration import backoffice_display
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates"
+    py:mixins="UIGenerator">
+
+    <?py-class
+    items = None
+    language_subset = None
+    exclude_member = None
+    changes = None
+    changesets = None
+    base_ui_generators = [backoffice_display]
+    show_all_changes = True
+    show_implicit_changes = False
+    show_diffs = True
+    change_grouping_threshold = 5
+
+    action_order = {
+        "create": 1,
+        "modify": 2,
+        "delete": 3
+    }
+
+    def create_member_display(self, obj, member, value, **context):
+        context.setdefault("icon_visible", False)
+        return UIGenerator.create_member_display(self, obj, member, value, **context)
+
+    def get_revision_schema(self, model):
+        try:
+            return self.__revision_schemas[model]
+        except KeyError:
+            rev_schema = self.create_revision_schema(model)
+            self.__revision_schemas[model] = rev_schema
+            return rev_schema
+
+    def get_revision_adapter(self, model):
+        try:
+            return self.__revision_adapters[model]
+        except KeyError:
+            adapter = self.create_revision_adapter(model)
+            self.__revision_adapters[model] = adapter
+            return adapter
+
+    def create_revision_schema(self, model):
+        adapter = self.get_revision_adapter(model)
+        return adapter.export_schema(model)
+
+    def create_revision_adapter(self, model):
+        adapter = schema.Adapter()
+        user = get_current_user()
+        adapter.exclude([
+            member.name
+            for member in model.iter_members()
+            if
+                not member.visible
+                or not member.versioned
+                or not user.has_permission(
+                    ReadMemberPermission,
+                    member = member
+                )
+        ])
+        return adapter
+    ?>
+
+    <?py
+    self.add_resource("/resources/styles/ChangeLog.css")
+    self.__revision_schemas = {}
+    self.__revision_adapters = {}
+    ?>
+
+    <py:ready>
+        <?py
+        if self.changes is None and self.items:
+            self.changes = []
+            for item in self.items:
+                self.changes.extend(item.changes)
+
+        if self.changesets is None:
+            if self.changes:
+                changesets = set()
+                changesets.update(change.changeset for change in self.changes)
+                self.changesets = list(changesets)
+                self.changesets.sort(key = lambda changeset: changeset.date)
+                self.changesets.reverse()
+            else:
+                self.changesets = ()
+        ?>
+    </py:ready>
+
+    <ul py:id="changeset_list">
+        <py:ready>
+            <py:new
+                py:element="self.create_changeset_list_entry(changeset)"
+                py:for="changeset in self.changesets"/>
+        </py:ready>
+    </ul>
+
+    <li py:def="changeset_list_entry" py:args="changeset">
+        <div py:local_id="changeset_info">
+            <py:cocktail.html.RelativeTimeDisplay
+                py:local_id="changeset_date_display"
+                py:value="${changeset.date}"
+                py:member="${changeset.__class__.date}"/>
+            <py:new
+                py:local_id="changeset_author_display"
+                py:element="self.create_member_display(changeset, ChangeSet.author, changeset.author)"/>
+        </div>
+        <py:new
+            py:element="self.create_change_list(changeset)"
+            py:local_id="change_list"/>
+    </li>
+
+    <ul py:def="change_list" py:args="changeset">
+        <?py
+        changes = changeset.changes.values()
+
+        if not self.show_all_changes and self.changes:
+            changes = filter(self.changes.__contains__, changes)
+
+        if not self.show_implicit_changes:
+            changes = [change for change in changes if change.is_explicit_change]
+
+        if self.change_grouping_threshold is not None:
+            action_count = Counter()
+            for change in changes:
+                action_count[(change.action, change.target.__class__)] += 1
+            fat_actions = set(
+                key
+                for key, count in action_count.iteritems()
+                if count >= self.change_grouping_threshold
+            )
+            if fat_actions:
+                changes = [change for change in changes if (change.action, change.target.__class__) not in fat_actions]
+                grouped_actions = [(action, model, action_count[(action, model)]) for action, model in fat_actions]
+                grouped_actions.sort(key = lambda entry: self.action_order[entry[0]])
+        else:
+            fat_actions = None
+
+        changes.sort(key = lambda change: (
+            0 if change.is_explicit_change else 1,
+            self.action_order.get(change.action),
+            normalize(translations(change.target))
+        ))
+        ?>
+        <py:new
+            py:element="self.create_change_list_entry(change)"
+            py:for="change in changes"/>
+        <py:new
+            py:if="fat_actions"
+            py:element="self.create_change_list_grouped_entry(action, model, count)"
+            py:for="action, model, count in grouped_actions"/>
+    </ul>
+
+    <li py:def="change_list_entry" py:args="change">
+        <?py
+        element["data-woost-ChangeLog-action"] = change.action
+        element["data-woost-ChangeLog-explicit"] = "true" if change.is_explicit_change else "false"
+        ?>
+        <div py:local_id="change_info">
+            <py:new
+                py:local_id="change_action_display"
+                py:element="self.create_member_display(change, Change.action, change.action)"/>
+            <py:new
+                py:local_id="change_target_display"
+                py:element="self.create_member_display(change, Change.target, change.target)"/>
+        </div>
+
+        <?py
+        state_changes = None
+        if self.show_diffs and change.action == "modify":
+            previous_change = change.get_previous_change()
+            if previous_change is not None:
+
+                def exclude(member):
+
+                    if member.name == "translations":
+                        return True
+
+                    if self.exclude_member:
+                        return self.exclude_member(member)
+
+                    return False
+
+                state_changes = list(
+                    change.diff(
+                        previous_change,
+                        self.get_revision_schema(change.target.__class__),
+                        language_subset = self.language_subset,
+                        exclude = exclude
+                    )
+                )
+        ?>
+
+        <py:woost.views.ObjectDiff
+            py:if="state_changes"
+            py:local_id="change_diff"
+            py:source="${previous_change.item_state}"
+            py:target="${change.item_state}"
+            py:changes="${state_changes}"/>
+    </li>
+
+    <li py:def="change_list_grouped_entry" py:args="action, model, count">
+        <?py
+        element["data-woost-ChangeLog-action"] = action
+        ?>
+        <div py:local_id="change_info">
+            <py:new
+                py:local_id="change_action_display"
+                py:element="self.create_member_display(None, Change.action, action)"/>
+            <span py:local_id="change_targets_display">
+                ${translations("woost.views.ChangeLog.change_list_grouped_entry.change_targets_display", model = model, count = count)}
+            </span>
+        </div>
+    </li>
+
+</div>
+

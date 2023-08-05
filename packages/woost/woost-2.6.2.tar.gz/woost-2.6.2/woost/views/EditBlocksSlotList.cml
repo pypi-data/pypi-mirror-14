@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail.schema import RelationMember
+from woost.models import (
+    get_current_user,
+    Block,
+    ModifyMemberPermission
+)
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    item = None
+    edited_item = None
+    foldable = False
+    visible_languages = ()
+
+    def iter_block_members(self):
+
+        user = get_current_user()
+
+        for member in self.item.__class__.ordered_members():
+            if (
+                not member.visible
+                or not member.editable
+                or not user.has_permission(
+                    ModifyMemberPermission,
+                    member = member
+                )
+            ):
+                continue
+
+            if isinstance(member, RelationMember):
+                related_type = member.related_type
+                if related_type and issubclass(related_type, Block):
+                    yield member
+    ?>
+
+    <?py
+    self.add_resource("/cocktail/scripts/jquery.cookie.js")
+    self.add_resource("/resources/scripts/EditBlocksSlotList.js")
+    ?>
+
+    <py:ready>
+        <?py
+        element.set_client_param("blockParent", self.item.id)
+        if self.foldable:
+            element.add_class("foldable")
+        ?>
+        <py:new
+            py:element="self.create_slot(member)"
+            py:for="member in self.iter_block_members()"/>
+    </py:ready>
+
+    <div py:def="slot" py:args="member">
+        <?py
+        element["id"] = "slot_%d_%s" % (self.item.id, member.name)
+        element.set_client_param("blockSlot", member.name)
+        self._current_slot = member
+        ?>
+        <h3 py:local_id="slot_header">${translations(member)}</h3>
+        <div py:local_id="slot_blocks">
+            <?py
+            value = self.item.get(member)
+
+            if value is None:
+                blocks = ()
+            elif isinstance(value, Block):
+                blocks = (value,)
+            else:
+                blocks = value
+            ?>
+            <py:new
+                py:element="loader.new(block.block_display)"
+                py:block="${block}"
+                py:block_parent="${self.item}"
+                py:block_slot="${member}"
+                py:edited_item="${self.edited_item}"
+                py:visible_languages="${self.visible_languages}"
+                py:for="block in blocks"/>
+
+            <py:woost.views.EditBlocksActionBar
+                py:id="slot_toolbar"
+                py:action_target="${self.item}"
+                py:block_parent="@{self.item}"
+                py:block_slot="${self._current_slot}"
+                py:edited_item="${self.edited_item}">
+                <?py
+                element.action_context.add("blocks_slot_toolbar")
+                ?>
+            </py:woost.views.EditBlocksActionBar>
+        </div>
+    </div>
+
+</div>
+

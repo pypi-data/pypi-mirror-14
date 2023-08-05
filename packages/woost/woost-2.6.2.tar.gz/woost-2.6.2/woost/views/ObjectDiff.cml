@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<?py
+from cocktail import schema
+from woost.views.htmldiff import iter_diff_rows
+?>
+
+<div
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py-class
+    source = None
+    source_accessor = None
+    target = None
+    target_accessor = None
+    changes = None
+    ?>
+
+    <p py:id="no_differences" py:visible="@{not self.changes}">
+        ${translations("woost.views.ObjectDiff.no_differences")}
+    </p>
+
+    <table py:id="differences" py:visible="@{self.changes}">
+        <py:ready>
+            <?py
+            if self.source_accessor is None:
+                self.source_accessor = schema.get_accessor(self.source)
+
+            if self.target_accessor is None:
+                self.target_accessor = schema.get_accessor(self.target)
+
+            diffs = sorted(self.changes, key = lambda diff: (diff[0].name, diff[1]))
+
+            for member, language in diffs:
+                key = member.name
+                source_value = self.source_accessor.get(
+                    self.source,
+                    key,
+                    default = None,
+                    language = language
+                )
+                target_value = self.target_accessor.get(
+                    self.target,
+                    key,
+                    default = None,
+                    language = language
+                )
+
+                for row in iter_diff_rows(
+                    member,
+                    language,
+                    self.source,
+                    self.target,
+                    source_value,
+                    target_value
+                ):
+                    element.append(row)
+            ?>
+        </py:ready>
+    </table>
+
+</div>

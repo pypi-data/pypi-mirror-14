@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<?py
+from itertools import chain
+from cocktail.modeling import extend, call_base
+from cocktail.iteration import is_empty
+from cocktail.schema import Reference
+from cocktail.controllers.viewstate import view_state
+from cocktail.controllers.usercollection import UserCollection
+from cocktail.controllers.userfilter import CollectionFilter
+from cocktail.html.datadisplay import DataDisplay
+from woost.models import (
+    get_current_user,
+    Item,
+    ReadPermission,
+    CreatePermission,
+    ReadMemberPermission
+)
+from woost.views.uigeneration import backoffice_search_control
+from woost.views.contenttypetree import ContentTypeTree
+from woost.controllers.backoffice.editstack import SelectionNode
+?>
+
+<py:cocktail.html.CollectionView
+    xmlns="http://www.w3.org/1999/xhtml"
+    xmlns:py="http://www.whads.com/ns/cocktail/templates">
+
+    <?py
+    self.add_resource("/resources/scripts/ContentView.js")
+    self.add_client_translation("woost.views.ContentView show advanced search")
+    self.add_client_translation("woost.views.ContentView close advanced search")
+    self.add_client_translation("woost.views.ContentView search button")
+
+    self.action_context = set()
+    ?>
+
+    <?py-class
+    referer = None
+    collection_params = None
+    root_content_type = Item
+    edit_stack = None
+    member = None
+    activation_control = ".action_button[data-woost-action='edit']"
+    search_expanded = False
+
+    # User collection settings
+    allow_language_selection = UserCollection.allow_language_selection
+    allow_sorting = UserCollection.allow_sorting
+    allow_filters = UserCollection.allow_filters
+    allow_paging = UserCollection.allow_paging
+    allow_member_selection = UserCollection.allow_member_selection
+    allow_grouping = UserCollection.allow_grouping
+
+    @classmethod
+    def compatible_with(cls, user_collection):
+        return True
+
+    def _init_user_collection(self, user_collection):
+        pass
+
+    def get_new_content_uri(self, content_type):
+        params = {
+            "item_type": content_type.full_name,
+            "edit_stack": self.edit_stack.to_param() if self.edit_stack else None
+        }
+
+        if self.member:
+            params["member"] = self.member.name
+
+        return self.cms.contextual_uri('content', 'new', **params)
+
+    def content_type_is_hidden(self, content_type):
+        user = get_current_user()
+        role = user.roles and user.roles[0]
+        hidden_content_types = role and getattr(role, "hidden_content_types", None)
+        return hidden_content_types is not None and content_type in hidden_content_types
+
+    def content_type_is_selectable(self, content_type):
+        return (
+            not self.content_type_is_hidden(content_type)
+            and get_current_user().has_permission(
+                ReadPermission,
+                target = content_type
+            )
+        )
+
+    def content_type_is_instantiable(self, content_type):
+        return (
+            not self.content_type_is_hidden(content_type)
+            and content_type.visible
+            and content_type.instantiable
+            and get_current_user().has_permission(
+                CreatePermission,
+                target = content_type
+            )
+        )
+
+    def get_visible_content_views(self):
+        return sorted(
+            self.user_collection.available_content_views or [],
+            key = lambda cv: cv.content_view_id
+        )
+
+    excluded_view_state_params = \
+        CollectionView.excluded_view_state_params | frozenset(["ItemSelector-select", "search_expanded"])
+    ?>
+
+    <py:binding>
+        <?py
+        self.action_context.add("content_view")
+        self.action_context.add(self.content_view_id + "_content_view")
+
+        if self.edit_stack and isinstance(self.edit_stack[-1], SelectionNode):
+            self.action_context.add("existing_only")
+        ?>
+    </py:binding>
+
+    <py:ready>
+        <?py
+        self.set_client_param("searchExpanded", self.search_expanded)
+        ?>
+    </py:ready>
+
+    <py:with py:element="self.filters" py:visible="@{self.search_expanded}">
+        <py:ready>
+            <py:with py:element="self.filters_selector"
+                py:if="hasattr(self, 'filters_selector')">
+                <?py
+                @extend(element)
+                def get_discard_filters_state(self):
+                    state = call_base()
+                    state["search_expanded"] = "false"
+                    return state
+                ?>
+                <py:with py:def="filter_ui" py:args="filter">
+                    <?py
+                    element.base_ui_generators = [backoffice_search_control]
+                    ?>
+                </py:with>
+            </py:with>
+        </py:ready>
+    </py:with>
+
+    <py:ready>
+        <?py
+        self.toolbar.connect_selectable(self.collection_display)
+        ?>
+
+        <py:with py:element="self.search_results_message" py:visible="${False}"/>
+
+        <py:with py:element="self.collection_display"
+            py:referer="${self.referer}"
+            py:filters="${self.user_collection.user_filters}"/>
+
+        <?py
+        if self.user_collection.user_filters:
+            user_filter = self.user_collection.user_filters[0]
+            if user_filter.id == "global_search":
+                self.set_client_param("searchQuery", user_filter.value)
+
+        self._instantiable_content_types = set(
+            content_type
+            for content_type in chain(
+                [self.user_collection.type],
+                self.user_collection.type.derived_schemas()
+            )
+            if self.content_type_is_instantiable(content_type)
+        )
+
+        self.set_client_param("contentType", self.user_collection.type.full_name)
+        ?>
+    </py:ready>
+
+    <py:with py:element="self.collection_settings">
+
+        <py:woost.views.ContentTypeSelector
+            py:id="content_type_selector"
+            py:index="0"
+            py:selection="@{self.user_collection.type}"
+            py:types="@{self.root_content_type}"
+            py:plural_labels="${True}"
+            py:required_permission="${None}"
+            py:per_role_types="${False}">
+            <py:ready>
+                <?py
+                content_type = self.user_collection.type
+
+                if content_type is self.root_content_type \
+                and not any(
+                    derived_schema.visible
+                    for derived_schema in content_type.derived_schemas(recursive = False)
+                ):
+                    element.visible = False
+                ?>
+            </py:ready>
+            <py:with
+                py:element="element.button"
+                accesskey="${translations('woost.views.ContentView.content_type_selector.shortcut')}"/>
+            <py:with py:element="element.palette">
+                <?py
+                @extend(element)
+                def get_item_label(palette, content_type):
+                    return translations(content_type.name + "-menu") or call_base(content_type)
+
+                @extend(element)
+                def should_include_type(palette, content_type):
+                    return (
+                        call_base(content_type)
+                        and self.content_type_is_selectable(content_type)
+                    )
+
+                @extend(element)
+                def should_collapse_type(palette, content_type):
+                    return content_type.collapsed_backoffice_menu
+
+                @extend(element)
+                def get_item_url(palette, content_type):
+                    if content_type.skip_listing and not (
+                        self.edit_stack and isinstance(self.edit_stack[-1], SelectionNode)
+                    ):
+                        return "./content/%d" % content_type.instance.id
+                    else:
+                        url = "?type=" + content_type.full_name
+                        # Clear filters and tabs
+                        url += "&filter=&tab="
+                        if self.edit_stack:
+                            url += "&edit_stack=" + self.edit_stack.to_param()
+                        return url
+                ?>
+            </py:with>
+        </py:woost.views.ContentTypeSelector>
+
+        <!-- Content view selector -->
+        <py:cocktail.html.DropdownPanel
+            py:id="content_view_dropdown"
+            py:index="1">
+            <py:with
+                py:element="element.label"
+                accesskey="${translations('woost.views.ContentView.content_view_dropdown.shortcut')}">
+                ${translations("woost.content_views." + self.content_view_id)}
+            </py:with>
+            <py:with py:element="element.panel">
+                <ul py:id="content_view_list">
+                    <py:ready>
+                        <?py
+                        visible_content_views = self.get_visible_content_views()
+                        if len(visible_content_views) < 2:
+                            element.visible = False
+                        else:
+                            for content_view in visible_content_views:
+                                entry = self.create_content_view_entry(content_view)
+                                if content_view.content_view_id == self.content_view_id:
+                                    entry.add_class("selected")
+                                element.append(entry)
+                        ?>
+                    </py:ready>
+                </ul>
+            </py:with>
+        </py:cocktail.html.DropdownPanel>
+
+        <!-- Simple search -->
+        <div py:id="simple_search"
+             py:visible="@{not self.search_expanded and self.user_collection.allow_filters and (self.visible_results or self.allow_empty_search)}">
+
+            <input type="hidden" name="filter" value="global_search"/>
+            <input type="search" name="filter_value0"/>
+
+            <button type="submit" class="advanced_search" name="search_expanded" value="true">
+                ${translations("woost.views.ContentView show advanced search")}
+            </button>
+        </div>
+
+    </py:with>
+
+    <li py:def="content_view_entry" py:args="content_view">
+        <a href="">
+            <?py
+            params = {"content_view": content_view.content_view_id}
+            if not content_view.allow_paging:
+                params["page"] = "0"
+
+            element["href"] = "?" + view_state(**params)
+            ?>
+            ${translations("woost.content_views." + content_view.content_view_id)}
+        </a>
+    </li>
+
+    <!-- Toolbar -->
+    <py:woost.views.ActionBar
+        py:def="toolbar"
+        py:action_target="@{self.user_collection.type}"
+        py:empty_result_set="@{not self.visible_results}"
+        py:collapsible="${True}">
+        <py:binding>
+            <?py
+            element.action_context.add("toolbar")
+            element.action_context.update(self.action_context)
+            ?>
+        </py:binding>
+        <?py
+        @extend(toolbar)
+        def get_actions(toolbar, context):
+            actions = call_base(context)
+            if not self._instantiable_content_types:
+                actions = [action for action in actions if action.id not in ("new", "add_integral")]
+            return actions
+
+        @extend(toolbar)
+        def create_action_button(toolbar, action, extra, action_context):
+            if action.id in ("new", "add_integral"):
+                if len(self._instantiable_content_types) > 1:
+                    button = self.create_new_toolbar_button(action, extra)
+                else:
+                    button = call_base(action, extra, action_context)
+                    button.tag = "a"
+                    del button["name"]
+                    button["href"] = self.get_new_content_uri(list(self._instantiable_content_types)[0])
+            else:
+                button = call_base(action, extra, action_context)
+
+            button.set_client_param("minSelection", action.min)
+            button.set_client_param("maxSelection", action.max)
+            button.set_client_param("ignoresSelection", action.ignores_selection)
+            return button
+        ?>
+    </py:woost.views.ActionBar>
+
+    <!-- New item selector -->
+    <py:woost.views.ContentTypeSelector
+        py:def="new_toolbar_button"
+        py:args="action, extra"
+        py:types="@{self.user_collection.type}"
+        py:required_permission="${None}"
+        py:per_role_types="${False}">
+        <?py
+        element.add_class("action_button")
+        element["data-woost-action"] = "new"
+        ?>
+        <py:with
+            py:element="element.label"
+            accesskey="${translations('woost.actions.' + action.id + '.shortcut')}">
+            <?py
+            element.empty()
+            ?>
+            <py:new
+                py:element="self.toolbar.create_action_image(action, extra)"
+                py:if="self.toolbar.button_images and not extra"/>
+            ${translations("woost.actions." + action.id)}
+        </py:with>
+        <py:with py:element="element.palette">
+            <?py
+            @extend(element)
+            def should_include_type(palette, content_type):
+                return (
+                    call_base(content_type)
+                    and self.content_type_is_instantiable(content_type)
+                )
+
+            @extend(element)
+            def should_collapse_type(palette, content_type):
+                return content_type.collapsed_backoffice_menu
+
+            @extend(element)
+            def get_item_url(palette, content_type):
+                return self.get_new_content_uri(content_type)
+            ?>
+        </py:with>
+    </py:woost.views.ContentTypeSelector>
+
+    <py:woost.views.ActionBar
+        py:id="list_buttons"
+        py:button_images="${False}"
+        py:action_target="@{self.user_collection.type}"
+        class="buttons">
+        <?py
+        element.action_context.add("list_buttons")
+        ?>
+        <py:binding>
+            <?py
+            element.action_context.update(self.action_context)
+            ?>
+        </py:binding>
+    </py:woost.views.ActionBar>
+
+</py:cocktail.html.CollectionView>
