@@ -1,0 +1,215 @@
+..
+      Except where otherwise noted, this document is licensed under Creative
+      Commons Attribution 3.0 License.  You can view the license at:
+
+          https://creativecommons.org/licenses/by/3.0/
+
+.. _implement_strategy_plugin:
+
+=================================
+Build a new optimization strategy
+=================================
+
+Watcher Decision Engine has an external :ref:`strategy <strategy_definition>`
+plugin interface which gives anyone the ability to integrate an external
+strategy in order to make use of placement algorithms.
+
+This section gives some guidelines on how to implement and integrate custom
+strategies with Watcher.
+
+
+Pre-requisites
+==============
+
+Before using any strategy, you should make sure you have your Telemetry service
+configured so that it would provide you all the metrics you need to be able to
+use your strategy.
+
+
+Creating a new plugin
+=====================
+
+First of all you have to:
+
+- Extend :py:class:`~.BaseStrategy`
+- Implement its :py:meth:`~.BaseStrategy.execute` method
+
+Here is an example showing how you can write a plugin called ``DummyStrategy``:
+
+.. code-block:: python
+
+    import uuid
+
+    class DummyStrategy(BaseStrategy):
+
+        DEFAULT_NAME = "dummy"
+        DEFAULT_DESCRIPTION = "Dummy Strategy"
+
+        def __init__(self, name=DEFAULT_NAME, description=DEFAULT_DESCRIPTION):
+            super(DummyStrategy, self).__init__(name, description)
+
+        def execute(self, model):
+            migration_type = 'live'
+            src_hypervisor = 'compute-host-1'
+            dst_hypervisor = 'compute-host-2'
+            instance_id = uuid.uuid4()
+            parameters = {'migration_type': migration_type,
+                          'src_hypervisor': src_hypervisor,
+                          'dst_hypervisor': dst_hypervisor}
+            self.solution.add_action(action_type="migration",
+                                     resource_id=instance_id,
+                                     input_parameters=parameters)
+            # Do some more stuff here ...
+            return self.solution
+
+As you can see in the above example, the :py:meth:`~.BaseStrategy.execute`
+method returns a :py:class:`~.BaseSolution` instance as required. This solution
+is what wraps the abstract set of actions the strategy recommends to you. This
+solution is then processed by a :ref:`planner <planner_definition>` to produce
+an action plan which shall contain the sequenced flow of actions to be
+executed by the :ref:`Watcher Applier <watcher_applier_definition>`.
+
+Please note that your strategy class will be instantiated without any
+parameter. Therefore, you should make sure not to make any of them required in
+your ``__init__`` method.
+
+
+Abstract Plugin Class
+=====================
+
+Here below is the abstract :py:class:`~.BaseStrategy` class that every single
+strategy should implement:
+
+.. autoclass:: watcher.decision_engine.strategy.strategies.base.BaseStrategy
+    :members:
+    :noindex:
+
+
+Add a new entry point
+=====================
+
+In order for the Watcher Decision Engine to load your new strategy, the
+strategy must be registered as a named entry point under the
+``watcher_strategies`` entry point of your ``setup.py`` file. If you are using
+pbr_, this entry point should be placed in your ``setup.cfg`` file.
+
+The name you give to your entry point has to be unique.
+
+Here below is how you would proceed to register ``DummyStrategy`` using pbr_:
+
+.. code-block:: ini
+
+    [entry_points]
+    watcher_strategies =
+        dummy = thirdparty.dummy:DummyStrategy
+
+
+To get a better understanding on how to implement a more advanced strategy,
+have a look at the :py:class:`~.BasicConsolidation` class.
+
+.. _pbr: http://docs.openstack.org/developer/pbr/
+
+Using strategy plugins
+======================
+
+The Watcher Decision Engine service will automatically discover any installed
+plugins when it is restarted. If a Python package containing a custom plugin is
+installed within the same environment as Watcher, Watcher will automatically
+make that plugin available for use.
+
+At this point, Watcher will use your new strategy if you reference it in the
+``goals`` under the ``[watcher_goals]`` section of your ``watcher.conf``
+configuration file. For example, if you want to use a ``dummy`` strategy you
+just installed, you would have to associate it to a goal like this:
+
+.. code-block:: ini
+
+    [watcher_goals]
+    goals = BALANCE_LOAD:basic,MINIMIZE_ENERGY_CONSUMPTION:dummy
+
+
+You should take care when installing strategy plugins. By their very nature,
+there are no guarantees that utilizing them as is will be supported, as
+they may require a set of metrics which is not yet available within the
+Telemetry service. In such a case, please do make sure that you first
+check/configure the latter so your new strategy can be fully functional.
+
+Querying metrics
+----------------
+
+A large set of metrics, generated by OpenStack modules, can be used in your
+strategy implementation. To collect these metrics, Watcher provides a
+`Helper`_ to the Ceilometer API, which makes this API reusable and easier
+to used.
+
+If you want to use your own metrics database backend, please refer to the
+`Ceilometer developer guide`_. Indeed, Ceilometer's pluggable model allows
+for various types of backends.  A list of the available backends is located
+here_. The Ceilosca project is a good example of how to create your own
+pluggable backend.
+
+
+Finally, if your strategy requires new metrics not covered by Ceilometer, you
+can add them through a Ceilometer `plugin`_.
+
+.. _`Helper`: https://github.com/openstack/watcher/blob/master/watcher/metrics_engine/cluster_history/ceilometer.py#L31
+.. _`Ceilometer developer guide`: http://docs.openstack.org/developer/ceilometer/architecture.html#storing-the-data
+.. _`here`: http://docs.openstack.org/developer/ceilometer/install/dbreco.html#choosing-a-database-backend
+.. _`plugin`: http://docs.openstack.org/developer/ceilometer/plugins.html
+.. _`Ceilosca`: https://github.com/openstack/monasca-ceilometer/blob/master/ceilosca/ceilometer/storage/impl_monasca.py
+
+
+Read usage metrics using the Python binding
+-------------------------------------------
+
+You can find the information about the Ceilometer Python binding on the
+OpenStack `ceilometer client python API documentation
+<http://docs.openstack.org/developer/python-ceilometerclient/api.html>`_
+
+To facilitate the process, Watcher provides the ``osc`` attribute to every
+strategy which includes clients to major OpenStack services, including
+Ceilometer. So to access it within your strategy, you can do the following:
+
+.. code-block:: py
+
+    # Within your strategy "execute()"
+    cclient = self.osc.ceilometer
+    # TODO: Do something here
+
+Using that you can now query the values for that specific metric:
+
+.. code-block:: py
+
+    query = None  # e.g. [{'field': 'foo', 'op': 'le', 'value': 34},]
+    value_cpu = cclient.samples.list(
+        meter_name='cpu_util',
+        limit=10, q=query)
+
+
+Read usage metrics using the Watcher Cluster History Helper
+-----------------------------------------------------------
+
+Here below is the abstract ``BaseClusterHistory`` class of the Helper.
+
+.. autoclass:: watcher.metrics_engine.cluster_history.api.BaseClusterHistory
+    :members:
+    :noindex:
+
+
+The following code snippet shows how to create a Cluster History class:
+
+.. code-block:: py
+
+    from watcher.metrics_engine.cluster_history import ceilometer as ceil
+
+    query_history  = ceil.CeilometerClusterHistory()
+
+Using that you can now query the values for that specific metric:
+
+.. code-block:: py
+
+    query_history.statistic_aggregation(resource_id=hypervisor.uuid,
+                                  meter_name='compute.node.cpu.percent',
+                                  period="7200",
+                                  aggregate='avg'
+                                  )
