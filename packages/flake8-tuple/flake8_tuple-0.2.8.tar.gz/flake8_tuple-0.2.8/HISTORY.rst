@@ -1,0 +1,28 @@
+.. :changelog:
+
+History
+-------
+
+0.2.8 (2016-03-09)
+---------------------
+
+* Fixed issue #6 - EOF in multi-line string
+* Added ``test/issues`` for run flake8
+
+
+0.2.7 (2016-03-08)
+---------------------
+
+* Fixed issue #5 - parsing continue beyond ')'
+
+
+0.2.4 (2016-02-29)
+---------------------
+
+* Added support for Python 2.7.x
+
+
+0.1.0 (2015-01-11)
+---------------------
+
+* First release on PyPI.
