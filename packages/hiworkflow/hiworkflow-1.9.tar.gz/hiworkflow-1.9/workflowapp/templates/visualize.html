@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/static/joint.css" />
+    <script src="/static/jquery.min.js"></script>
+    <script src="/static/lodash.min.js"></script>
+    <script src="/static/backbone-min.js"></script>
+    <script src="/static/joint.js"></script>
+	<script src="/static/joint.shapes.org.js"></script>
+</head>
+<body>
+<h1 align="center">{{result.workflowname}}</h1>
+  <div id="myholder"></div>
+  <script type="text/javascript">
+	/*
+	Create a new graph
+	and define the window size
+	*/
+	var graph = new joint.dia.Graph;
+	var paper = new joint.dia.Paper({ el: $('#myholder'), width: 1280, height: 570, model: graph, gridSize: 1 });
+	
+	var state=[];
+	var count_of_states=0;
+	var level=[];
+	var list_for_state_connections1=[];
+	var list_for_state_connections2=[];
+	var list_for_state_connections3=[];
+	var level_count = [];
+	var countSize=[];
+	var positionCountSize=[];
+	var link =[];
+	
+	/*
+	Initialize the required arrays
+	so that they can be used in JavaScript using for loops
+	*/	
+	{% for transition1 in result.transition_list1 %}
+		list_for_state_connections1.push({{transition1}});
+	{% endfor %}
+
+	{% for transition2 in result.transition_list2 %}
+		list_for_state_connections2.push("{{transition2}}");
+	{% endfor %}
+
+	{% for transition3 in result.transition_list3 %}
+		list_for_state_connections3.push({{transition3}});
+	{% endfor %}
+	/*
+	Defining the size of each state and the data held within each one
+	*/
+	{% for states in result.state_list %}
+		data= "{{states}}";
+		state.push( new joint.shapes.basic.Rect({
+		position: { x: 570, y: 50 }, size: { width: 130, height: 50 },
+		attrs: { rect: { fill: 'white' }, text: { text: data, fill: 'black' } }
+		}) );
+		count_of_states++;
+	{% endfor %}
+	
+	/*
+	Sort each list parallely
+	*/
+	
+	for(var i=0 ; i<list_for_state_connections1.length-1; i++)
+		for(var j= 0; j<list_for_state_connections1.length-1; j++)
+			{
+				if(list_for_state_connections1[j]>list_for_state_connections1[j+1])
+					{
+						temp = list_for_state_connections1[j];
+						list_for_state_connections1[j] = list_for_state_connections1[j+1];
+						list_for_state_connections1[j+1] = temp;
+						
+						temp = list_for_state_connections3[j];
+						list_for_state_connections3[j] = list_for_state_connections3[j+1];
+						list_for_state_connections3[j+1] = temp;
+						
+						temp = list_for_state_connections2[j];
+						list_for_state_connections2[j] = list_for_state_connections2[j+1];
+						list_for_state_connections2[j+1] = temp;
+					}
+			}
+	/*
+	Loop to check and feed the 
+	level of each state into level_count[]
+	*/
+	level_count[0]=0;
+	level_count = functionX(level_count);
+	
+	function functionX(level_count)
+	{
+		for(var iterator = 0; iterator<list_for_state_connections1.length; iterator++)
+		{
+			if(isNaN(level_count[list_for_state_connections3[iterator]]) || ((level_count[list_for_state_connections1[iterator]]+1)>level_count[list_for_state_connections3[iterator]]))
+				level_count[list_for_state_connections3[iterator]]=level_count[list_for_state_connections1[iterator]]+1;
+		}
+		are_all_numbers = 0;
+		for(var iterator = 0; iterator<count_of_states; iterator++)
+		{
+			if(isNaN(level_count[iterator]))
+				are_all_numbers++;			
+		}
+		if( are_all_numbers >1 )
+			{
+			level_count = functionX(level_count);
+			}
+		return level_count;
+	}
+	var max = 0;
+	var index = -1;
+	
+	for(var iterator = 0; iterator<count_of_states; iterator++)
+	{
+		if(isNaN(level_count[iterator]))
+			{
+			index = iterator;
+			}
+		else if(level_count[iterator]>max)
+			max = level_count[iterator];
+	}
+	
+	if(isNaN(level_count[count_of_states-1]))
+		level_count[count_of_states-1] = max+1;
+	else if( index != -1)
+		level_count[index] = max+1;
+	
+	
+	/*
+	Defining the number of states on same level.
+	This will be used to generate the position of states.
+	*/
+	for (var iterator=0; iterator<count_of_states;iterator++ )
+		{
+			countSize[iterator]=0;
+			positionCountSize[iterator]=0;
+		}
+	
+	for (var iterator=0; iterator<count_of_states ; iterator++)
+		{
+				countSize[level_count[iterator]]++;
+		}
+	
+	for (var iterator=0; iterator<count_of_states ; iterator++)
+	{
+		positionCountSize[iterator]=((countSize[iterator]/2)+1)*250;
+		if(countSize[iterator]!=1)
+			countSize[iterator]++;
+	}
+	
+	/*
+	Generating the position of states.
+	*/
+	for (var iterator=0; iterator<count_of_states ; iterator++)
+	{
+		if(countSize[level_count[iterator]]>1)
+		{
+			state[iterator].translate(-positionCountSize[level_count[iterator]]+countSize[level_count[iterator]]*200, level_count[iterator]*100);
+			countSize[level_count[iterator]]--;
+		}
+		else
+		{
+			state[iterator].translate(0, level_count[iterator]*100);
+		}
+	}
+	
+	/*
+	Linking states with predecessors
+	*/
+	iterator=0;
+	{% for transition1 in result.transition_list1 %}
+			link.push(element = new joint.dia.Link({
+			source: { id: state[list_for_state_connections1[iterator]].id },
+			target: { id: state[list_for_state_connections3[iterator]].id },
+			labels: [{ position: 0.5, attrs: { text: { text: list_for_state_connections2[iterator] } } }],
+			}) );
+			
+			element.attr({
+				   '.marker-target': { fill: 'black', d: 'M 10 0 L 0 5 L 10 10 z' }
+				});
+			
+			iterator++;
+	{% endfor %}
+		
+	/*
+	Displaying the linkages on the graph
+	*/
+	
+	iterator = 0;
+	{% for transition1 in result.transition_list1 %}		
+		graph.addCells([state[ list_for_state_connections1[iterator] ], state[ list_for_state_connections3[iterator] ] , link[ iterator ]]);
+		iterator++;
+	{% endfor %}
+  </script>
+</body>
+</html>
