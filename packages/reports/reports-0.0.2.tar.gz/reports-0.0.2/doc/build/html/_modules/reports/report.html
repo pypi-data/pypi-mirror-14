@@ -1,0 +1,426 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>reports.report &mdash; Reports 0.0.2 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Reports 0.0.2 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Reports
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                Current version: 0.0.2
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">1. References</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">Reports</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+    <li>reports.report</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for reports.report</h1><div class="highlight"><pre>
+<span class="c1"># coding=utf-8</span>
+<span class="c1"># -*- python -*-</span>
+<span class="c1">#</span>
+<span class="c1">#  This file is part of report software</span>
+<span class="c1">#</span>
+<span class="c1">#  Copyright (c) 2016</span>
+<span class="c1">#  All rights reserved</span>
+<span class="c1">#</span>
+<span class="c1">#  File author(s): Thomas Cokelaer &lt;cokelaer@gmail.com&gt;</span>
+<span class="c1">#</span>
+<span class="c1">#  Distributed under the BSD 3-Clause License.</span>
+<span class="c1">#  See accompanying file LICENSE.txt distributed with this software</span>
+<span class="c1">#</span>
+<span class="c1">##############################################################################</span>
+<span class="sd">&quot;&quot;&quot;Base classes to create HTML reports easily&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">glob</span>
+
+<span class="kn">import</span> <span class="nn">easydev</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">jinja2.environment</span> <span class="kn">import</span> <span class="n">Environment</span>
+<span class="kn">from</span> <span class="nn">jinja2</span> <span class="kn">import</span> <span class="n">FileSystemLoader</span>
+
+<span class="kn">from</span> <span class="nn">.htmltable</span> <span class="kn">import</span> <span class="n">HTMLTable</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Report&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_get_report_version</span><span class="p">():</span>
+    <span class="c1"># cannot use from report import version since it imports the module (not the</span>
+    <span class="c1"># package) due to identical name. Hopefully, easydev does help:        </span>
+    <span class="n">deps</span> <span class="o">=</span> <span class="n">easydev</span><span class="o">.</span><span class="n">get_dependencies</span><span class="p">(</span><span class="s1">&#39;reports&#39;</span><span class="p">)</span>
+    <span class="n">index</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">project_name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">deps</span><span class="p">]</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;reports&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">deps</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">version</span>
+
+
+<div class="viewcode-block" id="Report"><a class="viewcode-back" href="../../references.html#reports.report.Report">[docs]</a><span class="k">class</span> <span class="nc">Report</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A base class to create HTML pages</span>
+
+<span class="sd">    The :class:`Report` is used to </span>
+
+<span class="sd">    #. fetch Jinja templates and css from a user directory (by default a generic</span>
+<span class="sd">       set of files is provided as an example</span>
+<span class="sd">    #. fetch the CSS and images</span>
+<span class="sd">    #. hold variables and contents within a dictionary (:attr:`jinja`)</span>
+<span class="sd">    #. Create the HTML document in a local directory.</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        from report import Report</span>
+<span class="sd">        r = Report()</span>
+<span class="sd">        r.create_report(onweb=True)</span>
+
+<span class="sd">    The next step is for you to copy the templates in a new directory, edit them</span>
+<span class="sd">    and fill the :attr:`jinja` attribute to fulfil your needs::</span>
+
+
+<span class="sd">        from report import Report</span>
+<span class="sd">        r = Report(&quot;myreport_templates&quot;)</span>
+<span class="sd">        r.jinja[&quot;section1&quot;] = &quot;&lt;h1&gt;&lt;/h1&gt;&quot; </span>
+<span class="sd">        r.create_report() </span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">template_path</span><span class="o">=</span><span class="s2">&quot;generic&quot;</span><span class="p">,</span>
+                <span class="n">filename</span><span class="o">=</span><span class="s1">&#39;index.html&#39;</span><span class="p">,</span> <span class="n">directory</span><span class="o">=</span><span class="s1">&#39;report&#39;</span><span class="p">,</span>
+                 <span class="n">overwrite</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> 
+                <span class="n">template_filename</span><span class="o">=</span><span class="s1">&#39;index.html&#39;</span><span class="p">,</span> <span class="n">css_path</span><span class="o">=</span><span class="s2">&quot;generic&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;.. rubric:: Constructor</span>
+
+
+<span class="sd">        :param template_path: where to find the templates. If not provided, uses</span>
+<span class="sd">            the generic version</span>
+<span class="sd">        :param filename: default to **index.html**</span>
+<span class="sd">        :param directory: defaults to **report**</span>
+<span class="sd">        :param overwrite: default to True</span>
+<span class="sd">        :param verbose: default to True</span>
+<span class="sd">        :param dependencies: add the dependencies table at the end of the</span>
+<span class="sd">            document if True.</span>
+<span class="sd">        :param template_filename: entry point of the jinja code</span>
+<span class="sd">        :param template_path: where to find the templates. If not provided, uses</span>
+<span class="sd">            the generic version</span>
+
+<span class="sd">        a template directory should contain a set of jinja files including</span>
+<span class="sd">        *template_filename*. </span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_directory</span> <span class="o">=</span> <span class="n">directory</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_filename</span> <span class="o">=</span> <span class="n">filename</span>
+
+        <span class="c1"># This contains the sections and their names when</span>
+        <span class="c1"># method add_section is used</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sections</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">section_names</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1">#: flag to add dependencies</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_dependencies</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="s1">&#39;Title undefined&#39;</span>
+
+        <span class="c1"># For jinja2 inheritance, we need to use the environment</span>
+        <span class="c1"># to indicate where are the parents&#39; templates</span>
+        <span class="k">if</span> <span class="n">template_path</span>  <span class="o">==</span> <span class="s2">&quot;generic&quot;</span><span class="p">:</span>
+            <span class="n">share_path</span> <span class="o">=</span> <span class="n">easydev</span><span class="o">.</span><span class="n">get_shared_directory_path</span><span class="p">(</span><span class="s1">&#39;reports&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">template_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">share_path</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> 
+                <span class="s1">&#39;templates&#39;</span><span class="p">,</span> <span class="s2">&quot;generic&quot;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">template_path</span> <span class="o">=</span> <span class="n">template_path</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">env</span> <span class="o">=</span> <span class="n">Environment</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">loader</span> <span class="o">=</span> <span class="n">FileSystemLoader</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">template_path</span><span class="p">)</span>
+
+        <span class="c1"># use template provided inside gdsctools</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">template</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">get_template</span><span class="p">(</span><span class="n">template_filename</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">jinja</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;time_now&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_time_now</span><span class="p">(),</span>
+                <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">,</span>
+                <span class="s1">&#39;dependencies&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_table_dependencies</span><span class="p">()</span><span class="o">.</span><span class="n">to_html</span><span class="p">(),</span>
+                <span class="s2">&quot;report_version&quot;</span><span class="p">:</span> <span class="n">_get_report_version</span><span class="p">()</span>
+                <span class="p">}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_to_create</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;images&#39;</span><span class="p">,</span> <span class="s1">&#39;css&#39;</span><span class="p">,</span> <span class="s1">&#39;js&#39;</span><span class="p">,]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_init_report</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_get_filename</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_filename</span>
+    <span class="k">def</span> <span class="nf">_set_filename</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_filename</span> <span class="o">=</span> <span class="n">filename</span>
+    <span class="n">filename</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_filename</span><span class="p">,</span> <span class="n">_set_filename</span><span class="p">,</span>
+        <span class="n">doc</span><span class="o">=</span><span class="s2">&quot;The filename of the HTML document&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_directory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_directory</span>
+    <span class="k">def</span> <span class="nf">_set_directory</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">directory</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_directory</span> <span class="o">=</span> <span class="n">directory</span>
+    <span class="n">directory</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_directory</span><span class="p">,</span> <span class="n">_set_directory</span><span class="p">,</span>
+            <span class="n">doc</span><span class="o">=</span><span class="s2">&quot;The directory where to save the HTML document&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_abspath</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">filename</span>
+    <span class="n">abspath</span> <span class="o">=</span> <span class="nb">property</span><span class="p">(</span><span class="n">_get_abspath</span><span class="p">,</span>
+            <span class="n">doc</span><span class="o">=</span><span class="s2">&quot;The absolute path of the document (read only)&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_init_report</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;create the report directory and return the directory name&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sections</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">section_names</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># if the directory already exists, print a warning</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span><span class="p">:</span>
+                    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Created directory {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">))</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">)</span>
+            <span class="c1"># list of directories created in the constructor</span>
+            <span class="k">for</span> <span class="n">this</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_to_create</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">this</span><span class="p">)</span>
+                <span class="k">except</span><span class="p">:</span>
+                    <span class="k">pass</span> <span class="c1"># already created ?</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">temp_path</span> <span class="o">=</span> <span class="n">easydev</span><span class="o">.</span><span class="n">get_shared_directory_path</span><span class="p">(</span><span class="s2">&quot;reports&quot;</span><span class="p">)</span>
+
+            <span class="n">filenames</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">template_path</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="s2">&quot;*css&quot;</span><span class="p">)</span>
+            <span class="n">filenames</span> <span class="o">+=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">temp_path</span><span class="p">,</span> <span class="s2">&quot;data&quot;</span><span class="p">,</span> <span class="s2">&quot;css&quot;</span><span class="p">,</span> <span class="s2">&quot;*css&quot;</span><span class="p">]))</span>
+
+            <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">filenames</span><span class="p">:</span>
+                <span class="n">target</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">,</span> <span class="s1">&#39;css&#39;</span> <span class="p">])</span>
+                <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">target</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;sorttable.js&#39;</span><span class="p">,</span> <span class="s1">&#39;highlight.pack.js&#39;</span><span class="p">]:</span>
+                <span class="n">target</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">,</span> <span class="s1">&#39;js&#39;</span><span class="p">,</span> <span class="n">filename</span> <span class="p">])</span>
+                <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">target</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">False</span><span class="p">:</span>
+                    <span class="n">filename</span> <span class="o">=</span> <span class="n">easydev</span><span class="o">.</span><span class="n">get_share_file</span><span class="p">(</span><span class="s2">&quot;reports&quot;</span><span class="p">,</span> <span class="s2">&quot;data&quot;</span><span class="p">,</span>
+                        <span class="n">filename</span><span class="p">)</span>
+                    <span class="n">shutil</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Report.to_html"><a class="viewcode-back" href="../../references.html#reports.report.Report.to_html">[docs]</a>    <span class="k">def</span> <span class="nf">to_html</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">jinja</span><span class="p">[</span><span class="s1">&#39;time_now&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_time_now</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">template</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">jinja</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Report.write"><a class="viewcode-back" href="../../references.html#reports.report.Report.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">abspath</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_html</span><span class="p">()</span>
+            <span class="n">fh</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">data</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Report.onweb"><a class="viewcode-back" href="../../references.html#reports.report.Report.onweb">[docs]</a>    <span class="k">def</span> <span class="nf">onweb</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Open the HTML document in a browser&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">easydev</span> <span class="kn">import</span> <span class="n">onweb</span>
+        <span class="n">onweb</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">abspath</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Report.create_report"><a class="viewcode-back" href="../../references.html#reports.report.Report.create_report">[docs]</a>    <span class="k">def</span> <span class="nf">create_report</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">onweb</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">onweb</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">onweb</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Report.get_time_now"><a class="viewcode-back" href="../../references.html#reports.report.Report.get_time_now">[docs]</a>    <span class="k">def</span> <span class="nf">get_time_now</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a time stamp&quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">datetime</span>
+        <span class="kn">import</span> <span class="nn">getpass</span>
+        <span class="n">username</span> <span class="o">=</span> <span class="n">getpass</span><span class="o">.</span><span class="n">getuser</span><span class="p">()</span>
+        <span class="c1"># this is not working on some systems: os.environ[&quot;USERNAME&quot;]</span>
+        <span class="n">timenow</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">())</span>
+        <span class="n">timenow</span> <span class="o">=</span> <span class="n">timenow</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;&lt;div class=&quot;date&quot;&gt;Created on &#39;</span> <span class="o">+</span> <span class="n">timenow</span>
+        <span class="n">msg</span> <span class="o">+=</span> <span class="s2">&quot; by &quot;</span> <span class="o">+</span> <span class="n">username</span> <span class="o">+</span><span class="s1">&#39;&lt;/div&gt;&#39;</span>
+        <span class="k">return</span> <span class="n">msg</span></div>
+
+<div class="viewcode-block" id="Report.get_table_dependencies"><a class="viewcode-back" href="../../references.html#reports.report.Report.get_table_dependencies">[docs]</a>    <span class="k">def</span> <span class="nf">get_table_dependencies</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns dependencies of the pipeline as an HTML/XML table</span>
+
+<span class="sd">        The dependencies are the python dependencies as returned by</span>
+<span class="sd">        pkg_resource module.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dependencies</span> <span class="o">=</span> <span class="n">easydev</span><span class="o">.</span><span class="n">get_dependencies</span><span class="p">(</span><span class="s2">&quot;reports&quot;</span><span class="p">)</span>
+        <span class="c1"># TODO: Could re-use new method in HTMLTable for adding href</span>
+        <span class="c1"># but needs some extra work in the add_href method.</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">project_name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">dependencies</span><span class="p">]</span>
+        <span class="n">versions</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">version</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">dependencies</span><span class="p">]</span>
+        <span class="n">links</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;&quot;&quot;https://pypi.python.org/pypi/</span><span class="si">%s</span><span class="s2">&quot;&quot;&quot;</span> <span class="o">%</span> <span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">names</span><span class="p">]</span>
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span>
+            <span class="s1">&#39;package&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;&quot;&quot;&lt;a href=&quot;</span><span class="si">%s</span><span class="s2">&quot;&gt;</span><span class="si">%s</span><span class="s2">&lt;/a&gt;&quot;&quot;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">links</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">p</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">names</span><span class="p">)],</span>
+            <span class="s1">&#39;version&#39;</span><span class="p">:</span> <span class="n">versions</span><span class="p">})</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">HTMLTable</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;dependencies&quot;</span><span class="p">,</span> <span class="n">escape</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="n">table</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="s1">&#39;package&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">table</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright Thomas Cokelaer, 2016.
+      Last updated on Mar 07, 2016.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'0.0.2',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="../../_static/copybutton.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
