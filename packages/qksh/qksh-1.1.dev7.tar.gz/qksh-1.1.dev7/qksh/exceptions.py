@@ -1,0 +1,1 @@
+# exception class goes here.
