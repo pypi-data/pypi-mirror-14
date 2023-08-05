@@ -1,0 +1,1 @@
+from .joke import get_a_joke
