@@ -1,0 +1,418 @@
+#!/usr/bin/env python
+"""
+OPAL Admin script.
+In which we expose useful commandline functionality to our users.
+"""
+import argparse
+import inspect
+import os
+import shutil
+import subprocess
+import sys
+
+import ffs
+from ffs import nix
+from ffs.contrib import mold
+
+import opal
+
+USERLAND_HERE    = ffs.Path('.').abspath
+SCRIPT_HERE      = ffs.Path(__file__).parent
+OPAL             = ffs.Path(opal.__file__).parent
+SCAFFOLDING_BASE = OPAL/'scaffolding'
+SCAFFOLD         = SCAFFOLDING_BASE/'scaffold'
+PLUGIN_SCAFFOLD  = SCAFFOLDING_BASE/'plugin_scaffold'
+TRAVIS           = os.environ.get('TRAVIS', False)
+
+def _find_application_name():
+    """
+    Return the name of the current OPAL application
+    """
+    for d in  USERLAND_HERE.ls():
+        if d.is_dir:
+            if d/'settings.py':
+                return d[-1]
+
+    print "\n\nCripes!\n"
+    print "We can't figure out what the name of your application is :(\n"
+    print "Are you in the application root directory? \n\n"
+    sys.exit(1)
+
+def _set_settings_module(name):
+    os.environ['DJANGO_SETTINGS_MODULE'] = '{0}.settings'.format(name)
+    if '.' not in sys.path:
+        sys.path.append('.')
+    import django
+    django.setup()
+    return
+
+def interpolate_dir(directory, **context):
+    """
+    Recursively iterate through .jinja2 files below DIRECTORY, rendering them as
+    files with CONTEXT.
+    """
+    # Frist, let's deal with files at our current level.
+    for t in directory.ls('*.jinja2', all=True):
+        realname = str(t[-1]).replace('.jinja2', '')
+        target = t[:-1]/realname
+        target << mold.cast(t, **context)
+        os.remove(t)
+
+    # OK. Now let's dive in.
+    for t in directory.ls():
+        if t.is_dir:
+            interpolate_dir(t, **context)
+    return
+
+def startproject(args):
+    """
+    In which we perform the steps required to start a new OPAL project.
+
+    1. Run Django' Startproject
+    2. Create a data/lookuplists dir
+    3. Copy across the scaffolding directory
+    4. Interpolate our project data into the templates.
+    5. Swap our scaffold app with the Django created app
+    6. Interpolate the code templates from our scaffold app
+    7. Create extra directories we need
+    8. Run Django's migrations
+    9. Create a superuser
+    10. Create a Sample team
+    11. Initialise our git repo
+    """
+    name = args.name
+
+    project_dir = USERLAND_HERE/name
+    if project_dir:
+        print "\n\nDirectory", project_dir, "already exists !"
+        print "Please remove it or choose a new name.\n\n"
+        sys.exit(1)
+
+    # 1. Run Django Startproject
+    print "Creating project dir at {0}".format(project_dir)
+    os.system('django-admin.py startproject {0}'.format(name))
+
+    print "Bootstrapping your OPAL project..."
+
+    # 2. Create empty directories
+    lookuplists = project_dir/'data/lookuplists'
+    lookuplists.mkdir()
+
+    # 3. Copy across the scaffold
+    with SCAFFOLD:
+        for p in SCAFFOLD.ls():
+            target = project_dir/p[-1]
+            p.cp(target)
+
+    # Dotfiles need their dot back
+    gitignore = project_dir/'gitignore'
+    gitignore.mv(project_dir/'.gitignore')
+
+
+    # 3. Interpolate the project data
+    # !!! TODO: make this a reals secret key please!
+    interpolate_dir(project_dir, name=name, secret_key='foobarbaz')
+
+    app_dir = project_dir/name
+
+    # 5. Django Startproject creates some things - let's kill them &
+    # replace with our own things.
+    nix.rm(app_dir, recursive=True, force=True)
+    nix.mv(project_dir/'app', app_dir)
+
+    # 7. Create extra directories we need
+    js = app_dir/'assets/js/{0}'.format(name)
+    css = app_dir/'assets/css'
+    js.mkdir()
+    css.mkdir()
+    nix.mv(app_dir/'static/js/app/routes.js', app_dir/'assets/js/{0}/routes.js'.format(name))
+    nix.rm_r(app_dir/'static')
+
+    templates = app_dir/'templates'/name
+    templates.mkdir()
+
+    def manage(command):
+        args = ['python', '{0}/manage.py'.format(name)]
+        args += command.split()
+        args.append('--traceback')
+
+        # os.system('python {name}/manage.py {command} --traceback'.format(
+        #     name=name, command=command))
+
+        try:
+            subprocess.check_call(args)
+        except subprocess.CalledProcessError:
+            sys.exit(1)
+        return
+
+    # 8. Run Django's migrations
+    print 'Creating Database'
+    manage('makemigrations {0}'.format(name))
+    manage('migrate')
+
+    # 9. Create a superuser
+    sys.path.append(os.path.join(os.path.abspath('.'), name))
+    _set_settings_module(name)
+
+    from django.contrib.auth.models import User
+    user = User(username='super')
+    user.set_password('super1')
+    user.is_superuser = True
+    user.is_staff = True
+    user.save()
+    from opal.models import UserProfile
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+    profile.force_password_change = False
+    profile.save()
+
+    # 10. Create sample team
+    from opal.models import Team
+    Team.objects.create(
+        name='teamone',
+        title='Team 1',
+        active=True,
+        restricted=False,
+        direct_add=True
+    )
+
+    # 11. Initialise git repo
+    os.system('cd {0}; git init'.format(name))
+    return
+
+
+def startplugin(args):
+    """
+    The steps to create our plugin are:
+
+    * Copy across the scaffold to our plugin directory
+    * Interpolate our name into the appropriate places.
+    * Rename the code dir
+    * Create template/static directories
+    """
+    name = args.name
+
+    print 'Bootstrapping "{0}" - your new OPAL plugin...'.format(name)
+
+    if 'opal' in name:
+        reponame = name
+        name = name.replace('opal-', '')
+    else:
+        reponame = 'opal-{0}'.format(name)
+
+    root = USERLAND_HERE/reponame
+
+    # 1. Copy across scaffold
+    shutil.copytree(PLUGIN_SCAFFOLD, root)
+
+    # 2n. Interpolate scaffold
+    interpolate_dir(root, name=name)
+
+    # 3. Rename the code dir
+    code_root = root/name
+    nix.mv(root/'app', code_root)
+
+    # 4. Create some extra directories.
+    templates = code_root/'templates'
+    templates.mkdir()
+    static = code_root/'static'
+    static.mkdir()
+    jsdir = static/'js/{0}'.format(name)
+    jsdir.mkdir()
+    controllers = jsdir/'controllers'
+    controllers.mkdir()
+    services = jsdir/'services'
+    services.mkdir()
+    return
+
+def _strip_non_user_fields(schema):
+    exclude = ['created', 'updated', 'created_by_id', 'updated_by_id', 'consistency_token']
+    return [f for f in schema if f['name'] not in exclude]
+
+def _get_template_dir_from_record(record):
+    """
+    Given a RECORD, return it's relative template dir
+    """
+    modelsfile = inspect.getfile(record)
+    if modelsfile.endswith('.pyc'):
+        modelsfile = modelsfile.replace('.pyc', '.py')
+    appdir = ffs.Path(modelsfile)[:-1]
+    templates = appdir/'templates'
+    return templates
+
+def _create_display_template_for(record):
+    """
+    Create a display template for RECORD.
+    """
+    print 'Creating display template for', record
+    from opal.utils import camelcase_to_underscore
+    name = camelcase_to_underscore(record.__name__)
+
+    # 1. Locate the records template directory
+    templates = _get_template_dir_from_record(record)
+    records = templates/'records'
+    if not records:
+        records.mkdir()
+
+    display_template = SCAFFOLDING_BASE/'record_templates/record_display.jinja2'
+    template = records/'{0}.html'.format(name)
+    fields = _strip_non_user_fields(record.build_field_schema())
+    contents = mold.cast(display_template, record=record, fields=fields)
+    # We often get lots of lines containing just spaces as a Jinja2 artifact. Lose them.
+    contents = "\n".join(l for l in contents.split("\n") if l.strip())
+    template << contents
+    return
+
+def _create_form_template_for(record):
+    """
+    Create a form template for RECORD.
+    """
+    print 'Creating modal template for', record
+    from opal.utils import camelcase_to_underscore
+    name = camelcase_to_underscore(record.__name__)
+
+    templates = _get_template_dir_from_record(record)
+    modals = templates/'modals'
+    if not modals:
+        modals.mkdir()
+
+    modal_template = SCAFFOLDING_BASE/'record_templates/record_modal.jinja2'
+    template = modals/'{0}_modal.html'.format(name)
+    fields = _strip_non_user_fields(record.build_field_schema())
+    contents = mold.cast(modal_template, record=record, fields=fields)
+    # We often get lots of lines containing just spaces as a Jinja2 artifact. Lose them.
+    contents = "\n".join(l for l in contents.split("\n") if l.strip())
+    template << contents
+    return
+
+def scaffold(args):
+    """
+    Create record boilierplates:
+
+    1. Run a south auto migration
+    2. Create display templates
+    3. Create forms
+    """
+    app = args.app
+    name = _find_application_name()
+    _set_settings_module(name)
+    sys.path.append(os.path.abspath('.'))
+
+    # 1. Let's run a Django migration
+    os.system('python manage.py makemigrations {app} --traceback'.format(app=app))
+    os.system('python manage.py migrate {app} --traceback'.format(app=app))
+
+    # 2. Let's create some display templates
+    from opal.models import Subrecord, EpisodeSubrecord, PatientSubrecord
+    from opal.utils import stringport
+
+    models = stringport('{0}.models'.format(app))
+    for i in dir(models):
+        thing = getattr(models, i)
+        if inspect.isclass(thing) and issubclass(thing, Subrecord):
+            if thing in [EpisodeSubrecord, PatientSubrecord]:
+                continue
+            if not thing.get_display_template():
+                _create_display_template_for(thing)
+            if not thing.get_form_template():
+                _create_form_template_for(thing)
+    return
+
+def _run_py_tests(args):
+    """
+    Run our Python test suite
+    """
+    print "Running Python Unit Tests"
+    test_args= ['python', 'runtests.py']
+    if args.test:
+        test_args.append(args.test)
+    try:
+        subprocess.check_call(test_args)
+    except subprocess.CalledProcessError:
+        sys.exit(1)
+    return
+
+def _run_js_tests(args):
+    """
+    Run our Javascript test suite
+    """
+    print "Running Javascript Unit Tests"
+    env = os.environ.copy()
+    if TRAVIS:
+        sub_args = [
+            './node_modules/karma/bin/karma',
+            'start',
+            'config/karma.conf.travis.js',
+            '--single-run'
+        ]
+    else:
+        sub_args = [
+            'karma',
+            'start',
+            'config/karma.conf.developer.js',
+            '--single-run'
+        ]
+        env['DISPLAY'] = ':10'
+    try:
+        subprocess.check_call(sub_args, env=env)
+    except subprocess.CalledProcessError:
+        sys.exit(1)
+    return
+
+def test(args):
+    """
+    Run our test suites
+    """
+    if args.what == 'all':
+        suites = ['py', 'js']
+    else:
+        suites = args.what
+    for suite in suites:
+        globals()['_run_{0}_tests'.format(suite)](args)
+    return
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="OPAL a Clinical Transactional Digital Services Framework",
+        usage="opal <command> [<args>]",
+        epilog="Brought to you by Open Health Care UK"
+    )
+    parser.add_argument(
+        '--version', '-v',
+        action='version',
+        version = 'OPAL {0}'.format(opal.__version__)
+    )
+    subparsers = parser.add_subparsers(help="OPAL Commands")
+
+    parser_project = subparsers.add_parser(
+        'startproject'
+    )
+    parser_project.add_argument(
+        'name', help="name of your project"
+    )
+    parser_project.set_defaults(func=startproject)
+
+    parser_plugin = subparsers.add_parser('startplugin')
+    parser_plugin.add_argument(
+        'name', help="name of your plugin"
+    )
+    parser_plugin.set_defaults(func=startplugin)
+
+    parser_scaffold = subparsers.add_parser("scaffold")
+    parser_scaffold.add_argument('app', help='Django app to scaffold')
+    parser_scaffold.set_defaults(func=scaffold)
+
+    parser_test = subparsers.add_parser("test")
+    parser_test.add_argument(
+        'what', default='all', choices=['all', 'py', 'js'], nargs='*')
+    parser_test.add_argument(
+        '-t', '--test', help='Test case or method to run'
+    )
+    parser_test.set_defaults(func=test)
+
+    args = parser.parse_args()
+    args.func(args)
+
+    sys.exit(0)
+
+if __name__ == '__main__':
+    main()
