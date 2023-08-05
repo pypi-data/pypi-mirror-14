@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+# coding: utf-8
+"""Usage:
+tues <command> [options] <provider> [<args>...]
+
+Options:
+  <provider>                     The Provider used for looking up hosts.
+  <command>                      The shell command to execute.
+  -u <runuser>, --user=<runuser> The user to run the command as.
+  -p, --parallel                 Execute tasks in parallel.
+  -n <size>, --pool-size=<size>  The number of concurrent processes when -p is used. [default: 5]
+  -f <file>, --file=<file>       Copy <file> to remote server before executing the command.
+  -w, --warn-only                Do not abort execution on errors, only issue warnings
+"""
+import os as _os
+import sys as _sys
+import errno as _errno
+import functools as _ft
+import subprocess as _sp
+import getpass as _getpass
+
+import docopt as _docopt
+import fabric.api as _fabric
+
+
+_fabric.env.use_ssh_config = _os.path.exists(_os.path.expanduser("~/.ssh/config"))
+_fabric.env.colorize_errors = True
+_fabric.env.remote_interrupt = True
+_fabric.env.disable_known_hosts = True
+_fabric.env.skip_bad_hosts = True
+
+
+def run_cmd(cmd, user=None, put_files=None):
+    if put_files is not None:
+        for file in put_files:
+            _fabric.put(file)
+
+    if user is None:
+        _fabric.run(cmd)
+    else:
+        _fabric.sudo(cmd, user=user)
+
+
+if __name__ == '__main__':
+    args = _docopt.docopt(
+        __doc__,
+        options_first=True,
+        version='0.0.1',
+    )
+
+    _fabric.env.parallel = args["--parallel"]
+    _fabric.env.pool_size = args["--pool-size"]
+    if ['--warn-only']:
+        _fabric.env.warn_only = True
+
+    if args["--parallel"] and args["--user"]:
+        _fabric.env.password = _getpass.getpass("Sudo Password:")
+
+    cmd = ["tues-provider-{}".format(args["<provider>"])] + args["<args>"]
+    if args['<provider>'] == '--help':
+        cmd = ["tues-provider-{}".format(args["<command>"])] + [args["<provider>"]]
+
+    try:
+        output = _sp.check_output(cmd)
+        if "--help"  == args["<provider>"]:
+            print output
+            _sys.exit(0)
+        hosts = [x for x in output.split("\n") if x and not x.startswith("#")]
+    except OSError as e:
+        if e.errno != _errno.ENOENT:
+            raise
+        _sys.stderr.write('ERROR: Provider {0!r} not found, make sure {1} is on your PATH\n'.format(args['<provider>'], cmd[0]))
+        _sys.exit(1)
+    except _sp.CalledProcessError as e:
+        print e.output
+        _sys.exit(e.returncode)
+
+    if args['<command>']:
+        _fabric.execute(
+            _ft.partial(
+                run_cmd,
+                cmd=args['<command>'],
+                user=args['--user'],
+                put_files=args["--file"],
+            ),
+            hosts=hosts,
+        )
+    else:
+        print "\n".join(hosts)
