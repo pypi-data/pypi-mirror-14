@@ -1,0 +1,123 @@
+---
+
+information:
+
+  - "Demonstrates how to configure a server with multiple disks"
+
+links:
+  - credit: https://gist.github.com/trentmswanson/9c22bb71182e982bd36f
+
+defaults:
+
+  cloud-config: # default for all nodes created by plumbery
+
+    ssh_keys: # generated randomly, and used on subsequent invocations
+      rsa_private: |
+        {{ key.rsa_private }}
+      rsa_public: "{{ key.rsa_public }}"
+
+    users:
+      - default
+
+      - name: ubuntu
+        sudo: 'ALL=(ALL) NOPASSWD:ALL'
+        ssh-authorized-keys:
+          - "{{ key.rsa_public }}"
+          - "{{ local.rsa_public }}"
+
+      - name: root
+        ssh-authorized-keys:
+          - "{{ key.rsa_public }}"
+          - "{{ local.rsa_public }}"
+
+    disable_root: false
+
+    ssh_pwauth: false
+
+---
+# Santa Clara - secondary site in USA
+locationId: NA12
+regionId: dd-na
+
+blueprints:
+
+  - disks:
+
+      domain:
+        name: DisksFox
+        ipv4: auto
+      ethernet:
+        name: DisksNetwork
+        subnet: 10.0.0.0
+      nodes:
+
+        - disks01:
+
+            information:
+              - "connect to this server in a terminal window:"
+              - "$ ssh ubuntu@{{ node.public }}"
+              - "check disk drives with:"
+              - "$ sudo fdisk -l"
+              - "$ df -h"
+              - "$ mount"
+
+            cpu: 2
+            memory: 2
+
+            # manage disks of this node
+            #
+            disks:
+              - 1 1000 standard
+              - 2 100 highperformance
+              - 3 300 economy
+
+            glue:
+              - internet 22
+            monitoring: essentials
+
+            cloud-config:
+
+              packages:
+                - ntp
+
+              write_files:
+
+                - path: /root/set_disk.sh
+                  content: |
+                    #!/usr/bin/env bash
+                    if [ ! -b ${1}1 ]; then
+                    echo "===== Partioning ${1}"
+                    cat <<EOF | fdisk ${1}
+                    n
+                    p
+                    1
+
+
+                    w
+                    q
+                    EOF
+                    ID=1
+                    fi
+
+                    if [ -z "$(blkid ${1}${ID})" ];
+                    then
+                        echo "===== Formatting ${1}${ID}"
+                        mkfs -t ${2} ${1}${ID}
+                    fi
+                    UUID=$(blkid ${1}${ID} | sed -n 's/.*UUID=\"\([^\"]*\)\".*/\1/p')
+
+                    if ! grep -q "${UUID}" /etc/fstab; then
+                        echo "===== Adding ${1}${ID} to fstab"
+                        LINE="UUID=\"${UUID}\"\t${3}\t${2}\tnoatime,nodiratime,nodev,noexec,nosuid\t1 2"
+                        echo -e "${LINE}" >> /etc/fstab
+                    fi
+
+                    echo "===== Mounting ${1}${ID}"
+                    [ -d "${3}" ] || mkdir "${3}"
+                    mount "${3}"
+
+              runcmd:
+                - chmod +x /root/set_disk.sh
+                - /root/set_disk.sh /dev/sdb ext3 /mnt/huge
+                - /root/set_disk.sh /dev/sdc ext4 /mnt/fast
+                - /root/set_disk.sh /dev/sdd ext2 /mnt/cheap
