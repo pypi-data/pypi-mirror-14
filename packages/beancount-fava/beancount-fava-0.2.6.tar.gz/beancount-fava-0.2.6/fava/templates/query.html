@@ -1,0 +1,136 @@
+{% extends "_layout.html" %}
+{% set active_page = 'query' %}
+{% set show_filters = False %}
+
+{% macro source_link(ehash) -%}
+{% set context = api.context(ehash) %}
+{{ url_for_source(file_path=context.filename, line=context.line) }}
+{%- endmacro %}
+
+{% block javascript %}{% include "javascript/_editor.html" %}{% endblock %}
+
+{% import 'macros/_account_macros.html' as account_macros with context %}
+
+{% macro querycell(name, value, type_) %}
+{% set type = type_|string %}
+{% if type == "<class 'beancount.core.inventory.Inventory'>" %}
+    <td class="num">
+    {% for position in value.cost() %}
+        {% if position.units.number != 0 %}
+            {{ position.units|format_amount }}<br>
+        {% endif %}
+    {% endfor %}
+    </td>
+{% elif type == "<class 'str'>" %}
+    <td>
+        {% if name == "account" %}
+            {{ account_macros.account_name(value) }}
+        {% else %}
+            {{value }}
+        {% endif %}
+        {# TODO do the same for payee(s) and tag(s) #}
+    </td>
+{% elif type == "<class 'decimal.Decimal'>" %}
+    <td class="num" data-sort-value="{{ value }}">{{ value|format_currency }}</td>
+{% elif type == "<class 'cdecimal.Decimal'>" %}
+    <td class="num" data-sort-value="{{ value }}">{{ value|format_currency }}</td>
+{% elif type == "<class 'bool'>" %}
+    <td>{{ value|upper }}</td>
+{% elif type == "<class 'int'>" %}
+    <td class="num">{{ value }}</td>
+{% elif type == "<class 'set'>" %}
+    <td>{{ value|join(',') }}</td>
+{% elif type == "<class 'datetime.date'>" %}
+    <td>{{ value }}</td>
+{% elif type == "<class 'beancount.core.position.Position'>" %}
+    <td class="num">{{ value.units|format_amount }}</td>
+{% else %}
+    <td class="query-error" title="Type {{ type|string }} not recognized">{{ value }}</td>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+    <h1>Query</h1>
+
+    {% if api.queries() %}
+        <div class="stored-queries">
+            <label for="stored-queries">Load stored query:</label>
+            <select id="stored-queries">
+                <option value=""></option>
+                {% for query in api.queries() %}
+                    <option value="{{ url_for('get_stored_query', stored_query_hash=query['hash']) }}" data-stored-query-hash="{{query['hash']}}" data-source-link="{{source_link(query['hash'])}}"{% if query['hash'] == query_hash %} selected="selected"{% endif %}>{{ query['name'] }}</option>
+                {% endfor %}
+            </select>
+            <a href="{% if query_hash %}{{ source_link(query_hash) }}{% endif %}" class="source-link{% if not query_hash %} hidden{% endif %}">(Source)</a>
+        </div>
+    {% endif %}
+
+    <form action="{{ url_for('query') }}" method="get">
+        <div class="editor-wrapper editor-wrapper-query">
+            <div class="editor" id="editor-query"><pre><code>{{ query or '' }}</code></pre></div>
+        </div>
+    </form>
+    <form class="editor-save editor-save-query" action="{{ url_for('query') }}" method="get">
+        <input id="submit-query" type="submit" value="Submit Query">
+    </form>
+
+    {% if not error and not result %}
+    <p class="description">
+        You can run custom querys (BQL) like with the <code>bean-query</code> tool. For a detailed explanation of how queries can be created see the <a href="http://furius.ca/beancount/doc/query">Beancount Query Lanugage Reference</a>, or more generally, the <a href="http://furius.ca/beancount/doc/index">Beancount Documentation Overview</a>.
+
+        Sample queries can be found <a href="http://aumayr.github.io/beancount-sql-queries/">here</a> (please submit your own queries if they might be useful for others).
+    </p>
+    {% if not api.queries() %}
+        <p class="description">
+            If you add <code>query</code>-Directives to your <a href="{{ url_for('source') }}">Source</a> these stored queries will be displayed as a dropdown to quickly select them.
+        </p>
+    {% endif %}
+        <div class="sample">
+            <h3>Sample Queries:</h3>
+            <ul>
+                <li><a href="{{ url_for('query', bql="balances from year = 2014") }}"><code>balances from year = 2014</code></a></li>
+                <li><a href="{{ url_for('query', bql="SELECT last(date) as last_date, cost(sum(position)) as cost;") }}"><code>SELECT last(date) as last_date, cost(sum(position)) as cost;</code></a></li>
+                <li><a href="{{ url_for('query', bql="SELECT date, account, position, balance WHERE account ~ 'Travel';") }}"><code>SELECT date, account, position, balance WHERE account ~ 'Travel';</code></a></li>
+                <li><a href="http://aumayr.github.io/beancount-sql-queries/">More sample queries</a>
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if error %}
+        <h3>Result</h3>
+        <p class="error">
+            {{ error }}
+        </p>
+    {% endif %}
+
+    {% if result %}
+        <h3>Result</h3>
+        <div class="queryresults-wrapper">
+            <p class="download">
+                Download as
+                <a class="download-csv" href="{{ url_for('query', bql=query, query_hash=query_hash, result_format='csv') }}">CSV</a>,
+                <a class="download-csv" href="{{ url_for('query', bql=query, query_hash=query_hash, result_format='xls') }}">XLS</a>,
+                <a class="download-csv" href="{{ url_for('query', bql=query, query_hash=query_hash, result_format='xlsx') }}">XLSX</a> or
+                <a class="download-csv" href="{{ url_for('query', bql=query, query_hash=query_hash, result_format='ods') }}">ODS</a>
+            </p>
+            <table class="queryresults sortable">
+                <thead>
+                    <tr>
+                        {% for name, type in result.0 %}
+                            <th>{{ name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in result.1 %}
+                        <tr>
+                            {% for name, type in result.0 %}
+                                {{ querycell(name, row[name], type)  }}
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+{% endblock %}

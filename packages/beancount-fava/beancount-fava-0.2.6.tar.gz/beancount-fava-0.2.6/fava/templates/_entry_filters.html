@@ -1,0 +1,113 @@
+{% set time_filter = g.filters['time'] %}
+{% set tag_filter = g.filters['tag'] %}
+{% set account_filter = g.filters['account'] %}
+{% set payee_filter = g.filters['payee'] %}
+<form id="filter-form" action="{{ url_for_current() }}" method="GET">
+    <ul class="topmenu">
+        <li{% if time_filter %} class="selected"{% endif %}>
+            <a href="{{ url_for_current(time=None) }}">
+                {{ time_filter or 'Time' }}
+            </a>
+            <div class="filter" id="filter-time">
+                <input type="search" placeholder="eg. This Month, 2015-03, March 2015, Year to Date, ... ">
+                <ul>
+                    {% if time_filter and time_filter|int not in api.active_years %}
+                        <li class="selected" data-filter="{{ time_filter }}">
+                            <a href="{{ url_for_current(time=None) }}">{{ time_filter }}</a>
+                        </li>
+                    {% endif %}
+
+                    {% for time_ in api.active_years %}
+                    <li{% if time_|string == time_filter %} class="selected"{% endif %} data-filter="{{ time_ }}">
+                    {% if time_|string == time_filter %}
+                        <a href="{{ url_for_current(time=None) }}">{{ time_filter }}</a>
+                    {% else %}
+                        <a href="{{ url_for_current(time=time_) }}">{{ time_ }}</a>
+                    {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </li>
+        <li{% if tag_filter  %} class="selected"{% endif %}>
+            <a href="{{ url_for_current(tag=[]) }}">
+                {% if tag_filter %}
+                    {% if tag_filter|length == 1 %}
+                        # {{ tag_filter|first }}
+                    {% else %}
+                        Multiple tags
+                    {% endif %}
+                {% else %}
+                    Tag
+                {% endif %}
+            </a>
+            <div class="filter">
+                <input type="search">
+                <ul>
+                {% for tag in tag_filter %}
+                    <li class="selected" data-filter="{{ tag|lower }}">
+                        <a href="{{ url_for_current(pop=('tag',tag)) }}">{{ tag }}</a>
+                    </li>
+                {% endfor %}
+
+                {% for tag in api.active_tags if tag not in tag_filter %}
+                    <li data-filter="{{ tag|lower }}">
+                        <a href="{{ url_for_current(tag=[tag]+tag_filter) }}"># {{ tag }}</a>
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
+        </li>
+        <li{% if account_filter %} class="selected"{% endif %}>
+            <a href="{{ url_for_current(account=None) }}">
+                {{ account_filter or 'Account' }}
+            </a>
+            <div class="filter">
+                <input type="search">
+                <ul>
+                    {% if account_filter %}
+                    <li class="selected" data-filter="{{ account_filter|lower }}">
+                        <a href="{{ url_for_current(account=None) }}" title="{{ account_filter }}">{{ account_filter }}</a>
+                    </li>
+                    {% endif %}
+                    {% for account in api.all_accounts %}
+                    <li{% if account == account_filter %} class="selected"{% endif %} data-filter="{{ account|lower }}">
+                        <a href="{{ url_for_current(account=account) }}" title="{{ account }}">
+                            {{- "–" * account|account_level }}&nbsp;{{ account|last_segment -}}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </li>
+        <li{% if payee_filter  %} class="selected"{% endif %}>
+        {% macro print_payee(payee) %}{% if payee %}{{ payee }}{% else %}<em>{{ 'No payee' }}</em>{% endif %}{% endmacro %}
+            <a href="{{ url_for_current(payee=[]) }}">
+                {% if payee_filter %}
+                    {% if payee_filter|length == 1 %}
+                        {{ print_payee(payee_filter|first) }}
+                    {% else %}
+                        Multiple payees
+                    {% endif %}
+                {% else %}
+                    Payee
+                {% endif %}
+            </a>
+            <div class="filter">
+                <input type="search">
+                <ul>
+                {% for payee in payee_filter %}
+                    <li class="selected" data-filter="{{ payee|lower }}">
+                        <a href="{{ url_for_current(pop=('payee', payee)) }}">{{ print_payee(payee) }}</a>
+                    </li>
+                {% endfor %}
+                {% for payee in api.active_payees if payee not in payee_filter %}
+                    <li data-filter="{{ payee|lower }}">
+                        <a href="{{ url_for_current(payee=[payee]+payee_filter) }}">{{ print_payee(payee) }}</a>
+                    </li>
+                {% endfor %}
+                </ul>
+            </div>
+        </li>
+    </ul>
+</form>

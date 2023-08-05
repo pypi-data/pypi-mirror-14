@@ -1,0 +1,61 @@
+{% set infotext = {
+    'green':  "The last entry is a passing balance check.",
+    'red':    "The last entry is a failing balance check.",
+    'yellow': "The last entry is not a balance check.",
+    'gray':   "This account has not been updated in a while.",
+} %}
+
+{% macro indicator(account_name) %}
+{% if account_name and account_name|uptodate_eligible %}
+    {% set status=api.is_account_uptodate(account_name, look_back_days=config['uptodate-indicator-grey-lookback-days']) %}
+    {% if status %}
+        <span class="status-indicator status-{{ status }}" title="{{ infotext[status] }}"></span>
+    {% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro last_account_activity(account_name) %}
+{% if account_name and account_name|uptodate_eligible %}
+{% set last_account_activity_in_days=api.last_account_activity_in_days(account_name) %}
+{% if last_account_activity_in_days > config['uptodate-indicator-grey-lookback-days'] %}
+    <span class="status-indicator status-gray" title="{{ infotext['gray'] }} ({{ last_account_activity_in_days }} days ago)"></span>
+{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro account_name(account_name, last_segment=False) %}
+<a href="{{ url_for('account_with_journal', name=account_name) }}" class="account">
+    {{ account_name|last_segment if last_segment else account_name }}
+</a>
+
+{% if config['uptodate-indicator-show-everywhere'] %}
+    {{ last_account_activity(account_name) }}
+    {{ indicator(account_name) }}
+{% endif %}
+{% endmacro %}
+
+{% macro account_name_header(account_name) %}
+<h1 class="droptarget" data-account-name="{{ account_name }}">
+    {% set levels = account_name|account_level %}
+    {% for level in range(0, levels) %}
+        {% set subaccount_name = account_name.rsplit(':', maxsplit=levels-loop.index)[0] %}
+        {% set subaccount_part = account_name.split(':')[level] %}
+
+        {%- if loop.last -%}
+            {{ subaccount_part }}
+        {%- else -%}
+            <a href="{{ url_for('account_with_journal', name=subaccount_name) }}" title="{{ subaccount_name }}">{{ subaccount_part }}</a><span class="separator">:</span>
+        {%- endif -%}
+    {% endfor %}
+
+    {{ indicator(account_name) }}
+    {{ last_account_activity(account_name) }}
+
+    {% set activity = api.statistics(account_name=account_name) %}
+    {% if activity %}
+    <div class="last-activity">
+        (Last entry: <a href="{{ url_for_source(file_path=activity.last_posting_filename, line=activity.last_posting_lineno) }}" title="Show source {{ activity.last_posting_filename }}:{{ activity.last_posting_lineno }}">{{ activity.last_posting_date }}</a>)
+    </div>
+    {% endif %}
+</h1>
+{% endmacro %}
