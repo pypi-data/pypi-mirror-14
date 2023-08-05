@@ -1,0 +1,159 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>django_tables2.columns.templatecolumn &mdash; django-tables2 1.1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="django-tables2 1.1.2 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for django_tables2.columns.templatecolumn</h1><div class="highlight"><pre>
+<span class="c1"># coding: utf-8</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">from</span> <span class="nn">django.template</span> <span class="kn">import</span> <span class="n">Context</span><span class="p">,</span> <span class="n">Template</span>
+<span class="kn">from</span> <span class="nn">django.template.loader</span> <span class="kn">import</span> <span class="n">get_template</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="kn">import</span> <span class="n">Column</span><span class="p">,</span> <span class="n">library</span>
+
+
+<span class="nd">@library.register</span>
+<div class="viewcode-block" id="TemplateColumn"><a class="viewcode-back" href="../../../pages/api-reference.html#django_tables2.columns.TemplateColumn">[docs]</a><span class="k">class</span> <span class="nc">TemplateColumn</span><span class="p">(</span><span class="n">Column</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A subclass of `.Column` that renders some template code to use as</span>
+<span class="sd">    the cell value.</span>
+
+<span class="sd">    :type  template_code: `unicode`</span>
+<span class="sd">    :param template_code: the template code to render</span>
+<span class="sd">    :type  template_name: `unicode`</span>
+<span class="sd">    :param template_name: the name of the template to render</span>
+
+<span class="sd">    A `~django.template.Template` object is created from the</span>
+<span class="sd">    *template_code* or *template_name* and rendered with a context containing:</span>
+
+<span class="sd">    - *record* -- data record for the current row</span>
+<span class="sd">    - *value* -- value from `record` that corresponds to the current column</span>
+<span class="sd">    - *default* -- appropriate default value to use as fallback</span>
+
+<span class="sd">    Example:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        class ExampleTable(tables.Table):</span>
+<span class="sd">            foo = tables.TemplateColumn(&#39;{{ record.bar }}&#39;)</span>
+<span class="sd">            # contents of `myapp/bar_column.html` is `{{ value }}`</span>
+<span class="sd">            bar = tables.TemplateColumn(template_name=&#39;myapp/name2_column.html&#39;)</span>
+
+<span class="sd">    Both columns will have the same output.</span>
+
+<span class="sd">    .. important::</span>
+
+<span class="sd">        In order to use template tags or filters that require a</span>
+<span class="sd">        `~django.template.RequestContext`, the table **must** be rendered via</span>
+<span class="sd">        :ref:`{% render_table %} &lt;template-tags.render_table&gt;`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">empty_values</span> <span class="o">=</span> <span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">template_code</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">template_name</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">extra</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TemplateColumn</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">extra</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">template_code</span> <span class="o">=</span> <span class="n">template_code</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">template_name</span> <span class="o">=</span> <span class="n">template_name</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">template_code</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">template_name</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;A template must be provided&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">bound_column</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># If the table is being rendered using `render_table`, it hackily</span>
+        <span class="c1"># attaches the context to the table as a gift to `TemplateColumn`.</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="s1">&#39;context&#39;</span><span class="p">,</span> <span class="n">Context</span><span class="p">())</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">update</span><span class="p">({</span>
+            <span class="s1">&#39;default&#39;</span><span class="p">:</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">default</span><span class="p">,</span>
+            <span class="s1">&#39;column&#39;</span><span class="p">:</span> <span class="n">bound_column</span><span class="p">,</span>
+            <span class="s1">&#39;record&#39;</span><span class="p">:</span> <span class="n">record</span><span class="p">,</span>
+            <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="n">value</span>
+        <span class="p">})</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">template_code</span><span class="p">:</span>
+                <span class="n">template</span> <span class="o">=</span> <span class="n">Template</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">template_code</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">template</span> <span class="o">=</span> <span class="n">get_template</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">template_name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">template</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">context</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>
