@@ -1,0 +1,21 @@
+VM_UNKNOWN = -1
+VM_STOPPED = 0
+VM_RUNNING = 1
+VM_SUSPENDED = 2
+VM_PAUSED = 3
+
+OS_UNKNOWN = 'Unknown'
+OS_WINDOWS = 'Windows'
+OS_MAC_OS_X = 'Mac OS X'
+OS_LINUX = 'Linux'
+OS_ARCH = 'Arch'
+OS_UBUNTU = 'Ubuntu'
+OS_REDHAT = 'Red Hat'
+OS_DEBIAN = 'Debian'
+OS_FEDORA = 'Fedora'
+OS_GENTOO = 'Gentoo'
+OS_OPENSUSE = 'openSUSE'
+OS_MANDRIVA = 'Mandriva'
+OS_TURBOLINUX = 'Turbolinux'
+OS_XANDROS = 'Xandros'
+OS_ORACLE = 'Oracle'
