@@ -1,0 +1,69 @@
+# -*- coding: utf-8 -*-
+"""
+This module contains the tool of pd.prenotazioni
+"""
+import os
+from setuptools import setup, find_packages
+
+
+def read(*rnames):
+    return open(os.path.join(os.path.dirname(__file__), *rnames)).read()
+
+version = '1.5.0'
+
+long_description = (
+    read('README.rst')
+    + '\n\n' +
+    'Change history\n'
+    '==============\n\n'
+    + '\n' +
+    read('CHANGES.rst')
+    + '\n' +
+    'Download\n'
+    '********\n'
+)
+
+tests_require = ['plone.app.testing']
+
+setup(
+    name='pd.prenotazioni',
+    version=version,
+    description=(
+        "pd.prenotazioni: a Plone product for booking"
+    ),
+    long_description=long_description,
+    # Get more strings from
+    # http://pypi.python.org/pypi?:action=list_classifiers
+    classifiers=[
+        'Framework :: Plone',
+        'Intended Audience :: Developers',
+    ],
+    keywords='',
+    author='RedTurtle Technology',
+    author_email='sviluppoplone@redturtle.it',
+    url='http://svn.plone.org/svn/collective/',
+    license='gpl',
+    packages=find_packages(exclude=['ez_setup']),
+    namespace_packages=['pd'],
+    include_package_data=True,
+    zip_safe=False,
+    install_requires=[
+        'Plone',
+        'plone.app.contentrules',  # used by z3c.autoinclude to fix some missing permissions issues  # noqa
+        'setuptools',
+        # -*- Extra requirements: -*-
+        'collective.contentrules.mailfromfield',
+        'pd.contentrules.sms',
+        'plone.api',
+        'rg.prenotazioni>=3.5.0.dev0',
+        'z3c.pdftemplate'
+    ],
+    tests_require=tests_require,
+    extras_require=dict(test=tests_require),
+    test_suite='pd.prenotazioni.tests.test_docs.test_suite',
+    entry_points="""
+      # -*- entry_points -*-
+      [z3c.autoinclude.plugin]
+      target = plone
+      """,
+)
