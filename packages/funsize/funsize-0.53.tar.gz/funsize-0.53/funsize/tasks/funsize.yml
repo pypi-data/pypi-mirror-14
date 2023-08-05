@@ -1,0 +1,199 @@
+---
+metadata:
+  name: Funsize
+  description: Funsize task graph for nightly builds and L10N repacks
+  owner: release+funsize@mozilla.com
+  source: https://github.com/mozilla/funsize
+
+scopes:
+  - queue:*
+  - docker-worker:*
+  - scheduler:*
+  - project:releng:signing:*
+  - docker-worker:feature:balrogVPNProxy
+
+tasks:
+  - taskId: '{{ stableSlugId("update_generator_task") }}'
+    task:
+      created: '{{ now }}'
+      deadline: '{{ fromNow("24 hours") }}'
+      metadata:
+        owner: release+funsize@mozilla.com
+        source: https://github.com/mozilla/funsize
+        # Treeherder hashes the names and may override groupSymbol if the
+        # name matches other similar task with different update number
+        name: "[funsize] Update generating task (today-{{ update_number }}, chunk {{ chunk_name }}{% if subchunk %}, subchunk {{ subchunk }}{% endif %})"
+        description: |
+          This task generates MAR files and publishes unsigned bits.
+
+      routes:
+        - tc-treeherder-stage.{{ branch }}.{{ revision_hash }}
+        - tc-treeherder.{{ branch }}.{{ revision_hash }}
+        - index.funsize.v1.{{ branch }}.revision.{{ platform }}.{{ revision }}.{{ update_number }}.{{ chunk_name }}{% if subchunk %}_{{ subchunk }}{% endif %}.updates
+        - index.funsize.v1.{{ branch }}.latest.{{ platform }}.{{ update_number }}.{{ chunk_name }}{% if subchunk %}_{{ subchunk }}{% endif %}.updates
+      extra:
+        funsize:
+          partials:
+          {% for e in extra %}
+            -
+              locale: {{ e.locale }}
+              from_mar: "{{ e.from_mar }}"
+              to_mar: "{{ e.to_mar }}"
+              platform: {{ platform }}
+              branch: {{ branch }}
+              update_number: {{ update_number }}
+          {% endfor %}
+        treeherderEnv:
+          - staging
+          - production
+        treeherder:
+          symbol: {{ chunk_name }}{% if subchunk %}.{{ subchunk }}{% endif %}g
+          groupSymbol: Update-{{ update_number }}
+          collection:
+            opt: true
+          machine:
+            platform: {{ treeherder_platform }}
+          build:
+            platform: {{ treeherder_platform }}
+
+      workerType: "funsize-mar-generator"
+      provisionerId: "aws-provisioner-v1"
+
+      tags:
+        createdForUser: release+funsize@mozilla.com
+
+      payload:
+        image: 'rail/funsize-update-generator@sha256:fe5cef1604174bca55a90b73f7c4e63d817c78922c798fcf31ede23ae6e8bee6'
+        maxRunTime: 7200
+        command:
+          - /runme.sh
+
+        env:
+          SIGNING_CERT: 'nightly'
+
+        artifacts:
+          'public/env':
+            path: /home/worker/artifacts/
+            type: directory
+            expires: '{{ fromNow("7 days") }}'
+
+  - taskId: '{{ stableSlugId("signing_task") }}'
+    requires:
+      - '{{ stableSlugId("update_generator_task") }}'
+    task:
+      created: '{{ now }}'
+      deadline: '{{ fromNow("24 hours") }}'
+      metadata:
+        owner: release+funsize@mozilla.com
+        source: https://github.com/mozilla/funsize
+        name: "[funsize] MAR signing task (today-{{ update_number }}, chunk {{ chunk_name }}{% if subchunk %}, subchunk {{ subchunk }}{% endif %})"
+        description: |
+          This task signs MAR files and publishes signed bits.
+
+      routes:
+        - tc-treeherder-stage.{{ branch }}.{{ revision_hash }}
+        - tc-treeherder.{{ branch }}.{{ revision_hash }}
+        - index.funsize.v1.{{ branch }}.revision.{{ platform }}.{{ revision }}.{{ update_number }}.{{ chunk_name }}{% if subchunk %}_{{ subchunk }}{% endif %}.signing
+        - index.funsize.v1.{{ branch }}.latest.{{ platform }}.{{ update_number }}.{{ chunk_name }}{% if subchunk %}_{{ subchunk }}{% endif %}.signing
+      extra:
+        signing:
+          # assert that this signing task was created by the real funsize
+          signature: {{ sign_task(stableSlugId("signing_task"), valid_for=8 * 3600) }}
+        treeherderEnv:
+          - staging
+          - production
+        treeherder:
+          symbol: {{ chunk_name }}{% if subchunk %}.{{ subchunk }}{% endif %}s
+          groupSymbol: Update-{{ update_number }}
+          collection:
+            opt: true
+          machine:
+            platform: {{ treeherder_platform }}
+          build:
+            platform: {{ treeherder_platform }}
+
+      workerType: "signing-worker-v1"
+      provisionerId: "signing-provisioner-v1"
+      scopes:
+        - project:releng:signing:cert:nightly-signing
+        - project:releng:signing:format:mar
+      tags:
+        createdForUser: release+funsize@mozilla.com
+
+      payload:
+        signingManifest: 'https://queue.taskcluster.net/v1/task/{{ stableSlugId("update_generator_task") }}/artifacts/public/env/manifest.json'
+
+  - taskId: '{{ stableSlugId("balrog_task") }}'
+    requires:
+      - '{{ stableSlugId("signing_task") }}'
+    task:
+      created: '{{ now }}'
+      deadline: '{{ fromNow("24 hours") }}'
+      routes:
+        - tc-treeherder-stage.{{ branch }}.{{ revision_hash }}
+        - tc-treeherder.{{ branch }}.{{ revision_hash }}
+        - index.funsize.v1.{{ branch }}.revision.{{ platform }}.{{ revision }}.{{ update_number }}.{{ chunk_name }}{% if subchunk %}_{{ subchunk }}{% endif %}.balrog
+        - index.funsize.v1.{{ branch }}.latest.{{ platform }}.{{ update_number }}.{{ chunk_name }}{% if subchunk %}_{{ subchunk }}{% endif %}.balrog
+      extra:
+        treeherderEnv:
+          - staging
+          - production
+        treeherder:
+          symbol: {{ chunk_name }}{% if subchunk %}.{{ subchunk }}{% endif %}u
+          groupSymbol: Update-{{ update_number }}
+          collection:
+            opt: true
+          machine:
+            platform: {{ treeherder_platform }}
+          build:
+            platform: {{ treeherder_platform }}
+
+      metadata:
+        owner: release+funsize@mozilla.com
+        source: https://github.com/mozilla/funsize
+        name: "[funsize] Publish to Balrog (today-{{ update_number }}, chunk {{ chunk_name }}{% if subchunk %}, subchunk {{ subchunk }}{% endif %})"
+        description: |
+          This task publishes signed updates to Balrog.
+
+      workerType: "funsize-balrog"
+      provisionerId: "aws-provisioner-v1"
+      scopes:
+        - docker-worker:feature:balrogVPNProxy
+      tags:
+        createdForUser: release+funsize@mozilla.com
+
+      payload:
+        image: 'rail/funsize-balrog-submitter@sha256:0a400259d276f2ad5879f2813699594b9f96683ae3d1a052e0cf3f26a228cd6d'
+        maxRunTime: 3600
+        command:
+          - /runme.sh
+
+        artifacts:
+          'public/env':
+            path: /home/worker/artifacts/
+            type: directory
+            expires: '{{ fromNow("7 days") }}'
+
+        env:
+          PARENT_TASK_ARTIFACTS_URL_PREFIX: 'https://queue.taskcluster.net/v1/task/{{ stableSlugId("signing_task") }}/artifacts/public/env'
+          BALROG_API_ROOT: {{ balrog_api_root }}
+          S3_BUCKET: {{ s3_bucket }}
+          SIGNING_CERT: 'nightly'
+          {% if extra_balrog_submitter_params %}
+          EXTRA_BALROG_SUBMITTER_PARAMS: "{{ extra_balrog_submitter_params }}"
+          {% endif %}
+        encryptedEnv:
+          - {{ encryptEnvVar(stableSlugId("balrog_task"), now_ms,
+                             now_ms + 24 * 3600 * 1000, 'BALROG_USERNAME',
+                             balrog_username) }}
+          - {{ encryptEnvVar(stableSlugId("balrog_task"), now_ms,
+                             now_ms + 24 * 3600 * 1000, 'BALROG_PASSWORD',
+                             balrog_password) }}
+          - {{ encryptEnvVar(stableSlugId("balrog_task"), now_ms,
+                             now_ms + 24 * 3600 * 1000, 'AWS_ACCESS_KEY_ID',
+                             aws_access_key_id) }}
+          - {{ encryptEnvVar(stableSlugId("balrog_task"), now_ms,
+                             now_ms + 24 * 3600 * 1000, 'AWS_SECRET_ACCESS_KEY',
+                             aws_secret_access_key) }}
+        features:
+          balrogVPNProxy: true
