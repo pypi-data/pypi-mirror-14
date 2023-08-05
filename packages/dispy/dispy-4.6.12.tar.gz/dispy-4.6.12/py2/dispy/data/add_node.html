@@ -1,0 +1,89 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <link type="text/css" rel="stylesheet" href="cluster.css" />
+
+    <script type="text/javascript" src="jquery.js"></script>
+
+    <script type="text/javascript">
+    //<![CDATA[
+      var node_count = 2;
+      $(document).ready(function() {
+        var rows = '';
+
+        for (var i = 1; i <= node_count; i++) {
+          rows += '<tr><td>' + i + '</td>' +
+                       '<td><input type="text" name="name_ip_' + i + '" size="18" maxlength="64" /></td>' +
+                     '<td><input type="text" name="port_' + i + '" size="5" maxlength="5" /></td>' +
+                     '<td><input type="text" name="cpus_' + i + '" size="3" maxlength="3" /></td>' +
+                     '</tr>';
+        }
+        $('#nodes').html(rows);
+
+        $('#add-node').click(function() {
+          $('#messages').html('');
+          for (var i = 1; i <= node_count; i++) {
+            var node = {};
+            $('input[type="text"][name$="_' + i + '"]').each(function(i) {
+              var name = $(this).prop('name');
+              name = name.substring(0, name.lastIndexOf('_'));
+              node[name] = $(this).val().trim();
+            });
+            if (node.name_ip == '') {
+              // $('#messages').append('<li>ignoring node ' + i + '</li>');
+              continue;
+            }
+            node.id = i;
+            $.ajax({
+              url: '/add_node',
+              method: 'POST',
+              data: node,
+              dataType: 'json',
+              timeout: 1000
+            })
+
+              .done(function(node) {
+                $('#messages').append('<li>Node ' + node.id + ' with IP ' + node.name_ip + ' requested</li>');
+              })
+
+              .fail(function(jqXHR, textStatus, errorThrown) {
+                $('#messages').append('<li>node ' + i + ' is invalid</li>');
+              })
+          }
+        });
+      });
+
+    //]]>
+    </script>
+
+  <title>dispy: Add Nodes to Cluster</title>
+  </head>
+  <body>
+    <div style="text-align:center;margin-top:2em;">
+      <h1 style="margin:2em 0;"><span class="title">dispy: Add Nodes to Cluster</span></h1>
+
+      <table class="cluster" style="text-align:right;margin:20px auto;">
+        <caption><span class="border" style="display:inline-block;">Add Nodes</span></caption>
+        <thead>
+          <tr><th></th><th>Host Name or IP</th><th>Port</th><th>CPUs</th></tr>
+        </thead>
+        <tbody id="nodes">
+        </tbody>
+      </table>
+
+      <div style="margin:20px auto;">
+        <button type="button" id="add-node">Add Nodes</button>
+      </div>
+
+      <hr style="margin:10px;" />
+
+      <div>
+        <ul id="messages" style="margin:1em auto;display:inline-block;"></ul>
+      </div>
+
+    </div>
+  </body>
+</html>
