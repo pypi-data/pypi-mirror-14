@@ -1,0 +1,447 @@
+{# 
+ MENU
+ 
+ It builds menu from the decorator @menu
+
+ The menu can be accessed in the __.MENU.
+
+ __.MENU is an sorted list of all the menu items
+
+Structures:
+
+[
+    (index, name, enpoint or sub_items, kwargs), ...
+]
+
+index: int - The position of the item
+
+name: str - The name to place in the menu
+
+|- endpoint: str
+    endpoint
+#or
+|- sub_items: list of
+    [
+        (index, name, endpoint, kwargs), ...
+    ]
+
+kwargs:
+    - active
+    - endpoint_kwargs
+    - has_submenu
+    - index
+    - visible:
+
+
+ #}
+{# -------------------------------------------------------------------------- #}
+
+{#
+ To a create navbar
+
+ :brand: The brand of the site, can include anything
+ :url: The url when the brand is clicked on
+ :fluid: If true it will expand menu all across
+ :fixed: If true it will place the menu on top in a fixed position
+ :fixed_padding_top: When fixed, specify the top padding in px
+ :menu_id: if there are more that one menu, to make them unique
+ :groups: (list) - list of menu groups to accept
+ :exclude_groups: (list) - list of menu groups to exclude
+ :show_menus: (bool) - to hide/show menu. Usually for admin when user is not authenticated.
+    per menu show/hide, use [visible]
+ #}
+{% macro navbar(brand="",
+                url="/",
+                fluid=True,
+                fixed=True,
+                fixed_padding_top="70px",
+                menu_id=1,
+                groups=[],
+                exclude_groups=[],
+                show_menus=True) %}
+
+    {% if fixed %}
+        <style>
+            body{
+                padding-top: {{ fixed_padding_top }} !important;
+            }
+        </style>
+    {% endif %}
+
+    <nav class="navbar navbar-default {% if fixed %} navbar-fixed-top {% else %}navbar-static-top{% endif %}">
+      <div class="container{% if fluid == true%}-fluid{% endif %} ">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#magic-navbar-collapse-{{ menu_id }}" aria-expanded="false">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="{{ url }}">{{ brand | safe }}</a>
+        </div>
+
+        {% if show_menus %}
+            <div class="collapse navbar-collapse" id="magic-navbar-collapse-{{ menu_id }}">
+                {{ _navbar_list(allow_pull=true,
+                            align_right=false,
+                            groups=groups,
+                            exclude_groups=exclude_groups) }}
+
+                {{ _navbar_list(allow_pull=true,
+                            align_right=true,
+                            groups=groups,
+                            exclude_groups=exclude_groups) }}
+            </div>
+        {% endif %}
+
+      </div>
+    </nav>
+{% endmacro %}
+
+
+{% macro _navbar_sub_list(nav) %}
+    {% if nav[3]["visible"] %}
+        {% if nav[3]["has_submenu"] and nav[2] %}
+                {% set nav_name = nav[1] %}
+                {% set nav_items = nav[2] %}
+                {% set nav_kwargs = nav[3] %}
+                {% set show_user_avatar = nav_kwargs["show_profile_avatar"] and current_user and current_user.is_authenticated %}
+          {% if nav_name %}
+              <li class="dropdown"><a href="#"
+                                      class="dropdown-toggle"
+                                      data-toggle="dropdown"
+                                      role="button"
+                                      aria-haspopup="true"
+                                      aria-expanded="false">
+                {% if show_user_avatar %}
+                    <img class="magic-profile-avatar-40" style="margin-bottom:-20px; margin-top:-20px" src="{{ current_user.profile_image_url }}">
+                    {%  if nav_kwargs["show_profile_name"] %}
+                        {{ current_user.full_name }}
+                    {% else %}
+                        {{ nav_name }}
+                    {% endif %}
+                {% else %}
+                    {{ nav_name }}
+                {% endif %}
+              <span class="caret"></span></a>
+          {% endif %}
+
+          {% if nav_name %}
+              <ul class="dropdown-menu">
+          {% endif %}
+
+              {% for item in nav_items %}
+                {{ _navbar_nav_item(item) }}
+              {% endfor %}
+
+          {% if nav_name %}
+              </ul>
+          {% endif %}
+
+          {% if nav_name %}
+              </li>
+          {% endif %}
+
+        {% else %}
+            {{ _navbar_nav_item(nav) }}
+        {% endif %}
+    {% endif %}
+
+{% endmacro %}
+
+
+
+{% macro _navbar_nav_item(item) %}
+    {% if item[3]["visible"] %}
+          {% set item_name = item[1] %}
+          {% set item_endpoint = item[2] %}
+          {% set item_kwargs = item[3] %}
+          {% set item_fa_icon = item_kwargs["fa_icon"] %}
+          {% set item_endpoint_kwargs = item_kwargs["endpoint_kwargs"] %}
+          {% if "url" in item_kwargs %}
+              {% set item_url = item_kwargs["url"] %}
+          {% else %}
+              {% set item_url = url_for(item_endpoint, **item_endpoint_kwargs) %}
+          {% endif %}
+          {% set item_target = "" %}
+          {% if "target" in item_kwargs %}
+            {% set item_target = item_kwargs["target"] %}
+          {% endif %}
+          <li class="{% if item_url == request.url %}active{% endif %}">
+              <a href="{{ item_url | safe }}" target="{{ item_target }}">
+                  {% if item_fa_icon %}<i class="fa fa-{{ item_fa_icon }}"></i>{% endif %}
+                  {{ item_name | safe }}
+              </a>
+          </li>
+    {% endif %}
+{% endmacro %}
+
+
+
+{%  macro _navbar_list_content(nav, allow_pull=False, align_right=False) %}
+        {% if allow_pull %}
+            {% if align_right %}
+                {% if nav[3]["align_right"] %}
+                    {{ _navbar_sub_list(nav) }}
+                {% endif %}
+            {% elif not nav[3]["align_right"] %}
+                {{ _navbar_sub_list(nav) }}
+            {% endif %}
+
+        {% else %}
+            {{ _navbar_sub_list(nav) }}
+        {% endif %}
+{%  endmacro %}
+
+
+
+{% macro _navbar_list(allow_pull=true, align_right=false, groups=None, exclude_groups=None) %}
+
+    <ul class="nav navbar-nav {% if allow_pull and align_right %}navbar-right{% endif %}">
+        {% for nav in __.MENU %}
+            {% if nav[3]["visible"] %}
+                {% set nav_name = nav[1] %}
+                {% set nav_items = nav[2] %}
+                {% set nav_kwargs = nav[3] %}
+                {%  set is_group = nav_kwargs["kwargs"]%}
+
+                {%  if groups %}
+                    {% if nav_kwargs["group_name"] in groups  %}
+                        {{ _navbar_list_content(nav,
+                                                allow_pull=allow_pull,
+                                                align_right=align_right) }}
+                    {% endif %}
+
+                {%  elif exclude_groups %}
+                    {% if nav_kwargs["group_name"] not in exclude_groups  %}
+                        {{ _navbar_list_content(nav,
+                                                allow_pull=allow_pull,
+                                                align_right=align_right) }}
+                    {% endif %}
+
+                {%  else %}
+                    {{ _navbar_list_content(nav,
+                                            allow_pull=allow_pull,
+                                            align_right=align_right) }}
+                {%  endif %}
+            {% endif %}
+        {% endfor %}
+    </ul>
+{% endmacro %}
+
+
+{# -------------------------------------------------------------------------- #}
+
+{# ::
+
+Help extract the main title and the sub title for the active menu navigation
+Useful to quickly bootstrap an admin
+
+:: #}
+
+{# :: Extract the main menu of the navigation :: #}
+{% macro current_title() %}
+        {% for nav in __.MENU %}
+            {% set nav_name = nav[1] %}
+            {% set nav_items = nav[2] %}
+            {% set nav_kwargs = nav[3] %}
+
+            {% if nav_kwargs["active"] %}
+                {{ nav_name }}
+            {% endif %}
+        {% endfor %}
+{% endmacro %}
+
+
+{# :: Extract the sub menu of the current endpoint navigation :: #}
+{% macro current_sub_title() %}
+        {% for nav in __.MENU %}
+            {% set nav_name = nav[1] %}
+            {% set nav_items = nav[2] %}
+            {% set nav_kwargs = nav[3] %}
+
+            {% if nav_kwargs["active"] %}
+              {% for item in nav_items %}
+                  {% set item_name = item[1] %}
+                  {% set item_endpoint = item[2] %}
+                  {% if item_endpoint == request.endpoint %}
+                    {{ item_name }}
+                  {% endif %}
+              {% endfor %}
+            {% endif %}
+        {% endfor %}
+{% endmacro %}
+
+{# -------------------------------------------------------------------------- #}
+
+{# BREADCRUM #}
+
+{% macro breadcrum(key) %}
+
+    <ol class="breadcrumb">
+        {% for nav in __.MENU %}
+            {% if nav[3]["visible"] %}
+                {% set nav_name = nav[1] %}
+                {% set nav_items = nav[2] %}
+                {% set nav_kwargs = nav[3] %}
+
+                {% if nav_kwargs["key"] == key %}
+                    {% for item in nav_items %}
+                        {% set item_name = item[1] %}
+                        {% set item_endpoint = item[2] %}
+                        {% set item_kwargs = item[3] %}
+                        {% set item_endpoint_kwargs = item_kwargs["endpoint_kwargs"] %}
+                        {% set item_url = url_for(item_endpoint, **item_endpoint_kwargs) %}
+                        {% if "url" in item_kwargs %}
+                            {% set item_url = item_kwargs["url"] %}
+                        {% endif %}
+                        {% set item_target = "" %}
+                        {% if "target" in item_kwargs %}
+                            {% set item_target = item_kwargs["target"] %}
+                        {% endif %}
+
+                        <li><a href="{{ item_url | safe  }}" target="{{ item_target }}">{{ item_name | safe }}</a></li>
+                    {% endfor %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    </ol>
+
+{% endmacro %}
+
+
+{# -------------------------------------------------------------------------- #}
+
+
+{# :: Panel
+@params key: str - The key name of the menu, to display only this set
+@param use_active: bool - When True, it will select the active menu and buil the menu on it
+@param panel: str - with bootstrap 3, it can be use to change the panel
+@param class_: str - A class name to add to the menu
+:: #}
+{% macro panel(key=None, use_active=False, panel="default", class_="") %}
+
+<div class="panel panel-{{ panel }} {{ class_ }}">
+
+    {% if use_active %}
+
+        {% for nav in __.MENU %}
+            {% set nav_name = nav[1] %}
+            {% set nav_items = nav[2] %}
+            {% set nav_kwargs = nav[3] %}
+
+            {% if nav_kwargs["active"] %}
+
+                {% if nav_items %}
+
+                    {{ _panel_sub_menu(nav) }}
+
+                {% endif %}
+
+            {% endif %}
+
+        {% endfor %}
+
+
+    {% elif key %}
+
+        {% for nav in __.MENU %}
+            {% set nav_name = nav[1] %}
+            {% set nav_items = nav[2] %}
+            {% set nav_kwargs = nav[3] %}
+
+            {% if nav_kwargs["key"] == key %}
+
+                {% if nav_items %}
+
+                    {{ _panel_sub_menu(nav) }}
+
+                {% endif %}
+
+            {% endif %}
+
+        {% endfor %}
+
+    {% else %}
+
+        {% for nav in __.MENU %}
+            {% set nav_name = nav[1] %}
+            {% set nav_items = nav[2] %}
+            {% set nav_kwargs = nav[3] %}
+
+            {% if nav_items %}
+                {{ _panel_sub_menu(nav) }}
+            {% endif %}
+        {% endfor %}
+
+    {% endif %}
+
+
+
+
+</div>
+
+{% endmacro %}
+
+
+{% macro _panel_sub_menu(nav) %}
+    {% set nav_name = nav[1] %}
+    {% set nav_items = nav[2] %}
+    {% set nav_kwargs = nav[3] %}
+
+    <div class="panel-heading" role="tab" id="panelGroupHeading{{ nav_kwargs.index }}">
+    <h4 class="panel-title">
+      <a class="" role="button" data-toggle="collapse"
+         href="#panelGroup{{ nav_kwargs.index }}"
+         aria-expanded="true"
+         aria-controls="panelGroup{{ nav_kwargs.index }}">
+        {{ nav_name }}
+      </a>
+    </h4>
+    </div>
+
+    <div id="panelGroup{{ nav_kwargs.index }}" class="panel-collapse collapse {% if nav_kwargs.active %}in{% endif %}"
+       role="tabpanel" aria-labelledby="panelGroupHeading{{ nav_kwargs.index }}" aria-expanded="true">
+
+        {{ _panel_listgroup(nav_items) }}
+    </div>
+{% endmacro %}
+
+{% macro _panel_listgroup(nav_items) %}
+
+    <ul class="list-group">
+
+      {% for item in nav_items %}
+        {% if item[3]["visible"] %}
+              {% set item_name = item[1] %}
+              {% set item_endpoint = item[2] %}
+              {% set item_kwargs = item[3] %}
+            {% set item_endpoint_kwargs = item_kwargs["endpoint_kwargs"] %}
+            {% set item_url = url_for(item_endpoint, **item_endpoint_kwargs) %}
+            {% if "url" in item_kwargs %}
+                {% set item_url = item_kwargs["url"] %}
+            {% endif %}
+            {% set item_target = "" %}
+            {% if "target" in item_kwargs %}
+                {% set item_target = item_kwargs["target"] %}
+            {% endif %}
+              <li class="list-group-item
+              {% if item_endpoint == request.endpoint %}active{% endif %}
+              ">
+               {% if item_endpoint == request.endpoint %}
+                   {{ item_name | safe }}
+               {% else %}
+                  <a href="{{ item_url | safe  }}" target="{{ item_target }}">{{ item_name | safe }}</a>
+
+               {% endif %}
+              </li>
+        {% endif %}
+      {% endfor %}
+
+    </ul>
+
+{% endmacro %}
+
+
+
+
