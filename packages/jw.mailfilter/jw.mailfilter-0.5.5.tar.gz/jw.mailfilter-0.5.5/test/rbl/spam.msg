@@ -1,0 +1,68 @@
+Return-Path: <BOUNCE_PREFIX-1457315219.14450.QBuox8PleeLl@bpcxm.press>
+Delivered-To: q@imap.ch
+Received: (qmail 17084 invoked by uid 89); 7 Mar 2016 06:55:22 -0000
+Received: by simscan 1.3.1 ppid: 17055, pid: 17077, t: 0.1325s
+         scanners: attach: 1.3.1 spam: 3.2.4
+X-Spam-Checker-Version: SpamAssassin 3.2.4 (2008-01-01) on rogatec
+X-Spam-Level: 
+X-Spam-Status: No, score=0.1 required=5.0 tests=RDNS_NONE autolearn=no
+	version=3.2.4
+Received: from unknown (HELO mail.bpcxm.press) (46.101.24.158)
+  by rogatec with SMTP; 7 Mar 2016 06:55:21 -0000
+Received-SPF: none (rogatec: domain at bpcxm.press does not designate permitted sender hosts)
+Received: by mail.bpcxm.press id hrkitk000dsk for <q@imap.ch>; Sun, 6 Mar 2016 20:49:21 -0500 (envelope-from <BOUNCE_PREFIX-1457315219.14450.QBuox8PleeLl@bpcxm.press>)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=ISO-8859-1
+Content-Transfer-Encoding: quoted-printable
+From: Melina Hartmann <Melina.Hartmann@bpcxm.press>
+Return-Path: BOUNCE_PREFIX-1457315219.14450.QBuox8PleeLl@bpcxm.press
+To: q@imap.ch
+Subject: =?ISO-8859-1?Q?Private_Krankenversicherung=3F_Alle_Tarife_im_=DC?=
+ =?ISO-8859-1?Q?berblick?=
+Message-ID: <ac0b960ccc9fd29574435deccce6f0ec@bpcxm.press>
+User-Agent: Mozilla/5.0 (Windows NT 10.0; WOW64; rv:38.0) Gecko/20100101
+ Thunderbird/38.4.0
+List-Unsubscribe: <http://www.bpcxm.press/abm/QBuox8PleeLl/>,
+ <mailto:u-QBuox8PleeLl-111@bpcxm.press>
+Date: Mon, 7 Mar 2016 01:55:22 -0500
+
+Wie teuer ist eine private Krankenversicherung?
+
+Eine pauschale Antwort auf diese Frage gibt es leider nicht. Die Versicheru=
+ngspr=E4mien richten sich nach Alter, Berufsgruppe und Gesundheitszustand b=
+ei Vertragsbeginn. Au=DFerdem spielt eine entscheidende Rolle, f=FCr welche=
+ Leistungen Sie sich letztendlich entscheiden und bis zu welchem Prozentsat=
+z die Versicherung eine Kostenerstattung =FCbernehmen soll. Es gibt jedoch =
+einen einfachen Weg f=FCr Sie, konkrete Zahlen zu Ihrem Wunschtarif zu erha=
+lten. Befragen Sie einfach unseren Vergleichsrechner, indem alle verf=FCgba=
+ren PKV-Tarife enthalten sind. Sie k=F6nnen auf einen Blick erkennen, welch=
+es Angebot f=FCr Sie am g=FCnstigsten ist.
+
+Jetzt vergleichen: http://www.bpcxm.press/QBuox8PleeLl/
+
+Sparen Sie bis zu 2400 ? pro Jahr!
+
+Zum Jahresbeginn haben die privaten Krankenversicherungen die Beitr=E4ge in=
+ einigen Tarifen erh=F6ht ? viele wurden aber auch g=FCnstiger. In unserem =
+Vergleich ermitteln Sie aktuelle Tarife Ihres Versicherers f=FCr 2016 und k=
+=F6nnen dadurch entscheiden, ob sich f=FCr Sie ein Wechsel innerhalb Ihrer =
+Versicherungsgesellschaft lohnt. Unser Beitragsvergleich ber=FCcksichtigt d=
+ar=FCber hinaus Tests unabh=E4ngiger Institute wie beispielsweise von Stift=
+ung Warentest, Finanztest oder =D6ko-Test. Auf diese Weise k=F6nnen Sie sic=
+h Tarife mit einem besonders g=FCnstigen Preis-Leistungs-Verh=E4ltnis siche=
+rn.
+
+Jetzt vergleichen: http://www.bpcxm.press/QBuox8PleeLl/
+
+
+Ein Service der Krankenversicherungen in Deutschland.
+
+
+
+
+
+
+
+
+---
+Keine Nachrichten mehr von mir? http://www.bpcxm.press/abm/QBuox8PleeLl/=20
