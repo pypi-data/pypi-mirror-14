@@ -1,0 +1,128 @@
+{% macro m_breadcrumbs2(breadcrumbs) %}
+  {% for obj in breadcrumbs[0:-1] %}
+    <a href="{{ obj.path }}">{{ obj.label }}</a> <span class="divider">/</span>
+  {% endfor %}
+  {{ breadcrumbs[-1].label }}
+{% endmacro %}
+
+
+{% macro m_docs_table(objects, edit=True) %}
+  {%- if objects %}
+    <form name="folder-listing" style="margin-bottom: 0;" method="POST">
+      {{ csrf_token }}
+      {%- if edit %}
+        <div class="btn-toolbar" style="margin-bottom: 0;">
+          <div class="btn-group" style="margin-right: 20px">
+            <a class="btn btn-default dropdown-toggle" data-toggle="dropdown" href="#">
+              <i class="fa fa-check"></i>
+              <span class="caret"></span>
+            </a>
+            <ul class="dropdown-menu">
+              <li><a href="#select-all">{{ _("Select all") }}</a></li>
+              <li><a href="#unselect-all">{{ _("Unselect all") }}</a></li>
+            </ul>
+          </div>
+
+          {%- for action in actions.for_category('documents:folder-listing') %}
+            <div class="btn-group">
+              {{ action.render() }}
+            </div>
+          {%- endfor %}
+
+          <div class="btn-group pull-right" style="margin-right: 20px;">
+            <input id="filter" type="text" class="form-control" placeholder="{{ _("Filter...") }}"
+                style="margin-bottom: 0;">
+          </div>
+
+        </div>
+      {% endif %}
+
+      <hr style="margin: 10px 0 10px 0;"/>
+
+      <table class="table table-striped table-condensed" id="objects-table">
+        <thead>
+        <tr>
+          <th style="width: 1%;"></th>
+          <th class="hide">type</th>
+          <th class="hide">title for sorting</th>
+          <th style="width: 39%;">{{ _("Title") }}</th>
+          <th style="width: 10%;">{{ _("Size") }}</th>
+          <th class="hide">Last Name</th>
+          <th class="hide">First Name</th>
+          <th style="width: 25%;">{{ _("Owner") }}</th>
+          <th class="hide">date</th>
+          <th style="width: 25%;">{{ _("Age") }}</th>
+        </tr>
+        </thead>
+
+        <tbody>
+        {%- for obj in objects %}
+          <tr>
+            <td><input type="checkbox" name="object-selected"
+                value="{{ obj.sbe_type }}:{{ obj.id }}"></td>
+            <td class="hide">{{ obj.object_type }}</td>
+            <td class="hide">{{ obj.title }}</td>
+            <td>
+              <img src="{{ obj.icon }}" style="vertical-align: middle;" alt=""/>
+              {%- if obj.object_type == 'folder' %}<i>
+                {{ obj.filtered_children|length }}</i>{%- endif %}
+              <a href="{{ url_for(obj) }}">{{ obj.title }}</a>
+            </td>
+            <td>
+              {%- if obj.is_document %}
+                {{ obj.content_length|filesize }}
+              {%- endif %}
+            </td>
+            {% set owner = obj.owner %}
+            <td class="hide">{{ owner.last_name }}</td>
+            <td class="hide">{{ owner.first_name }}</td>
+            <td>
+              <a href="{{ url_for("social.user", user_id=owner.id) }}"
+                  title="{{ owner.name }}"><img alt="{{ owner.name }}"
+                  src="{{ user_photo_url(owner, size=20) }}"
+                  style="vertical-align: middle;">
+                {{ owner.short_name }}</a>
+            </td>
+            <td class="hide">{{ obj.created_at.isoformat() }} </td>
+            <td>{{ obj.created_at|age(add_direction=False) }}</td>
+          </tr>
+        {%- endfor %}
+        </tbody>
+        <tfoot>
+        <tr>
+          <th></th>
+          <th class="hide">type</th>
+          <th class="hide">title for sorting</th>
+          <th>{{ _("Title") }}</th>
+          <th>{{ _("Size") }}</th>
+          <th class="hide">Last Name</th>
+          <th class="hide">First Name</th>
+          <th>{{ _("Owner") }}</th>
+          <th class="hide">date</th>
+          <th>{{ _("Age") }}</th>
+        </tr>
+        </tfoot>
+      </table>
+    </form>
+    <script type="application/json">
+          {%- set data = {
+              'deleteConfirmMsg': _("Delete selected elements?"),
+           } %}
+          {{ data | tojson | safe }}
+    </script>
+    {%- deferJS %}
+    <script type="text/javascript">
+     require(['Abilian', 'SBEFolderListingSetup'],
+             function(Abilian, setupFolderListing) {
+                 Abilian.fn.onAppInit(setupFolderListing);
+             });
+    </script>
+    {%- enddeferJS %}
+  {%- else %}
+    <p>
+      <em>{{ _("This folder is currently empty. Why don't you upload some content?") }}</em>
+    </p>
+  {%- endif %}
+
+  <div style="clear: both;"></div>
+{% endmacro %}

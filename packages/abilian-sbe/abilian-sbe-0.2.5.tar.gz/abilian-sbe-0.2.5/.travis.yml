@@ -1,0 +1,66 @@
+language: python
+python:
+  - "2.7"
+
+sudo: false
+
+env:
+  global:
+    - LD_LIBRARY_PATH=~/sqlite-3.9.1/lib
+  matrix:
+    - SQLALCHEMY_DATABASE_URI="sqlite://"
+    - SQLALCHEMY_DATABASE_URI="postgres://postgres@localhost/abilian_sbe"
+
+services:
+  - redis-server
+
+addons:
+  postgresql: "9.3"
+  apt:
+    packages:
+      - poppler-utils
+      - nodejs
+
+# Install OS dependencies
+before_install:
+  - export NPM_CONFIG_PREFIX=~/npm-packages
+  - mkdir "${NPM_CONFIG_PREFIX}"
+  - npm install -g less
+  - export PATH=~/npm-packages/bin:$PATH
+  - wget 'http://jenkins.abilian.com/_fixtures/libsqlite-3.9.1-precise-bin.tar.gz'
+  - tar xpvzf libsqlite-3.9.1-precise-bin.tar.gz -C ~
+  - echo $LD_LIBRARY_PATH
+  - ls ~/sqlite-3.9.1/lib
+
+# Install Python dependencies
+install:
+  - pip install -U 'pip>=8'
+  - pip install -e '.[dev]'
+  - pip install -r etc/git-requirements.txt
+  - pip --version
+  - python -c "import sqlite3; print 'SQLITE3:', sqlite3.sqlite_version"
+  - pip list
+
+# Create DB
+before_script:
+  - createdb -w -U postgres -E utf-8 abilian_sbe
+
+# Run tests
+script:
+  - py.test --tb=short -q --cov abilian abilian tests
+  # There are no docs yet!
+  #- sphinx-build -W -b html docs/ docs/_build/
+
+# Report coverage
+after_success:
+  - pip install codecov coveralls
+  - coveralls
+  - codecov
+
+notifications:
+  slack:
+    rooms:
+      - abilian:dTtRD7DHS4Dw3jfRrqytQWU6#code
+    on_success: change
+    on_failure: always
+
