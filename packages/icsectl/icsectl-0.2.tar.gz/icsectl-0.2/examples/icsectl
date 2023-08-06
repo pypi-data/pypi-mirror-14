@@ -1,0 +1,125 @@
+#!/usr/bin/python3
+'''
+file icsectl - controlling ICStation USB multi channel relay modules
+
+Copyright (c) 2016, Heinrich Schuchardt <xypron.glpk@gmx.de>
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+'''
+
+import getopt
+import icsectl
+import serial
+import sys
+
+def checkdev(dev):	
+	"""
+	Writes error message and exits if device is not specified.
+
+	:params dev: device
+	"""
+	if dev == None:
+		print("Device must be specified.")
+		print()
+		usage()
+		sys.exit(2)
+def main():
+	# Define command line options.
+	try:
+		opts, args = getopt.getopt(sys.argv[1:], "cd:f:ho:")
+	except getopt.GetoptError as err:
+		print(str(err))
+		usage()
+		sys.exit(2)
+	
+	dev = None
+	bits = 0
+
+	# Handle command line.
+	for o, a in opts:
+		if o == "-c":
+			checkdev(dev)
+			bits = 0
+		elif o == "-d":
+			try:
+				icsectl.writestatus(dev, bits)
+			except serial.serialutil.SerialException as err:
+				print(err)
+				sys.exit(1)
+			printstatus(dev,bits)
+			dev = a
+			bits = icsectl.readstatus(dev)
+		elif o == "-f":
+			checkdev(dev)
+			bits &= -int(pow(2.0, int(a))) - 1
+		elif o == "-h":
+			usage()
+			exit(0)
+		elif o == "-o":
+			checkdev(dev)
+			bits |= int(pow(2.0, int(a)))
+	try:
+		icsectl.writestatus(dev, bits)
+	except serial.serialutil.SerialException as err:
+		print(err)
+		sys.exit(1)
+	checkdev(dev)
+	printstatus(dev,bits)
+
+def printstatus(dev, bits):
+	"""
+	Prints status of device.
+
+	:param dev: device
+	:param bits: bit mask
+	"""
+	if dev == None:
+		return
+	print(dev)
+	for i in range(0, 8):
+		if 0 != int(pow(2.0, i)) & bits:
+			bit = 1
+		else:
+			bit = 0
+		print("    outlet {}: {}".format(i, bit))
+	print()
+
+def usage():
+	"""
+	Outputs the online help.
+	"""
+	print("Usage: icsectl [Options]")
+	print("control ICStation USB multi channel relay module")
+	print()
+	print("  -c         clear, switch off all outlets")
+	print("  -d DEVICE  device id, e.g. /dev/ttyICSE012A")
+	print("  -f OUTLET  switch outlet off")
+	print("  -h         display this help")
+	print("  -o OUTLET  switch outlet on")
+	print()
+	print("The device must be specified before the actions.")
+	print("If multiple devices are specified, the actions relate")
+	print("to the last device specified.")
+
+if __name__ == "__main__":
+	main()
