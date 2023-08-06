@@ -1,0 +1,331 @@
+#!/usr/bin/env python
+import pandas as ps
+import os
+import subprocess
+import sys
+import shutil
+from traitar import get_external_data
+import traitar
+from traitar import hmm2gff
+import json
+import os
+import sys
+import tarfile
+from traitar._version import __version__
+import re
+
+def phenolyze(args):
+    p = Traitar(args.input_dir, args.output_dir, args.sample2file, args.cpus, args.rearrange_heatmap, args.heatmap_format, args.gene_gff_type)
+    p.run(args.mode)
+
+
+class Traitar:
+
+    def __init__(self, input_dir, output_dir, sample2file, cpu = 1, heatmap_out = None, heatmap_format = "pdf", gene_gff_type = None):
+        self.user_message = "output dir %s already exists; press 1 to continue with data from a previous run; press 2 to remove this directory; press 3 to abort followed by [ENTER]"
+        self.error_message =  "directory %s already exists; delete directory or run in interactive mode if this step is done and you want to continue from there"
+        self.heatmap_format = heatmap_format 
+        self.sample2file = sample2file
+        self.input_dir = input_dir
+        self.gene_gff_type = gene_gff_type
+        self.s2f = self.parse_sample_f()
+        self.cpu = cpu
+        self.output_dir = output_dir
+        self.phenolyzer_dir = os.path.abspath(os.path.dirname(traitar.__file__)) 
+        self.is_gnu_parallel_available = self.is_exe("parallel")
+        self.heatmap_out = heatmap_out
+        if cpu != 1 and not self.is_gnu_parallel_available:
+            sys.stderr.write("GNU parallel is not available on the command line; make sure you installed it properly or decrease number of cpus to 1\n")
+            sys.exit(0)
+        #check if executables are available 
+        if not self.is_exe("hmmsearch"):
+            sys.stderr.write("hmmsearch not available on command line; please make sure you have properly installed it\n")
+            sys.exit(0)
+        if not self.is_exe("prodigal"):
+            sys.stderr.write("prodigal not available on command line; please make sure you have properly installed it\n")
+            sys.exit(0)
+        #check if config exists
+        if not os.path.isfile(os.path.join(self.phenolyzer_dir, "config.json")):
+            sys.stderr.write("config.json does not exists; make sure that you have run traitar pfam")
+            sys.exit(0)
+            #check if Pfam hmm specified in config.json exists
+        with open(os.path.join(self.phenolyzer_dir, "config.json" ), "r") as cf:
+            self.config = json.load(cf)
+        if not os.path.isfile(self.config["pfam_hmms"]):
+            sys.stderr.write("Pfam HMM file does not exist (%s), make sure you have run traitar config --local <Pfam hmm>" % self.config["pfam_hmms"])
+        #create output dir
+        self.check_dir(output_dir)
+        #pred dir
+        self.pred_dir = os.path.join(self.output_dir, "phenotype_prediction")
+        self.phypat_dir = os.path.join(self.pred_dir, "phypat")
+        self.phypat_pgl_dir = os.path.join(self.pred_dir, "phypat+PGL")
+
+    def _special_match(self, strg, search = re.compile(r'[^A-Za-z0-9.\-_]').search):
+        return not bool(search(strg))
+   
+    def parse_sample_f(self):
+        """read sample file with pandas and make sure the content is appropriate"""
+        #check if sample files exist
+        if not os.path.exists(self.sample2file):
+            sys.exit("sample file %s does not exist" % self.sample2file)
+        s2f = ps.read_csv(self.sample2file, dtype = 'string', sep = "\t")
+        col_check = dict((i, False) for i in ["sample_file_name", "sample_name", "category", "gene_gff"])
+        for i in s2f.columns:
+            if i not in ["sample_file_name", "sample_name", "category", "gene_gff"]:
+                sys.exit("%s is not a valid column identifier" % i)
+            col_check[i] = True
+        if not col_check["sample_file_name"]:
+            sys.exit("sample_file_name column in input sample_file missing")
+        if not col_check["sample_name"]:
+            sys.exit("sample_name colun in input sample_file missing")
+        for i in s2f.loc[:, "sample_file_name"]:
+            if not os.path.exists(os.path.join(self.input_dir,i)):
+                sys.exit("sample file %s does not exist in the output directory %s" % (self.input_dir, i))
+        for i in s2f.loc[:, "sample_name"]:
+            if not self._special_match(i):
+                sys.exit("invalid character in sample name %s; only [a-zA-Z0-9.-_] allowed" % i)
+            if len(i) > 41:
+                sys.exit("sample names may only have 40 characters %s" %i)
+        if col_check["category"]:
+            uq = s2f.loc[:, "category"].unique()
+            if len(uq) > 12:
+                sys.exit("reduce the number of sample categories to less than 15")
+            for i in uq:
+                if len(i) > 30:
+                    sys.exit("sample categories may not be longer than 30 characters %s" %i)
+        if col_check["gene_gff"]:
+            for i in s2f.loc[:, "gene_gff"]:
+                if not os.path.exists(os.path.join(self.input_dir,i)):
+                    sys.exit("sample file %s does not exist in the output directory %s" % (self.input_dir, i))
+            if self.gene_gff_type is None:
+                sys.exit("gene gff type needs to be specified with -g / --gene_gff_type <gene_gff_type> if sample file contains gene_gff column")
+        return s2f
+            
+  
+    
+    def is_exe(self, program):
+        def is_exe(fpath):
+            return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+        fpath, fname = os.path.split(program)
+        if fpath:
+            if is_exe(program):
+                return True 
+        else:
+            for path in os.environ["PATH"].split(os.pathsep):
+                path = path.strip('"')
+                exe_file = os.path.join(path, program)
+                if is_exe(exe_file):
+                    return True 
+                else:
+                    False 
+
+    def check_dir(self, out_dir):
+        if os.path.exists(out_dir):
+            if os.getpgrp() == os.tcgetpgrp(sys.stdout.fileno()):
+                print  self.user_message % out_dir
+                user_input = raw_input()
+                while user_input not in ["1", "2", "3"]:
+                    user_input = raw_input().strip()
+                if user_input == "1":
+                    return False 
+                if user_input == "2":
+                    shutil.rmtree(out_dir)
+                    os.mkdir(out_dir)
+                    return True 
+                if user_input == "3":
+                    sys.exit(1)
+
+            else:
+                sys.stderr.write( self.error_message % out_dir)
+        else: 
+            os.mkdir(out_dir)
+            return True
+
+    def run(self, mode):
+        pfam_msg = "running Pfam annotation with hmmer. This step can take a while. A rough estimate for sequential Pfam annotation of genome samples of ~3 Mbs is 10 min per genome."
+        if mode == "from_nucleotides":
+            print "running gene prediction with Prodigal"
+            sys.stdout.flush()
+            self.run_gene_prediction(self.s2f.loc[:,"sample_file_name"], self.s2f.loc[:,"sample_name"])
+            print pfam_msg
+            sys.stdout.flush()
+            self.run_hmmer_annotation(self.s2f.loc[:,"sample_name"], self.s2f.loc[:,"sample_name"], mode)
+        if mode == "from_genes": 
+            print pfam_msg
+            sys.stdout.flush()
+            self.run_hmmer_annotation(self.s2f.loc[:,"sample_file_name"], self.s2f.loc[:,"sample_name"], mode)
+        print "running phenotype prediction"
+        sys.stdout.flush()
+        is_recompute = self.check_dir(self.pred_dir)
+        if is_recompute:
+            self.run_phenotype_prediction()
+        print "running feature track generation"
+        if not "gene_gff" in self.s2f.columns:
+            self.run_feature_track_generation(self.s2f.loc[:,"sample_name"], mode)
+        else:
+            self.run_feature_track_generation(self.s2f.loc[:, "sample_name"],  mode, self.s2f.loc[: , "gene_gff"], self.gene_gff_type)
+        sys.stdout.flush()
+        print "running heatmap generation"
+        self.run_heatmap_generation(self.s2f.loc[:,"sample_name"])
+        sys.stdout.flush()
+        
+         
+    
+    def execute_commands(self, commands):
+        devnull = open('/dev/null', 'w')
+        from subprocess import Popen, PIPE
+        if self.cpu > 1:
+            #run with parallel
+            #ps.DataFrame(commands).to_csv(tf, index = False, header = False) 
+            p = Popen("parallel --will-cite -j %s" %  self.cpu,  stdout = devnull, shell = True,  executable = "/bin/bash", stdin = PIPE, env = env)
+            p.communicate(input = "\n".join(commands))
+        else:
+            #run in sequential order
+            for i in commands:
+                subprocess.call(i,  executable = "/bin/bash", stdout = devnull, shell = True, env = env)
+
+    def run_gene_prediction(self, in_samples, out_samples):
+        #create output directory for the gene prediction 
+        gp_dir = os.path.join(self.output_dir, "gene_prediction")
+        is_recompute = self.check_dir(gp_dir)
+        prodigal = "prodigal < %(in_dir)s/%(in_sample)s > %(gp_dir)s/%(out_sample)s.gff  -a %(gp_dir)s/%(out_sample)s.faa  -f gff"
+        prodigal_commands = []
+        for i in range(len(in_samples)):
+            prodigal_commands.append(prodigal % {"in_dir": self.input_dir, "in_sample": in_samples[i], "out_sample":out_samples[i], "gp_dir":gp_dir})
+        if is_recompute:    
+            self.execute_commands(prodigal_commands) 
+
+    def run_hmmer_annotation(self, in_samples, out_samples, mode):
+	file_extension = False
+	in_dir = self.input_dir
+        if mode == "from_nucleotides":
+            file_extension = True 
+            in_dir = os.path.join(self.output_dir, "gene_prediction")
+        #create output directory for the pfam annotation 
+        a_dir = os.path.join(self.output_dir, "pfam_annotation")
+        #check if output directory already exists and trigger user input if in interactive mode
+        is_recompute = self.check_dir(a_dir)
+        #run hmmer annotation
+        hmmer =  "hmmsearch --cpu 1 --cut_ga  --domtblout %(a_dir)s/%(out_sample)s_domtblout.dat  %(pfam_hmms)s > /dev/null %(in_dir)s/%(in_sample)s%(file_extension)s"      
+        hmmer_commands = []
+        for i in range(len(in_samples)):
+            hmmer_commands.append(hmmer % {"file_extension": ".faa" if file_extension else "", "in_sample":in_samples[i], "out_sample":out_samples[i], "a_dir":a_dir, "phenolyzer":self.phenolyzer_dir, "in_dir" : in_dir, "pfam_hmms" : self.config["pfam_hmms"]})
+        #run gff extraction
+        #run filtering and best domain hit aggregation
+        filter_and_aggregate = "hmmer2filtered_best.py %(a_dir)s/%(out_sample)s_domtblout.dat   %(a_dir)s/%(out_sample)s_filtered_best.dat 10e-02 25 "
+        fae_commands = []
+        for i in range(len(in_samples)):
+            fae_commands.append(filter_and_aggregate % {"a_dir":a_dir, "in_sample":in_samples[i], "out_sample":out_samples[i], "phenolyzer":self.phenolyzer_dir})
+        #run summary matrix computation
+        #write temp sample file to disk
+        #TODO modify this piece of code so that there is no temp file required anymore
+        #best_fs = ps.DataFrame(["%(a_dir)s/%(sample)s_filtered_best.dat"%{"a_dir" : a_dir, "sample":sample} for sample in out_samples])
+        #best_fs.to_csv("/tmp/samples_best.txt", index = None, header = None)
+        domtblout2gene_generic = "domtblout2gene_generic.py %(a_dir)s/summary.dat  <(ls %(a_dir)s/*_filtered_best.dat) %(phenolyzer)s/data/sorted_accessions.txt"%{"a_dir": a_dir, "phenolyzer":self.phenolyzer_dir}
+        if is_recompute:
+            self.execute_commands(hmmer_commands)
+            self.execute_commands(fae_commands)
+            self.execute_commands([domtblout2gene_generic])
+
+
+    def run_phenotype_prediction(self):
+        #create output directory for the phenotype prediction 
+        if not os.path.exists(self.phypat_dir):
+            os.mkdir(self.phypat_dir)
+        if not os.path.exists(self.phypat_pgl_dir):
+            os.mkdir(self.phypat_pgl_dir)
+        #run phenotype prediction for phypat and phypat+PGL
+        predict_phypat = "predict.py %(phenolyzer)s/data/models/phypat.tar.gz %(pred_dir)s 8476-8568 %(out_dir)s/pfam_annotation/summary.dat -k 5  pfam_pts_names_nl_desc.txt" % {"out_dir" : self.output_dir, "pred_dir" : self.phypat_dir, "phenolyzer" : self.phenolyzer_dir} 
+        predict_phypat_pgl = "predict.py %(phenolyzer)s/data/models/phypat+PGL.tar.gz %(pred_dir)s 8682-8774 %(out_dir)s/pfam_annotation/summary.dat -k 5  pfam_pts_names_nl_desc.txt" % {"out_dir" : self.output_dir, "pred_dir" : self.phypat_pgl_dir, "phenolyzer" : self.phenolyzer_dir} 
+        self.execute_commands([predict_phypat, predict_phypat_pgl])
+        #combine phypat and phypat+PGL predictions
+        merge_preds = "merge_preds.py %(out_dir)s %(phypat_dir)s %(phypat_pgl_dir)s -k 5" %{"out_dir" : os.path.join(self.output_dir, "phenotype_prediction"), "phypat_dir" : self.phypat_dir, "phypat_pgl_dir" : self.phypat_pgl_dir, "phenolyzer" : self.phenolyzer_dir } 
+        self.execute_commands([merge_preds])
+    
+    def run_feature_track_generation(self, in_samples, mode, gene_gffs = None, gene_gff_type = "prodigal"):
+        #create output directory for the pfam annotation 
+        hmm2gff = "%(phenolyzer)s/hmm2gff.py %(out_dir)s/pfam_annotation/%(sample)s_filtered_best.dat %(gene_gff)s  %(out_gff_dir)s %(sample)s " + gene_gff_type + " %(model_tar)s %(predicted_pts)s"
+        #read in phypat predictions
+        phypat_preds = ps.read_csv(os.path.join(self.phypat_dir, "predictions_majority-vote.txt"), index_col = 0, sep = "\t")
+        phypat_pgl_preds = ps.read_csv(os.path.join(self.phypat_pgl_dir, "predictions_majority-vote.txt"), index_col = 0, sep = "\t") 
+        #read pfam phenotype id mapping file from model tar
+        pt2desc_phypat_f = tarfile.open("%s/data/models/phypat.tar.gz"%self.phenolyzer_dir, mode = "r:gz").extractfile("pfam_pts_names_nl_desc.txt")
+        pt2desc_phypat_pgl_f = tarfile.open("%s/data/models/phypat+PGL.tar.gz"%self.phenolyzer_dir, mode = "r:gz").extractfile("pfam_pts_names_nl_desc.txt")
+        pt2desc_phypat = ps.read_csv(pt2desc_phypat_f, sep = "\t", index_col = 1)
+        pt2desc_phypat_pgl = ps.read_csv(pt2desc_phypat_pgl_f, sep = "\t", index_col = 1)
+        h2gff_commands = []
+        #hmm2gff command for the full pfam annotation
+        #collect predictions and compose hmm2gff command for each samples
+        for i in range(len(in_samples)):
+            predicted_pts_phypat = []
+            predicted_pts_phypat_pgl = []
+            for j in phypat_preds.columns:
+                if phypat_preds.loc[in_samples[i], j] == 1:
+                    predicted_pts_phypat.append(str(pt2desc_phypat.loc[j,][0]- 1))
+                if phypat_pgl_preds.loc[in_samples[i], j] == 1:
+                    predicted_pts_phypat_pgl.append(str(pt2desc_phypat.loc[j,][0] + 205))
+            if not len(predicted_pts_phypat) == 0:
+                h2gff_commands.append(hmm2gff % {"archive": "phypat.tar.gz", "out_gff_dir" : "%s/feat_gffs/" % self.phypat_dir, "out_dir" : self.output_dir, "phenolyzer" : self.phenolyzer_dir, "sample" : in_samples[i], "model_tar" : "%s/data/models/phypat.tar.gz" % self.phenolyzer_dir, "predicted_pts": "--predicted_pts " + ",".join(predicted_pts_phypat), "gene_gff" : ("%s/gene_prediction/%s.gff" % (self.output_dir, in_samples[i])) if gene_gffs is None else os.path.join(self.input_dir, gene_gffs[i])})
+            if not len(predicted_pts_phypat_pgl) == 0:
+                h2gff_commands.append(hmm2gff % {"archive": "phypat_pgl.tar.gz", "out_gff_dir" : "%s/feat_gffs/" % self.phypat_pgl_dir, "sample" : in_samples[i] , "out_dir" : self.output_dir, "phenolyzer" : self.phenolyzer_dir, "model_tar" : "%s/data/models/phypat+PGL.tar.gz" % self.phenolyzer_dir, "predicted_pts": "--predicted_pts " + ",".join(predicted_pts_phypat_pgl), "gene_gff" : ("%s/gene_prediction/%s.gff" % (self.output_dir, in_samples[i])) if gene_gffs is None else os.path.join(self.input_dir, gene_gffs[i])})
+            #create output dirs for feature tracks
+        if mode == "from_nucleotides" or gene_gffs is not None:
+            is_recompute = self.check_dir(os.path.join(self.phypat_pgl_dir, "feat_gffs"))
+            if is_recompute:
+                if not os.path.exists(os.path.join(self.phypat_dir, "feat_gffs")):
+                    os.mkdir(os.path.join(self.phypat_dir, "feat_gffs"))
+            self.execute_commands(h2gff_commands) 
+        else:
+            ftco = os.path.join(self.pred_dir, "feature_track_commands.txt")
+            sys.stderr.write("tracks with Pfams relevant for the predictions cannot be ad-hoc generated because the input is amino acids and no gene prediction GFF files have been generated\n commands are saved to %s and can be modified and run manually\n" % ftco)
+            with open(ftco, 'w') as f:
+                f.write("\n".join(h2gff_commands))
+
+    def run_heatmap_generation(self, in_samples):
+        """generate a heatmap from the results"""
+        if self.heatmap_out is None:
+            self.heatmap_out = self.pred_dir
+        hm_cmd = "heatmap.py %(pred_dir)s/%(pred_f)s %(out)s/heatmap_%(predictor)s.%(heatmap_format)s --mode %(mode)s --sample_f %(sample_file)s --pt2cat2col_f %(phenolyzer)s/data/pt2cat2col.txt"
+        hm_dict = {"phenolyzer" : self.phenolyzer_dir,  "out": self.heatmap_out, "sample_file" : self.sample2file  , "heatmap_format" : self.heatmap_format}
+        hm_dict_phypat = {"pred_dir" : self.pred_dir ,"mode" : "combined","pred_f" : "predictions_majority-vote_combined.txt","predictor": "combined"}
+        hm_dict_phypat_ggl = {"pred_dir" : self.phypat_dir, "pred_f" : "predictions_majority-vote.txt","predictor": "phypat", "mode" : "single"}
+        #hm_cmd_phypat = hm_cmd %{"pred_dir" : self.pred_dir, "pred_f" : "predictions_single-votes_combined.txt","predictor": "phypat", "mode" : "single"}
+        hm_dict_comb = {"pred_dir" : self.phypat_pgl_dir, "pred_f" : "predictions_majority-vote.txt", "predictor": "phypat_pgl", "mode" : "single"}
+        cmds = []
+        for i in [hm_dict_phypat, hm_dict_phypat_ggl, hm_dict_comb]:
+            i.update(hm_dict)
+            cmds.append(hm_cmd % i)
+        self.execute_commands(cmds)
+
+
+
+if __name__ == "__main__":
+    #add phenolyzer dir to the path
+    env = os.environ.copy()
+    import argparse
+    class MyParser(argparse.ArgumentParser):
+        def error(self, message):
+            sys.stderr.write('error: %s\n' % message)
+            self.print_help()
+            sys.exit(2)
+    parser = MyParser("run traitar (try: traitar {config, phenotype} -h for help on the sub programs)")
+    parser.add_argument("-v", "--version", action = 'version', version = __version__)
+    subparsers = parser.add_subparsers()
+    main_p = subparsers.add_parser("phenotype", help = "run annotation and prediction") 
+    main_p.add_argument("input_dir", help='directory with the input data')
+    main_p.add_argument("sample2file", help='mapping from samples to fasta files (also see gitHub help):\n sample1_file_name{tab}sample1_name\nsample2_file_name{tab}sample2_name')
+    main_p.add_argument("mode", help='either from_genes if gene prediction amino acid fasta is available in input_dir otherwise from_nucleotides in this case Prodigal is used to determine the ORFs from the nucleotide fasta files in input_dir', choices = ["from_genes", "from_nucleotides"])
+    main_p.add_argument("output_dir", help='directory for the output; will be created if it doesn\'t exist yet', default='phenolyzer_output')
+    main_p.add_argument("-c", "--cpus", help='number of cpus used for the individual steps; maximum is number of samples; needs parallel', default = 1)
+    main_p.add_argument("-g", "--gene_gff_type", help='if the input is amino acids the type of gene prediction GFF file can be specified for mapping the phenotype predictions to the genes', default = None, choices = ["genbank", "refseq", "img", "prodigal", "metagenemark"])
+    main_p.add_argument("-r", "--rearrange_heatmap", help='recompute the phenotype heatmaps based on a subset of previously annotated and phenotyped samples', default = None)
+    main_p.add_argument("-f", "--heatmap_format", choices = ["png", "pdf", "svg", "jpg"], default='pdf', help = "choose file format for the heatmap") 
+    main_p.set_defaults(func = phenolyze)
+    data_p = subparsers.add_parser("pfam", help = "download or set Pfam HMMs") 
+    data_p.add_argument("download",  help = "download Pfam HMMs into the given download directory and untar and unzip it")
+    data_p.add_argument("--local", "-l", action = 'store_true', help = "the Pfam HMMs are in the above directory with name 'Pfam-A.hmm'")
+    data_p.set_defaults(func = get_external_data.download)
+    args = parser.parse_args()
+    args.func(args)
+
+
