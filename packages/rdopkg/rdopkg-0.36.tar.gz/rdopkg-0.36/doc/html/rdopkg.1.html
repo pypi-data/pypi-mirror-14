@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 1.5.4">
+<title>rdopkg(1)</title>
+<style>
+
+</style>
+</head>
+<body class="manpage toc2 toc-left">
+<div id="header">
+<h1>rdopkg(1) Manual Page</h1>
+<div id="toc" class="toc2">
+<div id="toctitle">Table of Contents</div>
+<ul class="sectlevel1">
+<li><a href="#_synopsis">SYNOPSIS</a></li>
+<li><a href="#_description">DESCRIPTION</a>
+<ul class="sectlevel2">
+<li><a href="#_persistence">persistence</a></li>
+</ul>
+</li>
+<li><a href="#_actions">ACTIONS</a>
+<ul class="sectlevel2">
+<li><a href="#_important_actions_diagram">Important actions diagram</a></li>
+<li><a href="#_action_fix">ACTION: fix</a></li>
+<li><a href="#_action_patch">ACTION: patch</a></li>
+<li><a href="#_action_new_version">ACTION: new-version</a></li>
+<li><a href="#_action_update_patches">ACTION: update-patches</a></li>
+<li><a href="#_action_query">ACTION: query</a></li>
+<li><a href="#_action_reqquery">ACTION: reqquery</a></li>
+<li><a href="#_action_reqcheck">ACTION: reqcheck</a></li>
+<li><a href="#_action_reqdiff">ACTION: reqdiff</a></li>
+<li><a href="#_action_kojibuild">ACTION: kojibuild</a></li>
+<li><a href="#_action_coprbuild">ACTION: coprbuild</a></li>
+<li><a href="#_action_update">ACTION: update</a></li>
+<li><a href="#_action_amend">ACTION: amend</a></li>
+<li><a href="#_action_squash">ACTION: squash</a></li>
+<li><a href="#_action_get_sources">ACTION: get-sources</a></li>
+<li><a href="#_action_push_updates">ACTION: push-updates</a></li>
+<li><a href="#_action_info">ACTION: info</a></li>
+<li><a href="#_action_conf">ACTION: conf</a></li>
+</ul>
+</li>
+<li><a href="#_automagic">AUTOMAGIC</a>
+<ul class="sectlevel2">
+<li><a href="#patches-branch">patches branch</a></li>
+<li><a href="#commit-message">commit message</a></li>
+<li><a href="#rdoinfo">rdoinfo</a></li>
+</ul>
+</li>
+<li><a href="#_see_also">SEE ALSO</a></li>
+<li><a href="#_contact">CONTACT</a></li>
+</ul>
+</div>
+<h2>NAME</h2>
+<div class="sectionbody">
+<p>rdopkg - RDO packaging tool</p>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_synopsis">SYNOPSIS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>rdopkg</code> &lt;action&gt; &lt;arg&gt;&#8230;&#8203;</p>
+</div>
+<div class="paragraph">
+<p><code>rdopkg</code> <code>-c</code></p>
+</div>
+<div class="paragraph">
+<p><code>rdopkg</code> <code>-h</code></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_description">DESCRIPTION</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>rdopkg</strong> is a tool for automating RDO/RHOSP packaging tasks, such as
+introducing patches, updating packages to new versions and submitting
+packages to RDO.</p>
+</div>
+<div class="paragraph">
+<p>Run <code>rdopkg -h</code> to get available actions.</p>
+</div>
+<div class="sect2">
+<h3 id="_persistence">persistence</h3>
+<div class="paragraph">
+<p><code>rdopkg</code> provides multi-step actions where each step is (should be) idempotent
+so if something fails along the way or human interaction is required, rdopkg
+drops to shell, let&#8217;s you rectify and then continue by running
+<code>rdopkg --continue</code> (<code>rdopkg -c</code>).</p>
+</div>
+<div class="paragraph">
+<p>The state is stored in <code>.rdopkg.json</code> file in current directory. Stored action
+can be inspected (<code>rdopkg status</code>), continued (<code>rdopkg --continue</code>) or aborted
+(<code>rdopkg --abort</code>). <code>rdopkg</code> will refuse to start new multi-step action if
+state file is present.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_actions">ACTIONS</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_important_actions_diagram">Important actions diagram</h3>
+<div class="paragraph">
+<p>&nbsp;</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>                      +---------------------+
+                     /  WHAT DO YOU NEED?  /
+                    +-----+----------+----+
+                          |          |
+                  +-------+          +-------------+
+                  |                                |
+           build new package               submit RDO update
+                  |                                |
+                  v                                |
+           +----------------+                      |
+          /  what change?  /                       |
+         +--+-----+-----+-+                        |
+            |     |     |                          |
+     +------+     |     +--------+                 |
+     |            |              |                 |
+just update   introduce    update to new           |
+  .spec       patch(es)   upstream version         |
+     |            |              |                 |
+     |            |              |                 |
+     v            v              v                 v
+  +-----+     +-------+    +-------------+    +--------+
+  | fix |     | patch |    | new-version |    | update |
+  +-----+     +-------+    +-------------+    +--------+</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_fix">ACTION: fix</h3>
+<div class="paragraph">
+<p>Make <code>.spec</code> file only changes.</p>
+</div>
+<div class="paragraph">
+<p><strong>Flow:</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Bump Release, prepare a new %changelog entry header.</p>
+</li>
+<li>
+<p>Drop to shell, let user edit .spec file.</p>
+</li>
+<li>
+<p>After running <code>rdopkg</code>, ensure description was added to %changelog
+and commit changes to new commit.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Example:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>cd python-novaclient
+rdopkg fix
+vim python-novaclient.spec
+rdopkg -c</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_patch">ACTION: patch</h3>
+<div class="paragraph">
+<p>Introduce new patches to the package.</p>
+</div>
+<div class="paragraph">
+<p>This action works with patches branch
+(see <a href="#patches-branch">AUTOMAGIC &#8594; patches branch</a>).
+By default, <code>rdopkg</code> resets local patches branch to remote patches branch.
+You can skip this this with <code>--local-patches</code> to directly use local patches
+branch as is.</p>
+</div>
+<div class="paragraph">
+<p>Note that <code>patch</code> is a high level wrapper of <code>update-patches</code> action. If
+you&#8217;re interested in just updating patches in <code>.spec</code> file from local patches
+branch, try using <code>update-patches</code> action instead.</p>
+</div>
+<div class="paragraph">
+<p>Don&#8217;t forget to <code>git fetch</code> before running the action.</p>
+</div>
+<div class="paragraph">
+<p>After running <code>rdopkg patch</code>, new commit will contain the changes.</p>
+</div>
+<div class="paragraph">
+<p><strong>Flow:</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Unless <code>-l</code>/<code>--local-patches</code> was used, reset local patches branch to
+remote patches branch.</p>
+</li>
+<li>
+<p>Update .spec file: bump Release, create new %changelog entry with new
+patches' titles and create a commit.</p>
+</li>
+<li>
+<p>Update patches from local patches branch (<code>update-patches</code> action)</p>
+</li>
+<li>
+<p>Display the diff.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_new_version">ACTION: new-version</h3>
+<div class="paragraph">
+<p>Update package to new upstream version.</p>
+</div>
+<div class="paragraph">
+<p>This action works with patches branch
+(see <a href="#patches-branch">AUTOMAGIC &#8594; patches branch</a>).
+After successful rebase, <code>rdopkg</code> will offer to push the
+rebased patches branch.</p>
+</div>
+<div class="paragraph">
+<p>Required <code>new-version</code> argument is a new version to rebase on, presumably
+a git version tag.</p>
+</div>
+<div class="paragraph">
+<p>Don&#8217;t forget to <code>git fetch --all</code> before running the action.</p>
+</div>
+<div class="paragraph">
+<p>After running <code>rdopkg new-version</code>, new commit will contain the changes.</p>
+</div>
+<div class="paragraph">
+<p>To just update <code>.spec</code> without touching patches branch, <code>-b</code>/<code>--bump-only</code> can
+be used. You might also occasionally want to skip <code>fedpkg new-sources</code> step
+with <code>-n</code>/<code>--no-new-sources</code>. These two options combined give you local-only
+operation, much like <code>rpmdev-bumpspec</code>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg -bn</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Flow:</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Show diff from previous version, especially changes to <code>requirements.txt</code>.</p>
+</li>
+<li>
+<p>Reset local patches branch to remote patches branch</p>
+</li>
+<li>
+<p>Rebase local patches branch on <code>$NEW_VERSION</code> tag.</p>
+</li>
+<li>
+<p>Update <code>.spec</code> file: set <code>Version</code>, <code>Release</code> and <code>patches_base</code> to
+appropriate values and create new %changelog entry.</p>
+</li>
+<li>
+<p>Download source tarball.</p>
+</li>
+<li>
+<p>Run <code>fedpkg new-sources</code> (<code>rhpkg new-sources</code>).</p>
+</li>
+<li>
+<p>Update patches from local patches branch (<code>update-patches</code> action)</p>
+</li>
+<li>
+<p>Display the diff.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Example:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>cd python-novaclient
+git fetch --all
+rdopkg new-version 2.15.0
+# rebase failed, manually fix using git
+rdopkg -c</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_update_patches">ACTION: update-patches</h3>
+<div class="paragraph">
+<p>Update <code>.spec</code> file with patches from patches branch.</p>
+</div>
+<div class="paragraph">
+<p>This is a core low level action used by other actions such as <code>patch</code> and
+<code>new-version</code> to update dist-git patches from patches branch.
+See <a href="#patches-branch">AUTOMAGIC &#8594; patches branch</a> for explanation.</p>
+</div>
+<div class="paragraph">
+<p><code>update-patches</code> is a rework of now obsolete <code>update-patches.sh</code> script with
+less restrictions and more features such as optional #patches_base, support
+for <code>git am %{patches}</code> method of applying patches and smart patches branch
+detection. It also supports filtering out patches based on matching a
+regex provided by a magic #patches_ignore comment in the spec file. This is
+useful, for example, in case the patches branch contains changes that are
+related to the CI/code review infra, that are useful to keep around but don&#8217;t
+need to end up in the RPM.</p>
+</div>
+<div class="paragraph">
+<p><strong>Flow:</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Export patches from patches branch using <code>git format-patch</code></p>
+</li>
+<li>
+<p>Add these patches to dist-git and edit <code>.spec</code> file to apply them</p>
+</li>
+<li>
+<p>Create new commit with the change (or amend previous with <code>-a</code>/<code>--amend</code>)</p>
+</li>
+<li>
+<p>If a "%global commit asdf1234" macro declaration is present, rewrite
+it with the current sha1 of the patches branch. (This makes the sha1
+value available during your package&#8217;s build process. You can use this
+to build your program so that "mycoolprogram --version" could display
+the sha1 to users.)</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Example:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg update-patches</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_query">ACTION: query</h3>
+<div class="paragraph">
+<p>Query RDO/distro repos for available package versions.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="rdopkg-adv-requirements.7.html">rdopkg-adv-requirements(7)</a> for
+complete example of <code>query</code> and other requirements management actions.</p>
+</div>
+<div class="paragraph">
+<p>This action uses <code>repoquery</code> to discover latest package versions available
+from RDO and other repos available on a supported distibution.</p>
+</div>
+<div class="paragraph">
+<p>See output of <code>rdopkg info</code> for supported releases and distros.</p>
+</div>
+<div class="paragraph">
+<p><strong>Query specific RELEASE/DIST:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg query kilo/el7 openstack-nova</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Query all dists of a release and show what&#8217;s happening:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg query -v kilo openstack-nova</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_reqquery">ACTION: reqquery</h3>
+<div class="paragraph">
+<p>Query RDO/distro repos for versions defined in requirements.txt.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="rdopkg-adv-requirements.7.html">rdopkg-adv-requirements(7)</a> for
+complete example of <code>reqquery</code> and other requirements management actions.</p>
+</div>
+<div class="paragraph">
+<p>This action essentially runs <code>rdopkg query</code> on every module/package defined in
+<code>requirements.txt</code> and prints colorful report to quickly find unmet
+dependencies. It accepts the same RELEAESE/DIST filter as <code>rdopkg query</code>.</p>
+</div>
+<div class="paragraph">
+<p>Python module names listed in <code>requirements.txt</code> are mapped to package names
+using <code>rdopkg.actionmods.pymod2pkg</code> module.</p>
+</div>
+<div class="paragraph">
+<p><strong>Query <code>requirements.txt</code> from <code>2015.1</code> tag:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg reqquery -R 2015.1 kilo/el7</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Query <code>requirements.txt</code> file:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg reqquery -r path/to/requirements.txt kilo/f21</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Query <code>.spec</code> Requires (experimental):</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg reqquery -s</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Verbosely dump query results to a file and view them:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg reqquery -v -d
+rdopkg reqquery -l</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_reqcheck">ACTION: reqcheck</h3>
+<div class="paragraph">
+<p>Inspect <code>requirements.txt</code> vs <code>.spec</code> Requires.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="rdopkg-adv-requirements.7.html">rdopkg-adv-requirements(7)</a> for
+complete example of <code>reqcheck</code> and other requirements management actions.</p>
+</div>
+<div class="paragraph">
+<p>This action parses current <code>requirements.txt</code> from git and checks whether
+they&#8217;re met in the <code>.spec</code> file. Simple report is printed.</p>
+</div>
+<div class="paragraph">
+<p>Python module names listed in <code>requirements.txt</code> are mapped to package names
+using <code>rdopkg.actionmods.pymod2pkg</code> module.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<div class="title">Note</div>
+</td>
+<td class="content">
+Checking for exact version ranges is dumb at the moment.
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p><strong>Example:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg reqcheck</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_reqdiff">ACTION: reqdiff</h3>
+<div class="paragraph">
+<p>Show pretty diff of <code>requirements.txt</code>.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="rdopkg-adv-requirements.7.html">rdopkg-adv-requirements(7)</a> for
+complete example of <code>reqdiff</code> and other requirements management actions.</p>
+</div>
+<div class="paragraph">
+<p>Use this to see how requirements changed between versions.</p>
+</div>
+<div class="paragraph">
+<p><strong>See diff between current and latest upstream version (automagic):</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg reqdiff</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>See diff between current and specified version:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg reqdiff 2015.1</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>See diff between two supplied versions:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg reqdiff 2015.1 2015.2</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_kojibuild">ACTION: kojibuild</h3>
+<div class="paragraph">
+<p>Build the package in <code>koji</code>.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="rdopkg-adv-building.7.html">rdopkg-adv-building(7)</a> for complete
+example of building and submitting packages for RDO.</p>
+</div>
+<div class="paragraph">
+<p>This is esentaially a wrapper over <code>fedpkg build</code> with added value of
+generating update entries for <code>rdopkg update</code>.</p>
+</div>
+<div class="paragraph">
+<p>By default, build is appended to <code>up.yml</code> update file (new one is created if
+needed) which is then used by <code>rdopkg update</code> to submit builds to RDO.
+Use <code>-f/--update-file</code> to specify different file or <code>-F/--no-update-file</code> to
+disable this.</p>
+</div>
+<div class="paragraph">
+<p><strong>Flow:</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Run equivalent of <code>fedpkg build</code> using disgusting <code>fedpkg</code> python module.</p>
+</li>
+<li>
+<p>Watch the build.</p>
+</li>
+<li>
+<p>Print <code>rdopkg update</code> entry for the build and dump it to <code>up.yml</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Example:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg kojibuild</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_coprbuild">ACTION: coprbuild</h3>
+<div class="paragraph">
+<p>Build the package in <code>copr-jruzicka</code>.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="rdopkg-adv-building.7.html">rdopkg-adv-building(7)</a> for complete
+example including instructions how to setup copr, obtain permissions, build,
+submit update, and more.</p>
+</div>
+<div class="paragraph">
+<p><strong>Please</strong>, try to do <code>coprbuild</code> after successful <code>kojibuild</code> to ensure same
+SRPM for both builds. This will be automated further in the future.</p>
+</div>
+<div class="paragraph">
+<p><code>-r/--release</code> and <code>-d/--dist</code> are autodetected from current branch if
+possible. These are used to select right copr to build in.</p>
+</div>
+<div class="paragraph">
+<p>By default, build is appended to <code>up.yml</code> update file (new one is created if
+needed) which is then used by <code>rdopkg update</code> to submit builds to RDO.
+Use <code>-f/--update-file</code> to specify different file or <code>-F/--no-update-file</code> to
+disable this.</p>
+</div>
+<div class="paragraph">
+<p><strong>Flow:</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Create the source RPM from current dist-git.</p>
+</li>
+<li>
+<p>Upload the source RPM to your <code>fedorapeople.org:~/public_html/copr</code>.
+(specify Fedora user with <code>-u/--fuser</code>)</p>
+</li>
+<li>
+<p>Submit the source RPM to build in <code>jruzicka / rdo-$RELEASE-$DIST</code> copr.</p>
+</li>
+<li>
+<p>Watch the build.</p>
+</li>
+<li>
+<p>Print <code>rdopkg update</code> entry for the build and dump it to <code>up.yml</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p><strong>Example:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg coprbuild</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_update">ACTION: update</h3>
+<div class="paragraph">
+<p>Submit updated packages into RDO.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="rdopkg-adv-building.7.html">rdopkg-adv-building(7)</a> for complete
+example of building and submitting packages for RDO.</p>
+</div>
+<div class="paragraph">
+<p>This command expects special update file as its optional argument which
+defaults to <code>up.yml</code>. <code>rdopkg kojibuild</code> and <code>rdopkg coprbuild</code> automatically
+generate this file, you only need to provide description of the update in
+<code>notes:</code> field.</p>
+</div>
+<div class="paragraph">
+<p><code>rdopkg</code> validates the update using <code>rdoinfo</code>, checks the availability of
+builds in respective build sources, submits the update for review into
+<code>rdo-update</code> repository, and <strong>deletes</strong> the local update file (only in case of
+default <code>up.yml</code>) so that next <code>kojibuild</code>/<code>coprbuild</code> start with fresh update
+file. This way, no action parameters or file manipulations are required.</p>
+</div>
+<div class="paragraph">
+<p>Note that <code>kojibuild</code> and <code>coprbuild</code> actions support <code>-s/--skip-build</code>
+argument which can be used to generate update file without triggering the
+build (i.e. after the builds are done manually).</p>
+</div>
+<div class="paragraph">
+<p><strong>Example update file:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>notes: |-
+  Latest upstream python-swiftclient-1.2.3 for RDO Juno
+  Fixes rhbz#1234567
+builds:
+- id: python-swiftclient-1.2.3-1.fc22
+  source: koji
+  repo: juno
+  dist: fedora-21
+- id: python-swiftclient-1.2.3-1.el7
+  source: copr-jruzicka
+  repo: juno
+  dist: epel-7</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Juno example:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg kojibuild
+rdopkg coprbuild
+rdopkg update</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Icehouse example:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg kojibuild
+rdopkg coprbuild -d epel-6
+rdopkg coprbuild -d epel-7
+rdopkg update</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_amend">ACTION: amend</h3>
+<div class="paragraph">
+<p>Amend last git commit with current dist-git changes and (re)generate the commit
+message from %changelog.</p>
+</div>
+<div class="paragraph">
+<p>This simple atomic action is equivalent to running</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>git commit -a --amend -m "$AUTOMAGIC_COMMIT_MESSAGE"</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>See <a href="#commit-message">AUTOMAGIC &#8594; commit message</a>
+for more information about the generated commit message.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_squash">ACTION: squash</h3>
+<div class="paragraph">
+<p>Squash last git commit into previous one. Commit message of previous commit is
+used.</p>
+</div>
+<div class="paragraph">
+<p>This simple atomic action is a shortcut for</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>git reset --soft HEAD~
+git commit --amend --no-edit</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This is useful for squashing commits created by lower level actions such as
+<code>update-patches</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_get_sources">ACTION: get-sources</h3>
+<div class="paragraph">
+<p>Download package source archive.</p>
+</div>
+<div class="paragraph">
+<p>Currently, <code>Source0</code> from <code>.spec</code> file is downloaded.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_push_updates">ACTION: push-updates</h3>
+<div class="paragraph">
+<p>Push pending updates to repositories.</p>
+</div>
+<div class="paragraph">
+<p>This <strong>special</strong> action is to be used on RDO repo box to push updated packages
+to repos including download of built packages, signing and calling
+<code>createrepo</code>.</p>
+</div>
+<div class="paragraph">
+<p>Two positional arguemnts are required:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>update-repo-path</code>: path to rdo-update git repo containing updates to push</p>
+</li>
+<li>
+<p><code>dest-base</code>: destination path base</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>By default, all update files in <code>$UPDATE_REPO_PATH/ready/</code> are pushed. You can
+override this by specifying update files to push using <code>-f</code>/<code>--files</code> argument
+(relative to and residing in <code>update-repo-path</code>).</p>
+</div>
+<div class="paragraph">
+<p>Each build contained in pushed update file is downloaded, signed and copied to
+appropriate directory: <code>$DEST_BASE$REPO/$DIST/$TAG</code></p>
+</div>
+<div class="paragraph">
+<p><strong>protips:</strong></p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>If you input incorrect passphrase, run <code>rdopkg -c</code> to try again.</p>
+</li>
+<li>
+<p>You can force overwrite of existing packages by <code>-w</code>/<code>--overwrite</code></p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_info">ACTION: info</h3>
+<div class="paragraph">
+<p>Show information about RDO packaging.</p>
+</div>
+<div class="paragraph">
+<p>Use this command to find out about:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>currently supported RDO OpenStack releses</p>
+</li>
+<li>
+<p>which distros are supported for each release</p>
+</li>
+<li>
+<p>what branch to build from</p>
+</li>
+<li>
+<p>what build system to build in</p>
+</li>
+<li>
+<p>supported packages</p>
+</li>
+<li>
+<p>various repositories tied to a package</p>
+</li>
+<li>
+<p>package maintainers</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This command is a human interface to <a href="#rdoinfo">rdoinfo</a>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Releases/dists/branches overview:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg info</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Detailed information about a package:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg info novaclient</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Filter packages by maintainers:</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg info maintainers:jruzicka</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_action_conf">ACTION: conf</h3>
+<div class="paragraph">
+<p>Display rdopkg&#8217;s local configuration.</p>
+</div>
+<div class="paragraph">
+<p>This command prints the default configuration that ships with rdopkg out of the
+box. You can override the individual settings here by using <code>.py</code> files in the
+configuration directories.</p>
+</div>
+<div class="paragraph">
+<p>Store your per-user configuration in <code>~/.rdopkg/conf.d/*.py</code>, or store
+system-wide configuration in <code>/etc/rdopkg.d/*.py</code>.</p>
+</div>
+<div class="paragraph">
+<p>For example, to override <code>RDO_UPDATE_REPO</code>, place the following into
+<code>~/.rdopkg/conf.d/rdoupdate-repo.py</code>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>RDO_UPDATE_REPO="ssh://git@github.com/myaccount/rdo-update"</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_automagic">AUTOMAGIC</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Instead of requiring project config files or endless lists of command line
+arguments, <code>rdopkg</code> tries to guess all the neccessary variables.</p>
+</div>
+<div class="sect2">
+<h3 id="patches-branch">patches branch</h3>
+<div class="paragraph">
+<p><code>update-patches</code> is a core lower level action for updating dist-git <code>.spec</code>
+file with patches from associated patches branch. <code>rdopkg</code> tries hard to
+detect the patches branch automagically, it&#8217;s usually <code>$BRANCH-patches</code> for
+<code>$BRANCH</code> dist-git but one patches branch per multiple dist-gits is also
+supported.</p>
+</div>
+<div class="paragraph">
+<p>Best illustrated by example, following are all valid patches branches for
+<code>rhos-5.0-rhel-7</code> dist-git and they&#8217;re searched in that order:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>rhos-5.0-rhel-7-patches</p>
+</li>
+<li>
+<p>rhos-5.0-rhel-patches</p>
+</li>
+<li>
+<p><strong>rhos-5.0-patches &#8592;-- preferred for RHOSP</strong></p>
+</li>
+<li>
+<p>rhos-patches</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Use <code>rdopkg pkgenv</code> to check detected patches branch.</p>
+</div>
+<div class="paragraph">
+<p>You can specify remote patches branch by <code>-p</code>/<code>--patches-branch</code> action
+parameter for actions that use it, such as <code>patch</code> and <code>new-version</code>.</p>
+</div>
+<div class="paragraph">
+<p>Previously, now obsolete <code>update-patches.sh</code> script required <code>patches_base</code>
+comment to be present in spec file which indicated git revision on top of
+which the patches are applied but <strong>this is now optional</strong> with
+<code>update-patches</code> action and defaults to .spec Version.</p>
+</div>
+<div class="paragraph">
+<p>Most common use of <code>patches_base</code> is to specify number of patches on top of
+patches base (which defaults to spec Version) to skip:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre># patches_base=+2</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can set an arbitrary git revision as a patches base:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre># patches_base=1.2.3+2</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You shouldn&#8217;t need to modify this by hand expect the number of skipped patches
+as <code>rdopkg</code> manages <code>patches_base</code> as needed.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="commit-message">commit message</h3>
+<div class="paragraph">
+<p>Actions modifying dist-git generate commit message from %changelog.</p>
+</div>
+<div class="paragraph">
+<p>First line of commit message is first line from latest %changelog entry.</p>
+</div>
+<div class="paragraph">
+<p>If there are multiple lines in latest %changelog entry, entire entry is
+listed in the commit message.</p>
+</div>
+<div class="paragraph">
+<p>For each "(rhbz#XYZ)" mentioned in latest %changelog entry, "Resolves:
+rhbz#XYZ" is appended to commit message as required by RHOSP workflow.</p>
+</div>
+<div class="paragraph">
+<p>If you need to (re)generate commit message after modifying %changelog, use
+<strong>ACTION: amend</strong>.</p>
+</div>
+<div class="paragraph">
+<p>For example following %changelog entry:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>%changelog
+* Tue Feb 11 2014 Jakub Ruzicka &lt;jruzicka@redhat.com&gt; 0.5.1-2
+- Update to upstream 0.5.1
+- Fix evil Bug of Doom (rhbz#123456)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>will generate following commit message:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Update to upstream 0.5.1</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Resolves: rhbz#123456</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Changelog:
+- Update to upstream 0.5.1
+- Fix evil Bug of Doom (rhbz#123456)</pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="rdoinfo">rdoinfo</h3>
+<div class="paragraph">
+<p><code>rdoinfo</code> is a special utility repository with RDO metadata:</p>
+</div>
+<div class="paragraph">
+<p><a href="https://github.com/redhat-openstack/rdoinfo" class="bare">https://github.com/redhat-openstack/rdoinfo</a></p>
+</div>
+<div class="paragraph">
+<p><code>rdopkg</code> uses <code>rdoinfo</code> to</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>detect release/dist from branch name</p>
+</li>
+<li>
+<p>check valid RDO updates</p>
+</li>
+<li>
+<p>query packages from RDO/distribution repos</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>and more.</p>
+</div>
+<div class="paragraph">
+<p>You can view the <code>rdoinfo</code> metada using <code>rdopkg info</code>.</p>
+</div>
+<div class="paragraph">
+<p><code>rdopkg.actionmods.rdoinfo</code> module provides convenient interface to <code>rdoinfo</code>
+should you want to integrate it into your codez.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see_also">SEE ALSO</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="rdopkg-adv-new-version.7.html">rdopkg-adv-new-version(7)</a>,
+<a href="rdopkg-adv-building.7.html">rdopkg-adv-building(7)</a>,
+<a href="rdopkg-adv-requirements.7.html">rdopkg-adv-requirements(7)</a></p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_contact">CONTACT</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>rdopkg</code> is maintained by Jakub Ruzicka &lt;<a href="mailto:jruzicka@redhat.com">jruzicka@redhat.com</a>&gt;.</p>
+</div>
+<div class="paragraph">
+<p>Bugs are tracked in Red Hat Bugzilla:</p>
+</div>
+<div class="paragraph">
+<p><a href="https://bugzilla.redhat.com/buglist.cgi?component=rdopkg" class="bare">https://bugzilla.redhat.com/buglist.cgi?component=rdopkg</a></p>
+</div>
+<div class="paragraph">
+<p>To report a new bug:</p>
+</div>
+<div class="paragraph">
+<p><a href="https://bugzilla.redhat.com/enter_bug.cgi?product=RDO&amp;component=rdopkg" class="bare">https://bugzilla.redhat.com/enter_bug.cgi?product=RDO&amp;component=rdopkg</a></p>
+</div>
+</div>
+</div>
+</div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2016-03-07 14:16:57 CET
+</div>
+</div>
+</body>
+</html>

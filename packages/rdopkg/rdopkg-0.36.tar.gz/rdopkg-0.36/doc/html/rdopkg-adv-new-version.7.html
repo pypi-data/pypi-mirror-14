@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 1.5.4">
+<title>rdopkg-adv-new-version(7)</title>
+<style>
+
+</style>
+</head>
+<body class="manpage">
+<div id="header">
+<h1>rdopkg-adv-new-version(7) Manual Page</h1>
+<h2>NAME</h2>
+<div class="sectionbody">
+<p>rdopkg-new-version - rdopkg adventures: new-version</p>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_synopsis">SYNOPSIS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is a short story about updating RDO <code>python-swiftclient</code> package to new
+upstream version using <code>rdopkg new-version</code>.</p>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s assume update of <strong>Havana</strong> <strong>epel-6</strong> <code>python-swiftclient-1.8.0-1</code>
+package to latest upstream version <code>2.0.2</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_prologue">PROLOGUE</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>dist-git &amp; remotes</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ cd python-swiftclient
+$ git fetch --all
+$ git remote -v
+openstack	git://github.com/openstack/python-swiftclient.git (fetch)
+openstack	git://github.com/openstack/python-swiftclient.git (push)
+origin	ssh://jruzicka@pkgs.fedoraproject.org/python-swiftclient (fetch)
+origin	ssh://jruzicka@pkgs.fedoraproject.org/python-swiftclient (push)
+patches	git@github.com:redhat-openstack/python-swiftclient.git (fetch)
+patches	git@github.com:redhat-openstack/python-swiftclient.git (push)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To summarise, above remotes are:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>origin</strong>: Fedora dist-git containing .spec &amp; patches<br>
+(obtained by <code>fedpkg clone python-swiftclient</code>)</p>
+</li>
+<li>
+<p><strong>patches</strong>: github remote with RDO patches branches</p>
+</li>
+<li>
+<p><strong>openstack</strong>: upstream code repo to cherry-pick backported patch from</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>This is a Havana epel-6 fix, so I&#8217;m gonna work with:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>origin/el6-havana</strong>  dist-git</p>
+</li>
+<li>
+<p><strong>patches/stable/havana</strong>  patches branch</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>See <code>rdopkg info</code> output for current branch names.</p>
+</div>
+<div class="paragraph">
+<p>Before we proceed, let&#8217;s inspect the patches branch:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>o [patches/stable/havana] Add SSL certificate verification by default
+o Remove builtin requirements handling
+M─┐ [1.8.0] Merge "Make pbr only a build-time dependency."
+│ o Make pbr only a build-time dependency.
+o │ assertEquals is deprecated, use assertEqual (H602
+...</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>You can see that there are two commits on top of <code>1.8.0</code>. These two patches
+are present in dist-git and applied in <code>.spec</code> file:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>...
+Patch0001: 0001-Remove-builtin-requirements-handling.patch
+Patch0002: 0002-Add-SSL-certificate-verification-by-default.patch
+...
+%patch0001 -p1
+%patch0002 -p1
+...</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_1">CHAPTER 1</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>rdopkg new-version</strong></p>
+</div>
+<div class="paragraph">
+<p>With remotes set up and up to date, it&#8217;s time to run <code>rdopkg new-version</code>.</p>
+</div>
+<div class="paragraph">
+<p>The only required positional argument specifies a version to update to. This
+is <code>2.0.2</code> in this case and it&#8217;s both new rpm Version and git tag to rebase
+patches branch on. For other packages and versions, version tag and rpm Version
+might differ.</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ git fetch --all
+$ git checkout el6-havana
+$ rdopkg new-version 2.0.2</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_2">CHAPTER 2</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>diff</strong></p>
+</div>
+<div class="paragraph">
+<p>First, <code>rdopkg</code> displays summary of changed files and changes to
+<code>requirements.txt</code> files:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>--- a/requirements.txt
++++ b/requirements.txt
+@@ -1 +1,2 @@
++requests&gt;=1.1
+simplejson&gt;=2.0.9</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>I make a mental note I need to add <code>Requires: python-requests</code> later and press
+enter to advance.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_3">CHAPTER 3</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>rebase of patches branch</strong></p>
+</div>
+<div class="paragraph">
+<p>Next, <code>rdopkg</code> resets the local <code>stable/havana</code> branch to
+<code>patches/stable/havana</code>, switches to it, and tries to <strong>rebase</strong> it
+on <code>2.0.2</code> git tag.</p>
+</div>
+<div class="paragraph">
+<p>The rebase failed due to a conflict of downstream patches nuking pbr and
+<code>rdopkg</code> exited to shell so I can finish the rebase manually.</p>
+</div>
+<div class="paragraph">
+<p>I modified the conflicting patch and continued the rebase with</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>git rebase --continue</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then the second patch failed to apply as well. This was a downstream only fix
+and upstream has chosen a different solution which is already included in
+<code>2.0.2</code> and thus I skipped this patch entirely with</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>git rebase --skip</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Now, the patches branch look like this:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>o [stable/havana] Remove builtin requirements handling
+o [2.0.2] Remove multipart/form-data file upload
+o Fix --insecure option on auth
+M─┐ Merge "Port to python-requests"</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>First patch is on top of <code>2.0.2</code>, second obsolete patch is gone.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_4">CHAPTER 4</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>the rest is magic</strong></p>
+</div>
+<div class="paragraph">
+<p>Once I&#8217;m happy with the rebased patches branch, I resume <code>rdopkg</code> action with</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg -c</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Now, rdopkg asks if I want to push the shiny rebased patches branch.  I indeed
+do. Note that you need to have force push permission in the patches remote.</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Push stable/havana to patches / stable/havana (with --force)? [Yn]</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>After this, <code>rdopkg</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>downloads the source tarball</p>
+</li>
+<li>
+<p>calls <code>fedpkg new-sources</code></p>
+</li>
+<li>
+<p>updates <code>.spec</code> file (Version, Release, patches_base, new changelog entry)</p>
+</li>
+<li>
+<p>creates new commit with updated <code>.spec</code></p>
+</li>
+<li>
+<p>updates patches from local patches branch <code>stable/havana</code></p>
+</li>
+<li>
+<p>shows final diff</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>pseudo-diff of <code>.spec</code> file:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>-Version:    1.8.0
++Version:    2.0.2
+ ...
+-# patches_base=1.8.0
++# patches_base=2.0.2
+ ...
+ Patch0001: 0001-Remove-builtin-requirements-handling.patch
+-Patch0002: 0002-Add-SSL-certificate-verification-by-default.patch
+ ...
+ %patch0001 -p1
+-%patch0002 -p1
+ ...
++* Thu Feb 20 2014 Jakub Ruzicka &lt;jruzicka@redhat.com&gt; 2.0.2-1
++- Update to upstream 2.0.2
++
+ ...</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>As you can see, obsolete patch I deleted during rebase is gone.</p>
+</div>
+<div class="paragraph">
+<p>Commit message and changed files:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Update to upstream 2.0.2</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>M	.gitignore
+M	0001-Remove-builtin-requirements-handling.patch
+D	0002-Add-SSL-certificate-verification-by-default.patch
+M	python-swiftclient.spec
+M	sources</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_5">CHAPTER 5</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>finishing touches &amp; rdopkg amend</strong></p>
+</div>
+<div class="paragraph">
+<p>Finally, I need to tune <code>.spec</code> file due to new deps and amend with <code>rdopkg
+amend</code> to regenerate commit message from <code>%changelog</code>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>vim python-swiftclient.spec
+rdopkg amend</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Final commit message:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Update to upstream 2.0.2</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Changelog:
+- Update to upstream 2.0.2
+- Switch from pyOpenSSL to python-requests - update dependencies
+- Remove unneeded dependency: python-simplejson</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_epilogue">EPILOGUE</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>See available options</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>rdopkg new-version -h</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>and <a href="rdopkg.1.html">rdopkg(1)</a> manual for more information.</p>
+</div>
+</div>
+</div>
+</div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2016-03-07 14:16:57 CET
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!--[if IE]><meta http-equiv="X-UA-Compatible" content="IE=edge"><![endif]-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 1.5.4">
+<title>rdopkg-adv-building(7)</title>
+<style>
+
+</style>
+</head>
+<body class="manpage">
+<div id="header">
+<h1>rdopkg-adv-building(7) Manual Page</h1>
+<h2>NAME</h2>
+<div class="sectionbody">
+<p>rdopkg-adv-building - rdopkg adventures: building and submitting updates</p>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_synopsis">SYNOPSIS</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>This is a story about using <code>rdopkg kojibuild</code> and <code>rdopkg coprbuild</code> to build
+new RDO packages in koji and copr and submitting them to RDO using <code>rdopkg
+update</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_prologue">PROLOGUE</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Fedora builds are built in <code>koji</code> while EPEL builds are built in
+<code>copr</code>.</p>
+</div>
+<div class="paragraph">
+<p>Run <code>rdopkg info</code> to get information about active releases and associated
+build systems/branches.</p>
+</div>
+<div class="paragraph">
+<p>First, need to <strong>request build permissions</strong> in each copr.
+For Icehouse, following coprs are used (you need to sign in with your FAS):</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://copr.fedoraproject.org/coprs/jruzicka/rdo-icehouse-epel-6/permissions/" class="bare">https://copr.fedoraproject.org/coprs/jruzicka/rdo-icehouse-epel-6/permissions/</a></p>
+</li>
+<li>
+<p><a href="https://copr.fedoraproject.org/coprs/jruzicka/rdo-icehouse-epel-7/permissions/" class="bare">https://copr.fedoraproject.org/coprs/jruzicka/rdo-icehouse-epel-7/permissions/</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Poke an admin (jruzicka, apevec) to grant your requests.</p>
+</div>
+<div class="paragraph">
+<p>Then, you need to save your <strong>API token</strong> to <code>~/config/copr</code> as described here:</p>
+</div>
+<div class="paragraph">
+<p><a href="https://copr.fedoraproject.org/api/" class="bare">https://copr.fedoraproject.org/api/</a></p>
+</div>
+<div class="paragraph">
+<p>Due to <code>copr</code> limitation, you also need to be able to <code>scp</code> to
+<code>fedorapeople.org</code> in order to upload SRPMs.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_1">CHAPTER 1</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Assume I want to build all RDO Icehouse builds after I modified <code>f21</code>
+dist-git branch (possibly by <code>rdopkg new-version 2.0.3</code>).</p>
+</div>
+<div class="paragraph">
+<p>First, let&#8217;s see what <code>rdopkg</code> thinks about <code>f21</code> branch:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ git checkout f21
+$ rdopkg pkgenv</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Package: python-swiftclient
+Version: 2.0.3
+OS dist: RDO</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Dist-git branch:       f21
+Local patches branch:  stable/icehouse
+Remote patches branch: patches/stable/icehouse</pre>
+</div>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>RDO release guess: icehouse</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>It detected icehouse release properly, we should be good to go.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_2">CHAPTER 2</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>build fedora package in koji</strong></p>
+</div>
+<div class="paragraph">
+<p>After I&#8217;m happy with my changes, I push the disgit and start the koji build.</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ fedpkg push
+$ rdopkg kojibuild</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This does <code>fedpkg build</code> and creates new update file <code>up.yml</code>:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ cat up.yml
+---
+notes: FILLME
+builds:
+- id: python-swiftclient-2.0.3-1.fc21
+  source: koji
+  repo: icehouse
+  dist: fedora-20</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Note it&#8217;s fc21 build for <code>fedora-20</code>. <code>rdopkg info</code> confirms this:</p>
+</div>
+<div class="paragraph">
+<p><code>fedora-20</code> built in <code>koji/f21</code> from <code>f21</code> branch</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_3">CHAPTER 3</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>build epel-6 and epel-7 packages in copr</strong></p>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s build epel-6 first:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ rdopkg coprbuild -d epel-6</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>create el6 source RPM from current dist-git</p>
+</li>
+<li>
+<p>upload the source RPM to your <code>fedorapeople.org:~/public_html/copr</code>
+(specify Fedora user with <code>-u/--fuser</code>)</p>
+</li>
+<li>
+<p>submit the source RPM to build in <code>jruzicka / rdo-$RELEASE-$DIST</code> copr</p>
+</li>
+<li>
+<p>watch the build</p>
+</li>
+<li>
+<p>print <code>rdopkg update</code> entry for build and append it to <code>up.yml</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s see the update file now:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ cat up.yml
+---
+notes: FILLME
+builds:
+- id: python-swiftclient-2.0.3-1.fc21
+  source: koji
+  repo: icehouse
+  dist: fedora-20
+- id: python-swiftclient-2.0.3-1.el6
+  source: copr-jruzicka
+  repo: icehouse
+  dist: epel-6</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>OK. Now I need to build <code>epel-7</code> from the very same <code>f21</code> branch.</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ rdopkg coprbuild -d epel-7</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Let&#8217;s see the update file again:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ cat up.yml
+---
+notes: FILLME
+builds:
+- id: python-swiftclient-2.0.3-1.fc21
+  source: koji
+  repo: icehouse
+  dist: fedora-20
+- id: python-swiftclient-2.0.3-1.el6
+  source: copr-jruzicka
+  repo: icehouse
+  dist: epel-6
+- id: python-swiftclient-2.0.3-1.el7
+  source: copr-jruzicka
+  repo: icehouse
+  dist: epel-7</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_chapter_4">CHAPTER 4</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>submit builds using rdopkg update</strong></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ rdopkg update</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This will pick up <code>up.yml</code> and:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>force me to provide an actual update description in <code>notes</code> field</p>
+</li>
+<li>
+<p>validate the update using <code>rdoinfo</code></p>
+</li>
+<li>
+<p>check for builds availability</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>and if all is good:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>submit the update to <code>rdo-update</code> repo</p>
+</li>
+<li>
+<p>delete local <code>up.yml</code> so that next <code>kojibuild</code>/<code>coprbuild</code> starts with
+fresh <code>up.yml</code></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Done and done.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_epilogue">EPILOGUE</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>See available options</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>$ rdopkg coprbuild -h
+$ rdopkg kojibuild -h
+$ rdopkg update -h</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>and <a href="rdopkg.1.html">rdopkg(1)</a> manual for more information.</p>
+</div>
+</div>
+</div>
+</div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2016-03-07 14:16:57 CET
+</div>
+</div>
+</body>
+</html>
