@@ -1,0 +1,105 @@
+{% extends "requests_list.html" %}
+{% from "macros.html" import clipboard_button,status_color,modifier_value with context %}
+
+
+{% block table %}
+<div id="requests" class="panel-group">
+  {% for request in pager.items %}
+  <div class="panel panel-{{ status_color(request.status) }}" data-request-id="{{ request.id }}" id="request-{{ request.id }}">
+    <div class="panel-heading">
+      <span class="panel-title">
+        {# TRANS: A header for a small part of the page with the details for one request. This header show the ID number of the request. #}
+        <a class="request-href" href="{{ url_for('requests.get_request_details', request_id=request.id) }}">{% trans request_id=request.id %}Request #{{ request_id }}{% endtrans %}</a>
+      </span>
+    </div>
+    <div class="panel-body">
+      <div class="row">
+        <dl class="col-sm-6 dl-horizontal">
+          {# TRANS: A link to the killmail on an external killboard like zKillboard. #}
+          <dt>{% trans %}External Lossmail{% endtrans %}</dt>
+          <dd><a href="{{ request.killmail_url }}" target="_blank">{{ request.id }} <i class="fa fa-external-link"></i></a></dd>
+          {# TRANS: Supporting details about the loss, like the fleet ping, a link an AAR, or what the fleet was doing. #}
+          <dt>{% trans %}Details{% endtrans %}</dt>
+          <dd><a class="small-popover null-link details" data-toggle="popover" data-trigger="focus" data-content="{{ request.details|urlize(15)|forceescape }}" data-container="body" href="#" tabindex="0">{% trans %}Details{% endtrans %}</a></dd>
+          {# TRANS: The name of the type of ship a requests is about. Ex: Tristan, Ishtar, Scimitar. #}
+          <dt>{% trans %}Ship{% endtrans %}</dt>
+          <dd>{{ request.transformed.ship_type }}</dd>
+          {% if request.modifiers.filter_by(voided=False).count() > 0 %}
+          {# TRANS: A header for a list of payout modifications. These can be things like bonuses for fitting special kinds of modules or flying a special kind of ship, or penalties for fitting a ship incorrectly. #}
+          <dt>{% trans %}Modifiers{% endtrans %}</dt>
+          <dd><a class="small-popover null-link modifiers" data-toggle="popover" data-trigger="focus" data-content="
+            <ul>
+              {% for modifier in request.modifiers if not modifier.voided %}
+              {% if modifier.value > 0 %}
+              <li class='text-success'>
+              {% elif modifier.value < 0 %}
+              <li class='text-danger'>
+              {% else %}
+              <li>
+              {% endif %}
+              {{ modifier_value(modifier) }}
+              </li>
+              {% endfor %}
+            </ul>" data-html="true" data-container="body" href="#" tabindex="0">{% trans %}Modifiers{% endtrans %}</a></dd>
+          {% endif %}
+          {# TRANS: A header for a list of actions performed on the request. Examples include: Marking it as Approved, Rejected, or Paid. #}
+          <dt>{% trans %}Actions{% endtrans %}</dt>
+          <dd><a class="null-link" data-toggle="collapse" data-parent="#requests" href="#" data-target="#actions-{{ request.id }}">{{ request.actions|length|numberfmt }}</a></dd>
+        </dl>
+        <dl class="col-sm-6 dl-horizontal spaced">
+          {# TRANS: A label for the division a request has been filed under. #}
+          <dt>{% trans %}Division{% endtrans %}</dt>
+          <dd>{{ request.division.name }}</dd>
+          {# TRANS: A label for the name of the pilot who lost a ship. #}
+          <dt>{% trans %}Pilot{% endtrans %}</dt>
+          <dd>{{ clipboard_button(request.pilot, position='top', classes='btn btn-default btn-xs') }}</dd>
+          {# TRANS: A label for the payout that has been set for a request. #}
+          <dt>{% trans %}Payout{% endtrans %}</dt>
+          <dd>{{ clipboard_button(request.payout|currencyfmt, position='top', classes='btn btn-default btn-xs') }}</dd>
+          {# TRANS: A label for the text that ill be put in the reason field of the in-game ISK transfer window. #}
+          <dt>{% trans %}Reason{% endtrans %}</dt>
+          {# TRANS: The text that will be put copied to the clipboard to be copied into the in-game ISK transfer window. #}
+          <dd>{{ clipboard_button(gettext('Payment for %(request_id)s', request_id=request.id), position='top', classes='btn btn-default btn-xs') }}</dd>
+          <dt></dt>
+          <dd>
+            <form method="post" action="{{ url_for('requests.get_request_details', request_id=request.id) }}">
+              {{ form.id_ }}
+              {{ form.type_(value='paid') }}
+              {{ form.csrf_token }}
+              {# TRANS: A button that when clicked will mark a request as having been paid out. #}
+              <button class="btn btn-success btn-xs paid-btn" type="submit">{% trans %}Mark Paid{% endtrans %}</button>
+            </form>
+          </dd>
+        </dl>
+      </div>
+    </div>
+    <table class="table collapse" id="actions-{{ request.id }}">
+      <tr>
+        <th>{% trans %}Actions{% endtrans %}</th>
+        {# TRANS: The name of the user who performed an action. #}
+        <th>{% trans %}User{% endtrans %}</th>
+        <th></th>
+        {# TRANS: The date and time an action was performed. #}
+        <th>{% trans %}Timestamp{% endtrans %}</th>
+      </tr>
+      {% for action in request.actions if action.type_ != ActionType.comment %}
+      <tr class="{{ status_color(action.type_) }}">
+        <td>{{ action.type_ }}</td>
+        <td>{{ action.user }}</td>
+        {% if action.note %}
+        {# TRANS: The note (if there is one) associated with an action. #}
+        <td><a class="small-popover" data-toggle="popover" data-trigger="focus" data-content="{{ action.note|urlize(15) }}" href="#" tabindex="0">{% trans %}Note{% endtrans %}</a></td>
+        {% else %}
+        <td></td>
+        {% endif %}
+        <td>{{ action.timestamp|datetimeformat }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+</div>
+{% endblock table %}
+
+
+{% block pagination %}{% endblock pagination %}
