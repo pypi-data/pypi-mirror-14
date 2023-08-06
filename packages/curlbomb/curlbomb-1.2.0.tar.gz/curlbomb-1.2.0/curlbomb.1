@@ -1,0 +1,673 @@
+.TH curlbomb 1 2016\-04\-05
+.SH SYNOPSIS
+ \fBcurlbomb\fR [-h] [-k] [-n N] [-p PORT] [-d host[:port]] [-w] [-l] [-q] [-v]
+         [--ssh SSH_FORWARD] [--ssl CERTIFICATE] [--survey] [--unwrapped]
+         [--disable-postback] [--client-logging] [--client-quiet]
+         [--mime-type MIME_TYPE] [--version]
+         {run,put,get} ...
+
+
+.SH DESCRIPTION
+
+.br
+
+.br
+curlbomb is an HTTP(s) server for serving one\-time\-use shell scripts.
+.br
+
+.br
+You know all those docs for cool dev tools that start out by telling
+.br
+you to install their software in one line, like this?
+.br
+
+.br
+    bash <(curl \-s http://example.com/install.sh)
+.br
+
+.br
+I call that a curl bomb... I don't know if anyone else does.
+.br
+
+.br
+curlbomb serves a single file (read from disk or stdin) via HTTP to
+.br
+the first client to request it, then shuts down. A command is printed
+.br
+out that will construct the curl bomb the client needs to run, which
+.br
+includes a one\-time\-use passphrase (called a knock) that is required
+.br
+to download the resource. This command is copy/pasted (or typed) into
+.br
+another shell, on some other computer, which will download and run the
+.br
+script in one line.
+.br
+
+.br
+curlbomb has optional integration with OpenSSL to secure
+.br
+communications. OpenSSH is supported as well, to make it easy to
+.br
+curlbomb from anywhere on the internet, to anywhere else, through a
+.br
+proxy server that you can forward the port through.
+.br
+
+.br
+curlbomb is well tested, but not intended for heavy automation
+.br
+work. There are better alternatives to choose from (saltstack,
+.br
+ansible, puppet, etc.) curlbomb can be used effectively in doing the
+.br
+front work for setting up these other tools, like copying SSH keys and
+.br
+installing packages.
+.br
+
+.br
+
+.SH EXAMPLES
+
+.br
+
+.br
+Serve a script stored in a file:
+.br
+
+.br
+    curlbomb run /path/to/script
+.br
+	
+.br
+This outputs a curl command that you copy and paste into a shell on another
+.br
+computer:
+.br
+
+.br
+    KNOCK='nDnXXp8jkZKtbush' bash <(curl \-LSs http://192.0.2.100:48690)
+.br
+	
+.br
+Once pasted, the script is automatically downloaded and executed.
+.br
+
+.br
+By default, the client must pass a KNOCK variable that is passed in
+.br
+the HTTP headers. This is for two reasons:
+.br
+
+.br
+ * It adds a factor of authentication. Requests without the knock are
+.br
+   denied.
+.br
+ * It helps to prevent mistakes, as the knock parameter is randomly
+.br
+   generated each time curlbomb is run and can only be used once. (See
+.br
+   \fB\fC\-n 1\fR)
+.br
+
+.br
+(Astute readers will notice that the KNOCK variable is being fed to
+.br
+the script that is being downloaded, not into the curl command. That's
+.br
+because it's really a curlbomb within a curlbomb. The first curl
+.br
+command downloads a script that includes a second curl command that
+.br
+*does* require the KNOCK parameter. This nesting allows us to keep the
+.br
+client command as short as possible and hide some extra
+.br
+boilerplate. See \fB\fC\-\-unwrapped\fR.)
+.br
+
+.br
+If you want just the curl, without the bomb, ie. you just want to grab
+.br
+the script without redirecting it to bash, use \fB\fC\-\-survey\fR. This is
+.br
+useful for testing the retrieval of scripts without running them.
+.br
+
+.br
+You can pipe scripts directly into curlbomb:
+.br
+
+.br
+    echo "pacman \-\-noconfirm \-S openssh && systemctl start sshd" | curlbomb
+.br
+	
+.br
+Whenever you pipe data to curlbomb you can omit the \fB\fCrun\fR subcommand,
+.br
+it's assumed that you want to run a script from stdin.
+.br
+	
+.br
+This works in shell scripts too:
+.br
+
+.br
+    cat <<EOF | curlbomb
+.br
+    #!/bin/bash
+.br
+    echo "I'm a script output from another script on another computer"
+.br
+    EOF
+.br
+
+.br
+Or type it interactively:
+.br
+
+.br
+    $ curlbomb run \-
+.br
+    pkg instll sqlite3
+.br
+    echo "bad idea, I don't have spollcheck when I typ in the terminal"
+.br
+
+.br
+(The single dash says to read from stdin, even when nothing is being
+.br
+piped.)
+.br
+
+.br
+The shebang line (#!) is interpreted and automatically changes the
+.br
+interpreter the client runs, the following example runs the script
+.br
+with python instead of the default bash:
+.br
+
+.br
+    cat <<EOF | curlbomb
+.br
+    #!/usr/bin/env python3
+.br
+    import this
+.br
+    print("Hello, from Python!")
+.br
+    EOF
+.br
+
+.br
+curlbomb can also transfer files and directories with \fB\fCput\fR and \fB\fCget\fR
+.br
+subcommands:
+.br
+
+.br
+    # Recursively copy a directory 
+.br
+    # (to whatever directory the client is run from):
+.br
+    curlbomb put ~/.ssh
+.br
+
+.br
+    # Recursively copy a remote directory to the server
+.br
+    # (to whatever directory the server is run from)
+.br
+    curlbomb get /var/log 
+.br
+
+.br
+    # Recursively copy a directory
+.br
+    #  \- Specifies the explicit remote destination directory.
+.br
+    #  \- Environment vars in single quotes are evaluated on the remote end.
+.br
+    #  \- Excludes some files you may want to keep private.
+.br
+    curlbomb put ~/.ssh '$HOME' \-\-exclude='*rsa'
+.br
+
+.br
+The \fB\fCput\fR and \fB\fCget\fR subcommands are just convenience wrappers for
+.br
+running tar on both ends of the curlbomb pipe. You could achieve the
+.br
+same thing more generically:
+.br
+
+.br
+    # Copy a local directory to a client, the hard way:
+.br
+    tar cjh \-C $HOME .ssh | curlbomb run \-c "tar xjv \-f"
+.br
+    
+.br
+    # Copy a remote directory to the server, the hard way:
+.br
+    echo "tar cjh \-C /var log" | curlbomb \-l \-\-client\-quiet | tar xjv
+.br
+
+.br
+The first example has a \fB\fCrun \-c\fR parameter that tells the client that
+.br
+we want to interpret the data as being a tar archive rather than a
+.br
+script. The second example has a \fB\fC\-l\fR parameter that will output the
+.br
+data received to stdout, in this case piped directly into tar.
+.br
+
+.br
+\fB\fCSSH tunnel\fR
+.br
+
+.br
+By default, curlbomb constructs URLs with the IP address of the local
+.br
+machine. This usually means that clients on another network will be
+.br
+unable to retrieve anything from curlbomb, unless you have a port
+.br
+opened up through your firewall (and appropriate use of the \fB\fC\-\-domain\fR
+.br
+argument.) As an alternative, curlbomb can be tunneled through SSH to
+.br
+another host that has the proper port open. For instance:
+.br
+
+.br
+    echo "apt\-get install salt\-minion" | curlbomb \-\-ssh user@example.com:8080
+.br
+	
+.br
+The above command connects to example.com over SSH (port 22 by
+.br
+default) and forwards the curlbomb server port to
+.br
+example.com:8080. The URL that curlbomb prints out will now use the
+.br
+domain name of the ssh server, instead of the local IP address. The
+.br
+SSH tunnel is left open for as long as the curlbomb server remains
+.br
+running. Any user directly on the example.com host will be able to
+.br
+fetch the resource from localhost:8080. However, by default, SSH does
+.br
+not open this up to the rest of the world. If you want any client to
+.br
+be able to connect to example.com:8080 you will need to modify the
+.br
+sshd_config of the server to allow GatewayPorts:
+.br
+
+.br
+    # Put this in your /etc/ssh/sshd_config and restart your ssh service:
+.br
+    GatewayPorts clientspecified
+.br
+
+.br
+\fB\fCTLS / SSL security\fR
+.br
+
+.br
+For extra security, you can enable TLS with \-\-ssl:
+.br
+
+.br
+    echo "PASSWORD=hunter2 run_my_server" | curlbomb \-\-ssl /path/to/cert.pem
+.br
+
+.br
+The example above is passing a bit of secure information; a
+.br
+password. Even without TLS, curlbomb secures access with a knock
+.br
+parameter. For many use\-cases, this is sufficient to secure it, as
+.br
+curlbombs are short lived and can only be retrieved one time (`\-n
+.br
+1`). However, the connection itself might be spied on through traffic
+.br
+analysis at your ISP or any other router your connection flows
+.br
+through. Using TLS makes sure this doesn't happen. 
+.br
+
+.br
+Note that when combined with the \-\-ssh parameter, the SSL certificate
+.br
+should be generated for the host running the SSH server rather than
+.br
+the one running curlbomb. To prevent having to store the SSL
+.br
+certificate in plain text on your local machine, the file may be
+.br
+optionally PGP encrypted (ascii\-armored) and curlbomb will decrypt it
+.br
+only when necessary.
+.br
+
+.br
+\fB\fCAliases\fR
+.br
+
+.br
+By now the curlbomb command might be getting quite long. Once you've
+.br
+encrypted and stored your SSL certificate, and setup your SSH server,
+.br
+create an alias for ease of use, for example:
+.br
+
+.br
+    alias curlbomb_public=curlbomb \-\-ssl ~/.curlbomb/curlbomb.pem \-\-ssh user@example.com:22:8080
+.br
+
+.br
+There's a few more examples in [EXAMPLES.md](EXAMPLES.md)
+.br
+
+.br
+
+.SH OPTIONS
+
+.br
+
+.br
+    usage: curlbomb [\-h] [\-k] [\-n N] [\-p PORT] [\-d host[:port]] [\-w] [\-l] [\-q]
+.br
+                    [\-v] [\-\-ssh SSH_FORWARD] [\-\-ssl CERTIFICATE] [\-\-survey]
+.br
+                    [\-\-unwrapped] [\-\-disable\-postback] [\-\-client\-logging]
+.br
+                    [\-\-client\-quiet] [\-\-mime\-type MIME_TYPE] [\-\-version]
+.br
+                    {run,put,get} ...
+.br
+				   
+.br
+curlbomb has a few subcommands:
+.br
+
+.br
+ * \fB\fCrun\fR \- run a shell script
+.br
+ * \fB\fCput\fR \- copy local files/directories to remote system
+.br
+ * \fB\fCget\fR \- copy remote files/directories to local system
+.br
+ 
+.br
+If no subcommand is specified, and there is data being piped to stdin,
+.br
+then the \fB\fCrun\fR subcommand is used implicitly.
+.br
+
+.br
+\fB\fCThe following arguments apply to all subcommands:\fR
+.br
+
+.br
+\fB\fC\-k, \-\-disable\-knock\fR Don't require a X\-knock HTTP header from the
+.br
+client. Normally curlbombs are one\-time\-use and meant to be
+.br
+copy\-pasted from terminal to terminal. If you're embedding into a
+.br
+script, you may not know the knock parameter ahead of time and so this
+.br
+disables that. This is inherently less secure than the default.
+.br
+
+.br
+\fB\fC\-n N, \-\-num\-gets N\fR The maximum number of times the script may be
+.br
+fetched by clients, defaulting to 1. Increasing this may be useful in
+.br
+certain circumstances, but please note that the same knock parameter
+.br
+is used for all requests so this is inherently less secure than the
+.br
+default. Setting this to 0 will allow the resource to be downloaded an
+.br
+unlimited number of times.
+.br
+
+.br
+\fB\fC\-p PORT\fR The local TCP port number to use.
+.br
+
+.br
+\fB\fC\-d host[:port], \-\-domain host[:port]\fR Specify the domain name and
+.br
+port that is displayed in the URL of the client command. This does not
+.br
+change where the resource is actually located, use \-\-port or \-\-ssh for
+.br
+that. This is useful if you are setting up your own port forwards and
+.br
+need to show an external URL.
+.br
+
+.br
+\fB\fC\-w, \-\-wget\fR Print wget syntax rather than curl syntax. Useful in the
+.br
+case where the client doesn't have curl installed.
+.br
+
+.br
+\fB\fC\-l, \-\-log\-posts\fR Log the client output from the curlbomb server. 
+.br
+
+.br
+\fB\fC\-q, \-\-quiet\fR Be more quiet. Don't print the client curlbomb command.
+.br
+
+.br
+\fB\fC\-v, \-\-verbose\fR Be more verbose. Turns off \-\-quiet, enables
+.br
+\-\-log\-posts, and enables INFO level logging within curlbomb.
+.br
+
+.br
+\fB\fC\-\-ssh SSH_FORWARD\fR Forwards the curlbomb server to a remote port of
+.br
+another computer through SSH. This is useful to serve curlbombs to
+.br
+clients on another network without opening up any ports to the machine
+.br
+running curlbomb. The syntax for SSH_FORWARD is
+.br
+[user@]host[:ssh_port][:http_port]. The SSH server must have the
+.br
+GatewayPorts (see: man sshd_config) setting turned on to allow remote
+.br
+clients to connect to this port.
+.br
+
+.br
+\fB\fC\-\-ssl CERTIFICATE\fR Run the HTTP server with TLS encryption. Give the
+.br
+full path to your SSL certificate, optionally PGP (ascii\-armored)
+.br
+encrypted. The file should contain the entire certificate chain,
+.br
+including the CA certificate, if any.
+.br
+
+.br
+\fB\fC\-\-survey\fR Only print the curl (or wget) command. Don't redirect to a
+.br
+shell command. Useful for testing out script retrieval without running
+.br
+them.
+.br
+
+.br
+\fB\fC\-\-unwrapped\fR output the full curlbomb command, including all the
+.br
+boilerplate that curlbomb normally wraps inside of a nested curlbomb.
+.br
+
+.br
+This parameter is useful when you want to source variables into your
+.br
+current shell:
+.br
+
+.br
+    echo "export PATH=/asdf/bin:$PATH" | curlbomb \-c source \-\-unwrapped \-\-disable\-postback
+.br
+
+.br
+Without the \-\-unwrapped option, the client command will not run the
+.br
+source command directly, but instead a bash script with a source
+.br
+inside it. This won't work for sourcing environment variables in your
+.br
+shell, so use \-\-unwrapped when you want to use
+.br
+source. \-\-disable\-postback prevents the command from being piped back
+.br
+to the server (as source doesn't have any output, and strangely fails
+.br
+to do it's job when you do pipe it somewhere else.)
+.br
+
+.br
+\fB\fC\-\-disable\-postback\fR Disables sending client output to the
+.br
+server. Note that \-\-log\-posts will have no effect with this enabled.
+.br
+
+.br
+\fB\fC\-\-client\-logging\fR Logs all client output locally on the client to a
+.br
+file called curlbomb.log
+.br
+
+.br
+\fB\fC\-\-client\-quiet\fR Quiets the output on the client
+.br
+
+.br
+\fB\fC\-\-mime\-type MIME_TYPE\fR The mime\-type header to send, by default
+.br
+"text/plain"
+.br
+
+.br
+\fB\fC\-\-version\fR Print the curlbomb version
+.br
+
+.br
+\fB\fCRun subcommand\fR
+.br
+
+.br
+    curlbomb run [\-c COMMAND] [SCRIPT]
+.br
+
+.br
+Runs a shell script on the remote client.
+.br
+
+.br
+\fB\fC\-c COMMAND\fR Set the name of the command that the curlbomb is run with
+.br
+on the client. By default, this is autodected from the first line of
+.br
+the script, called the shebang (#!). If none can be detected, and one
+.br
+is not provided by this setting, the fallback of "bash" is used. Note
+.br
+that curlbomb will still wrap your script inside of bash, even with \fB\fC\-c\fR
+.br
+specified, so the client command will still show it as running in
+.br
+bash. The command you specified is put into the wrapped script. See
+.br
+\fB\fC\-\-unwrapped\fR to change this behaviour.
+.br
+
+.br
+\fB\fCSCRIPT\fR The script or other resource to serve via curlbomb. You can
+.br
+also leave this blank (or specify '\-') and the resource will be read
+.br
+from stdin.
+.br
+
+.br
+Note that the run subcommand is implied if you are pipeing data to
+.br
+curlbomb. For instnace, this command is assumed that the run command
+.br
+is desired even if not explicitly used:
+.br
+
+.br
+    echo "./run_server.sh" | curlbomb
+.br
+
+.br
+Which is equivalent to:
+.br
+
+.br
+    echo "./run_server.sh" | curlbomb run \-
+.br
+
+.br
+\fB\fCPut subcommand\fR
+.br
+
+.br
+    curlbomb put [\-\-exclude=PATTERN] SOURCE [DEST]
+.br
+
+.br
+Copies file(s) from the local SOURCE path to the remote DEST path. If
+.br
+a directory is specified, all child paths will be copied recursively.
+.br
+
+.br
+Exclude patterns can be specified like tar(1)
+.br
+
+.br
+\fB\fCGet subcommand\fR
+.br
+
+.br
+    curlbomb get [\-\-exclude=PATTERN] SOURCE [DEST]
+.br
+
+.br
+Copies file(s) from the remote SOURCE path to the local DEST path. If
+.br
+a directory is specified, all child paths will be copied recursively.
+.br
+
+.br
+Exclude patterns can be specified like tar(1)
+.br
+
+.SH DISTRIBUTION
+ The latest version of curlbomb may be downloaded from https://github.com/EnigmaCurry/curlbomb
+.SH AUTHORS
+ Ryan McGuire <ryan@enigmacurry.com>
