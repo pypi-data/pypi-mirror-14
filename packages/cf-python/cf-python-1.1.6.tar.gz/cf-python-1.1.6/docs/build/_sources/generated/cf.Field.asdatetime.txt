@@ -1,0 +1,7 @@
+cf.Field.asdatetime
+===================
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.Field.asdatetime

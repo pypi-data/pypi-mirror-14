@@ -1,0 +1,333 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Large Amounts of Massive Arrays (LAMA) &mdash; Documentation</title>
+    
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.1.5',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/copybutton.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="Documentation" href="index.html" />
+    <link rel="up" title="Reference manual" href="reference.html" />
+    <link rel="next" title="Functions of the cf module" href="function.html" />
+    <link rel="prev" title="Visualisation" href="visualisation.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="function.html" title="Functions of the cf module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="visualisation.html" title="Visualisation"
+             accesskey="P">previous</a> |</li>
+  <li><a target="_blank" href="http://cfpython.bitbucket.org">cf-python 1.1.5</a> &raquo;</li>
+<!--
+  <li><a target="_blank" href="http://cfpython.bitbucket.org">cf-python</a> &raquo;</li>
+  <li><select onchange="location = this.options[this.selectedIndex].value;">
+
+      <option value="../1.0/index.html">1.0
+
+      <option value="../0.9.9/index.html">0.9.9
+
+      <option value="../0.9.8.3/index.html">0.9.8.3
+
+      <option value="../archive.html">Archive
+
+      </select>
+  </li>
+-->
+  
+        <li class="nav-item nav-item-0"><a href="index.html">Documentation</a> &raquo;</li>
+
+          <li class="nav-item nav-item-1"><a href="reference.html" accesskey="U">Reference manual</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="large-amounts-of-massive-arrays-lama">
+<span id="lama"></span><h1>Large Amounts of Massive Arrays (LAMA)<a class="headerlink" href="#large-amounts-of-massive-arrays-lama" title="Permalink to this headline">¶</a></h1>
+<p>Data arrays contained within fields are stored and manipulated in a
+very memory efficient manner such that large numbers of fields may
+co-exist and be manipulated regardless of the size of their data
+arrays. The limiting factor on array size is not the amount of
+available physical memory, but the amount of disk space available,
+which is generally far greater.</p>
+<p>The basic functionality is:</p>
+<ul>
+<li><p class="first"><strong>Arrays larger than the available physical memory may be created.</strong></p>
+<p>Arrays larger than a preset number of bytes are partitioned into
+smaller sub-arrays which are not kept in memory but stored on disk,
+either as part of the original file they were read in from or as
+newly created temporary files, whichever is appropriate.  Therefore
+data arrays larger than a preset size need never wholly exist in
+memory.</p>
+</li>
+<li><p class="first"><strong>Large numbers of arrays which are in total larger than the
+available physical memory may co-exist.</strong></p>
+<p>Large numbers of data arrays which are collectively larger than the
+available physical memory may co-exist, regardless of whether any
+individual array is in memory or stored on disk.</p>
+</li>
+<li><p class="first"><strong>Arrays larger than the available physical memory may be operated
+on.</strong></p>
+<p>Array operations (such as subspacing, assignment, arithmetic,
+comparison, collapses, etc.) are carried out on a
+partition-by-partition basis. When an operation traverses the
+partitions, if a partition is stored on disk then it is returned to
+disk before processing the next partition.</p>
+</li>
+<li><p class="first"><strong>The memory management does not need to be known at the API
+level.</strong></p>
+<p>As the array&#8217;s metadata (such as size, shape, data-type, number of
+dimensions, etc.) always reflect the data array in its entirety,
+regardless of how the array is partitioned and whether or not its
+partitions are in memory, fields and other variables containing data
+arrays may be used in the API as if they were normal, in-memory
+objects (like numpy arrays). Partitioning does carry a performance
+overhead, but this may be minimised for particular applications or
+hardware configurations.</p>
+</li>
+</ul>
+<div class="section" id="reading-from-files">
+<span id="lama-reading"></span><h2>Reading from files<a class="headerlink" href="#reading-from-files" title="Permalink to this headline">¶</a></h2>
+<p>When a field is read from a file, the data array is not realized in
+memory, however large or small it may be. Instead each partition
+refers to part of the original file on disk. Therefore reading even
+very large fields is initially very fast and uses up only a very small
+amount of memory.</p>
+</div>
+<div class="section" id="copying">
+<span id="lama-copying"></span><h2>Copying<a class="headerlink" href="#copying" title="Permalink to this headline">¶</a></h2>
+<p>When a field is deep copied with its <a class="reference internal" href="generated/cf.Field.copy.html#cf.Field.copy" title="cf.Field.copy"><code class="xref py py-obj docutils literal"><span class="pre">copy</span></code></a> method or the
+<a class="reference external" href="http://docs.python.org/2.7/library/copy.html#copy.deepcopy" title="(in Python v2.7)"><code class="xref py py-func docutils literal"><span class="pre">copy.deepcopy</span></code></a> function, the partitions of its data array
+are transferred to the new field as object identities and are <em>not</em>
+deep copied. Therefore copying even very large fields is initially
+very fast and uses up only a very small amount of memory.</p>
+<p>The independence of the copied field is preserved, however, since each
+partition that is stored in memory (as opposed to on disk) is deep
+copied if and when the data in the new field is actually accessed, and
+then only if the partition&#8217;s data still exists in the original (or any
+other) field.</p>
+</div>
+<div class="section" id="aggregation">
+<h2>Aggregation<a class="headerlink" href="#aggregation" title="Permalink to this headline">¶</a></h2>
+<p>When two fields are aggregated to form one, larger field there is no
+need for either field&#8217;s data array partitions to be accessed, and
+therefore brought into memory if they were stored on disk. The
+resulting field recombines the two fields&#8217; array partitions as object
+identities into the new larger array. Therevy creating an aggregated
+field that uses up only a very small amount of extra memory.</p>
+<p>The independence of the new field is preserved, however, since each
+partition that is stored in memory (as opposed to on disk) is deep
+copied when the data in the new field is actually accessed, and then
+only if the partition&#8217;s data still exists in its the original (or any
+other) field.</p>
+</div>
+<div class="section" id="subspacing">
+<span id="lama-subspacing"></span><h2>Subspacing<a class="headerlink" href="#subspacing" title="Permalink to this headline">¶</a></h2>
+<p>When a new field is created by <a class="reference internal" href="field_manipulation.html#subspacing"><span>subspacing</span></a> a field,
+the new field is actually a <a class="reference internal" href="#lama-copying"><span>LAMA deep copy</span></a> of
+the original but with additional instructions on each of its data
+partitions to only use the part specified by the subspace indices.</p>
+<p>As with copying, creating subspaced fields is initially very fast and
+uses up only a very small amount of memory, with the added advantage
+that a deep copy of only the requested parts of the data array needs
+to be carried out at the time of data access, and then only if the
+partition&#8217;s data still exists in the original field.</p>
+<p>When subspacing a field that has previously been subspacing but has
+not yet had its data accessed, the new subspace merely updates the
+instructions on which parts of the array partitions to use. For
+example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">f</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">73</span><span class="p">,</span> <span class="mi">96</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">g</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">subspace</span><span class="p">[::</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">h</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">subspace</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">5</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>is equivalent to</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">h</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">subspace</span><span class="p">[</span><span class="mi">7</span><span class="p">:</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>and if all of the partitions of field <code class="docutils literal"><span class="pre">f</span></code> are stored on disk then in
+both cases so are all of the partitions of field <code class="docutils literal"><span class="pre">h</span></code> and no data has
+been read from disk.</p>
+</div>
+<div class="section" id="speed-and-memory-management">
+<h2>Speed and memory management<a class="headerlink" href="#speed-and-memory-management" title="Permalink to this headline">¶</a></h2>
+<p>The creation of temporary files for array partitions of large arrays
+and the reading of data from files on disk can create significant
+speed overheads (for example, recent tests show that writing a 100
+megabyte array to disk can take O(1) seconds), so it may be desirable
+to configure the maximum size of array which is kept in memory, and
+therefore has fast access.</p>
+<p>The data array memory management is configurable as follows:</p>
+<ul class="simple">
+<li>Data arrays larger than a given size are partitioned into
+sub-arrays, each of which is smaller than the chunk size. By default
+this size is set to 1% of the total physical memory and is found and
+set with the <a class="reference internal" href="generated/cf.CHUNKSIZE.html#cf.CHUNKSIZE" title="cf.CHUNKSIZE"><code class="xref py py-obj docutils literal"><span class="pre">cf.CHUNKSIZE</span></code></a> function.</li>
+<li>In-memory sub-arrays may be written to tempoary files on disk when
+the amount of available physical memory falls below a specified
+amount. By default this amount is 10% of the total physical memory
+and is found and set with the <code class="xref py py-obj docutils literal"><span class="pre">cf.MINNCFCM</span></code> function.</li>
+</ul>
+<div class="section" id="temporary-files">
+<span id="lama-temporary-files"></span><h3>Temporary files<a class="headerlink" href="#temporary-files" title="Permalink to this headline">¶</a></h3>
+<p>The directory in which temporary files is found and set with the
+<a class="reference internal" href="generated/cf.TEMPDIR.html#cf.TEMPDIR" title="cf.TEMPDIR"><code class="xref py py-obj docutils literal"><span class="pre">cf.TEMPDIR</span></code></a> function:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">cf</span><span class="o">.</span><span class="n">TEMPDIR</span><span class="p">()</span>
+<span class="go">&#39;/tmp&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cf</span><span class="o">.</span><span class="n">TEMPDIR</span><span class="p">(</span><span class="s1">&#39;/home/me/tmp&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">cf</span><span class="o">.</span><span class="n">TEMPDIR</span><span class="p">()</span>
+<span class="go">&#39;/home/me/tmp&#39;</span>
+</pre></div>
+</div>
+<p>The removal of temporary files which are no longer required works in
+the same way as python&#8217;s automatic garbage collector. When a
+partition&#8217;s data is stored in a temporary file, that file will only
+exist for as long as there are partitions referring to it. When no
+partitions require the file it will be deleted automatically.</p>
+<p>When python exits normally, all temporary files are always deleted.</p>
+<p>Changing the temporary file directory does not prevent temporary files
+in the original directory from being garbage collected.</p>
+</div>
+<div class="section" id="partitioning">
+<h3>Partitioning<a class="headerlink" href="#partitioning" title="Permalink to this headline">¶</a></h3>
+<p>To maximise looping efficiency, array partitioning preserves as much
+as is possible the faster varying (inner) dimensions&#8217; sizes in each of
+the sub-arrays.</p>
+<dl class="docutils">
+<dt><strong>Examples</strong></dt>
+<dd><p class="first">If an array with shape (2, 4, 6) is partitioned into 2 partitions then both
+sub-arrays will have shape (1, 4, 6).</p>
+<p>If the same array is partitioned into 4 partitions then all four sub-arrays
+will have shape (1, 2, 6).</p>
+<p>If the same array is partitioned into 8 partitions then all eight
+sub-arrays will have shape (1, 2, 3).</p>
+<p class="last">If the same array is partitioned into 48 partitions then all forty eight
+sub-arrays will have shape (1, 1, 1).</p>
+</dd>
+</dl>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Large Amounts of Massive Arrays (LAMA)</a><ul>
+<li><a class="reference internal" href="#reading-from-files">Reading from files</a></li>
+<li><a class="reference internal" href="#copying">Copying</a></li>
+<li><a class="reference internal" href="#aggregation">Aggregation</a></li>
+<li><a class="reference internal" href="#subspacing">Subspacing</a></li>
+<li><a class="reference internal" href="#speed-and-memory-management">Speed and memory management</a><ul>
+<li><a class="reference internal" href="#temporary-files">Temporary files</a></li>
+<li><a class="reference internal" href="#partitioning">Partitioning</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="visualisation.html"
+                        title="previous chapter">Visualisation</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="function.html"
+                        title="next chapter">Functions of the <code class="docutils literal"><span class="pre">cf</span></code> module</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/lama.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="function.html" title="Functions of the cf module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="visualisation.html" title="Visualisation"
+             >previous</a> |</li>
+  <li><a target="_blank" href="http://cfpython.bitbucket.org">cf-python 1.1.5</a> &raquo;</li>
+<!--
+  <li><a target="_blank" href="http://cfpython.bitbucket.org">cf-python</a> &raquo;</li>
+  <li><select onchange="location = this.options[this.selectedIndex].value;">
+
+      <option value="../1.0/index.html">1.0
+
+      <option value="../0.9.9/index.html">0.9.9
+
+      <option value="../0.9.8.3/index.html">0.9.8.3
+
+      <option value="../archive.html">Archive
+
+      </select>
+  </li>
+-->
+  
+        <li class="nav-item nav-item-0"><a href="index.html">Documentation</a> &raquo;</li>
+
+          <li class="nav-item nav-item-1"><a href="reference.html" >Reference manual</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2016, David Hassell.
+      Last updated on Mar 22, 2016.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>

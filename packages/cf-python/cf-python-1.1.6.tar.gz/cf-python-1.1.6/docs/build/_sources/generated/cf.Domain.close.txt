@@ -1,0 +1,7 @@
+cf.Domain.close
+===============
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.Domain.close

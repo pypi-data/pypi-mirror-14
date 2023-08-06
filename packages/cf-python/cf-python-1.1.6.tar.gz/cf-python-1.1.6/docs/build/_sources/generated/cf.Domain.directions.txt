@@ -1,0 +1,7 @@
+cf.Domain.directions
+====================
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.Domain.directions

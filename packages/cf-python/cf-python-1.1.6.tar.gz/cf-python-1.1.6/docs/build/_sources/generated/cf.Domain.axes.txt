@@ -1,0 +1,7 @@
+cf.Domain.axes
+==============
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.Domain.axes

@@ -1,0 +1,7 @@
+cf.DimensionCoordinate.asdatetime
+=================================
+
+.. currentmodule:: cf
+.. default-role:: obj
+
+.. automethod:: cf.DimensionCoordinate.asdatetime
