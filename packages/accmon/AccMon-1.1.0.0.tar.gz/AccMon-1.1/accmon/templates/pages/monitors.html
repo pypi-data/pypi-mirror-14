@@ -1,0 +1,107 @@
+{% extends "pages/main.html" %}
+{% load staticfiles %}
+{% block title %} Monitors {% endblock %}
+
+{% block container %}
+
+<h2>Monitors list</h2>
+<div class="">
+    <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>id</th>
+            <th>Name</th>
+            <th>target</th>
+            <th>location</th>
+            <th>Control</th>
+            <th>Formula</th>
+            <th>Status</th>
+            <th>Result</th>
+{#            <th>Action</th>#}
+            <th>Violations</th>
+            <th>Audits</th>
+          </tr>
+        </thead>
+        <tbody>
+         {% for m in monitors %}
+          <tr>
+            <td><a href="{% url 'monitor_details' m.id %}"> {{ m.id }} </a></td>
+            <td>{{ m.name}}</td>
+            <td>{{ m.target.name }}</td>
+            <td>{{ m.location }}</td>
+            <td>{{ m.control_type.name }}</td>
+            <td>
+                <div data-toggle="tooltip" title="{{ m.formula }}">
+                {% if m.formula|length > 10 %}
+                    {{ m.formula|slice:":10" }}...
+                {% else %}
+                    {{ m.formula }}
+                {% endif %}
+                </div>
+            </td>
+            <td id="{{ m.id }}_status">
+                {% if m.enabled|stringformat:"s" == "True" %}
+                    <span class="label label-info">Running...</span>
+                {% else %}
+                    <span class="label label-default ">Stopped</span>
+                {% endif %}
+            </td>
+            <td id="{{ m.id }}_result">
+                {% if m.mon.last|stringformat:"s" == "?" %}
+                    <span class="label label-default b3res">
+                {% elif m.mon.last|stringformat:"s" == "⊥" %}
+                    <span class="label label-danger b3res">
+                {% else %}
+                    <span class="label label-success b3res">
+                {% endif %}
+                {{ m.mon.last }}</span>
+            </td>
+            <td>
+                <div class="btn-toolbar">
+                    <a class="label label-danger b3fres btn-group" href="{% url 'monitor_violations' m.id %}"> ⊥
+                        <span class="badge" style="background-color: #DE3C3C;" id="{{ m.id }}_violations">{{ m.violations|length }}</span></a>
+
+                    <div class="btn-group" id="{{ m.id }}_liveness">
+                        {% if m.liveness != None and m.is_liveness_expired != False %}
+                            <span class="glyphicon glyphicon-warning-sign btn-group" style="color: orange;"
+                            data-toggle="tooltip" title="Liveness formula potentially violated ahead of
+                            {{ m.is_liveness_expired }} steps !"></span>
+                        {% endif %}
+                    </div>
+                </div>
+            </td>
+            <td>
+                <a class="label label-warning b3fres" href="{% url 'monitor_violations' m.id %}">
+                    <span class="glyphicon glyphicon-education"></span>
+                    <span class="badge" style="background-color: #D89822;" id="{{ m.id }}_audits">
+                        {{ m.audits|length }}
+                    </span></a>
+            </td>
+          </tr>
+         {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+<script type="application/javascript">
+
+    setInterval(function get_mons_updates(){
+        $.ajax({
+            dataType: 'json',
+            type:'GET',
+            url: "{% url 'get_mons_updates' %}",
+            data: {},
+            success: function(response){
+                $.each(response, function(i, val) {
+                    $("#" + i).empty().append(val);
+                });
+                $('[data-toggle="tooltip"]').tooltip();
+            }
+        });
+    }, 4000);
+
+</script>
+
+{% endblock %}
+

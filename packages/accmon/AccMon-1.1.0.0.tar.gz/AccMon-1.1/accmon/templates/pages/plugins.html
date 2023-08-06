@@ -1,0 +1,53 @@
+{% extends "pages/main.html" %}
+{% load staticfiles %}
+{% block title %} Plugins {% endblock %}
+
+{% block container %}
+
+<div class="container">
+    <h2>Plugins</h2>
+    <ul class="nav nav-tabs">
+        {% for p in plugins %}
+            <li><a data-toggle="tab" href="#{{ p.name }}">{{ p.name }}</a></li>
+        {% endfor %}
+    </ul>
+
+    <div class="tab-content">
+        {% for p in plugins %}
+        <div id="{{ p.name }}" class="tab-pane fade">
+            <h3>{{ p.name }}</h3>
+            {% with template_name=p.name|stringformat:"s"|add:".html" %}
+                {% include "fragments/plugins/"|add:template_name with args=p.get_template_args only %}
+            {% endwith %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script type="application/javascript">
+{% for p in plugins %}
+    $('.nav-tabs a[href="#{{ p.name }}"').on('shown.bs.tab', function(e){render_plugin('{{ p.name }}')});
+{% endfor %}
+
+function render_plugin(plugin) {
+    var base = '{% url 'plugin' 'plugin_name' %}';
+    $.ajax({
+        dataType: 'text',
+        type:'POST',
+        url:  base.replace('plugin_name', plugin),
+        data: {
+            action: 'render'
+        },
+        success: function(response){
+            rend(plugin, response);
+        }
+    });
+}
+
+function rend(plugin, content) {
+    $('#'+plugin).empty().append("<h3>"+plugin+"</h3>" + content);
+}
+
+</script>
+
+{% endblock %}
