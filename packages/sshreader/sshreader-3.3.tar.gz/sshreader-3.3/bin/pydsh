@@ -1,0 +1,158 @@
+#!/usr/bin/env python -u
+# coding=utf-8
+""" A Pythonic implementation of pdsh powered by sshreader
+"""
+from __future__ import print_function
+import click
+import sshreader
+import sys
+from hostlist import expand_hostlist
+# GLOBALS
+__author__ = 'Jesse Almanrode'
+__version__ = '1.3'
+__examples__ = """\b
+Examples:
+    pydsh -k ~/.ssh/id_rsa -w host1,host2,host3 "uname -r"
+    pydsh -u root -k /root/.ssh/id_rsa -w host[1,3] "uname -r"
+    pydsh -u root -P Password123 -w host[1-3] "uname -r"
+"""
+debug = False
+
+
+def dshbak(thisjob):
+    """Hook to print <ServerJob> object output that can be piped to dshbak
+
+    :param thisjob: <ServerJob> object
+    :return: None
+    """
+    if thisjob.status == 255:
+        sshreader.echo(str(thisjob.name) + ': Unable to establish ssh connection')
+    else:
+        result = thisjob.results[0]
+        for line in result.stdout.split('\n'):
+            sshreader.echo(str(thisjob.name) + ': ' + str(line))
+    return None
+
+
+def printjobs(jobresults):
+    """Output the results of the jobs if the have results
+
+    :param jobresults: List of <ServerJob> objects
+    :return: None
+    """
+    for thisjob in jobresults:
+        click.echo(str('-' * 16) + '\n' + str(thisjob.name) + '\n' + str('-' * 16))
+        if thisjob.status == 255:
+            click.echo(str(thisjob.name) + ': Unable to establish ssh connection')
+        else:
+            result = thisjob.results[0]
+            click.echo(result.stdout)
+    return None
+
+
+@click.command(epilog=__examples__)
+@click.version_option(version=__version__)
+@click.option('--hostlist', '-w', metavar='EXPR', required=True, help='Hostlist expression')
+@click.option('--username', '-u', help='Override ssh username')
+@click.option('--keyfile', '-k', type=click.Path(exists=True, dir_okay=False, readable=True), help='Override ssh key')
+@click.option('--prompt', '-p', is_flag=True, help='Prompt for ssh password')
+@click.option('--password', '-P', help='Supply ssh password')
+@click.option('--timeout', '-T', default=300, help='Timeout for ssh commands')
+@click.option('--quiet', '-q', is_flag=True, help='Disable progress bar')
+@click.option('--dshbak', '-D', is_flag=True, help='Allow output to be piped to dshbak')
+@click.option('--debug', '-d', is_flag=True, help='Enable debug output')
+@click.option('--redline', is_flag=True, help='Run as many sub-processes as possible')
+@click.argument('cmd', nargs=1, required=True)
+def cli(**kwargs):
+    """  Run ssh commands in parallel across hosts
+    """
+    global debug
+    debug = kwargs['debug']
+    if debug:
+        print(kwargs)
+
+    sshenv = sshreader.envvars()
+    if debug:
+        print(sshenv)
+
+    if kwargs['username'] is None:
+        if sshenv.username is None:
+            raise click.ClickException('Unable to determine ssh username. Please provide one using --username')
+        else:
+            kwargs['username'] = sshenv.username
+
+    # By default, we prefer ssh keys
+    if kwargs['keyfile'] is None:
+        if sshenv.rsa_key is None and sshenv.dsa_key is None:
+            if kwargs['password'] is None and kwargs['prompt'] is False:
+                raise click.ClickException('Unable to find ssh key to use and password not supplied.')
+        else:
+            if sshenv.rsa_key is not None:
+                kwargs['keyfile'] = sshenv.rsa_key
+            else:
+                kwargs['keyfile'] = sshenv.dsa_key
+    else:
+        # If you specify an SSH key then we ignore any password or prompt flags you might have entered
+        kwargs['password'] = None
+        kwargs['prompt'] = False
+
+    # If you specify a password or prompt for one it overrides the ssh key
+    if kwargs['password'] is None:
+        if kwargs['prompt'] is False:
+            if kwargs['keyfile'] is None:
+                raise click.ClickException('Unable to find ssh key to use and password not supplied or prompt enabled.')
+        else:
+            kwargs['keyfile'] = None
+            while kwargs['password'] is None:
+                kwargs['password'] = click.prompt(kwargs['username'] + "'s Password", hide_input=True)
+    else:
+        # You provided a password, ignore the SSH key
+        kwargs['keyfile'] = None
+
+    if debug:
+        print(kwargs)
+
+    hostlist = expand_hostlist(kwargs['hostlist'])
+
+    if debug:
+        print("Processing " + str(len(hostlist)) + " hosts!")
+
+    post = sshreader.Hook(target=dshbak)
+    jobs = []
+    for host in hostlist:
+        if kwargs['keyfile'] is not None:
+            if debug:
+                print('Using keyfile: ' + kwargs['keyfile'])
+            job = sshreader.ServerJob(host, kwargs['cmd'], username=kwargs['username'], keyfile=kwargs['keyfile'],
+                                      timeout=kwargs['timeout'], combine_output=True)
+        else:
+            if debug:
+                print('Using password: ' + kwargs['password'])
+            job = sshreader.ServerJob(host, kwargs['cmd'], username=kwargs['username'], password=kwargs['password'],
+                                      timeout=kwargs['timeout'], combine_output=True)
+        if kwargs['dshbak']:
+            job.posthook = post
+        jobs.append(job)
+
+    if debug:
+        if kwargs['redline']:
+            print('Using up to: ' + str(sshreader.sshreader.cpuhardlimit()) + ' sub-processes')
+        else:
+            print('Using up to: ' + str(sshreader.sshreader.cpusoftlimit()) + ' sub-processes')
+    if kwargs['quiet'] or kwargs['dshbak']:
+        if kwargs['redline']:
+            job_results = sshreader.sshread(jobs, pcount=-1, tcount=0)
+        else:
+            job_results = sshreader.sshread(jobs, pcount=0, tcount=0)
+        if kwargs['dshbak'] is False:
+            printjobs(job_results)
+    else:
+        if kwargs['redline']:
+            job_results = sshreader.sshread(jobs, pcount=-1, tcount=0, progress_bar=True)
+        else:
+            job_results = sshreader.sshread(jobs, pcount=0, tcount=0, progress_bar=True)
+        printjobs(job_results)
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(cli())
