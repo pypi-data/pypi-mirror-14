@@ -1,0 +1,11 @@
+__version__ = "0.2.16"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = 'develop'
+__git_remote_tracking_branch__ = 'origin/develop'
+__git_remote_url__ = 'git@git.infinidat.com:host-opensource/infi.devicemanager.git'
+__git_head_hash__ = '36c635681a7b3a2dbafda74a17babc935079d990'
+__git_head_subject__ = 'Finished Release v0.2.16'
+__git_head_message__ = '* develop:\n  TRIVIAL fixing Device.__repr_'
+__git_dirty_diff__ = ''
+__git_commit_date__ = '2016-04-04 13:02:00'
