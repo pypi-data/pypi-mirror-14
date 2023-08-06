@@ -1,0 +1,260 @@
+* pyrsp
+
+pyrsp v0.2 is a simple wrapper around the [[https://sourceware.org/gdb/current/onlinedocs/gdb/Remote-Protocol.html#Remote-Protocol][GDB Remote serial
+protocol]]. Currently ARM Cortex M3 devices can be tested with the
+[[https://github.com/gsmcmullin/blackmagic][Blackmagic JTAG debugger]] and i386 and AMD64 qemu targets are supported
+with qemu. But it should be very simple to support other devices that
+speak this protocol e.g. buspirates via OpenOCD.
+
+Possible uses: on-device unit testing, fuzzing, reverse engineering.
+
+Currently you can load/dump memory, set/clear breakpoints, load extra
+information (symbols, debug info, .text segment) from an elf file,
+dispatch callbacks on breakpoints, run the binary associated with the
+elf file and display source code associated with addresses.
+
+** depends
+#+BEGIN_EXAMPLE
+pip install pyelftools pyserial
+#+END_EXAMPLE
+
+** changes
+*** v0.3
+    - support for STLink2 devices
+    - rudimentary support for dumping fault status and mpu registers
+    - fixes
+*** v0.2
+    - refactored rsp parts into elf.py and utils.py
+    - support for i386 and AMD64 qemu targets
+    - timeout in readpkt
+    - extract .text directly from elf, do not require .bin
+    - support slice operator for memory ops
+    - use reported packetSize
+    - threadinfo support
+** python example
+#+BEGIN_EXAMPLE python
+   from rsp import RSP
+   rsp = RSP('/dev/ttyACM0', 'test.elf') # expects test.elf to exist
+   rsp.load() # load test.elf into workarea (.text segment)
+
+   def br_cb(self):
+     # dump regs
+     self.dump_regs()
+
+     # retrieve some data
+     print self.dump(10, 0x20000000)
+
+     # set up some data
+     self.store("aaaaa", 0x20000000)
+
+     # adjust some register
+     self.set_reg('r0',0)
+
+     # continue and leave breakpoint intact
+     self.step_over_br()
+
+   # attach breakpoints to callbacks
+   rsp.set_br('rsp_finish', rsp.finish_cb)
+   rsp.set_br('rsp_dump', rsp.dump_cb)
+   rsp.set_br('my_fun", br_cb)
+
+   # run binary in mainloop until rsp_finish is hit
+   # or some unhandled signal occurs
+   rsp.run()
+#+END_EXAMPLE
+   should produce the output in the next part, however a similar
+   result, barring the custom callback can also be produced by
+   running:
+#+BEGIN_EXAMPLE
+$ rsp.py /dev/ttyACM0 test
+#+END_EXAMPLE
+** Example session
+   see the code running below in example/
+#+BEGIN_EXAMPLE
+work area: 0x20019000
+entry: 0x20019001
+Available Targets:
+No. Att Driver
+ 1      STM32F4xx
+
+      r0       r1       r2       r3       r4       r5       r6       r7       r8       r9      r10      r11      r12       sp       lr       pc     xpsr      msp      psp
+2001f6b4 00000004 00000000 00000000 2001f6b4 2001f754 00000020 00008000 000000ff 2001fb9c 00000020 00000000 08001f31 2001f6b0 2001902b 20019036 21000003 2001f6b0 00000000
+load test.bin
+verify test OK
+set break: @rsp_finish (0x20019036) OK
+set break: @rsp_dump (0x20019034) OK
+set new pc: @test (0x20019001) OK
+continuing
+
+      r0       r1       r2       r3       r4       r5       r6       r7       r8       r9      r10      r11      r12       sp       lr       pc     xpsr      msp      psp
+2001f6a4 00000004 00000000 00000000 2001f6a4 2001f754 00000020 00008000 000000ff 2001fb9c 00000020 00000000 08001f31 2001f6a0 20019013 20019034 21000003 2001f6a0 00000000
+breakpoint hit: rsp_dump
+test.c:5 rsp_dump((unsigned char*) &number, 4);
+        00000000 ....
+
+      r0       r1       r2       r3       r4       r5       r6       r7       r8       r9      r10      r11      r12       sp       lr       pc     xpsr      msp      psp
+20019038 0000000b 00000000 00000000 2001f6a4 2001f754 00000020 00008000 000000ff 2001fb9c 00000020 00000000 08001f31 2001f6a0 2001901b 20019034 21000003 2001f6a0 00000000
+breakpoint hit: rsp_dump
+test.c:6 rsp_dump((unsigned char*) "hello world",11);
+        68656c6c6f20776f 726c64 hello.world
+
+      r0       r1       r2       r3       r4       r5       r6       r7       r8       r9      r10      r11      r12       sp       lr       pc     xpsr      msp      psp
+2001f6a4 00000004 00000000 00000000 2001f6a4 2001f754 00000020 00008000 000000ff 2001fb9c 00000020 00000000 08001f31 2001f6a0 20019027 20019034 21000003 2001f6a0 00000000
+breakpoint hit: rsp_dump
+test.c:8 rsp_dump((unsigned char*) &number, 4);
+        55aa55aa U.U.
+
+      r0       r1       r2       r3       r4       r5       r6       r7       r8       r9      r10      r11      r12       sp       lr       pc     xpsr      msp      psp
+2001f6a4 00000004 00000000 00000000 2001f6a4 2001f754 00000020 00008000 000000ff 2001fb9c 00000020 00000000 08001f31 2001f6a0 2001902b 20019036 21000003 2001f6a0 00000000
+breakpoint hit: rsp_finish
+clear breakpoint: @rsp_dump (0x20019034) OK
+clear breakpoint: @rsp_finish (0x20019036) OK
+continuing and detaching
+#+END_EXAMPLE
+** Python API
+#+BEGIN_EXAMPLE python
+RSP(self, port, elffile=None, verbose=False)
+#+END_EXAMPLE
+reads the elf file if given by elffile, connects to the debugging
+device specified by port, and initializes itself.
+
+#+BEGIN_EXAMPLE python
+send(self, data, retries=50)
+#+END_EXAMPLE
+sends data via the RSP protocol to the device
+
+#+BEGIN_EXAMPLE python
+readpkt(self, timeout=0)
+#+END_EXAMPLE
+blocks until it reads an RSP packet and returns it's data or timeout>0 expires
+
+#+BEGIN_EXAMPLE python
+store(self, data, addr=None)
+#+END_EXAMPLE
+stores data at addr if given otherwise at beginning of .text segment
+aka self.workarea
+
+#+BEGIN_EXAMPLE python
+dump(self, size, addr = None)
+#+END_EXAMPLE
+dumps data from addr if given otherwise at beginning of .text segment
+aka self.workarea
+
+#+BEGIN_EXAMPLE python
+fetch(self,data)
+#+END_EXAMPLE
+sends data and returns reply
+
+#+BEGIN_EXAMPLE python
+fetchOK(self,data,ok='OK')
+#+END_EXAMPLE
+sends data and expects success
+
+#+BEGIN_EXAMPLE python
+set_reg(self, reg, val)
+#+END_EXAMPLE
+sets value of register reg to val on device
+
+#+BEGIN_EXAMPLE python
+refresh_regs(self)
+#+END_EXAMPLE
+loads and caches values of the registers on the device
+
+#+BEGIN_EXAMPLE python
+dump_regs(self)
+#+END_EXAMPLE
+refreshes and dumps registers via stdout
+
+#+BEGIN_EXAMPLE python
+connect(self)
+#+END_EXAMPLE
+Implements device specific connection procedure, e.g. attaches to
+blackmagic jtag debugger in swd mode
+
+#+BEGIN_EXAMPLE python
+run(self, start=None)
+#+END_EXAMPLE
+sets pc to start if given or to entry address from elf header, passes
+control to the device and handles breakpoints
+
+#+BEGIN_EXAMPLE python
+handle_br(self)
+#+END_EXAMPLE
+dumps register on breakpoint/signal, continues if unknown,
+otherwise it calls the appropriate callback.
+
+#+BEGIN_EXAMPLE python
+set_br(self, sym, cb, quiet=False)
+#+END_EXAMPLE
+sets a breakpoint at symbol sym, and install callback cb for it
+
+#+BEGIN_EXAMPLE python
+del_br(self, addr, quiet=False)
+#+END_EXAMPLE
+deletes breakpoint at address addr
+
+#+BEGIN_EXAMPLE python
+finish_cb(self)
+#+END_EXAMPLE
+final breakpoint, if hit it deletes all breakpoints, continues running
+the cpu, and detaches from the debugging device
+
+#+BEGIN_EXAMPLE python
+get_src_line(self, addr)
+#+END_EXAMPLE
+returns the source-code line associated with address addr
+
+#+BEGIN_EXAMPLE python
+dump_cb(self)
+#+END_EXAMPLE
+rsp_dump callback, hit if rsp_dump is called. Outputs to stdout the
+source line, and a hexdump of the memory pointed by $r0 with a size of
+$r1 bytes. Then it resumes running.
+
+#+BEGIN_EXAMPLE python
+load(self, verify)
+#+END_EXAMPLE
+loads binary belonging to elf to beginning of .text segment (alias
+self.workarea), and if verify is set read it back and check if it
+matches with the uploaded binary.
+
+#+BEGIN_EXAMPLE python
+call(self, start=None, finish='rsp_finish', dump='rsp_dump', verify=True)
+#+END_EXAMPLE
+    1. Loads the .text segment given by self.elf into the device at the workarea (.text seg) of the device.
+    2. and starts execution at the function specified by start or elf e_entry.
+    3. After the breakpoint of rsp_dump is hit, r1 bytes are dumped from the buffer pointed to by r0.
+    4. After the breakpoint of rsp_finish is hit, it removes all break points, and detaches
+
+#+BEGIN_EXAMPLE python
+get_thread_info()
+#+END_EXAMPLE
+returns a tuple consisting of:
+   - current thread id,
+   - extra thread info,
+   - list of all threads
+
+#+BEGIN_EXAMPLE python
+rsp[0:100]
+#+END_EXAMPLE
+returns 1st 100 bytes from memory
+
+#+BEGIN_EXAMPLE python
+rsp[100]="hello world"
+#+END_EXAMPLE
+Stores the string "hello world" at address 100 in memory
+
+** trigger functions for breakpoints
+If you run your code on an ARMv7, you can call and link the code in
+rsp.s and rsp.h. It only costs you 4 bytes.
+
+If you use C language for instrumentation GCC might optimize out very
+simple finish functions, to avoid this you can use the example below:
+#+BEGIN_EXAMPLE
+__attribute__ ((noinline)) void rsp_finish(void) {
+  while(1);
+}
+__attribute__ ((noinline)) void rsp_dump(void) {
+  __asm__("nop;");
+}
+#+END_EXAMPLE
