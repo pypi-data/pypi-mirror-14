@@ -1,0 +1,213 @@
+Metadata-Version: 1.1
+Name: pscore
+Version: 0.4.7
+Summary: Python-Selenium framework module
+Home-page: https://pypi.python.org/pypi/pscore
+Author: Andrew Fowler
+Author-email: andrew.fowler@skyscanner.net
+License: UNKNOWN
+Download-URL: https://pypi.python.org/pypi/pscore
+Description: ======
+        PSCORE
+        ======
+        
+        ``pscore`` provides a range of selenium webdrivers for local, grid and saucelabs execution, including test setup and teardown. It has been tested and used with the ``nose2`` test runner which enables multi-threaded test execution. ``pscore`` offers up a ``WebDriverTestCase`` which can be sub-classed in your automation test cases and will provide access to a ``webdriver`` object via ``self.driver``
+        
+        An example test looks like this::
+        
+            from pscore.core.wd_testcase import WebDriverTestCase
+            from pscore.nose2.tags import tagger
+            from the_internet_model.pages.home import Home
+        
+            class TestTheInternet(WebDriverTestCase):
+        
+            @tagger('Home')
+             def test_can_load_homepage(self):
+                 home = Home(self.driver).load()
+                 self.assertTrue(home.is_loaded(), "Error loading homepage")
+        
+        And is run like this::
+        
+            nose2 -c nose2.cfg -A tags=Home
+        
+        Test configuration is managed by reading environment variables.
+        
+        """"""""""""""""""""""""""""""
+        Required environment variables
+        """"""""""""""""""""""""""""""
+        
+        * ``PSCORE_ENVIRONMENT`` - Specifies the execution environment.  Accepted values: `grid`, `local`, `saucelabs`, `sauce`, `amazon`
+        * ``PSCORE_BROWSER`` - Specifies the browser.  Accepted values: `ie`, `chrome`, `firefox`, `iphone`, `ipad`, `android`, `safari` (`ie`, `chrome`, `firefox`, `android` options can be used on local development)
+        * ``PSCORE_HOMEPAGE`` - Specifies the homepage.  e.g. http://www.google.com
+        
+        Others
+        """"""
+        
+        * ``PSCORE_BROWSER_VERSION`` (e.g. if using saucelabs) - specify browser version
+        * ``PSCORE_SCREENSHOT_DIR`` - Specifies the directory to write screenshots to
+        * ``PSCORE_AGENT_ID``- (optional) name to set the ``environment`` of your test run e.g. ``"MyTeamIntReview"``
+        * ``PSCORE_SELENIUM_HUB_URL`` - Specifies the URL of a standard selenium hub instance e.g. ``http://gridhub:4444/wd/hub``
+        * ``PSCORE_HTML_DUMP_ON_FAILURE`` - when ``True``, a failing test will add page source to log files during teardown.
+        
+        Saucelabs
+        """""""""
+        
+        * ``PSCORE_SAUCE_USERNAME`` - The username to use for Saucelabs authentication
+        * ``PSCORE_SAUCE_KEY`` - The access key to use for Saucelabs authentication
+        * ``PSCORE_SAUCE_TUNNEL_ID`` - in order to see internal test environments, we need to use a sauce connect tunnel - use the tunnel ID name
+        * ``PSCORE_SAUCE_PARENT_ACCOUNT`` - if you are a sub-account of someone else, put that username here
+        
+        """""""""""""""""
+        Driver Extensions
+        """""""""""""""""
+        
+        ``pscore`` offers some extensions to the webdriver API
+        
+        Waiting
+        """""""
+        
+        There are some wait helpers::
+        
+            a_findable_element = By.XPATH, "//div[@id='start']/button"
+            some_spinner = By.ID, "alert_spinner"
+            how_long_to_wait = 10 #seconds
+            # We can wait until something appears
+            element_found = self.driver.wait.until_visible2(a_findable_element, how_long_to_wait)
+            # or wait until something has gone away
+            element_gone = self.driver.wait.until_not_visible2(some_spinner, how_long_to_wait)
+            # Exceptions are suppressed so these methods always return true or false
+        
+        
+        """""""""""""""""""""""""
+        Using Custom Capabilities
+        """""""""""""""""""""""""
+        
+        Usually, we would suggest using the environment variables above for test configuration. There will be times when you may want to use custom capabilities.
+        Here is an example of how you can do that. We still set the ``PSCORE_ENVIRONMENT`` to either `sauce`, `local` or `grid`. ::
+        
+            caps = dict(
+                browserName='chrome',
+                platform='Windows 8',
+                version='47.0',
+                screenResolution='1280x1024'
+            )
+        
+        
+            class SimpleSauceCapsTest(WebDriverTestCase):
+                def setUp(self):
+                    # You must assign custom_caps
+                    self.custom_caps = caps
+                    # Then call super
+                    super(SimpleSauceCapsTest, self).setUp()
+        
+                @tagger('dbg')
+                def test_customCaps(self):
+                    self.driver.get("http://www.google.com")
+                    self.assertTrue(False)
+        
+        
+        
+        """""""""""""""
+        Release History
+        """""""""""""""
+        0.4.7 (2016-04-12)
+        """"""""""""""""""
+        
+        * Changed logger method to exclude the params name when creating log files.
+        
+        0.4.6 (2016-04-11)
+        """"""""""""""""""
+        
+        * Fixed a bug in pscore which was failing to upload logs to reporting service when using params
+        
+        0.4.5 (2016-03-14)
+        """"""""""""""""""
+        
+        * Added Applitools support for use with Saucelabs
+        
+        0.4.4 (2016-02-26)
+        """"""""""""""""""
+        
+        * Selenium 2.52.0 bindings
+        * Make test fail and teardown gracefully if an uncaught exception is thrown from an overridden ``tearDown`` implementation
+        * Prevent setup logic from attempting to maximise window when using custom mobile capabilities
+        
+        0.4.3 (2016-02-05)
+        """"""""""""""""""
+        
+        * Support for Custom Desired Capabilities (see examples above)
+        * New flag ``PSCORE_HTML_DUMP_ON_FAILURE`` will place ``driver.page_source`` into log file if a test fails.
+        
+        0.4.2 (2016-01-29)
+        """"""""""""""""""
+        
+        * Sanitize log file names when running `parameterized tests <http://nose2.readthedocs.org/en/latest/plugins/parameters.html>`_.
+        * Selenium 2.50.0 bindings
+        
+        
+        0.4.1 (2016-01-22)
+        """"""""""""""""""
+        
+        * Sauce Android caps updated to support 5.1
+        
+        0.4.0 (2016-01-21)
+        """"""""""""""""""
+        
+        * Compatible with Python 3.5.*
+        * Update Selenium version to 2.49.2
+        * Fixed an issue where a logger instantiation error caused tests not to execute
+        * Teardown URL logged for all ``PSCORE_ENVIRONMENT`` s
+        
+        0.3.4 (2015-12-22)
+        """"""""""""""""""
+        
+        * Update Selenium version to 2.48.0
+        * Added ``driver.wait.until_visible2`` and ``driver.wait.until_not_visible2``. Example usage above
+        
+        0.3.3 (2015-12-10)
+        """"""""""""""""""
+        
+        Fix for displaying sauce reports when there is a timeout on sauce side
+        
+        0.3.2 (2015-11-02)
+        """"""""""""""""""
+        
+        Updated Sauce caps to use the latest keys and added support for safari 9
+        
+        0.3.1 (2015-10-20)
+        """"""""""""""""""
+        
+        Minor fix for handling exceptions when artefact service was down
+        
+        0.3.0 (2015-10-02)
+        """"""""""""""""""
+        
+        Bumped the selenium version to use 2.47.3
+        
+        0.2.4 (2015-09-25)
+        """"""""""""""""""
+        
+        Added the capability to log the grid node ip
+        
+        0.2.3 (2015-09-25)
+        """"""""""""""""""
+        
+        Fixed the bug which was not downloading the chromedriver and iedriver when trying to run the tests locally
+        
+        0.2.2 (2015-09-24)
+        """"""""""""""""""
+        
+        Missing changelog file was causing ``setup.py`` to crash
+        
+        0.2.1.1 (2015-09-24)
+        """"""""""""""""""""
+        
+        Minor fixes in the way error messages are captured
+Keywords: selenium,webdriver,saucelabs,grid
+Platform: UNKNOWN
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Topic :: Software Development :: Testing
+Classifier: Topic :: Software Development :: Quality Assurance
+Requires: selenium
