@@ -1,0 +1,27 @@
+branches:
+    only:
+        - master
+sudo: required
+dist: trusty
+language: python
+cache: 
+ - apt
+ - pip
+python:
+    - 2.7
+    - 3.4
+env:
+    - CEPH_RELEASE=firefly
+    - CEPH_RELEASE=hammer
+    - CEPH_RELEASE=infernalis
+    - CEPH_RELEASE=jewel
+before_install:
+    - curl 'https://git.ceph.com/?p=ceph.git;a=blob_plain;f=keys/release.asc' | sudo apt-key add -
+    - echo deb http://download.ceph.com/debian-$CEPH_RELEASE/ $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/ceph.list
+    - sudo apt-get update -yq
+    - sudo apt-get install -yq librados-dev ceph
+install:
+    # The install requirements in travis virtualenv that will be cached
+    - pip install tox-travis cython pbr -r test-requirements.txt
+before_script: '[ "$CEPH_RELEASE" == "infernalis" ] && CEPH_RELEASE=hammer || true'
+script: tox -v
