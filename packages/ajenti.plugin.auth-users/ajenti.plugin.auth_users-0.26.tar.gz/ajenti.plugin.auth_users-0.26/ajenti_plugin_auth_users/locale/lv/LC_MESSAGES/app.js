@@ -1,0 +1,1 @@
+{"": "", "Save": "", "OK": "", "Configure": "", "New user name": "", "Filesystem root": "", "Create": "", "System account": "", "Custom users": "", "New password": "", "Sidebar entries": "", "Users": "", "Update password": "", "Permissions": "", "Password updated": "", "Default root password is <code>admin</code>": ""}
