@@ -1,0 +1,589 @@
+#!/usr/bin/env python3
+# -*- coding: utf8 -*-
+from conoha.api import Token
+from conoha.config import Config
+from argparse import FileType
+import argparse
+import sys
+import conoha
+from conoha.compute import VMPlanList, VMImageList, VMList, KeyList
+from conoha.network import SecurityGroupList
+from conoha.block import BlockTypeList, VolumeList
+from conoha.image import ImageList, Quota
+from tabulate import tabulate
+import functools
+
+formatters = ('plain', 'simple', 'vertical')
+maxCommandNameLength = 20
+
+def prettyPrint(format_=None, header=True):
+	"""
+	2つの引数(token, args)を取るクラスメソッドに対するデコレータ。
+	メソッドが返す値を整形してstdoutに出力する。
+
+	format_: 表示形式を選択
+	heder:   ヘッダーの有無を指定
+
+	注意: wrapperの引数 "args" の設定が優先される。
+	"""
+	assert(format_ is None or format_ in ['plain', 'simple'])
+
+	def verticalFormatter(table, header_):
+		headerRow = list(next(table))
+		headerWidth = max(len(i) for i in headerRow) if header_ else 0
+		spaceWidth = 2 if header_ else 0
+		valueColWidth = 0
+		rows = 0
+		rowsWidth = None
+		output = []
+		outputStr = ""
+
+		for rowNo, row in enumerate(table):
+			# rowの値をすべて文字列に変換
+			row = list(str(i) for i in row)
+
+			rows = rowNo
+			valueColWidth = max([valueColWidth, max(len(i) for i in row),])
+			# 縦横を逆に
+			if header_:
+				output.append(zip(headerRow, row))
+			else:
+				output.append(row)
+		rowsWidth = len(str(rows))
+		separateStr = '*'*(int((headerWidth + spaceWidth + valueColWidth - 2 - rowsWidth)/2))
+		for rowNo, row in enumerate(output):
+			outputStr += ' '.join([separateStr, str(rowNo).center(rowsWidth), separateStr]) + '\n'
+			if header_:
+				outputStr += '\n'.join(h.ljust(headerWidth) + ' '*spaceWidth + v for h,v in row) + '\n'
+			else:
+				outputStr += '\n'.join(row) + '\n'
+		return outputStr
+
+	def receiveFunc(func):
+		@functools.wraps(func)
+		def wrapper(cls, token, args):
+			output = func(cls, token, args)
+			if ('quiet' in args) and args.quiet:
+					return
+			if output:
+				# Select first non None value
+				fmt = next((i for i in [args.format, format_] if i is not None), None)
+				header_ = next((i for i in [args.header, header] if i is not None), True)
+				assert(fmt is None or fmt in formatters)
+
+				if fmt == 'vertical':
+					# use verticalFormatter
+					print(verticalFormatter(output, header_))
+				else:
+					# use tabulate
+					if header_:
+						print(tabulate(output, headers='firstrow', tablefmt=fmt or 'simple'))
+					else:
+						output = iter(output)
+						# Skipt first line
+						next(output)
+						print(tabulate(output, headers=[], tablefmt=fmt or 'plain'))
+		return wrapper
+	return receiveFunc
+
+def str2bool(s):
+	if s.lower() in ['yes', 'y', 'true', 't', '1']:
+		return True
+	elif s.lower() in ['no', 'n', 'false', 'f', '0']:
+		return False
+	raise '"{}" is invalid value'.format(s)
+
+def main():
+	parser = getArgumentParser()
+	try:
+		parsed_args = parser.parse_args()
+
+		if parsed_args.version:
+			print('conoha-cli {}'.format(conoha.__version__))
+			return 0
+
+		# サブコマンドだけを指定した場合は失敗
+		assert('func' in parsed_args)
+	except AssertionError:
+		# 失敗した場合は、そのサブコマンドに対応するhelpを表示
+		try:
+			parser.parse_args(sys.argv[1:]+['-h'])
+		except SystemExit:
+			return 1
+		# ここが実行されてはいけない
+		return 2
+
+	conf = Config()
+	token = Token(conf)
+	parsed_args.func(token, parsed_args)
+
+class HelpFormatter(argparse.HelpFormatter):
+	"""
+	argparseのデフォルトのhelpフォーマッタ(argparse.HelpFormatter)に下記の点を改良
+
+	 * 長いサブコマンド名をサポート
+	 * サブコマンド一覧をソートする
+	"""
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+
+		# 長い名前のサブコマンドが多いから
+		self._action_max_length = maxCommandNameLength
+
+	def _format_action(self, action):
+		if isinstance(action, argparse._SubParsersAction):
+			# サブコマンド一覧を、サブコマンド名でソートする
+			action._choices_actions.sort(key=lambda x: x.dest)
+			return super()._format_action(action)
+		return super()._format_action(action)
+
+class ArgumentParser(argparse.ArgumentParser):
+	"""
+	argparse.ArgumentParserクラスに下記の変更を加えた
+
+	 * formatterは常にHelpFormatterを使用
+	 * subparserは常にArgumentParserを使用
+	"""
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.formatter_class = HelpFormatter
+
+	def add_subparsers(self, **kwargs):
+		kwargs['parser_class'] = type(self)
+		kwargs.setdefault('title', 'subcommands')
+		kwargs.setdefault('metavar', 'COMMAND')
+		return super().add_subparsers(**kwargs)
+
+def getArgumentParser():
+	parser = ArgumentParser()
+	parser.add_argument('-v', '--version', action='store_true', help='Display conoha-cli version')
+	parser.add_argument('--format', type=str, choices=formatters,
+			help='FORMAT is ' + ' or '.join("'{}'".format(i) for i in formatters),
+			metavar='FORMAT')
+	parser.add_argument('--header', nargs='?', default=True, type=str2bool,
+			choices=[True, False], metavar='Yes,No')
+	subparser = parser.add_subparsers()
+
+	parser_compute = subparser.add_parser('compute', help='Compute service')
+	subparser_compute = parser_compute.add_subparsers()
+	ComputeCommand.configureParser(subparser_compute)
+
+	parser_network = subparser.add_parser('network', help='Network service')
+	subparser_network = parser_network.add_subparsers()
+	NetworkCommand.configureParser(subparser_network)
+
+	parser_block = subparser.add_parser('block', help='Block storage service')
+	subparser_block = parser_block.add_subparsers()
+	BlockCommand.configureParser(subparser_block)
+
+	parser_image = subparser.add_parser('image', help='Image service')
+	subparser_image = parser_image.add_subparsers()
+	ImageCommand.configureParser(subparser_image)
+
+	return parser
+
+class ComputeCommand():
+	@classmethod
+	def configureParser(cls, subparser):
+		listCommands = {
+				'list-images': cls.list_images,
+				'list-keys': cls.list_keys,
+				'list-plans': cls.list_plans,
+				'list-vms': cls.list_vms,
+				}
+		for cmd in listCommands:
+			listParser = subparser.add_parser(cmd)
+			listParser.add_argument('--verbose', action='store_true')
+			listParser.set_defaults(func=listCommands[cmd])
+
+		addKeyParser = subparser.add_parser('add-key', help='add public key')
+		addKeyParser.add_argument('-q', '--quiet', action='store_true')
+		addKeyParser.add_argument('-n', '--name', required=True, type=str,           help='public key name')
+		addKeyParser.add_argument('-f', '--file',                type=FileType('r'), help='public key file path')
+		addKeyParser.add_argument('-k', '--key',                 type=str,           help='public key string')
+		addKeyParser.set_defaults(func=cls.add_key)
+
+		deleteKeyParser = subparser.add_parser('delete-key', help='delete public key')
+		deleteKeyParser.add_argument('-n', '--name', type=str, help='key name')
+		deleteKeyParser.set_defaults(func=cls.delete_key)
+
+		addVmParser = subparser.add_parser('add-vm', help='add VM')
+		addVmParser.add_argument('-q', '--quiet', action='store_true', help='trun off output')
+		addVmParser.add_argument('-n', '--name',        type=str, help='VM name')         # for backward compatibility
+		addVmParser.add_argument('-i', '--image',       type=str, help='image name or image id')
+		addVmParser.add_argument('-I', '--imageid',     type=str, help='image id')        # for backward compatibility
+		addVmParser.add_argument('-p', '--plan',        type=str, help='plan name or plan id')
+		addVmParser.add_argument('-P', '--planid',      type=str, help='plan id')         # for backward compatibility
+		addVmParser.add_argument(      '--passwd',      type=str, help='root user password')
+		addVmParser.add_argument('-k', '--key',         type=str, help='public key name')
+		addVmParser.add_argument('-g', '--group-names', type=str, help='security group name')
+		addVmParser.set_defaults(func=cls.add_vm)
+
+		vmCommands = {
+				'start-vm' : {'func': cls.start_vm,  'help': 'start VM'},
+				'stop-vm':   {'func': cls.stop_vm,   'help': 'stop VM'},
+				'reboot-vm': {'func': cls.reboot_vm, 'help': 'reboot VM'},
+				'modify-vm': {'func': cls.modify_vm, 'help': 'change plan'},
+				'delete-vm': {'func': cls.delete_vm, 'help': 'delete VM'},
+				}
+		for cmd in vmCommands:
+			vmParser = subparser.add_parser(cmd, help=vmCommands[cmd]['help'])
+			vmParser.add_argument('-n', '--name', type=str, help='VM name')
+			vmParser.add_argument('-i', '--id',   type=str, help='VM id')
+			if cmd == 'stop-vm':
+				vmParser.add_argument('-f', '--force', action='store_true')
+			elif cmd == 'modify-vm':
+				vmParser.add_argument('-P', '--planid', type=str, help='plan id')
+			vmParser.set_defaults(func=vmCommands[cmd]['func'])
+
+	@classmethod
+	@prettyPrint()
+	def list_plans(cls, token, args):
+		plans = VMPlanList(token)
+		yield ['ID', 'Name', 'Disk', 'RAM', 'CPUs']
+		for p in plans:
+			yield [p.planId, p.name, p.disk, p.ram, p.vcpus]
+
+	@classmethod
+	@prettyPrint()
+	def list_images(cls, token, args):
+		imageList = VMImageList(token)
+		# Headers
+		if args.verbose:
+			yield ['ID', 'Name', 'MinDisk', 'MinRam', 'Progress', 'Status', 'Created', 'Updated']
+		else:
+			yield ['ID', 'Name', 'Status', 'Created', 'Updated']
+		# Body
+		for img in imageList:
+			if args.verbose:
+				yield [img.imageId, img.name, img.minDisk, img.minRam, img.progress, img.status, img.created, img.updated]
+			else:
+				yield [img.imageId, img.name, img.status, img.created, img.updated]
+
+	@classmethod
+	@prettyPrint()
+	def list_keys(cls, token, args):
+		keylist = KeyList(token)
+		# Header
+		if args.verbose:
+			yield ['Name', 'PublicKey', 'FingerPrint']
+		else:
+			yield ['Name', 'FingerPrint']
+		# Body
+		for key in keylist:
+			if args.verbose:
+				yield [key.name, key.publicKey, key.fingerprint]
+			else:
+				yield [key.name, key.fingerprint]
+
+	@classmethod
+	@prettyPrint()
+	def list_vms(cls, token, args):
+		vmlist = VMList(token)
+		# Header
+		if args.verbose:
+			yield ['VMID', 'FlavorID', 'HostID', 'ImageID', 'TenantID', 'Name', 'Status', 'Created', 'Updated', 'AddressList', 'SecuretyGroupList']
+		else:
+			yield ['VMID', 'Name', 'Status']
+		# Body
+		for vm in vmlist:
+			if args.verbose:
+				yield [vm.vmid, vm.flavorId, vm.hostId, vm.imageId, vm.tenantId, vm.name, vm.status, vm.created, vm.updated, vm.addressList, vm.securityGroupList]
+			else:
+				yield [vm.vmid, vm.name, vm.status]
+
+	@classmethod
+	@prettyPrint()
+	def add_key(cls, token, args):
+		keylist = KeyList(token)
+		keylist.add(name=args.name, publicKey=args.key, publicKeyFile=args.file)
+
+	@classmethod
+	@prettyPrint()
+	def delete_key(cls, token, args):
+		keylist = KeyList(token)
+		keylist.delete(args.name)
+
+	@classmethod
+	@prettyPrint()
+	def add_vm(cls, token, args):
+		groupNames = args.group_names and args.group_names.split(',')
+
+		vmlist = VMList(token)
+		vmid = vmlist.add(
+				args.imageid or vmlist[args.image].imageid,
+				args.planid or vmlist[args.plan].planid,
+				adminPass=args.passwd,
+				keyName=args.key,
+				name=args.name,
+				securityGroupNames=groupNames)
+		if not args.quiet:
+			yield 'VMID'
+			yield vmid
+
+	@classmethod
+	@prettyPrint()
+	def start_vm(cls, token, args):
+		vmlist = VMList(token)
+		vm = vmlist.getServer(vmid=args.id, name=args.name)
+		if vm:
+			vm.start()
+
+	@classmethod
+	@prettyPrint()
+	def stop_vm(cls, token, args):
+		vmlist = VMList(token)
+		vm = vmlist.getServer(vmid=args.id, name=args.name)
+		if vm:
+			vm.stop(args.force)
+
+	@classmethod
+	@prettyPrint()
+	def reboot_vm(cls, token, args):
+		vmlist = VMList(token)
+		vm = vmlist.getServer(vmid=args.id, name=args.name)
+		if vm:
+			vm.restart()
+
+	@classmethod
+	@prettyPrint()
+	def delete_vm(cls, token, args):
+		vmlist = VMList(token)
+		vm = vmlist.getServer(vmid=args.id, name=args.name)
+		if vm:
+			vmlist.delete(vm.vmid)
+
+	@classmethod
+	@prettyPrint()
+	def modify_vm(cls, token, args):
+		vmlist = VMList(token)
+		vm = vmlist.getServer(vmid=args.id, name=args.name)
+		if vm:
+			vm.resize(args.planid)
+
+class NetworkCommand():
+	@classmethod
+	def configureParser(cls, subparser):
+		listSG = subparser.add_parser('list-security-groups')
+		listSG.add_argument('-v', '--verbose', action='store_true', help='be verbose')
+		listSG.set_defaults(func=cls.listSecurityGroups)
+
+		addSG = subparser.add_parser('add-security-group', help='add security group')
+		addSG.add_argument('-n', '--name',        type=str)
+		addSG.add_argument('-d', '--description', type=str)
+		addSG.set_defaults(func=cls.addSecurityGroup)
+
+		delSG = subparser.add_parser('delete-security-group', help='delete security group')
+		delSG.add_argument('-n', '--name', type=str)
+		delSG.add_argument('-i', '--id',   type=str)
+		delSG.set_defaults(func=cls.deleteSecurityGroup)
+
+		listRules = subparser.add_parser('list-rules', help='display the packet filtering rules in security group')
+		listRules.add_argument('-v', '--verbose', action='store_true')
+		listRules.add_argument('-g', '--group', type=str, help='security group name or ID')
+		listRules.add_argument('-i', '--id',    type=str, help='security group ID')        # for backward compatibility
+		listRules.add_argument('-n', '--name',  type=str, help='security group name')      # for backward compatibility
+		listRules.set_defaults(func=cls.listRules)
+
+		addRule = subparser.add_parser('add-rule', help='add packet filtering rule')
+		addRule.add_argument('-g', '--group',          type=str, help='security group name or ID')
+		addRule.add_argument('-i', '--id',             type=str, help='security group ID') # for backward compatibility
+		addRule.add_argument('-d', '--direction',      type=str, help='"ingress" or "egress"')
+		addRule.add_argument('-e', '--ethertype',      type=str, help='ipv4 or ipv6')
+		addRule.add_argument('-p', '--port',           type=str, help='port number')
+		addRule.add_argument('-P', '--protocol',       type=str, help='tcp or tdp or icmp')
+		addRule.add_argument('-r', '--remoteIPPrefix', type=str, metavar='REMOTE_IP')
+		addRule.set_defaults(func=cls.addRule)
+
+		delRule = subparser.add_parser('delete-rule', help='delete packet filtering rule')
+		delRule.add_argument('-g', '--group',     type=str, help='security group name or ID')
+		delRule.add_argument('-G', '--group-id',  type=str, help='security group ID') # for backward compatibility
+		delRule.add_argument('-r', '--rule-id',   type=str, help='packet filtering rule ID')
+		delRule.set_defaults(func=cls.deleteRule)
+
+	@classmethod
+	@prettyPrint()
+	def listSecurityGroups(cls, token, args):
+		sglist = SecurityGroupList(token)
+		# Header
+		yield ['ID', 'Name', 'Description']
+		# Body
+		for sg in sglist:
+			yield [sg.id_, sg.name, sg.description]
+
+	@classmethod
+	@prettyPrint()
+	def addSecurityGroup(cls, token, args):
+		sglist = SecurityGroupList(token)
+		id_ = sglist.add(args.name, args.description)
+		print(id_)
+
+	@classmethod
+	@prettyPrint()
+	def deleteSecurityGroup(cls, token, args):
+		sglist = SecurityGroupList(token)
+		sg = sglist.getSecurityGroup(sgid=args.id, name=args.name)
+		sglist.delete(sg.id_)
+
+	@classmethod
+	@prettyPrint()
+	def listRules(cls, token, args):
+		sglist = SecurityGroupList(token)
+		sg = sglist[args.group or args.id or args.name]
+
+		# Header
+		if args.verbose:
+			yield ['ID', 'Direction', 'EtherType', 'RangeMin', 'RangeMax', 'Protocol', 'RemoteIPPrefix']
+		else:
+			yield ['Direction', 'EtherType', 'RangeMin', 'RangeMax', 'Protocol', 'RemoteIPPrefix']
+		# Body
+		for rule in sg.rules:
+			if args.verbose:
+				yield [rule.id_, rule.direction, rule.ethertype, rule.rangeMin, rule.rangeMax, rule.protocol, rule.remoteIPPrefix]
+			else:
+				yield [rule.direction, rule.ethertype, rule.rangeMin, rule.rangeMax, rule.protocol, rule.remoteIPPrefix]
+
+	@classmethod
+	@prettyPrint()
+	def addRule(cls, token, args):
+		sglist = SecurityGroupList(token)
+		sg = sglist[args.group or args.id]
+
+		portMin = None
+		portMax = None
+		if args.port:
+			if ',' in args.port:
+				portMin, portMax = args.port.split(',')
+			else:
+				portMin = portMax = args.port
+
+		sg.rules.add(args.direction, args.ethertype, portMin, portMax, args.protocol, args.remoteIPPrefix)
+
+	@classmethod
+	@prettyPrint()
+	def deleteRule(cls, token, args):
+		sglist = SecurityGroupList(token)
+		sg = sglist[args.group or args.group_id]
+		sg.rules.delete(args.rule_id)
+
+class BlockCommand():
+	@classmethod
+	def configureParser(cls, subparser):
+		listTypes = subparser.add_parser('list-types', help='display volume types')
+		listTypes.add_argument('-v', '--verbose', action='store_true', help='be verbose')
+		listTypes.set_defaults(func=cls.listTypes)
+
+		listVolumes = subparser.add_parser('list-volumes', help='list volumes')
+		listVolumes.add_argument('-v', '--verbose', action='store_true', help='be verbose')
+		listVolumes.set_defaults(func=cls.listVolumes)
+
+		addVolume = subparser.add_parser('add-volume', help='add a volume')
+		addVolume.add_argument('-q', '--quiet', action='store_true', help='trun off output')
+		addVolume.add_argument('-s', '--size',        type=int,      help='200 or 500 GiB')
+		addVolume.add_argument('-n', '--name',        type=str,      help='volume name')
+		addVolume.add_argument('-d', '--description', type=str)
+		addVolume.add_argument('-S', '--source',      type=str)
+		addVolume.add_argument(      '--snapshotId',  type=str)
+		addVolume.add_argument('-i', '--image-ref',   type=str)
+		addVolume.add_argument('-b', '--bootable', action='store_true')
+		addVolume.set_defaults(func=cls.addVolume)
+
+		deleteVolume = subparser.add_parser('delete-volume', help='delete a volume')
+		deleteVolume.add_argument('-n', '--name', type=str,  help='volume name')
+		deleteVolume.add_argument('-i', '--id',   type=str,  help='volume ID')
+		deleteVolume.set_defaults(func=cls.deleteVolume)
+
+	@classmethod
+	@prettyPrint()
+	def listTypes(cls, token, args):
+		typeList = BlockTypeList(token)
+		# Header
+		if args.verbose:
+			yield ['ID', 'Name', 'Description']
+		else:
+			yield ['ID', 'Name']
+		# Body
+		for type_ in typeList:
+			if args.verbose:
+				yield [type_.typeId, type_.name, type_.extra]
+			else:
+				yield [type_.typeId, type_.name]
+
+	@classmethod
+	@prettyPrint()
+	def listVolumes(cls, token, args):
+		volumeList = VolumeList(token)
+		# Header
+		if args.verbose:
+			yield ['ID', 'Name', 'Size', 'Bootable', 'Encrypted', 'Description', 'Metadata']
+		else:
+			yield ['ID', 'Name', 'Size', 'Bootable', 'Encrypted', 'Description']
+		# Body
+		for volume in volumeList:
+			if args.verbose:
+				yield [volume.volumeId, volume.name, volume.size, volume.bootable, volume.encrypted, volume.description, volume.metadata]
+			else:
+				yield [volume.volumeId, volume.name, volume.size, volume.bootable, volume.encrypted, volume.description]
+
+	@classmethod
+	@prettyPrint()
+	def addVolume(cls, token, args):
+		volumeList = VolumeList(token)
+		volId = volumeList.add(
+				args.size,
+				name=args.name,
+				description=args.description,
+				source=args.source,
+				snapshotId=args.snapshotId,
+				imageRef=args.image_ref,
+				bootable=args.bootable,
+				)
+		if not args.quiet:
+			yield ['ID']
+			yield [volId]
+
+	@classmethod
+	@prettyPrint()
+	def deleteVolume(cls, token, args):
+		volumeList = VolumeList(token)
+		vol = volumeList[args.id or args.name]
+		volumeList.delete(vol.volumeId)
+
+class ImageCommand():
+	@classmethod
+	def configureParser(cls, subparser):
+		listImages = subparser.add_parser('list-images', help='list saved images in current region')
+		listImages.add_argument('-v', '--verbose', action='store_true', help='be verbose')
+		listImages.set_defaults(func=cls.listImages)
+
+		showQuota = subparser.add_parser('show-quota', help='show quota')
+		showQuota.set_defaults(func=cls.showQuota)
+
+		setQuota = subparser.add_parser('set-quota', help='set quota')
+		setQuota.add_argument('-s', '--size', type=int, help='(50 + 500*n) GB')
+		setQuota.set_defaults(func=cls.setQuota)
+
+	@classmethod
+	@prettyPrint()
+	def listImages(cls, token, args):
+		images  = ImageList(token)
+		yield ['ID', 'Name', 'MinDisk', 'MinRAM', 'Status', 'CreatedAt']
+		for i in images:
+			yield [i.imageId, i.name, i.min_disk, i.min_ram, i.status, i.created_at]
+
+	@classmethod
+	@prettyPrint()
+	def showQuota(cls, token, args):
+		quota = Quota(token)
+		yield ['Region', 'Size']
+		yield [quota.region, quota.size]
+
+	@classmethod
+	@prettyPrint()
+	def setQuota(cls, token, args):
+		quota = Quota(token)
+		quota.set(args.size)
+
+if __name__ == '__main__':
+	exit(main())
+
