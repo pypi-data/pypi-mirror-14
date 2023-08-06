@@ -1,0 +1,516 @@
+#!/usr/bin/env python 
+"""
+Tool to manage growing number of datasets and versions 
+"""
+
+import os, sys, tempfile
+
+if sys.version_info[0] < 3: 
+    print("only version 3 of python supported") 
+    sys.exit() 
+
+import json
+import getpass 
+import traceback 
+import click 
+from click.exceptions import UsageError
+from distutils.spawn import find_executable
+from dgitcore import datasets, plugins 
+from dgitcore.plugins import repomanager
+from dgitcore import config, helper 
+
+##############################################################
+# Generic settings
+##############################################################
+thisdir=os.path.realpath(os.path.dirname(__file__))
+CONTEXT_SETTINGS=dict(allow_extra_args=True,ignore_unknown_options=True)
+
+##############################################################
+# Helper functions..
+##############################################################
+def setup(): 
+    plugins.plugins_load() 
+    config.init()
+
+def teardown(): 
+    plugins.plugins_close() 
+
+def show_result(result): 
+    """
+    Helper function to show output of command
+    """
+    print("Status:", result['status'])
+    print(result['message'])
+
+def show_status(result):
+    """
+    Helper function to show the status in readable fashion.
+    """
+    print("Status: ", result['status'])
+    print("Message:") 
+    print(result['message']) 
+
+    if 'dirty' in result and not result['dirty']: 
+        print("Nothing to commit, working directory clean")
+
+    if 'deleted-files' in result and len(result['deleted-files']) > 0: 
+        print("Deleted files:")
+        for x in result['deleted-files']: 
+            print(bcolors.FAIL + "    deleted: " +x + bcolors.ENDC)
+
+    if 'new-files' in result and len(result['new-files']) > 0: 
+        print("New files:")
+        for x in result['new-files']: 
+            print(bcolors.OKGREEN + "    new: " +x + bcolors.ENDC)
+
+    if 'renamed-files' in result and len(result['renamed-files']) > 0: 
+        print("Renamed files:")
+        for x in result['renamed-files']: 
+            print(bcolors.OKGREEN + "    renamed: %s -> %s " %(x['from'],x['to']) + bcolors.ENDC)
+                
+    if (('untracked-files' in result) and 
+        (len(result['untracked-files']) > 0)): 
+        print("Untracked files:")
+        for f in result['untracked-files']: 
+            print("   untracked:", f)
+
+
+def show_validator_results(results): 
+
+    # [{'status': 'OK', 'description': 'Validate integrity of the dataset metadata', 'target': 'Mobile_nos_email_list_Eswar_College_of_Engineering.csv', 'rules': '', 'validator': 'metadata-validator', 'message': ''}]
+
+    if len(results) == 0: 
+        print("No output") 
+    else: 
+        validators = list(set([r['validator'] for r in results]))
+        for v in validators: 
+            print(v)
+            print("==========")
+            first = False
+            for r in results: 
+                if r['validator'] == v:
+                    if first: 
+                        print("Description:", r['description'])
+                        first=False
+
+                    print("({}) {} : {} {}".format(r['rules'],
+                                                   r['target'], 
+                                                r['status'],
+                                                   r['message']))
+            print("")
+
+
+def show_transformer_results(results): 
+    if len(results) == 0: 
+        print("No output") 
+    else: 
+        transformers = list(set([r['transformer'] for r in results]))
+        for g in transformers: 
+            print(g)
+            print("==========")
+            for r in results: 
+                if r['transformer'] == g: 
+                    print("{} : {} {}".format(r['target'], 
+                                              r['status'],
+                                              r['message']))
+            print("")
+    return 
+
+def repo_option(f):
+    def callback(ctx, param, filename):
+
+        # Load the options from a configuration file 
+        autooptions = datasets.auto_init(filename) 
+
+        repo = datasets.auto_get_repo(autooptions) 
+        return repo 
+
+    return click.option('--repo',
+                        default='dgit.json',
+                        help="dataset repository configuration file",
+                        callback=callback)(f)
+
+def common_options(f):
+    f = repo_option(f)
+    return f        
+
+#####################################################################
+# Repo specific commands
+#####################################################################
+@click.group()
+def repo_specific():
+    pass 
+
+@repo_specific.command('commit', context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options
+def commit(repo, args):
+    """
+    Commit repo data
+    """
+    if len(args) == 0: 
+        print("Commit with editor support not available right now")
+        print("Use -m <message>")
+        return 
+
+    result = datasets.commit(repo, list(args))
+    show_result(result) 
+
+@repo_specific.command('log', context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options
+def log(repo, args):
+    """
+    Gather the log details
+    """
+    result = datasets.log(repo, list(args))
+    show_result(result) 
+
+@repo_specific.command('push', context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options
+def push(repo, args):
+    """
+    Gather the log details
+    """
+    datasets.push(repo, list(args))
+
+@repo_specific.command('rm',context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options
+def rm(repo, args): 
+    """
+    Delete files from repo 
+    """
+    datasets.delete(repo, list(args))
+
+@repo_specific.command('sh',context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options 
+def sh(repo, args): 
+    """
+    Run generic shell commands in repo
+    """
+    if len(args) == 0: 
+        print("Atleast one command should be provided") 
+        return 
+
+    output = datasets.shellcmd(repo, list(args))
+    print(output) 
+
+@repo_specific.command('post',context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options 
+def post(repo, args): 
+    """
+    Post metadata (only) to thirdparty server
+    """
+    datasets.post(repo, list(args))
+
+@repo_specific.command('stash',context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options 
+def stash(repo, args): 
+    """
+    Trash all the changes in the dataset
+    """
+    datasets.stash(repo, list(args))
+
+@repo_specific.command('status',context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options 
+def status(repo, args): 
+    """
+    Status of the repo
+    """
+    result = datasets.status(repo, list(args))
+    show_status(result) 
+
+@repo_specific.command('diff',context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options 
+def diff(repo, args): 
+    """
+    Show the diff between two commits
+    """
+    datasets.diff(repo, list(args))
+
+@repo_specific.command('show',context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options 
+def show(repo, args): 
+    """
+    Show details of commit
+    """
+    result = datasets.show(repo, list(args))
+    show_result(result) 
+
+@repo_specific.command('drop', context_settings=CONTEXT_SETTINGS)
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options 
+def drop(repo, args): 
+    """
+    Drop dataset
+    """
+    result = datasets.drop(repo, list(args))
+    show_result(result) 
+
+##############################################################
+# Repo specific but more complicated commands 
+##############################################################
+
+@repo_specific.command('add-files', context_settings=CONTEXT_SETTINGS)
+@click.option("--targetdir", '-t', 
+              default=".",
+              help="Directory in repo")
+@click.option("--include", '-i', 
+              multiple=True,
+              help="File patterns to include")
+@click.option("--generator/--no-generator",
+              default=False,
+              help="Generator script")
+@click.option("--script/--no-script",
+              default=False,
+              help="Mark the script file as executable")
+@click.option("--source",
+              default=False,
+              help="Source of the data")
+@click.option("--execute/--no-execute",
+              default=False,
+              help="Execute the filename specified")
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options
+def add(repo, targetdir, args, execute, 
+        generator, source, include, script):
+    """
+    Add files to the repo
+    """
+
+    if generator and execute: 
+        print("Generator and execute are mutually exclusive") 
+        return 
+        
+    if execute and len(include) == 0: 
+        print("Files to be included must be specified")
+        return
+
+    args = helper.clean_args(args, execute) 
+    if args is None: 
+        return 
+
+    # Cleanup includes 
+    includes = []
+    for i in include:
+        includes.extend(i.split(","))
+
+    datasets.add(repo=repo,
+                 args=args, 
+                 execute=execute, 
+                 source=source,
+                 script=script,
+                 generator=generator, 
+                 targetdir=targetdir, 
+                 includes=includes)
+
+@repo_specific.command('validate',context_settings=CONTEXT_SETTINGS)
+@click.option('--validator', '-v',
+              default=None,
+              help="Name of the validator")
+@click.option('--target', '-t',
+              default=None, 
+              help="Specification for the filename as a pattern")
+@click.option('--rulesfile',
+              default=None,
+              help="File with validation rules")
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options
+def validate(repo, validator, target, rulesfile, args): 
+    """
+    Validate the content of the repository
+    """
+    result = datasets.validate(repo, validator, target, 
+                               rulesfile, args)
+    show_validator_results(result) 
+
+@repo_specific.command('transform',context_settings=CONTEXT_SETTINGS)
+@click.option('--name', '-n',
+              help="Name of the transformer")
+@click.option('--target', '-t',
+              help="Target of transform (filename/pattern")
+@click.option('--force', 
+              is_flag=True, 
+              default=False,
+              help="Ignore cached results")
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+@common_options
+def transform(repo, name, target, force, args):
+    """
+    Transform content of the repo
+    """
+    
+    results = datasets.transform(repo, 
+                                 name, 
+                                 target, 
+                                 force,
+                                 args)
+    show_transformer_results(results) 
+
+
+@repo_specific.command('remote', context_settings=CONTEXT_SETTINGS)
+@click.argument("op",
+                type=click.Choice(['add', 'rm', 'rename', 'show']))
+@click.argument("dataset")
+@click.argument("shortname")
+@click.argument("url")
+@common_options
+def remote(repo, op, shortname, url): 
+    """
+    Manage remote 
+    """
+
+    # git remote add pb https://github.com/paulboone/ticgit
+    result = datasets.remote(repo, op, shortname, url) 
+    show_result(result) 
+
+##############################################################
+# Repo generic commands commands 
+##############################################################
+
+@click.group()
+def automatic():
+    pass 
+
+@automatic.command('auto', context_settings=CONTEXT_SETTINGS)
+@click.option('--config', '-c',
+              default="dgit.json",
+              help="Configuration file")
+@click.option('--force-init', '-f',
+              is_flag=True, 
+              default=False,
+              help="Force re-initialization the configuration file")
+def auto(config, force_init): 
+    """
+    Auto mode of operation 
+    """
+    datasets.auto.auto_update(config, force_init)
+
+
+##############################################################
+# Repo generic commands commands 
+##############################################################
+
+@click.group()
+def repo_generic():
+    pass 
+
+@repo_generic.command('list')
+@click.option('--remote', '-r',
+              is_flag=True, 
+              default=False,
+              help="List remote repos available")
+def list_repos(remote): 
+    """
+    List datasets
+    """
+    repos = datasets.list_repos(remote)
+    print("Found {} repos".format(len(repos)))
+    for r in repos: 
+        print("{}/{}".format(*r))
+
+@repo_generic.command()
+@click.argument("url")
+def clone(url): 
+    """
+    Clone a git URL 
+    """
+    result = datasets.clone(url) 
+    show_result(result) 
+
+@repo_generic.command('init', context_settings=CONTEXT_SETTINGS)
+@click.argument('dataset')
+@click.option("--setup",
+              type=click.Choice(['git+s3', 'git']),
+              default='git+s3',
+              help="What is the backend for this repo")
+@click.option("--force",
+              default=False,
+              is_flag=True,
+              help="Force overwriting the directory")
+def init(dataset, setup, force): 
+    """
+    Bootstrap a new dataset (a git repo+s3 backup)
+    
+    Example: 
+
+    # Create a local repo with s3 backend 
+    dgit init --setup git+s3 pingali/hello 
+
+    # Create a local repo with no backends 
+    dgit init --setup git pingali/hello 
+    """
+
+    (username, dataset) = helper.parse_dataset_name(dataset)    
+    if dataset is None: 
+        return
+    
+    # Get the command that must be run 
+    result = datasets.init(username, dataset, setup, force)
+    show_result(result) 
+
+##############################################################
+# Management commands 
+##############################################################
+@click.group()
+def management():
+    pass 
+
+@management.command('config')
+@click.argument('action',
+                type=click.Choice(['update', 'init', 'show']))
+@click.option('-g',
+              "--globalvar",
+              nargs=2, 
+              multiple=1,
+              type=click.Tuple([str,str]),
+              help="Update profile variables")
+def profile(action, globalvar): 
+    """
+    Create configuration file (~/.dgit.ini) 
+    """
+    if action in ["update", "init"]:
+        config.update(globalvar)
+    elif action == "show":
+        config.init(globalvar, show=True)
+
+
+@management.command('plugins')
+@click.argument('action',
+                type=click.Choice(['list', 'show', 'new']),
+                default='list')
+@click.option('--what',
+                type=click.Choice(['backend', 'instrumentation', 'repomanager']))
+@click.option('--name')              
+@click.option('--version')              
+def plugin_cmd(action, what, name, version): 
+    """
+    Plugin management
+    """
+    if action == "show":
+        plugins.plugins_show(what, name, version, details=True)
+    elif action == "list":
+        plugins.plugins_show(what, name, version, details=False)
+    elif action == "new":
+        plugins.generate(what, name, version)
+
+cli = click.CommandCollection(sources=[repo_specific, repo_generic, management, automatic])
+
+if __name__ == "__main__":
+
+    try: 
+        setup()
+        cli() 
+    except Exception as e: 
+        traceback.print_exc() 
+    teardown()
+
+
