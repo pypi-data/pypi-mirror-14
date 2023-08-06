@@ -1,0 +1,670 @@
+.\" Man page generated from reStructuredText.
+.
+.TH "TUNIR" "8" "March 30, 2016" "0.15" "Tunir"
+.SH NAME
+tunir \- Tunir, the simple CI with a big heart.
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.sp
+Tunir is a simple testing tool. The goal is to have a system which is
+simple to setup, and easy to maintain.
+.sp
+Contents:
+.SH WHY ANOTHER CI?
+.sp
+I have used Jenkins before. I was maintaining one instance in one of my VPS
+instance.  The amount of RAM required by Jenkins was too much for my small VM.
+I can admit that I am not a great sys\-admin anyway.
+.sp
+As part of my daily job, I have to test the latest cloud images we build under
+Fedora project. While doing so, I figured out that most of it can be automated
+if we have a system to create/maintain/terminate cloud instances. Of course I
+do not want any actual cloud, it will be a different monster to maintain.
+.sp
+This is the point where I came up with Tunir. Tunir is a simple testing tool
+that will help me run automated tests for the cloud images. I kept the system
+generic enough to execute any kind of tests people want.
+.sp
+The configuration is very minimal with Tunir.
+.SH INSTALLATION
+.sp
+Tunir is written in Python. Currently it works with Python2.7+
+.SS Clone the repository
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ git clone https://github.com/kushaldas/tunir.git
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Install the dependencies
+.sp
+We are currently depended on the following projects or libraries.
+.INDENT 0.0
+.IP \(bu 2
+libvirt
+.IP \(bu 2
+libguestfs
+.IP \(bu 2
+libguestfs\-tools
+.IP \(bu 2
+ansible
+.IP \(bu 2
+paramiko
+.IP \(bu 2
+vagrant\-libvirt
+.IP \(bu 2
+pycrypto
+.IP \(bu 2
+net\-tools
+.IP \(bu 2
+Ansible (optional)
+.UNINDENT
+.sp
+You can install them in Fedora by the following command:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ sudo dnf install libguestfs\-tools python\-paramiko docker\-io vagrant\-libvirt ansible net\-tools python\-crypto
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH USAGE
+.sp
+Tunir is a mini continuous integration (CI) system which can run a set of commands/tests in a
+new cloud VM, or bare metal, or in Vagrant boxes based on the job configurations.
+.sp
+The current version can be used along with cron to run at predefined times. Tunir prints
+the output in the terminal, it also saves each command it ran, and the output in a text
+file located at \(aq/var/run/tunir/tunir_results.txt\(aq.
+.SS Configuring a new job
+.sp
+There are two different kinds of job configuration files, the newer one is Multi\-VM config
+which can take any qcow2 image and use them to boot up one or more VMs. The other option
+is to use a JSON file based configuration which can be used for vm(s), vagrant images, or
+bare metal remote system based testing.
+.sp
+For a Multi\-VM configuration for a job called \fBdefault\fP create \fBdefault.cfg\fP file as
+explained below. We will also require another \fBdefault.txt\fP file which will contain the
+steps for testing.
+.SS jobname.cfg
+.sp
+New in version 0.14.
+
+.sp
+The following example contains a job where we are creating two VMs from the given image
+files. The images can be either standard cloud image, or Atomic image. We generate ssh
+keys for each run, and use that to login to the box.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[general]
+cpu = 1
+ram = 1024
+
+[vm1]
+user = fedora
+image = /home/Fedora\-Cloud\-Base\-20141203\-21.x86_64.qcow2
+
+[vm2]
+user = fedora
+image = /home/Fedora\-Cloud\-Base\-20141203\-21.x86_64.qcow2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above configuration file is self\-explanatory.
+Each of the vm(s) created from the above configuration will get all the other vms\(aq IP
+details in the \fI/etc/hosts\fP along with vm name. Means \fIvm1\fP can ping \fIvm2\fP and vice
+versa. For each run, Tunir creates a new RSA key pair and pushes the public key to each
+vm, and uses the private key to do ssh based authentication.
+.SS How to execute a multivm job?
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ sudo tunir \-\-multi jobname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above commands expects a \fBjobname.cfg\fP, and a \fBjobname.txt\fP containing the commands,
+in the current directory. You can see below for an example of \fBjobname.txt\fP\&.
+.SS Debugging test vm(s)
+.sp
+New in version 0.14.
+
+.sp
+This can also be used a quick way to get a few vm(s) up. While using Multi\-VM configuration,
+one can pass \fB\-\-debug\fP command line argument, and this will make sure that the vm(s) do not
+get destroyed at the end of the tests. It will create a \fIdestroy.sh\fP file, and print the path
+at the end of the run. All the vm(s) will be in running condition. You can ssh into them by
+using \fIprivate.key\fP file found in the same directory of the \fIdestroy.sh\fP\&.
+.sp
+When your debugging is done, you can execute the shell script to clean up all the running instances
+and any temporary file created by the previous run.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# sh /tmp/tmpXYZ/destroy.sh
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+The private key remains on the disk while running Tunir in the debug mode. Please remember
+to execute the destroy.sh script to clean up afterwards.
+.UNINDENT
+.UNINDENT
+.SS jobname.json
+.sp
+This file is the main configuration for the job when we just need only one vm, or using
+Vagrant, or testing on a remote vm/bare metal box. Below is the example of one such job.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{
+  "name": "jobname",
+  "type": "vm",
+  "image": "/home/vms/Fedora\-Cloud\-Base\-20141203\-21.x86_64.qcow2",
+  "ram": 2048,
+  "user": "fedora",
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The possible keys are mentioned below.
+.INDENT 0.0
+.TP
+.B name
+The name of the job, which must match the filename.
+.TP
+.B type
+The type of system in which the tests will run. Possible values are vm, docker, bare.
+.TP
+.B image
+Path to the cloud image in case of a VM. You can provide docker image there for Docker\-based tests, or the IP/hostname of the bare metal box.
+.TP
+.B ram
+The amount of RAM for the VM. Optional for bare or Docker types.
+.TP
+.B user
+The username to connect to.
+.TP
+.B password
+The password of the given user. Right now for cloud VM(s) connect using ssh key.
+.TP
+.B key
+The path to the ssh key, the password value should be an empty string for this.
+.TP
+.B port
+The port number as string to connect. (Required for bare type system.)
+.UNINDENT
+.SS jobname.txt
+.sp
+This text file contains the bash commands to run in the system, one command per line. In case you are
+rebooting the system, you may want to use \fBSLEEP NUMBER_OF_SECONDS\fP command there.
+.sp
+If a command starts with @@ sign, it means the command is supposed to fail. Generally, we check the return codes
+of the commands to find if it failed, or not. For Docker container\-based systems, we track the stderr output.
+.sp
+We can also have non\-gating tests, means these tests can pass or fail, but the whole job status will depend
+on other gating tests. Any command in jobname.txt starting with ## sign will mark the test as non\-gating.
+.sp
+Example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+## curl \-O https://kushal.fedorapeople.org/tunirtests.tar.gz
+ls /
+## foobar
+## ls /root
+##  sudo ls /root
+date
+@@ sudo reboot
+SLEEP 40
+ls /etc
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS For Multi\-VM configurations
+.sp
+New in version 0.14.
+
+.sp
+In case where we are dealing with multiple VMs using .cfg file in our configuration,
+we prefix each line with the vm name (like vm1, vm2, vm3). This marks which command
+to run on which vm. The tool first checks the available vm names to these marks in the
+\fIjobname.txt\fP file, and it will complain about any extra vm marked in there. If one
+does not provide vm name, then it is assumed that the command will execute only on
+vm1 (which is the available vm).
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+vm1 sudo su \-c"echo Hello > /abcd.txt"
+vm2 ls /
+vm1 ls /
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In the above example the line 1, and 3 will be executed on the vm1, and line 2 will be
+executed on vm2.
+.SS Using Ansible
+.sp
+New in version 0.14.
+
+.sp
+Along with Multi\-VM configuration, we got a new feature of using
+\fI\%Ansible\fP to configure the vm(s) we create. To do so,
+first, create the required roles, and playbook in a given path. You can write down
+the group of hosts with either naming like \fIvm1\fP, \fIvm2\fP, \fIvm3\fP or give them
+proper names like \fIkube\-master.example.com\fP\&. For the second case, we also have to
+pass these hostnames in each vm definition in the configuration file. We also
+provide the path to the directory containing all ansible details with \fIansible_dir\fP
+value.
+.sp
+Example configuration
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[general]
+cpu = 1
+ram = 1024
+ansible_dir = /home/user/contrib/ansible
+
+[vm1]
+user = fedora
+image = /home/user/Fedora\-Cloud\-Atomic\-23\-20160308.x86_64.qcow2
+hostname = kube\-master.example.com
+
+[vm2]
+user = fedora
+image = /home/user/Fedora\-Cloud\-Atomic\-23\-20160308.x86_64.qcow2
+hostname = kube\-node\-01.example.com
+
+[vm3]
+user = fedora
+image = /home/user/Fedora\-Cloud\-Atomic\-23\-20160308.x86_64.qcow2
+hostname = kube\-node\-02.example.com
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In the above example, we are creating 3 vm(s) with given hostnames.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+If the number of CPU is not mentioned in the general section, Tunir will get 1 virtual CPU for the vm.
+.UNINDENT
+.UNINDENT
+.SS How to execute the playbook(s)?
+.sp
+In the \fIjobname.txt\fP you should have a \fBPLAYBOOK\fP command as given below
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+PLAYBOOK atom.yml
+vm1 sudo atomic run projectatomic/guestbookgo\-atomicapp
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+In this example, we are running a playbook called \fIatom.yml\fP, and then in the vm1 we
+are using atomicapp to start a nulecule app :)
+.SS Execute tests on multiple pre\-defined VM(s) or remote machines
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+[general]
+cpu = 1
+ram = 1024
+ansible_dir = /home/user/contrib/ansible
+pkey = /home/user/.ssh/id_rsa
+
+[vm1]
+user = fedora
+ip = 192.168.122.100
+
+[vm2]
+user = fedora
+ip = 192.168.122.101
+
+[vm3]
+user = fedora
+ip = 192.168.122.102
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example of configuration file to run the tests on a remote machine
+.sp
+The configuration:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{
+  "name": "remotejob",
+  "type": "bare",
+  "image": "192.168.1.100",
+  "ram": 2048,
+  "user": "fedora",
+  "key": "/home/password/id_rsa"
+  "port": "22"
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Start a new job
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ sudo ./tunir \-\-job jobname
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Job configuration directory
+.sp
+You can actually provide a path to tunir so that it can pick up job configuration and commands from the given directory.:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ sudo ./tunir \-\-job jobname \-\-config\-dir /etc/tunirjobs/
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Timeout issue
+.sp
+In case if one of the commands fails to return within 10 minutes (600 seconds),
+tunir will fail the job with a timeout error. It will be marked at the end of
+the results. You can change the default value in the config file with a timeout
+key. In the below example I am having 300 seconds as timeout for each command.:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+ {
+  "name": "jobname",
+  "type": "vm",
+  "image": "file:///home/vms/Fedora\-Cloud\-Base\-20141203\-21.x86_64.qcow2",
+  "ram": 2048,
+  "user": "fedora",
+  "password": "passw0rd",
+  "timeout": 300
+
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH USING VAGRANT JOBS
+.sp
+\fI\%Vagrant\fP is a very well known system among developers for creating lightweight
+development systems. Now from tunir 0.7 we can use Vagrant boxes to test. In Fedora, we can have two
+different kind of vagrant provider, libvirt, and virtualbox.
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+The same host can not have both libvirt and virtualbox.
+.UNINDENT
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+Please create /var/run/tunir directory before running vagrant jobs.
+.UNINDENT
+.UNINDENT
+.SS How to install vagrant\-libvirt?
+.sp
+Just do
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# dnf install vagrant\-libvirt
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The above command will pull in all the required dependencies.
+.SS How to install Virtualbox and vagrant?
+.sp
+Configure required virtualbox repo
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# curl http://download.virtualbox.org/virtualbox/rpm/fedora/virtualbox.repo > /etc/yum.repos.d/virtualbox.repo
+# dnf install VirtualBox\-4.3  vagrant \-y
+# dnf install kernel\-devel gcc \-y
+# /etc/init.d/vboxdrv setup
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Now try using \fI\-\-provider\fP option with vagrant command like
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+# vagrant up \-\-provider virtualbox
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example of a libvirt based job file
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{
+  "name": "fedora",
+  "type": "vagrant",
+  "image": "/var/run/tunir/Fedora\-Cloud\-Atomic\-Vagrant\-22\-20150521.x86_64.vagrant\-libvirt.box",
+  "ram": 2048,
+  "user": "vagrant",
+  "port": "22"
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SS Example of a Virtualbox based job file
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{
+  "name": "fedora",
+  "type": "vagrant",
+  "image": "/var/run/tunir/Fedora\-Cloud\-Atomic\-Vagrant\-22\-20150521.x86_64.vagrant\-virtualbox.box",
+  "ram": 2048,
+  "user": "vagrant",
+  "port": "22",
+  "provider": "virtualbox"
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+We have a special key provider in the config for Virtualbox based jobs.
+.UNINDENT
+.UNINDENT
+.SH AWS SUPPORT
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+New feature from 0.13 release
+.UNINDENT
+.UNINDENT
+.sp
+Now we have support to use AWS for testing using Tunir. We can have both HVM,
+and paravirtual types of instances to run the test. You will require \fI\%Python
+libcloud\fP for the same.
+.sp
+\fBNOTE:\fP
+.INDENT 0.0
+.INDENT 3.5
+It boots up the instances in us\-west\-1 zone.
+.UNINDENT
+.UNINDENT
+.SS Example of HVM
+.sp
+The following is a JSON file containing the config of a HVM instance.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{
+  "name": "awsjob",
+  "type": "aws",
+  "image": "ami\-a6fc90c6",
+  "ram": 2048,
+  "user": "fedora",
+  "key": "PATH_TO_PEM",
+  "size_id": "m3.2xlarge",
+  "access_key": "YOUR_ACCESS_KEY",
+  "secret_key": "YOUR_SECRET_KEY",
+  "keyname": "YOUR_KEY_NAME",
+  "security_group": "THE_GROUP_WITH_SSH",
+  "virt_type": "hvm",
+  "timeout": 30
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBWARNING:\fP
+.INDENT 0.0
+.INDENT 3.5
+Remember that m3 instances are capable of running HVM.
+.UNINDENT
+.UNINDENT
+.SS Example of paravirtual
+.sp
+Another example with paravirtual type of instance.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+{
+  "name": "awsjob",
+  "type": "aws",
+  "image": "ami\-efff938f",
+  "ram": 2048,
+  "user": "fedora",
+  "key": "PATH_TO_PEM",
+  "size_id": "m1.xlarge",
+  "access_key": "YOUR_ACCESS_KEY",
+  "secret_key": "YOUR_SECRET_KEY",
+  "keyname": "YOUR_KEY_NAME",
+  "security_group": "THE_GROUP_WITH_SSH",
+  "virt_type": "paravirtual",
+  "aki": "aki\-880531cd",
+  "timeout": 30
+}
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.IP \(bu 2
+\fIgenindex\fP
+.IP \(bu 2
+\fImodindex\fP
+.IP \(bu 2
+\fIsearch\fP
+.UNINDENT
+.SH AUTHOR
+Kushal Das
+.SH COPYRIGHT
+2015-2016, Kushal Das
+.\" Generated by docutils manpage writer.
+.
