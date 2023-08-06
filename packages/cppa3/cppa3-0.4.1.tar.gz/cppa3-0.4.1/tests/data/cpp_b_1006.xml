@@ -1,0 +1,317 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cppa:CPP xmlns:cppa="http://docs.oasis-open.org/ebcore/ns/cppa/v3.0"
+    xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+    xmlns:dsig11="http://www.w3.org/2009/xmldsig11#"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://docs.oasis-open.org/ebxmlcppa/cppa-3.0 ../../../cppa3-xsd/cppa3.xsd">
+    <cppa:ProfileInfo>
+        <cppa:ProfileIdentifier>Bcpp</cppa:ProfileIdentifier>
+        <cppa:Description xml:lang="en">Collaboration Protocol Profile of Party B</cppa:Description>
+        <cppa:ActivationDate>2015-01-01T00:00:00</cppa:ActivationDate>
+        <cppa:ExpirationDate>2017-01-01T00:00:00</cppa:ExpirationDate>
+        <cppa:PhaseIn>P7D</cppa:PhaseIn>
+    </cppa:ProfileInfo>
+    <cppa:PartyInfo>
+        <cppa:PartyName xml:lang="en">Party B</cppa:PartyName>
+        <cppa:PartyId type="urn:oasis:names:tc:ebcore:partyid-type:unregistered">B</cppa:PartyId>
+        
+        <!-- Certificates for B -->
+        <cppa:Certificate id="bsigningcert">
+            <ds:KeyInfo>
+                <!-- Incomplete .. -->
+                <ds:KeyName>B's signing cert</ds:KeyName>
+                <ds:X509Data>
+                    <ds:X509SubjectName>B</ds:X509SubjectName>
+                    <!-- certificates in chain -->
+                    <ds:X509Certificate><!-- ... --></ds:X509Certificate>
+                    <ds:X509Certificate><!-- ... --></ds:X509Certificate>
+                    <ds:X509Certificate><!-- ... --></ds:X509Certificate>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </cppa:Certificate>
+        <cppa:Certificate id="btlsclientcert">
+            <ds:KeyInfo>
+                <!-- Incomplete .. -->
+                <ds:KeyName>B's TLS client cert</ds:KeyName>
+                <ds:X509Data>
+                    <ds:X509SubjectName>B</ds:X509SubjectName>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </cppa:Certificate>
+        <cppa:Certificate id="btlsservercert">
+            <ds:KeyInfo>
+                <!-- Incomplete .. -->
+                <ds:KeyName>B's TLS server cert</ds:KeyName>
+            </ds:KeyInfo>
+        </cppa:Certificate>
+
+        <!-- A certificate that B trusts.  -->
+        <cppa:Certificate id="atrustedroot">
+            <ds:KeyInfo>
+                <!-- Incomplete .. -->
+                <ds:KeyName>A root</ds:KeyName>
+                <ds:X509Data>
+                    <ds:X509SubjectName>A Root</ds:X509SubjectName>
+                </ds:X509Data>
+            </ds:KeyInfo>
+        </cppa:Certificate>
+        
+        <cppa:TrustAnchor id="tb1">
+            <cppa:AnchorCertificateRef certId="atrustedroot"/>
+        </cppa:TrustAnchor>
+        
+        
+    </cppa:PartyInfo>
+
+    <cppa:ServiceSpecification>
+        <cppa:PartyRole name="Buyer"/>
+        <cppa:CounterPartyRole name="Seller"/>
+        <cppa:ServiceBinding>
+            <cppa:Service>OrderingBilling</cppa:Service>
+            <cppa:ActionBinding id="BiiTrns001_S" action="SubmitOrder" sendOrReceive="send" 
+                payloadProfileId="pp1">
+                <!-- Preferred channel is ch1,  alternative is ch3 -->
+                <cppa:ChannelId>ch1</cppa:ChannelId>
+                <cppa:ChannelId>ch3</cppa:ChannelId>
+            </cppa:ActionBinding>
+            
+            <!--  The "AcceptOrder" and "RejectOrder" use the same UBL XSD and same channels, 
+                    maximum reuse -->
+            <cppa:ActionBinding id="BiiTrns003_R" action="AcceptOrder" sendOrReceive="receive" 
+                payloadProfileId="pp2">
+                <cppa:ChannelId>ch5</cppa:ChannelId>
+            </cppa:ActionBinding>
+            <cppa:ActionBinding id="BiiTrns002_R" action="RejectOrder" sendOrReceive="receive" 
+                payloadProfileId="pp2">
+                <cppa:ChannelId>ch5</cppa:ChannelId>
+            </cppa:ActionBinding>
+        </cppa:ServiceBinding>
+    </cppa:ServiceSpecification>
+    
+    <!-- Here the ebMS3 test service, defined in EBMS3CORE section 5.2.2, is configured to 
+            use the same channel as SubmitOrder, so exchange of multiple compressed payload parts 
+            are tested both in incoming and outgoing direction with the configured protocol binding.  -->
+
+    <cppa:ServiceSpecification>
+        <cppa:Description xml:lang="en">The ebMS3 test service, in initiating mode
+            Note that this Service reuses channel "ch1",  so it can be used to test the correct firewall,
+            certificate, URL etc. for the SubmitOrder action.
+        </cppa:Description>
+        <cppa:PartyRole name="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator"/>
+        <cppa:CounterPartyRole name="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder"/>
+        <cppa:ServiceBinding>
+            <cppa:Service>http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/service</cppa:Service>
+            <cppa:ActionBinding id="test_outgoing" 
+                action="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/test" 
+                sendOrReceive="send" payloadProfileId="pp1" >
+                <cppa:ChannelId>ch1</cppa:ChannelId>
+            </cppa:ActionBinding>
+        </cppa:ServiceBinding>
+    </cppa:ServiceSpecification>
+    
+    <cppa:ServiceSpecification>
+        <cppa:Description xml:lang="en">The ebMS3 test service,  in responding mode.
+            Note that this Service reuses channel "ch5",  so it can be used to test the correct firewall,
+            certificate, URL etc. for the AcceptOrder action.
+        </cppa:Description>
+        <cppa:PartyRole name="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/responder"/>
+        <cppa:CounterPartyRole name="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/initiator"/>
+        <cppa:ServiceBinding>
+            <cppa:Service>http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/service</cppa:Service>
+            <cppa:ActionBinding id="test_incoming" 
+                action="http://docs.oasis-open.org/ebxml-msg/ebms/v3.0/ns/core/200704/test" 
+                sendOrReceive="receive" payloadProfileId="pp1">
+                <cppa:ChannelId>ch5</cppa:ChannelId>
+            </cppa:ActionBinding>
+        </cppa:ServiceBinding>
+    </cppa:ServiceSpecification>
+  
+      
+    <!-- for simplicity, there is no ebMS2 incoming channel for the AcceptOrder and RejectOrder actions, 
+        though realistically there would be -->
+
+    <cppa:ebMS3Channel id="ch1" transport="tr1"  package="swa1">
+        <cppa:Description xml:lang="en">Channel used to send UserMessages</cppa:Description>
+        <cppa:SOAPVersion>1.2</cppa:SOAPVersion>
+        <cppa:WSSecurityBinding>
+            <cppa:WSSVersion>1.1</cppa:WSSVersion>
+            <cppa:Signature>
+                <cppa:SignatureAlgorithm>http://www.w3.org/2001/04/xmldsig-more#rsa-sha256</cppa:SignatureAlgorithm>
+                <cppa:DigestAlgorithm>http://www.w3.org/2001/04/xmlenc#sha256</cppa:DigestAlgorithm>
+                <cppa:SigningCertificateRef certId="bsigningcert"/>
+            </cppa:Signature>
+        </cppa:WSSecurityBinding>
+        <cppa:AS4ReceptionAwareness>
+            <cppa:DuplicateHandling>
+                <cppa:DuplicateElimination>true</cppa:DuplicateElimination>
+            </cppa:DuplicateHandling>
+            <cppa:RetryHandling>
+                <cppa:Retries>2</cppa:Retries>
+                <cppa:RetryInterval>PT2H</cppa:RetryInterval>
+            </cppa:RetryHandling>
+        </cppa:AS4ReceptionAwareness>
+        <cppa:ErrorHandling>
+            <cppa:DeliveryFailuresNotifyProducer>true</cppa:DeliveryFailuresNotifyProducer>
+            <cppa:ProcessErrorNotifyProducer>true</cppa:ProcessErrorNotifyProducer>
+            <cppa:ReceiverErrorsReportChannelId>ch2</cppa:ReceiverErrorsReportChannelId>
+        </cppa:ErrorHandling>
+        <cppa:ReceiptHandling>
+            <cppa:ReceiptChannelId>ch2</cppa:ReceiptChannelId>
+        </cppa:ReceiptHandling>
+    </cppa:ebMS3Channel>
+
+    <cppa:ebMS3Channel id="ch2" asResponse="true">
+        <cppa:Description xml:lang="en">Channel used to receive synchronous ebMS3 Errors and Receipts</cppa:Description>
+        <cppa:SOAPVersion>1.2</cppa:SOAPVersion>
+        <cppa:WSSecurityBinding>
+            <cppa:WSSVersion>1.1</cppa:WSSVersion>
+            <cppa:Signature>
+                <cppa:SignatureAlgorithm>http://www.w3.org/2001/04/xmldsig-more#rsa-sha256</cppa:SignatureAlgorithm>
+                <cppa:DigestAlgorithm>http://www.w3.org/2001/04/xmlenc#sha256</cppa:DigestAlgorithm>
+            </cppa:Signature>
+        </cppa:WSSecurityBinding>
+        <!-- No receipt handling channels, because there are no receipts for receipts or errors -->
+        <!-- No error handling channels, because there are no errors for errors or receipts -->
+    </cppa:ebMS3Channel>
+
+    <cppa:ebMS2Channel id="ch3" transport="tr3"  package="swa2">
+        <cppa:Description xml:lang="en">ebMS2 channel for user messages</cppa:Description>
+        <cppa:ReceiptHandling>
+            <cppa:ReceiptChannelId>ch4</cppa:ReceiptChannelId>
+        </cppa:ReceiptHandling>
+        <cppa:ebMS2ReliableMessaging 
+            actor="urn:oasis:names:tc:ebxml-msg:actor:toPartyMSH" 
+            ordered="false">
+            <cppa:RetryHandling>
+                <cppa:Retries>2</cppa:Retries>
+                <cppa:RetryInterval>PT2H</cppa:RetryInterval>
+            </cppa:RetryHandling>
+        </cppa:ebMS2ReliableMessaging>
+        <cppa:ebMS2SecurityBinding>
+            <cppa:Signature>
+                <cppa:SignatureAlgorithm>http://www.w3.org/2000/09/xmldsig#rsa-sha1</cppa:SignatureAlgorithm>
+                <cppa:DigestAlgorithm>http://www.w3.org/2000/09/xmldsig#sha1</cppa:DigestAlgorithm>
+            </cppa:Signature>
+        </cppa:ebMS2SecurityBinding>
+    </cppa:ebMS2Channel>
+    
+    <cppa:ebMS2Channel id="ch4" asResponse="true">
+        <cppa:Description xml:lang="en">ebMS2 synchronous error and receipt channel</cppa:Description>
+        <!-- No ebMS2ReliableMessaging for errors and receipts -->
+        <cppa:ebMS2SecurityBinding>
+            <cppa:Signature>
+                <cppa:SignatureAlgorithm>http://www.w3.org/2000/09/xmldsig#rsa-sha1</cppa:SignatureAlgorithm>
+                <cppa:DigestAlgorithm>http://www.w3.org/2000/09/xmldsig#sha1</cppa:DigestAlgorithm>
+            </cppa:Signature>
+        </cppa:ebMS2SecurityBinding>
+        <!-- No receipt handling channels, because there are no receipts for receipts or errors -->
+        <!-- No error handling channels, because there are no errors for errors or receipts -->
+    </cppa:ebMS2Channel>
+
+    <cppa:ebMS3Channel id="ch5" transport="tr5"  package="swa1">
+        <cppa:Description xml:lang="en">Channel used to receive ebMS3 business messages</cppa:Description>
+        <cppa:SOAPVersion>1.2</cppa:SOAPVersion>
+        <cppa:WSSecurityBinding>
+            <cppa:WSSVersion>1.1</cppa:WSSVersion>
+            <cppa:Signature>
+                <cppa:SignatureAlgorithm>http://www.w3.org/2001/04/xmldsig-more#rsa-sha256</cppa:SignatureAlgorithm>
+                <cppa:DigestAlgorithm>http://www.w3.org/2001/04/xmlenc#sha256</cppa:DigestAlgorithm>
+            </cppa:Signature>
+        </cppa:WSSecurityBinding>
+        <cppa:AS4ReceptionAwareness>
+            <!-- We omit the BaseRetransmissionHandling as it is handled by the sender -->
+            <cppa:DuplicateHandling>
+                <cppa:DuplicateElimination>true</cppa:DuplicateElimination>
+            </cppa:DuplicateHandling>
+        </cppa:AS4ReceptionAwareness>
+        <cppa:ErrorHandling>
+            <cppa:ProcessErrorNotifyConsumer>false</cppa:ProcessErrorNotifyConsumer>
+            <cppa:ReceiverErrorsReportChannelId>ch6</cppa:ReceiverErrorsReportChannelId>
+        </cppa:ErrorHandling>
+        <cppa:ReceiptHandling>
+            <cppa:ReceiptChannelId>ch6</cppa:ReceiptChannelId>
+        </cppa:ReceiptHandling>
+    </cppa:ebMS3Channel>
+
+    <cppa:ebMS3Channel id="ch6" asResponse="true">
+        <cppa:Description xml:lang="en">Channel used to send synchronous ebMS3 Errors and Receipts</cppa:Description>
+        <cppa:SOAPVersion>1.2</cppa:SOAPVersion>
+        <cppa:WSSecurityBinding>
+            <cppa:WSSVersion>1.1</cppa:WSSVersion>
+            <cppa:Signature>
+                <cppa:SignatureAlgorithm>http://www.w3.org/2001/04/xmldsig-more#rsa-sha256</cppa:SignatureAlgorithm>
+                <cppa:DigestAlgorithm>http://www.w3.org/2001/04/xmlenc#sha256</cppa:DigestAlgorithm>
+            </cppa:Signature>
+        </cppa:WSSecurityBinding>
+        <!-- No AS4ReceptionAwareness as we don't send receipts or errors reliably -->
+        <!-- No receipt handling channels, because there are no receipts for receipts or errors -->
+        <!-- No error handling channels, because there are no errors for errors or receipts -->
+    </cppa:ebMS3Channel>
+    
+    <cppa:HTTPTransport id="tr1">
+        <cppa:Description xml:lang="en">Party B in sender/client mode with state-of-the-art security</cppa:Description>
+        <cppa:ClientIPv4>127.0.0.1</cppa:ClientIPv4>
+        <cppa:TransportLayerSecurity>
+            <cppa:TLSProtocol>1.2</cppa:TLSProtocol>
+            <!-- For this example just one cipher suite is provided, should be a set -->
+            <cppa:CipherSuite>TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256</cppa:CipherSuite>
+            <cppa:ClientCertificateRef certId="btlsclientcert"/>
+        </cppa:TransportLayerSecurity>
+    </cppa:HTTPTransport>
+    
+    <cppa:HTTPTransport id="tr3">
+        <cppa:Description xml:lang="en">Party B in legacy sender/client mode</cppa:Description>
+        <cppa:ClientIPv4>127.0.0.1</cppa:ClientIPv4>
+        <cppa:TransportLayerSecurity>
+            <cppa:TLSProtocol>1.1</cppa:TLSProtocol>
+            <cppa:CipherSuite>TLS_RSA_WITH_3DES_EDE_CBC_SHA</cppa:CipherSuite>
+            <cppa:ClientCertificateRef certId="btlsclientcert"/>
+        </cppa:TransportLayerSecurity>
+    </cppa:HTTPTransport>
+
+    <cppa:HTTPTransport id="tr5">
+        <cppa:Description xml:lang="en">Party B in AS4 receiver/server mode</cppa:Description>
+        <cppa:Endpoint>http://b.example.com:8080/someotherhandler</cppa:Endpoint>
+        <cppa:TransportLayerSecurity>
+            <cppa:TLSProtocol>1.2</cppa:TLSProtocol>
+            <cppa:CipherSuite>TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256</cppa:CipherSuite>
+            <cppa:ServerCertificateRef certId="btlsservercert"/>
+        </cppa:TransportLayerSecurity>
+    </cppa:HTTPTransport>
+    
+    <cppa:PayloadProfile id="pp1">
+        <cppa:Description xml:lang="en">A UBL Order XML document and any number of PDF attachments</cppa:Description>
+        <cppa:PayloadPart  minOccurs="1" maxOccurs="1" >
+            <cppa:PartName>businessdocument</cppa:PartName>
+            <cppa:MIMEContentType>application/xml</cppa:MIMEContentType>
+            <cppa:Schema 
+                location="http://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/UBL-Order-2.1.xsd" />
+        </cppa:PayloadPart>
+        <cppa:PayloadPart minOccurs="0" maxOccurs="unbounded">
+            <cppa:PartName>attachment</cppa:PartName>
+            <cppa:MIMEContentType>application/pdf</cppa:MIMEContentType>
+        </cppa:PayloadPart>
+    </cppa:PayloadProfile>
+
+    <cppa:PayloadProfile id="pp2">
+        <cppa:PayloadPart minOccurs="1" maxOccurs="1">
+            <cppa:PartName>businessdocument</cppa:PartName>
+            <cppa:MIMEContentType>application/xml</cppa:MIMEContentType>
+            <cppa:Schema 
+                location="http://docs.oasis-open.org/ubl/os-UBL-2.1/xsd/maindoc/UBL-OrderResponse-2.1.xsd" />
+        </cppa:PayloadPart>
+    </cppa:PayloadProfile>
+    
+    <cppa:SOAPWithAttachmentsEnvelope id="swa1" >
+        <cppa:Description xml:lang="en">An ebMS3 SWA envelope, empty body all payload parts as separate compressed MIME parts.</cppa:Description>
+        <cppa:CompressedSimpleMIMEPart CompressionType="application/gzip" PartName="businessdocument" />
+        <cppa:CompressedSimpleMIMEPart CompressionType="application/gzip" PartName="attachment" />
+    </cppa:SOAPWithAttachmentsEnvelope>
+    
+    <cppa:SOAPWithAttachmentsEnvelope id="swa2" >
+        <cppa:Description xml:lang="en">An ebMS2 SWA envelope, all payload parts as separate MIME parts.</cppa:Description>
+        <cppa:SimpleMIMEPart PartName="businessdocument"/>
+        <cppa:SimpleMIMEPart PartName="attachment"/>
+    </cppa:SOAPWithAttachmentsEnvelope>
+    
+</cppa:CPP>
