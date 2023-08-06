@@ -1,0 +1,147 @@
+{% extends 'report_html_accounts/reports/base.html' %}
+
+{% block title %}Sales Summary{% endblock %}
+
+{% block report_header %}
+<div class="clearfix">
+  <h3 class="pull-right">Sales Summary</h3>
+</div>
+<div class="clearfix top20">
+  <dl class="dl-horizontal pull-right">
+
+    <dt>Period</dt>
+    <dd>{{ start_date|dateformat }} to {{ end_date|dateformat }}</dd>
+
+    <dt>Channel</dt>
+    <dd>{{ channel and channel.rec_name or 'All' }}</dd>
+
+    <dt>Customer</dt>
+    <dd>{{ customer and customer.rec_name or 'All' }}</dd>
+
+    <dt>Product</dt>
+    <dd>{{ product and product.rec_name or 'Any' }}</dd>
+
+  </dl>
+</div>
+{% endblock report_header %}
+
+
+{% block report_body scoped %}
+  <h3>Orders</h3>
+  <hr/>
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Order #</th>
+        <th>Date</th>
+        <th>Customer</th>
+        <th align="center">Untaxed</th>
+        <th align="center">Tax</th>
+        <th align="center">Total</th>
+        <th align="center">Payment Available</th>
+        {% if detailed_payments %}
+        {% for gateway in gateways %}
+        <th align="center">{{ gateway.name }}</th>
+        {% endfor %}
+        {% endif %}
+        <th>Current Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sale in sales %}
+      <tr>
+        <td>
+          <a href="{{ sale.__url__ }}">{{ sale.reference }}</a>
+        </td>
+        <td>{{ sale.sale_date|dateformat }}</td>
+        <td>{{ sale.party.rec_name }}</td>
+        <td align="right">{{ sale.untaxed_amount|currencyformat(sale.currency.code) }}</td>
+        <td align="right">{{ sale.tax_amount|currencyformat(sale.currency.code) }}</td>
+        <td align="right">{{ sale.total_amount|currencyformat(sale.currency.code) }}</td>
+        <td align="right">
+          {{ sale.payment_available|currencyformat(sale.currency.code) }}<br/>
+        </td>
+        {% if detailed_payments %}
+          {% for gateway in gateways %}
+            <td align="right">{{ pbsg[sale.id][gateway.id]|currencyformat(sale.currency.code) }}</td>
+          {% endfor %}
+        {% endif %}        
+        <td>{{ sale.state|capitalize }}</td>
+      </tr>
+      {% endfor %}
+      {% for currency in sales_by_currency %}
+      <tr class="info summary">
+        <td>Total - {{ currency.code }}</td>
+        <td></td>
+        <td></td>
+        <td align="right">{{ sales_by_currency[currency]['untaxed']|currencyformat(currency.code) }}</td>
+        <td align="right">{{ sales_by_currency[currency]['tax']|currencyformat(currency.code) }}</td>
+        <td align="right">{{ sales_by_currency[currency]['total']|currencyformat(currency.code) }}</td>
+        <td align="right">{{ sales_by_currency[currency]['payment_available']|currencyformat(currency.code) }}</td>
+        {% if detailed_payments %}
+          {% for gateway in gateways %}
+            <td align="right">-</td>
+          {% endfor %}
+        {% endif %}        
+        <td></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <h3>Payments</h3>
+  <hr/>
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Gateway</th>
+        {% if sales_by_currency|length > 1 %}
+        <th>Currency</th>
+        {% endif %}
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for gateway, currency_amounts in pbgc.items() %}
+        {% for currency, amount in currency_amounts.items() %}
+          <tr>
+            <td>{{ gateway.name }}</td>
+            {% if sales_by_currency|length > 1 %}
+            <td>{{ currency.code }}</td>
+            {% endif %}
+            <td align="right">{{ amount|currencyformat(currency.code) }}</td>
+          </tr>
+        {% endfor %}
+      {% endfor %}
+      {% for currency, amount in pbc.items() %}
+        <tr class="info summary">
+          <td>Total</td>
+          {% if sales_by_currency|length > 1 %}
+          <td>{{ currency.code }}</td>
+          {% endif %}
+          <td align="right">{{ amount|currencyformat(currency.code) }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if not product %}
+    <h3>Top Products</h3>
+    <hr/>
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Quantity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for product, quantity in top_10_products %}
+        <tr>
+          <td>{{ product.rec_name }}</td>
+          <td align="right">{{ quantity }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endblock report_body %}
