@@ -1,0 +1,133 @@
+{% extends 'picking_list_report/reports/base.html' %}
+{% block title %}
+  Shipment {{ records|join('# ', 'reference') }}
+{% endblock %}
+{% block main %}
+    {% for shipment in records %}
+      <div class="container-fluid {% if not loop.first %}page-break{% endif %}">
+        <div class="row">
+          <div class="col-xs-6">
+            <div>
+              {% block header_image %}
+              {% endblock %}
+	    </div>
+	    <div class="left-margin" style="padding-top: 5px">
+              <address>
+                {% set company = shipment.company %}
+		{% for line in company.party.addresses[0].full_address.split('\n') %}
+		  {% if not loop.first %}
+                    <b>{{ line }}</b><br/>
+		  {% endif %}
+		{% endfor %}
+		<br />
+		{% if company.party.phone %}
+		  <b>Phone: {{ company.party.phone }}</b><br/>
+		{% endif %}
+
+		{% if company.party.email %}
+		  <b>E-Mail: {{ company.party.email }}</b><br/>
+		{% endif %}
+
+		{% if company.party.vat_code %}
+		  <b>VAT: {{ company.party.vat_code }}</b><br/>
+		{% endif %}
+              </address>
+            </div>
+            <div>
+              <div class="row">
+                <div class="col-xs-2 left-margin vertical-center pad-margin-right-nil">
+                  <strong>Ship To</strong>
+                </div>
+                <div class="col-xs-7 pad-margin-left-nil">
+                  <address class="left-border">
+                    {% for line in shipment.delivery_address.full_address.split('\n') %}
+                      {{ line }}<br/>
+                    {% endfor %}
+                  </address>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-xs-6">
+            <div class="row">
+              <div class="col-xs-12">
+                <span class="h3">Picking List</span>
+              </div>
+            </div>
+            <div class="row" style="padding-top:20px;">
+              <div class="col-xs-5">
+                <strong>Shipment #</strong>
+              </div>
+              <div class="col-xs-7">
+                {{ shipment.code }}
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-xs-5">
+                <strong>Planned Date:</strong>
+              </div>
+              <div class="col-xs-7">
+                  {{ shipment.planned_date and shipment.planned_date|dateformat }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-xs-12">
+            <table class="table">
+              <thead>
+                {% block info_header scoped %}
+		  <th class="text-center">Reference</th>
+		  <th class="text-center">Customer</th>
+		  <th class="text-center">Warehouse</th>
+                {% endblock %}
+              </thead>
+              <tbody>
+                <tr>
+                  {% block info_content scoped %}
+                    <td class="text-center">{{ shipment.origins or '' }}{{ ', ' if (shipment.origins and shipment.reference) else '' }}{{ shipment.reference or '' }}</td>
+                    <td class="text-center">{{ shipment.customer.rec_name }}</td>
+                    <td class="text-center">{{ shipment.warehouse.rec_name }}</td>
+                  {% endblock %}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-xs-12">
+            <table class="table">
+              <tbody>
+                <tr>
+                  <th>#</th>
+                  <th>From Location</th>
+                  <th>To Location</th>
+                  <th class="text-center">Product</th>
+                  <th class="text-right">Quantity</th>
+                </tr>
+                {% for move in moves[shipment.id] %}
+                <tr>
+                  <td>{{ loop.index }}</i></td>
+                  <td>{{ move.from_location.rec_name }}</td>
+                  <td>{{ move.to_location.rec_name }}</td>
+                  <td class="text-center">{{ move.product.code }} - {{ move.product.name }}</td>
+                  <td class="text-right">{{ formatLang(move.quantity, shipment.customer.lang, digits=move.unit_digits) }} {% if move.uom.symbol != 'u' %}{{ move.uom.symbol }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="row" style="padding-top:50px;">
+          <div class="col-xs-5 col-xs-offset-1">
+            <b>Picked By</b>
+          </div>
+          <div class="col-xs-5 text-right">
+            <b>Checked By</b>
+          </div>
+          <div class="col-xs-1">
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+{% endblock %}
