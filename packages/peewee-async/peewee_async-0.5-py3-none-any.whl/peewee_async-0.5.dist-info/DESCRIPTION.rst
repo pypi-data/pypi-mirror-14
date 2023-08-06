@@ -1,0 +1,14 @@
+Asynchronous interface for peewee ORM powered by asyncio.
+
+Home-page: https://github.com/05bit/peewee-async
+Author: Alexey Kinev
+Author-email: rudy@05bit.com
+License: MIT
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
