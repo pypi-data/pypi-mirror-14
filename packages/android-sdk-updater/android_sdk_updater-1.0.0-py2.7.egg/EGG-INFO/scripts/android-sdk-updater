@@ -1,0 +1,62 @@
+#!/home/tad/python/2/bin/python
+
+from __future__ import print_function
+
+import os
+import sys
+import argparse
+from sdk_updater import __version__
+from sdk_updater import update as update_sdk
+
+
+def main():
+    # Create our parser
+    parser = argparse.ArgumentParser(
+        prog='android-sdk-updater',
+        description='Update an Android SDK installation')
+
+    # Set up our command-line arguments
+    parser.add_argument('-v', '--version', action='version',
+                        version='%(prog)s {v}'.format(v=__version__))
+    parser.add_argument('-a', '--android-home',
+                        help='the path to your Android SDK')
+    parser.add_argument('-n', '--dry-run', action='store_true',
+                        help='compute packages to install but do not install anything')
+    parser.add_argument('-t', '--timeout', type=int, default=0,
+                        help=('timeout in seconds for package installation, '
+                              'or 0 to wait indefinitely (default)'))
+    parser.add_argument('-vv', '--verbose', action='store_true',
+                        help='show extra output from android tools')
+    parser.add_argument('package', nargs='*',
+                        help='name of SDK package to install if not already installed')
+
+    # Get our arguments
+    args = parser.parse_args()
+
+    # Find the Android SDK
+    android_home = os.environ.get('ANDROID_HOME')
+
+    if args.android_home:
+        android_home = args.android_home
+
+    if not android_home:
+        parser.error('Please set --android-home or export $ANDROID_HOME in your environment')
+
+    if args.timeout < 0:
+        parser.error('Timeout must be a positive number of seconds')
+
+    print(args)
+
+    # Run the updater
+    update_sdk.main(android_home,
+                    bootstrap=args.package,
+                    verbose=args.verbose,
+                    timeout=args.timeout,
+                    dry_run=args.dry_run)
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit()
