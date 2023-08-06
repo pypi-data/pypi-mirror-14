@@ -1,0 +1,28 @@
+[![PyPI Python Versions](https://img.shields.io/pypi/pyversions/flowtool-releasing.svg)](https://pypi.python.org/pypi/flowtool-releasing)
+[![PyPI Latest Version](https://img.shields.io/pypi/v/flowtool-releasing.svg)](https://pypi.python.org/pypi/flowtool-releasing)
+[![PyPI Distribution Format](https://img.shields.io/pypi/format/flowtool-releasing.svg)](https://pypi.python.org/pypi/flowtool-releasing)
+
+# flowtool-releasing
+
+An automated workflow for releasing Python Packages to PyPI and github.
+
+Requires `flowtool-versioning` to be up-and-running (installed and at least one tag created).
+
+The release process works as follows:
+
+- check that the repo is clean (and that we are not exactly at a release)
+- bump the version of the project (by creating a new git tag)
+- run `git push` and `git push --tags`
+- release to PyPI (mainly `setup.py sdist upload`)
+
+It add the following commands to `flowtool`:
+```
+flowtool release-now         # make a release
+flowtool clean-tags          # clean up older tags on the local repo
+flowtool clean-tags 1 -a -y  # clean up all older tags and keep only the latest
+```
+
+If you want to use it in your project, try it out, and request more
+documentation when you need it.
+
+
