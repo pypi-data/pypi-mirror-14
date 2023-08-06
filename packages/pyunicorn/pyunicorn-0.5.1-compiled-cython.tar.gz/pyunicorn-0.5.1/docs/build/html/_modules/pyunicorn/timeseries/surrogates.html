@@ -1,0 +1,1386 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pyunicorn.timeseries.surrogates &mdash; pyunicorn 0.5.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.5.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pyunicorn 0.5.1 documentation" href="../../../sitemap.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+<a href="../../../index.html"><img src="../../../_static/logo.png" border="0" alt="py4sci"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../sitemap.html">
+              <img class="logo" src="../../../_static/logo.png" alt="Logo"/>
+            </a></p>
+<h3><a href="../../../sitemap.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../methods.html">Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_doc.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../publications.html">Publications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contact.html">Contact</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyunicorn.timeseries.surrogates</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#</span>
+<span class="c"># This file is part of pyunicorn.</span>
+<span class="c"># Copyright (C) 2008--2015 Jonathan F. Donges and pyunicorn authors</span>
+<span class="c"># URL: &lt;http://www.pik-potsdam.de/members/donges/software&gt;</span>
+<span class="c"># License: BSD (3-clause)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Provides classes for analyzing spatially embedded complex networks, handling</span>
+<span class="sd">multivariate data and generating time series surrogates.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c"># array object and fast numerics</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">random</span>
+
+<span class="c"># C++ inline code</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">weave_inline</span>
+<span class="c"># easy progress bar handling</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">progressbar</span>
+
+
+<span class="c">#</span>
+<span class="c">#  Define class Surrogates</span>
+<span class="c">#</span>
+
+<div class="viewcode-block" id="Surrogates"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates">[docs]</a><span class="k">class</span> <span class="nc">Surrogates</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Encapsulates structures and methods related to surrogate time series.</span>
+
+<span class="sd">    Provides data structures and methods to generate surrogate data sets from a</span>
+<span class="sd">    set of time series and to evaluate the significance of various correlation</span>
+<span class="sd">    measures using these surrogates.</span>
+
+<span class="sd">    More information on time series surrogates can be found in [Schreiber2000]_</span>
+<span class="sd">    and [Kantz2006]_.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Define internal methods</span>
+    <span class="c">#</span>
+<div class="viewcode-block" id="Surrogates.__init__"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_data</span><span class="p">,</span> <span class="n">silence_level</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize an instance of Surrogates.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           The order of array dimensions is different from the standard of</span>
+<span class="sd">           ``core``. Here it is [index, time] for reasons of computational</span>
+<span class="sd">           speed!</span>
+
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series for surrogate generation.</span>
+<span class="sd">        :arg int silence_level: The inverse level of verbosity of the object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Generated an instance of the Surrogates class.&quot;</span>
+
+        <span class="c">#  Set class variables</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">original_data</span> <span class="o">=</span> <span class="n">original_data</span>
+        <span class="sd">&quot;&quot;&quot;The original time series for surrogate generation.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">=</span> <span class="n">silence_level</span>
+        <span class="sd">&quot;&quot;&quot;(string) - The inverse level of verbosity of the object.&quot;&quot;&quot;</span>
+
+        <span class="c">#  Set flags</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_normalized</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fft_cached</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_twins_cached</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="c">#  Cache</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_twins</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_original_data_fft</span> <span class="o">=</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="Surrogates.__str__"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.__str__">[docs]</a>    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a string representation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;Surrogates: time series shape </span><span class="si">%s</span><span class="s">.&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">,)</span>
+</div>
+<div class="viewcode-block" id="Surrogates.clear_cache"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.clear_cache">[docs]</a>    <span class="k">def</span> <span class="nf">clear_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Clean up cache.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_original_data_fft</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_twins</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Methods for testing purposes</span>
+    <span class="c">#</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="Surrogates.SmallTestData"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.SmallTestData">[docs]</a>    <span class="k">def</span> <span class="nf">SmallTestData</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return Surrogates instance representing test a data set of 6 time</span>
+<span class="sd">        series.</span>
+
+<span class="sd">        :rtype: Surrogates instance</span>
+<span class="sd">        :return: a Surrogates instance for testing purposes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Create time series</span>
+        <span class="n">ts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">6</span><span class="p">,</span> <span class="mi">200</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">6</span><span class="p">):</span>
+            <span class="n">ts</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mf">15.</span> <span class="o">+</span> <span class="n">i</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">/</span><span class="mf">2.</span><span class="p">)</span> <span class="o">+</span> \
+                <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mf">30.</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">Surrogates</span><span class="p">(</span><span class="n">original_data</span><span class="o">=</span><span class="n">ts</span><span class="p">,</span> <span class="n">silence_level</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Define methods to normalize and analyze the data</span>
+    <span class="c">#</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="Surrogates.normalize_time_series_array"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.normalize_time_series_array">[docs]</a>    <span class="k">def</span> <span class="nf">normalize_time_series_array</span><span class="p">(</span><span class="n">time_series_array</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :index:`Normalize &lt;pair: normalize; time series array&gt;` an array of</span>
+<span class="sd">        time series to zero mean and unit variance individually for each</span>
+<span class="sd">        individual time series.</span>
+
+<span class="sd">        **Modifies the given array in place!**</span>
+
+<span class="sd">        **Examples:**</span>
+
+<span class="sd">        &gt;&gt;&gt; ts = Surrogates.SmallTestData().original_data</span>
+<span class="sd">        &gt;&gt;&gt; Surrogates.SmallTestData().normalize_time_series_array(ts)</span>
+<span class="sd">        &gt;&gt;&gt; r(ts.mean(axis=1))</span>
+<span class="sd">        array([ 0., 0., 0., 0., 0., 0.])</span>
+<span class="sd">        &gt;&gt;&gt; r(ts.std(axis=1))</span>
+<span class="sd">        array([ 1., 1., 1., 1., 1., 1.])</span>
+
+<span class="sd">        :type time_series_array: 2D array [index, time]</span>
+<span class="sd">        :arg time_series_array: The time series array to be normalized.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mean</span> <span class="o">=</span> <span class="n">time_series_array</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">std</span> <span class="o">=</span> <span class="n">time_series_array</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">time_series_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="c">#  Remove mean value from time series at each node (grid point)</span>
+            <span class="n">time_series_array</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-=</span> <span class="n">mean</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="c">#  Normalize the standard deviation of anomalies to one</span>
+            <span class="k">if</span> <span class="n">std</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">time_series_array</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">/=</span> <span class="n">std</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="Surrogates.embed_time_series_array"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.embed_time_series_array">[docs]</a>    <span class="k">def</span> <span class="nf">embed_time_series_array</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time_series_array</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">delay</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a :index:`delay embedding` of all time series.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Only works for scalar time series!</span>
+
+<span class="sd">        **Example:**</span>
+
+<span class="sd">        &gt;&gt;&gt; ts = Surrogates.SmallTestData().original_data</span>
+<span class="sd">        &gt;&gt;&gt; Surrogates.SmallTestData().embed_time_series_array(</span>
+<span class="sd">        ...     time_series_array=ts, dimension=3, delay=2)[0,:6,:]</span>
+<span class="sd">        array([[ 0.        ,  0.61464833,  1.14988147],</span>
+<span class="sd">               [ 0.31244015,  0.89680225,  1.3660254 ],</span>
+<span class="sd">               [ 0.61464833,  1.14988147,  1.53884177],</span>
+<span class="sd">               [ 0.89680225,  1.3660254 ,  1.6636525 ],</span>
+<span class="sd">               [ 1.14988147,  1.53884177,  1.73766672],</span>
+<span class="sd">               [ 1.3660254 ,  1.6636525 ,  1.76007351]])</span>
+
+<span class="sd">        :type time_series_array: 2D array [index, time]</span>
+<span class="sd">        :arg time_series_array: The time series array to be normalized.</span>
+<span class="sd">        :arg int dimension: The embedding dimension.</span>
+<span class="sd">        :arg int delay: The embedding delay.</span>
+<span class="sd">        :rtype: 3D array [index, time, dimension]</span>
+<span class="sd">        :return: the embedded time series.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Embedding all time series in dimension&quot;</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> \
+                  <span class="s">&quot;and with lag&quot;</span><span class="p">,</span> <span class="n">delay</span><span class="p">,</span> <span class="s">&quot;...&quot;</span>
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">n_time</span><span class="p">)</span> <span class="o">=</span> <span class="n">time_series_array</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="n">embedding</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">n_time</span> <span class="o">-</span> <span class="p">(</span><span class="n">dimension</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">delay</span><span class="p">,</span> <span class="n">dimension</span><span class="p">))</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int i, j, k, max_delay, len_embedded, index;</span>
+
+<span class="s">        //  Calculate the maximum delay</span>
+<span class="s">        max_delay = (dimension - 1)*delay;</span>
+<span class="s">        //  Calculate the length of the embedded time series</span>
+<span class="s">        len_embedded = n_time - max_delay;</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+<span class="s">            for (j = 0; j &lt; dimension; j++) {</span>
+<span class="s">                index = j*delay;</span>
+<span class="s">                for (k = 0; k &lt; len_embedded; k++) {</span>
+<span class="s">                    embedding(i,k,j) = time_series_array(i,index);</span>
+<span class="s">                    index++;</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                     <span class="p">[</span><span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;n_time&#39;</span><span class="p">,</span> <span class="s">&#39;dimension&#39;</span><span class="p">,</span> <span class="s">&#39;delay&#39;</span><span class="p">,</span> <span class="s">&#39;time_series_array&#39;</span><span class="p">,</span>
+                      <span class="s">&#39;embedding&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">embedding</span>
+</div>
+<div class="viewcode-block" id="Surrogates.recurrence_plot"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.recurrence_plot">[docs]</a>    <span class="k">def</span> <span class="nf">recurrence_plot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">embedding</span><span class="p">,</span> <span class="n">threshold</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the :index:`recurrence plot &lt;pair: recurrence plot; time</span>
+<span class="sd">        series&gt;` from an embedding of a time series.</span>
+
+<span class="sd">        Uses supremum norm.</span>
+
+<span class="sd">        :type embedding: 2D array [time, dimension]</span>
+<span class="sd">        :arg embedding: The embedded time series.</span>
+<span class="sd">        :arg float threshold: The recurrence threshold.</span>
+<span class="sd">        :rtype: 2D array [time, time]</span>
+<span class="sd">        :return: the recurrence matrix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating the recurrence plot...&quot;</span>
+
+        <span class="n">n_time</span> <span class="o">=</span> <span class="n">embedding</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">n_time</span><span class="p">,</span> <span class="n">n_time</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int8&quot;</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int j, k, l;</span>
+<span class="s">        double diff;</span>
+
+<span class="s">        for (j = 0; j &lt; n_time; j++) {</span>
+<span class="s">            //  Ignore the main diagonal, since every sample is neighbor</span>
+<span class="s">            //  of itself.</span>
+<span class="s">            for (k = 0; k &lt; j; k++) {</span>
+<span class="s">                for (l = 0; l &lt; dimension; l++) {</span>
+<span class="s">                    //  Use supremum norm</span>
+<span class="s">                    diff = embedding(j,l) - embedding(k,l);</span>
+
+<span class="s">                    if(fabs(diff) &gt; threshold) {</span>
+<span class="s">                        //  j and k are not neighbors</span>
+<span class="s">                        R(j,k) = R(k,j) = 0;</span>
+
+<span class="s">                        //  Leave the for loop</span>
+<span class="s">                        break;</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                     <span class="p">[</span><span class="s">&#39;n_time&#39;</span><span class="p">,</span> <span class="s">&#39;dimension&#39;</span><span class="p">,</span> <span class="s">&#39;threshold&#39;</span><span class="p">,</span> <span class="s">&#39;embedding&#39;</span><span class="p">,</span> <span class="s">&#39;R&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">R</span>
+</div>
+<div class="viewcode-block" id="Surrogates.twins"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.twins">[docs]</a>    <span class="k">def</span> <span class="nf">twins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">embedding_array</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">min_dist</span><span class="o">=</span><span class="mi">7</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return list of the :index:`twins &lt;pair: twins; surrogates&gt;` of each</span>
+<span class="sd">        state vector for all time series.</span>
+
+<span class="sd">        Two state vectors are said to be twins if they share the same</span>
+<span class="sd">        recurrences, i.e., if the corresponding rows or columns in the</span>
+<span class="sd">        recurrence plot are identical.</span>
+
+<span class="sd">        References: [Thiel2006]_, [Marwan2007]_.</span>
+
+<span class="sd">        :type embedding_array: 3D array [index, time, dimension]</span>
+<span class="sd">        :arg  embedding_array: The embedded time series array.</span>
+<span class="sd">        :arg float threshold: The recurrence threshold.</span>
+<span class="sd">        :arg number min_dist: The minimum temporal distance for twins.</span>
+<span class="sd">        :rtype: [[number]]</span>
+<span class="sd">        :return: the list of twins for each state vector in the time series.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Finding twins...&quot;</span>
+
+        <span class="n">N</span> <span class="o">=</span> <span class="n">embedding_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">n_time</span> <span class="o">=</span> <span class="n">embedding_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">twins</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c">#  Initialize the R matrix with ones</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n_time</span><span class="p">,</span> <span class="n">n_time</span><span class="p">))</span>
+        <span class="c">#  Initialize array to store the number of neighbors for each sample</span>
+        <span class="n">nR</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">n_time</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int i, j, k, l;</span>
+<span class="s">        double diff;</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+<span class="s">            //  Initialize the recurrence matrix R and nR</span>
+
+<span class="s">            for (j = 0; j &lt; n_time; j++) {</span>
+<span class="s">                for (k = 0; k &lt;= j; k++)</span>
+<span class="s">                    R(j,k) = R(k,j) = 1;</span>
+<span class="s">                nR(j) = n_time;</span>
+<span class="s">            }</span>
+
+<span class="s">            //  Calculate the recurrence matrix for time series i</span>
+
+<span class="s">            for (j = 0; j &lt; n_time; j++) {</span>
+<span class="s">                //  Ignore the main diagonal, since every sample is neighbor</span>
+<span class="s">                //  of itself.</span>
+<span class="s">                for (k = 0; k &lt; j; k++) {</span>
+<span class="s">                    for (l = 0; l &lt; dimension; l++) {</span>
+<span class="s">                        //  Use maximum norm</span>
+<span class="s">                        diff = embedding_array(i,j,l) - embedding_array(i,k,l);</span>
+
+<span class="s">                        if(fabs(diff) &gt; threshold) {</span>
+<span class="s">                            //  j and k are not neighbors</span>
+<span class="s">                            R(j,k) = R(k,j) = 0;</span>
+
+<span class="s">                            //  Reduce neighbor count of j and k by one</span>
+<span class="s">                            nR(j) -= 1;</span>
+<span class="s">                            nR(k) -= 1;</span>
+
+<span class="s">                            //  Leave the for loop</span>
+<span class="s">                            break;</span>
+<span class="s">                        }</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+
+<span class="s">            //  Add list for twins in time series i</span>
+<span class="s">            py::list empty(0);</span>
+<span class="s">            PyList_Append(twins, empty);</span>
+
+<span class="s">            //  Find all twins in the recurrence matrix</span>
+
+<span class="s">            for (j = 0; j &lt; n_time; j++) {</span>
+<span class="s">                py::list empty(0);</span>
+
+<span class="s">                py::list twins_i = PyList_GetItem(twins, i);</span>
+<span class="s">                PyList_Append(twins_i, empty);</span>
+<span class="s">                py::list twins_ij = PyList_GetItem(twins_i,j);</span>
+
+<span class="s">                //  Respect a minimal temporal spacing between twins to avoid</span>
+<span class="s">                //  false twins due to the higher.</span>
+<span class="s">                //  sample density in phase space along the trajectory</span>
+<span class="s">                for (k = 0; k + min_dist &lt; j; k++) {</span>
+<span class="s">                    //  Continue only if both samples have the same number of</span>
+<span class="s">                    //  neighbors and more than just one neighbor (themselves).</span>
+<span class="s">                    if (nR(j) == nR(k) &amp; nR(j) != 1) {</span>
+<span class="s">                        l = 0;</span>
+
+<span class="s">                        while (R(j,l) == R(k,l)) {</span>
+<span class="s">                            l++;</span>
+
+<span class="s">                            //  If l is equal to the length of the time series</span>
+<span class="s">                            //  at this point, j and k are twins.</span>
+<span class="s">                            if (l == n_time) {</span>
+<span class="s">                                //  Add the twins to the twin list</span>
+<span class="s">                                py::list twins_ik = PyList_GetItem(twins_i,k);</span>
+
+<span class="s">                                py::object temp_k = PyInt_FromLong(k);</span>
+<span class="s">                                py::object temp_j = PyInt_FromLong(j);</span>
+
+<span class="s">                                PyList_Append(twins_ij,temp_k);</span>
+<span class="s">                                PyList_Append(twins_ik,temp_j);</span>
+
+<span class="s">                                //  Leave the while loop</span>
+<span class="s">                                break;</span>
+<span class="s">                            }</span>
+<span class="s">                        }</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                     <span class="p">[</span><span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;n_time&#39;</span><span class="p">,</span> <span class="s">&#39;dimension&#39;</span><span class="p">,</span> <span class="s">&#39;threshold&#39;</span><span class="p">,</span> <span class="s">&#39;min_dist&#39;</span><span class="p">,</span>
+                      <span class="s">&#39;embedding_array&#39;</span><span class="p">,</span> <span class="s">&#39;R&#39;</span><span class="p">,</span> <span class="s">&#39;nR&#39;</span><span class="p">,</span> <span class="s">&#39;twins&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">twins</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Define methods to generate sets of surrogate time series</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="Surrogates.white_noise_surrogates"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.white_noise_surrogates">[docs]</a>    <span class="k">def</span> <span class="nf">white_noise_surrogates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a shuffled copy of a time series array.</span>
+
+<span class="sd">        Each time series is shuffled individually. The surrogates correspond to</span>
+<span class="sd">        realizations of white noise consistent with the :attr:`original_data`</span>
+<span class="sd">        time series&#39; amplitude distribution.</span>
+
+<span class="sd">        **Example** (Distributions of white noise surrogates should the same as</span>
+<span class="sd">        for the original data):</span>
+
+<span class="sd">        &gt;&gt;&gt; ts = Surrogates.SmallTestData().original_data</span>
+<span class="sd">        &gt;&gt;&gt; surrogates = Surrogates.\</span>
+<span class="sd">                SmallTestData().white_noise_surrogates(ts)</span>
+<span class="sd">        &gt;&gt;&gt; np.histogram(ts[0,:])[0]</span>
+<span class="sd">        array([21, 12,  9, 15, 34, 35, 18, 12, 16, 28])</span>
+<span class="sd">        &gt;&gt;&gt; np.histogram(surrogates[0,:])[0]</span>
+<span class="sd">        array([21, 12,  9, 15, 34, 35, 18, 12, 16, 28])</span>
+
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :rtype: 2D array [index, time]</span>
+<span class="sd">        :return: The surrogate time series.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Generating white noise surrogates by random shuffling...&quot;</span>
+
+        <span class="c">#  Generate reference to shuffle function</span>
+        <span class="n">shuffle</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">shuffle</span>
+
+        <span class="n">surrogates</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">surrogates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">shuffle</span><span class="p">(</span><span class="n">surrogates</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:])</span>
+
+        <span class="k">return</span> <span class="n">surrogates</span>
+</div>
+<div class="viewcode-block" id="Surrogates.correlated_noise_surrogates"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.correlated_noise_surrogates">[docs]</a>    <span class="k">def</span> <span class="nf">correlated_noise_surrogates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return Fourier surrogates.</span>
+
+<span class="sd">        Generate surrogates by Fourier transforming the :attr:`original_data`</span>
+<span class="sd">        time series (assumed to be real valued), randomizing the phases and</span>
+<span class="sd">        then applying an inverse Fourier transform. Correlated noise surrogates</span>
+<span class="sd">        share their power spectrum and autocorrelation function with the</span>
+<span class="sd">        original_data time series.</span>
+
+<span class="sd">        The Fast Fourier transforms of all time series are cached to facilitate</span>
+<span class="sd">        a faster generation of several surrogates for each time series. Hence,</span>
+<span class="sd">        :meth:`clear_cache` has to be called before generating surrogates from</span>
+<span class="sd">        a different set of time series!</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           The amplitudes are not adjusted here, i.e., the</span>
+<span class="sd">           individual amplitude distributions are not conserved!</span>
+
+<span class="sd">        **Examples:**</span>
+
+<span class="sd">        The power spectrum is conserved up to small numerical deviations:</span>
+
+<span class="sd">        &gt;&gt;&gt; ts = Surrogates.SmallTestData().original_data</span>
+<span class="sd">        &gt;&gt;&gt; surrogates = Surrogates.\</span>
+<span class="sd">                SmallTestData().correlated_noise_surrogates(ts)</span>
+<span class="sd">        &gt;&gt;&gt; all(r(np.abs(np.fft.fft(ts,         axis=1))[0,1:10]) == \</span>
+<span class="sd">                r(np.abs(np.fft.fft(surrogates, axis=1))[0,1:10]))</span>
+<span class="sd">        True</span>
+
+<span class="sd">        However, the time series amplitude distributions differ:</span>
+
+<span class="sd">        &gt;&gt;&gt; all(np.histogram(ts[0,:])[0] == np.histogram(surrogates[0,:])[0])</span>
+<span class="sd">        False</span>
+
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :rtype: 2D array [index, time]</span>
+<span class="sd">        :return: The surrogate time series.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Generating correlated noise surrogates...&quot;</span>
+
+        <span class="c">#  Calculate FFT of original_data time series</span>
+        <span class="c">#  The FFT of the original_data data has to be calculated only once,</span>
+        <span class="c">#  so it is stored in self._original_data_fft.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fft_cached</span><span class="p">:</span>
+            <span class="n">surrogates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_original_data_fft</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">surrogates</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">rfft</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_original_data_fft</span> <span class="o">=</span> <span class="n">surrogates</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_fft_cached</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="c">#  Get shapes</span>
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">n_time</span><span class="p">)</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">len_phase</span> <span class="o">=</span> <span class="n">surrogates</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c">#  Generate random phases uniformly distributed in the</span>
+        <span class="c">#  interval [0, 2*Pi]</span>
+        <span class="n">phases</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">low</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">len_phase</span><span class="p">))</span>
+
+        <span class="c">#  Add random phases uniformly distributed in the interval [0, 2*Pi]</span>
+        <span class="n">surrogates</span> <span class="o">*=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mi">1j</span> <span class="o">*</span> <span class="n">phases</span><span class="p">)</span>
+
+        <span class="c">#  Calculate IFFT and take the real part, the remaining imaginary part</span>
+        <span class="c">#  is due to numerical errors.</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">real</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">irfft</span><span class="p">(</span><span class="n">surrogates</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">n_time</span><span class="p">,</span>
+                                                         <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)))</span>
+</div>
+<div class="viewcode-block" id="Surrogates.AAFT_surrogates"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.AAFT_surrogates">[docs]</a>    <span class="k">def</span> <span class="nf">AAFT_surrogates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return surrogates using the amplitude adjusted Fourier transform</span>
+<span class="sd">        method.</span>
+
+<span class="sd">        Reference: [Schreiber2000]_</span>
+
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :rtype: 2D array [index, time]</span>
+<span class="sd">        :return: The surrogate time series.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Create sorted Gaussian reference series</span>
+        <span class="n">gaussian</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">gaussian</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c">#  Rescale data to Gaussian distribution</span>
+        <span class="n">ranks</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">rescaled_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">rescaled_data</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">gaussian</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">ranks</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]]</span>
+
+        <span class="c">#  Phase randomize rescaled data</span>
+        <span class="n">phase_randomized_data</span> <span class="o">=</span> \
+            <span class="bp">self</span><span class="o">.</span><span class="n">correlated_noise_surrogates</span><span class="p">(</span><span class="n">rescaled_data</span><span class="p">)</span>
+
+        <span class="c">#  Rescale back to amplitude distribution of original data</span>
+        <span class="n">sorted_original</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">sorted_original</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">ranks</span> <span class="o">=</span> <span class="n">phase_randomized_data</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">rescaled_data</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">sorted_original</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">ranks</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]]</span>
+
+        <span class="k">return</span> <span class="n">rescaled_data</span>
+</div>
+<div class="viewcode-block" id="Surrogates.refined_AAFT_surrogates"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.refined_AAFT_surrogates">[docs]</a>    <span class="k">def</span> <span class="nf">refined_AAFT_surrogates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_data</span><span class="p">,</span> <span class="n">n_iterations</span><span class="p">,</span>
+                                <span class="n">output</span><span class="o">=</span><span class="s">&quot;true_amplitudes&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return surrogates using the iteratively refined amplitude adjusted</span>
+<span class="sd">        Fourier transform method.</span>
+
+<span class="sd">        A set of AAFT surrogates (:meth:`AAFT_surrogates`) is iteratively</span>
+<span class="sd">        refined to produce a closer match of both amplitude distribution and</span>
+<span class="sd">        power spectrum of surrogate and original data.</span>
+
+<span class="sd">        Reference: [Schreiber2000]_</span>
+
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :arg int n_iterations: Number of iterations / refinement steps</span>
+<span class="sd">        :arg str output: Type of surrogate to return. &quot;true_amplitudes&quot;:</span>
+<span class="sd">            surrogates with correct amplitude distribution, &quot;true_spectrum&quot;:</span>
+<span class="sd">            surrogates with correct power spectrum, &quot;both&quot;: return both outputs</span>
+<span class="sd">            of the algorithm.</span>
+<span class="sd">        :rtype: 2D array [index, time]</span>
+<span class="sd">        :return: The surrogate time series.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Get size of dimensions</span>
+        <span class="n">n_time</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c">#  Get Fourier transform of original data with caching</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fft_cached</span><span class="p">:</span>
+            <span class="n">fourier_transform</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_original_data_fft</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fourier_transform</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">rfft</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_original_data_fft</span> <span class="o">=</span> <span class="n">fourier_transform</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_fft_cached</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="c">#  Get Fourier amplitudes</span>
+        <span class="n">original_fourier_amps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">fourier_transform</span><span class="p">)</span>
+
+        <span class="c">#  Get sorted copy of original data</span>
+        <span class="n">sorted_original</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">sorted_original</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c">#  Get starting point / initial conditions for R surrogates</span>
+        <span class="c"># (see [Schreiber2000]_)</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">AAFT_surrogates</span><span class="p">(</span><span class="n">original_data</span><span class="p">)</span>
+
+        <span class="c">#  Start iteration</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">n_iterations</span><span class="p">):</span>
+            <span class="c">#  Get Fourier phases of R surrogate</span>
+            <span class="n">r_fft</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">rfft</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">r_phases</span> <span class="o">=</span> <span class="n">r_fft</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">r_fft</span><span class="p">)</span>
+
+            <span class="c">#  Transform back, replacing the actual amplitudes by the desired</span>
+            <span class="c">#  ones, but keeping the phases exp(iψ(i)</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">irfft</span><span class="p">(</span><span class="n">original_fourier_amps</span> <span class="o">*</span> <span class="n">r_phases</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">n_time</span><span class="p">,</span>
+                             <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="c">#  Rescale to desired amplitude distribution</span>
+            <span class="n">ranks</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="n">R</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">sorted_original</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">ranks</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="p">:]]</span>
+
+        <span class="k">if</span> <span class="n">output</span> <span class="o">==</span> <span class="s">&quot;true_amplitudes&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">R</span>
+        <span class="k">elif</span> <span class="n">output</span> <span class="o">==</span> <span class="s">&quot;true_spectrum&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">s</span>
+        <span class="k">elif</span> <span class="n">output</span> <span class="o">==</span> <span class="s">&quot;both&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Surrogates.twin_surrogates"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.twin_surrogates">[docs]</a>    <span class="k">def</span> <span class="nf">twin_surrogates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_data</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">delay</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span>
+                        <span class="n">min_dist</span><span class="o">=</span><span class="mi">7</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return surrogates using the twin surrogate method.</span>
+
+<span class="sd">        Scalar twin surrogates are created by isolating the first component</span>
+<span class="sd">        (dimension) of the twin surrogate trajectories.</span>
+
+<span class="sd">        Twin surrogates share linear and nonlinear properties with the original</span>
+<span class="sd">        time series, since they correspond to realizations of trajectories of</span>
+<span class="sd">        the same dynamical systems with different initial conditions.</span>
+
+<span class="sd">        References: [Thiel2006]_ [*], [Marwan2007]_.</span>
+
+<span class="sd">        The twin lists of all time series are cached to facilitate a faster</span>
+<span class="sd">        generation of several surrogates for each time series. Hence,</span>
+<span class="sd">        :meth:`clear_cache` has to be called before generating twin surrogates</span>
+<span class="sd">        from a different set of time series!</span>
+
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :arg int dimension: The embedding dimension.</span>
+<span class="sd">        :arg int delay: The embedding delay.</span>
+<span class="sd">        :arg float threshold: The recurrence threshold.</span>
+<span class="sd">        :arg number min_dist: The minimum temporal distance for twins.</span>
+<span class="sd">        :rtype: 2D array [index, time]</span>
+<span class="sd">        :return: the twin surrogates.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  The algorithm proceeds in several steps:</span>
+        <span class="c">#  1. Embed the original_data time series, using time delay embedding</span>
+        <span class="c">#     for simplicity. Use the same dimension and time delay delay for</span>
+        <span class="c">#     all time series for simplicity. Determine delay using time</span>
+        <span class="c">#     delayed mutual information and d using false nearest neighbors</span>
+        <span class="c">#     methods.</span>
+        <span class="c">#  2. Use the algorithm proposed in [*] to find twins</span>
+        <span class="c">#  3. Reconstruct one-dimensional twin surrogate time series</span>
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">n_time</span><span class="p">)</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c">#  Make sure that twins are calculated only once</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_twins_cached</span><span class="p">:</span>
+            <span class="n">twins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_twins</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">embedding</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">embed_time_series_array</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span>
+                                                     <span class="n">dimension</span><span class="p">,</span> <span class="n">delay</span><span class="p">)</span>
+            <span class="n">twins</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">twins</span><span class="p">(</span><span class="n">embedding</span><span class="p">,</span> <span class="n">threshold</span><span class="p">,</span> <span class="n">min_dist</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_twins</span> <span class="o">=</span> <span class="n">twins</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_twins_cached</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="n">surrogates</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int i, j, k, new_k, n_twins, rand;</span>
+
+<span class="s">        //  Initialize random number generator</span>
+<span class="s">        srand48(time(0));</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+<span class="s">            //  Get the twin list for time series i</span>
+<span class="s">            py::list twins_i = PyList_GetItem(twins, i);</span>
+
+<span class="s">            //  Randomly choose a starting point in the original_data</span>
+<span class="s">            //  trajectory.</span>
+<span class="s">            k = floor(drand48() * n_time);</span>
+
+<span class="s">            j = 0;</span>
+
+<span class="s">            while (j &lt; n_time) {</span>
+<span class="s">                surrogates(i,j) = original_data(i,k);</span>
+
+<span class="s">                //  Get the list of twins of sample k in the original_data</span>
+<span class="s">                //  time series.</span>
+<span class="s">                py::list twins_ik = PyList_GetItem(twins_i,k);</span>
+
+<span class="s">                //  Get the number of twins of k</span>
+<span class="s">                n_twins = PyList_Size(twins_ik);</span>
+
+<span class="s">                //  If k has no twins, go to the next sample k+1. If k has</span>
+<span class="s">                //  twins at m, choose among m+1 and k+1 with equal probability</span>
+<span class="s">                if (n_twins == 0)</span>
+<span class="s">                    k++;</span>
+<span class="s">                else {</span>
+<span class="s">                    //  Generate a random integer between 0 and n_twins</span>
+<span class="s">                    rand = floor(drand48() * (n_twins + 1));</span>
+
+<span class="s">                    //  If rand = n_twins go to sample k+1, otherwise jump</span>
+<span class="s">                    //  to the future of one of the twins.</span>
+<span class="s">                    if (rand == n_twins)</span>
+<span class="s">                        k++;</span>
+<span class="s">                    else {</span>
+<span class="s">                        k = twins_ik[rand];</span>
+<span class="s">                        k++;</span>
+<span class="s">                    }</span>
+
+<span class="s">                }</span>
+
+<span class="s">                //  If the new k &gt;= n_time, choose a new random starting point</span>
+<span class="s">                //  in the original_data time series.</span>
+<span class="s">                if (k &gt;= n_time) {</span>
+<span class="s">                    do {</span>
+<span class="s">                        new_k = floor(drand48() * n_time);</span>
+<span class="s">                    }</span>
+<span class="s">                    while (k == new_k);</span>
+
+<span class="s">                    k = new_k;</span>
+<span class="s">                }</span>
+
+<span class="s">                j++;</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                     <span class="p">[</span><span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;n_time&#39;</span><span class="p">,</span> <span class="s">&#39;original_data&#39;</span><span class="p">,</span> <span class="s">&#39;twins&#39;</span><span class="p">,</span> <span class="s">&#39;surrogates&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">surrogates</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Defines methods to generate correlation measure matrices based on</span>
+    <span class="c">#  original_data and surrogate data for significance testing.</span>
+    <span class="c">#</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="Surrogates.eval_fast_code"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.eval_fast_code">[docs]</a>    <span class="k">def</span> <span class="nf">eval_fast_code</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">original_data</span><span class="p">,</span> <span class="n">surrogates</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluate performance of fast and slow versions of algorithms.</span>
+
+<span class="sd">        Designed for evaluating fast and dirty C code against cleaner code</span>
+<span class="sd">        using Blitz arrays. Does some profiling and returns the total error</span>
+<span class="sd">        between the results.</span>
+
+<span class="sd">        :type function: Python function</span>
+<span class="sd">        :arg function: The function to be evaluated.</span>
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :type surrogates: 2D array [index, time]</span>
+<span class="sd">        :arg surrogates: The surrogate time series.</span>
+<span class="sd">        :return float: The total squared difference between resulting matrices.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Some profiling</span>
+        <span class="c"># profile.run(&quot;fastResult = function(original_data, surrogates,</span>
+        <span class="c">#             fast=True)&quot;)</span>
+        <span class="c"># profile.run(&quot;slowResult = function(original_data, surrogates,</span>
+        <span class="c">#             fast=False)&quot;)</span>
+
+        <span class="n">fast_result</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span> <span class="n">surrogates</span><span class="p">,</span> <span class="n">fast</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">slow_result</span> <span class="o">=</span> <span class="n">function</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span> <span class="n">surrogates</span><span class="p">,</span> <span class="n">fast</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+        <span class="c">#  Return error</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(((</span><span class="n">fast_result</span> <span class="o">-</span> <span class="n">slow_result</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="Surrogates.test_pearson_correlation"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.test_pearson_correlation">[docs]</a>    <span class="k">def</span> <span class="nf">test_pearson_correlation</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span> <span class="n">surrogates</span><span class="p">,</span> <span class="n">fast</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a test matrix of the Pearson correlation coefficient (zero lag).</span>
+
+<span class="sd">        The test matrix&#39;s entry :math:`(i,j)` contains the Pearson correlation</span>
+<span class="sd">        coefficient between original time series i and surrogate time series j</span>
+<span class="sd">        at lag zero. The resulting matrix is useful for significance tests</span>
+<span class="sd">        based on the Pearson correlation matrix of the original data.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Assumes, that original_data and surrogates are already normalized.</span>
+
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :type surrogates: 2D array [index, time]</span>
+<span class="sd">        :arg surrogates: The surrogate time series.</span>
+<span class="sd">        :rtype: 2D array [index, index]</span>
+<span class="sd">        :return: the Pearson correlation test matrix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">n_time</span><span class="p">)</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">norm</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">n_time</span><span class="p">)</span>
+
+        <span class="c">#  Initialize Pearson correlation matrix</span>
+        <span class="n">correlation</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="c">#  correlation[i,j] gives the Pearson correlation coefficient between</span>
+        <span class="c">#  the ith original_data time series and the jth surrogate time series</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        for (int i = 0; i &lt; N; i++) {</span>
+<span class="s">            for (int j = 0; j &lt; N; j++) {</span>
+<span class="s">                if (i != j) {</span>
+<span class="s">                    for (int k = 0; k &lt; n_time; k++) {</span>
+<span class="s">                        correlation(i,j) += original_data(i,k) *</span>
+<span class="s">                                            surrogates(j,k);</span>
+<span class="s">                    }</span>
+<span class="s">                    correlation(i,j) *= norm;</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+
+        <span class="c">#  Some faster weave inline code accessing Numpy arrays directly in C</span>
+        <span class="c">#  using pointer arithmetic.</span>
+        <span class="c">#  If the arrays are of C type, the last index varies the fastest!</span>
+        <span class="c">#  For this code to work correctly, arrays have to contiguous and of</span>
+        <span class="c">#  C type!!!</span>
+        <span class="n">fastCode</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">        float *p_correlation;</span>
+<span class="s">        double *p_original, *p_surrogates;</span>
+
+<span class="s">        for (int i = 0; i &lt; N; i++) {</span>
+<span class="s">            //  Set pointer to correlation(i,0)</span>
+<span class="s">            p_correlation = correlation + i*N;</span>
+
+<span class="s">            for (int j = 0; j &lt; N; j++) {</span>
+<span class="s">                if (i != j) {</span>
+<span class="s">                    //  Set pointer to original_data(i,0)</span>
+<span class="s">                    p_original = original_data + i*n_time;</span>
+<span class="s">                    //  Set pointer to surrogates(j,0)</span>
+<span class="s">                    p_surrogates = surrogates + j*n_time;</span>
+
+<span class="s">                    for (int k = 0; k &lt; n_time; k++) {</span>
+<span class="s">                        *p_correlation += (*p_original) * (*p_surrogates);</span>
+<span class="s">                        //  Set pointer to original_data(i,k+1)</span>
+<span class="s">                        p_original++;</span>
+<span class="s">                        //  Set pointer to surrogates(j,k+1)</span>
+<span class="s">                        p_surrogates++;</span>
+<span class="s">                    }</span>
+<span class="s">                    *p_correlation *= norm;</span>
+<span class="s">                }</span>
+<span class="s">                p_correlation++;</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;original_data&#39;</span><span class="p">,</span> <span class="s">&#39;surrogates&#39;</span><span class="p">,</span> <span class="s">&#39;correlation&#39;</span><span class="p">,</span> <span class="s">&#39;n_time&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">,</span>
+                <span class="s">&#39;norm&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">fast</span><span class="p">:</span>
+            <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">fastCode</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">blitz</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">correlation</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="Surrogates.test_mutual_information"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.test_mutual_information">[docs]</a>    <span class="k">def</span> <span class="nf">test_mutual_information</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span> <span class="n">surrogates</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+                                <span class="n">fast</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a test matrix of mutual information (zero lag).</span>
+
+<span class="sd">        The test matrix&#39;s entry :math:`(i,j)` contains the mutual information</span>
+<span class="sd">        between original time series i and surrogate time series j at zero lag.</span>
+<span class="sd">        The resulting matrix is useful for significance tests based on the</span>
+<span class="sd">        mutual information matrix of the original data.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Assumes, that original_data and surrogates are already normalized.</span>
+
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :type surrogates: 2D Numpy array [index, time]</span>
+<span class="sd">        :arg surrogates: The surrogate time series.</span>
+<span class="sd">        :arg int n_bins: Number of bins for estimating prob. distributions.</span>
+<span class="sd">        :arg bool fast: fast or slow algorithm to be used.</span>
+<span class="sd">        :rtype: 2D array [index, index]</span>
+<span class="sd">        :return: the mutual information test matrix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">n_time</span><span class="p">)</span> <span class="o">=</span> <span class="n">original_data</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c">#  Get common range for all histograms</span>
+        <span class="n">range_min</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">surrogates</span><span class="o">.</span><span class="n">min</span><span class="p">()))</span>
+        <span class="n">range_max</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">surrogates</span><span class="o">.</span><span class="n">max</span><span class="p">()))</span>
+
+        <span class="c">#  Rescale all time series to the interval [0,1], using the maximum</span>
+        <span class="c">#  range of the whole dataset</span>
+        <span class="n">scaling</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="p">(</span><span class="n">range_max</span> <span class="o">-</span> <span class="n">range_min</span><span class="p">)</span>
+
+        <span class="c">#  Create arrays to hold symbolic trajectories</span>
+        <span class="n">symbolic_original</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int32&quot;</span><span class="p">)</span>
+        <span class="n">symbolic_surrogates</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">original_data</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int32&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Initialize array to hold 1d-histograms of individual time series</span>
+        <span class="n">hist_original</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int32&quot;</span><span class="p">)</span>
+        <span class="n">hist_surrogates</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int32&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Initialize array to hold 2d-histogram for one pair of time series</span>
+        <span class="n">hist2d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_bins</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int32&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Initialize mutual information array</span>
+        <span class="n">mi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Calculate symbolic time series and histograms</span>
+        <span class="c">#  Calculate 2D histograms and mutual information</span>
+        <span class="c">#  mi[i,j] gives the mutual information between the ith original_data</span>
+        <span class="c">#  time series and the jth surrogate time series.</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int i, j, k, l, m;</span>
+<span class="s">        int symbol, symbol_i, symbol_j;</span>
+<span class="s">        double rescaled, norm, hpl, hpm, plm;</span>
+
+<span class="s">        //  Calculate histogram norm</span>
+<span class="s">        norm = 1.0 / n_time;</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+<span class="s">            for (k = 0; k &lt; n_time; k++) {</span>
+
+<span class="s">                //  Original time series</span>
+<span class="s">                //  Calculate symbolic trajectories for each time series,</span>
+<span class="s">                //  where the symbols are bins</span>
+<span class="s">                rescaled = scaling * (original_data(i,k) - range_min);</span>
+
+<span class="s">                if (rescaled&lt; 1.0)</span>
+<span class="s">                    symbolic_original(i,k) = rescaled * n_bins;</span>
+<span class="s">                else</span>
+<span class="s">                    symbolic_original(i,k) = n_bins - 1;</span>
+
+<span class="s">                //  Calculate 1d-histograms for single time series</span>
+<span class="s">                symbol = symbolic_original(i,k);</span>
+<span class="s">                hist_original(i,symbol) += 1;</span>
+
+<span class="s">                //  Surrogate time series</span>
+<span class="s">                //  Calculate symbolic trajectories for each time series,</span>
+<span class="s">                //  where the symbols are bins</span>
+<span class="s">                rescaled = scaling * (surrogates(i,k) - range_min);</span>
+
+<span class="s">                if (rescaled &lt; 1.0)</span>
+<span class="s">                    symbolic_surrogates(i,k) = rescaled * n_bins;</span>
+<span class="s">                else</span>
+<span class="s">                    symbolic_surrogates(i,k) = n_bins - 1;</span>
+
+<span class="s">                //  Calculate 1d-histograms for single time series</span>
+<span class="s">                symbol = symbolic_surrogates(i,k);</span>
+<span class="s">                hist_surrogates(i,symbol) += 1;</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+<span class="s">            for (j = 0; j &lt; N; j++) {</span>
+
+<span class="s">                //  The case i = j is not of interest here!</span>
+<span class="s">                if (i != j) {</span>
+<span class="s">                    //  Calculate 2d-histogram for one pair of time series</span>
+<span class="s">                    //  (i,j).</span>
+<span class="s">                    for (k = 0; k &lt; n_time; k++) {</span>
+<span class="s">                        symbol_i = symbolic_original(i,k);</span>
+<span class="s">                        symbol_j = symbolic_surrogates(j,k);</span>
+<span class="s">                        hist2d(symbol_i,symbol_j) += 1;</span>
+<span class="s">                    }</span>
+
+<span class="s">                    //  Calculate mutual information for one pair of time</span>
+<span class="s">                    //  series (i,j).</span>
+<span class="s">                    for (l = 0; l &lt; n_bins; l++) {</span>
+<span class="s">                        hpl = hist_original(i,l) * norm;</span>
+<span class="s">                        if (hpl &gt; 0.0) {</span>
+<span class="s">                            for (m = 0; m &lt; n_bins; m++) {</span>
+<span class="s">                                hpm = hist_surrogates(j,m) * norm;</span>
+<span class="s">                                if (hpm &gt; 0.0) {</span>
+<span class="s">                                    plm = hist2d(l,m) * norm;</span>
+<span class="s">                                    if (plm &gt; 0.0) {</span>
+<span class="s">                                        mi(i,j) += plm * log(plm/hpm/hpl);</span>
+<span class="s">                                    }</span>
+<span class="s">                                }</span>
+<span class="s">                            }</span>
+<span class="s">                        }</span>
+<span class="s">                    }</span>
+
+<span class="s">                    //  Reset hist2d to zero in all bins</span>
+<span class="s">                    for (l = 0; l &lt; n_bins; l++) {</span>
+<span class="s">                        for (m = 0; m &lt; n_bins; m++)</span>
+<span class="s">                            hist2d(l,m) = 0;</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+
+        <span class="c">#  original_data and surrogates must be contiguous Numpy arrays for</span>
+        <span class="c">#  this code to work correctly!</span>
+        <span class="c">#  All other arrays are generated from scratch in this method and</span>
+        <span class="c">#  are guaranteed to be contiguous by np.</span>
+        <span class="n">fastCode</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        long i, j, k, l, m, in_bins, jn_bins, in_time, jn_time;</span>
+<span class="s">        double norm, rescaled, hpl, hpm, plm;</span>
+
+<span class="s">        double *p_original, *p_surrogates;</span>
+<span class="s">        float *p_mi;</span>
+<span class="s">        long *p_symbolic_original, *p_symbolic_surrogates, *p_hist_original,</span>
+<span class="s">             *p_hist_surrogates, *p_hist2d;</span>
+
+<span class="s">        //  Calculate histogram norm</span>
+<span class="s">        norm = 1.0 / n_time;</span>
+
+<span class="s">        //  Initialize in_bins, in_time</span>
+<span class="s">        in_time = in_bins = 0;</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+
+<span class="s">            //  Set pointer to original_data(i,0)</span>
+<span class="s">            p_original = original_data + in_time;</span>
+<span class="s">            //  Set pointer to surrogates(i,0)</span>
+<span class="s">            p_surrogates = surrogates + in_time;</span>
+<span class="s">            //  Set pointer to symbolic_original(i,0)</span>
+<span class="s">            p_symbolic_original = symbolic_original + in_time;</span>
+<span class="s">            //  Set pointer to symbolic_surrogates(i,0)</span>
+<span class="s">            p_symbolic_surrogates = symbolic_surrogates + in_time;</span>
+
+<span class="s">            for (k = 0; k &lt; n_time; k++) {</span>
+
+<span class="s">                //  Rescale sample into interval [0,1]</span>
+<span class="s">                rescaled = scaling * (*p_original - range_min);</span>
+
+<span class="s">                //  Calculate symbolic trajectories for each time series,</span>
+<span class="s">                //  where the symbols are bin numbers.</span>
+<span class="s">                if (rescaled &lt; 1.0)</span>
+<span class="s">                    *p_symbolic_original = rescaled * n_bins;</span>
+<span class="s">                else</span>
+<span class="s">                    *p_symbolic_original = n_bins - 1;</span>
+
+<span class="s">                //  Calculate 1d-histograms for single time series</span>
+<span class="s">                //  Set pointer to hist_original(i, *p_symbolic_original)</span>
+<span class="s">                p_hist_original = hist_original + in_bins</span>
+<span class="s">                                  + *p_symbolic_original;</span>
+<span class="s">                (*p_hist_original)++;</span>
+
+<span class="s">                //  Rescale sample into interval [0,1]</span>
+<span class="s">                rescaled = scaling * (*p_surrogates - range_min);</span>
+
+<span class="s">                //  Calculate symbolic trajectories for each time series,</span>
+<span class="s">                //  where the symbols are bin numbers.</span>
+<span class="s">                if (rescaled &lt; 1.0)</span>
+<span class="s">                    *p_symbolic_surrogates = rescaled * n_bins;</span>
+<span class="s">                else</span>
+<span class="s">                    *p_symbolic_surrogates = n_bins - 1;</span>
+
+<span class="s">                //  Calculate 1d-histograms for single time series</span>
+<span class="s">                //  Set pointer to hist_surrogates(i, *p_symbolic_surrogates)</span>
+<span class="s">                p_hist_surrogates = hist_surrogates + in_bins</span>
+<span class="s">                                    + *p_symbolic_surrogates;</span>
+<span class="s">                (*p_hist_surrogates)++;</span>
+
+<span class="s">                //  Set pointer to original_data(i,k+1)</span>
+<span class="s">                p_original++;</span>
+<span class="s">                //  Set pointer to surrogates(i,k+1)</span>
+<span class="s">                p_surrogates++;</span>
+<span class="s">                //  Set pointer to symbolic_original(i,k+1)</span>
+<span class="s">                p_symbolic_original++;</span>
+<span class="s">                //  Set pointer to symbolic_surrogates(i,k+1)</span>
+<span class="s">                p_symbolic_surrogates++;</span>
+<span class="s">            }</span>
+<span class="s">            in_bins += n_bins;</span>
+<span class="s">            in_time += n_time;</span>
+<span class="s">        }</span>
+
+<span class="s">        //  Initialize in_time, in_bins</span>
+<span class="s">        in_time = in_bins = 0;</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+
+<span class="s">            //  Set pointer to mi(i,0)</span>
+<span class="s">            p_mi = mi + i*N;</span>
+
+<span class="s">            //  Initialize jn_time = 0;</span>
+<span class="s">            jn_time = jn_bins = 0;</span>
+
+<span class="s">            for (j = 0; j &lt; N; j++) {</span>
+
+<span class="s">                //  Don&#39;t do anything if i = j, this case is not of</span>
+<span class="s">                //  interest here!</span>
+<span class="s">                if (i != j) {</span>
+
+<span class="s">                    //  Set pointer to symbolic_original(i,0)</span>
+<span class="s">                    p_symbolic_original = symbolic_original + in_time;</span>
+<span class="s">                    //  Set pointer to symbolic_surrogates(j,0)</span>
+<span class="s">                    p_symbolic_surrogates = symbolic_surrogates + jn_time;</span>
+
+<span class="s">                    //  Calculate 2d-histogram for one pair of time series</span>
+<span class="s">                    //  (i,j).</span>
+<span class="s">                    for (k = 0; k &lt; n_time; k++) {</span>
+
+<span class="s">                        //  Set pointer to hist2d(*p_symbolic_original,</span>
+<span class="s">                        //                        *p_symbolic_surrogates)</span>
+<span class="s">                        p_hist2d = hist2d + (*p_symbolic_original)*n_bins</span>
+<span class="s">                                   + *p_symbolic_surrogates;</span>
+
+<span class="s">                        (*p_hist2d)++;</span>
+
+<span class="s">                        //  Set pointer to symbolic_original(i,k+1)</span>
+<span class="s">                        p_symbolic_original++;</span>
+<span class="s">                        //  Set pointer to symbolic_surrogates(j,k+1)</span>
+<span class="s">                        p_symbolic_surrogates++;</span>
+<span class="s">                    }</span>
+
+<span class="s">                    //  Calculate mutual information for one pair of time</span>
+<span class="s">                    //  series (i,j)</span>
+
+<span class="s">                    //  Set pointer to hist_original(i,0)</span>
+<span class="s">                    p_hist_original = hist_original + in_bins;</span>
+
+<span class="s">                    for (l = 0; l &lt; n_bins; l++) {</span>
+
+<span class="s">                        //  Set pointer to hist_surrogates(j,0)</span>
+<span class="s">                        p_hist_surrogates = hist_surrogates + jn_bins;</span>
+<span class="s">                        //  Set pointer to hist2d(l,0)</span>
+<span class="s">                        p_hist2d = hist2d + l*n_bins;</span>
+
+<span class="s">                        hpl = (*p_hist_original) * norm;</span>
+
+<span class="s">                        if (hpl &gt; 0.0) {</span>
+<span class="s">                            for (m = 0; m &lt; n_bins; m++) {</span>
+
+<span class="s">                                hpm = (*p_hist_surrogates) * norm;</span>
+
+<span class="s">                                if (hpm &gt; 0.0) {</span>
+<span class="s">                                    plm = (*p_hist2d) * norm;</span>
+<span class="s">                                    if (plm &gt; 0.0)</span>
+<span class="s">                                        *p_mi += plm * log(plm/hpm/hpl);</span>
+<span class="s">                                }</span>
+
+<span class="s">                                //  Set pointer to hist_surrogates(j,m+1)</span>
+<span class="s">                                p_hist_surrogates++;</span>
+<span class="s">                                //  Set pointer to hist2d(l,m+1)</span>
+<span class="s">                                p_hist2d++;</span>
+<span class="s">                            }</span>
+<span class="s">                        }</span>
+<span class="s">                        //  Set pointer to hist_original(i,l+1)</span>
+<span class="s">                        p_hist_original++;</span>
+<span class="s">                    }</span>
+
+<span class="s">                    //  Reset hist2d to zero in all bins</span>
+<span class="s">                    for (l = 0; l &lt; n_bins; l++) {</span>
+
+<span class="s">                        //  Set pointer to hist2d(l,0)</span>
+<span class="s">                        p_hist2d = hist2d + l*n_bins;</span>
+
+<span class="s">                        for (m = 0; m &lt; n_bins; m++) {</span>
+<span class="s">                            *p_hist2d = 0;</span>
+
+<span class="s">                            //  Set pointer to hist2d(l,m+1)</span>
+<span class="s">                            p_hist2d++;</span>
+<span class="s">                        }</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">                //  Set pointer to mi(i,j+1)</span>
+<span class="s">                p_mi++;</span>
+
+<span class="s">                jn_time += n_time;</span>
+<span class="s">                jn_bins += n_bins;</span>
+<span class="s">            }</span>
+<span class="s">            in_time += n_time;</span>
+<span class="s">            in_bins += n_bins;</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;n_time&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;n_bins&#39;</span><span class="p">,</span> <span class="s">&#39;scaling&#39;</span><span class="p">,</span> <span class="s">&#39;range_min&#39;</span><span class="p">,</span>
+                <span class="s">&#39;original_data&#39;</span><span class="p">,</span> <span class="s">&#39;surrogates&#39;</span><span class="p">,</span> <span class="s">&#39;symbolic_original&#39;</span><span class="p">,</span>
+                <span class="s">&#39;symbolic_surrogates&#39;</span><span class="p">,</span> <span class="s">&#39;hist_original&#39;</span><span class="p">,</span> <span class="s">&#39;hist_surrogates&#39;</span><span class="p">,</span>
+                <span class="s">&#39;hist2d&#39;</span><span class="p">,</span> <span class="s">&#39;mi&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">fast</span><span class="p">:</span>
+            <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">fastCode</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">blitz</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mi</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Define methods to perform significance tests on correlation measures</span>
+    <span class="c">#  based on surrogates.</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="Surrogates.original_distribution"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.original_distribution">[docs]</a>    <span class="k">def</span> <span class="nf">original_distribution</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">test_function</span><span class="p">,</span> <span class="n">original_data</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">100</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a normalized histogram of a similarity measure matrix.</span>
+
+<span class="sd">        The absolute value of the similarity measure is used, since only the</span>
+<span class="sd">        degree of similarity was of interest originally.</span>
+
+<span class="sd">        :type test_function: Python function</span>
+<span class="sd">        :arg test_function: The function implementing the similarity measure.</span>
+<span class="sd">        :type original_data: 2D array [index, time]</span>
+<span class="sd">        :arg original_data: The original time series.</span>
+<span class="sd">        :arg int n_bins: The number of bins for estimating prob. distributions.</span>
+<span class="sd">        :rtype: tuple of 1D arrays ([bins],[bins])</span>
+<span class="sd">        :return: the similarity measure histogram and lower bin boundaries.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Estimating probability density distribution of </span><span class="se">\</span>
+<span class="s">original_data data...&quot;</span>
+
+        <span class="c">#  Normalize original_data time series to zero mean and unit variance</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalized</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">normalize_time_series_array</span><span class="p">(</span><span class="n">original_data</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_normalized</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="n">correlation_measure</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">test_function</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span>
+                                                   <span class="n">original_data</span><span class="p">))</span>
+        <span class="p">(</span><span class="n">hist</span><span class="p">,</span> <span class="n">lbb</span><span class="p">)</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">correlation_measure</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">,</span> <span class="n">normed</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="c">#  Normalize</span>
+        <span class="n">hist</span> <span class="o">/=</span> <span class="n">hist</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="n">lbb</span> <span class="o">=</span> <span class="n">lbb</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">hist</span><span class="p">,</span> <span class="n">lbb</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Surrogates.test_threshold_significance"><a class="viewcode-back" href="../../../api/timeseries/surrogates.html#pyunicorn.timeseries.surrogates.Surrogates.test_threshold_significance">[docs]</a>    <span class="k">def</span> <span class="nf">test_threshold_significance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">surrogate_function</span><span class="p">,</span> <span class="n">test_function</span><span class="p">,</span>
+                                    <span class="n">realizations</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+                                    <span class="n">interval</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a test distribution for a similarity measure.</span>
+
+<span class="sd">        Perform a significance test on the values of a correlation measure</span>
+<span class="sd">        based on original_data time series and surrogate data. Returns a</span>
+<span class="sd">        density estimate (histogram) of the absolute value of the correlation</span>
+<span class="sd">        measure over all realizations.</span>
+
+<span class="sd">        The resulting distribution of the values of similarity measure from</span>
+<span class="sd">        original and surrogate time series is of use for testing the</span>
+<span class="sd">        statistical significance of a selected threshold value for climate</span>
+<span class="sd">        network generation.</span>
+
+<span class="sd">        :type surrogate_function: Python function</span>
+<span class="sd">        :arg surrogate_function: The function implementing the surrogates.</span>
+<span class="sd">        :type test_function: Python function</span>
+<span class="sd">        :arg test_function: The function implementing the similarity measure.</span>
+<span class="sd">        :arg int realizations: The number of surrogates to be created for each</span>
+<span class="sd">            time series.</span>
+<span class="sd">        :arg int n_bins: The number of bins for estimating probability</span>
+<span class="sd">            distribution of test similarity measure.</span>
+<span class="sd">        :type interval: (float, float)</span>
+<span class="sd">        :arg interval: The range over which to estimate similarity measure</span>
+<span class="sd">            distribution.</span>
+<span class="sd">        :rtype: tuple of 1D arrays ([bins],[bins])</span>
+<span class="sd">        :return: similarity measure test histogram and lower bin boundaries.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Starting significance test based on&quot;</span><span class="p">,</span> <span class="n">realizations</span><span class="p">,</span> \
+                  <span class="s">&quot;realizations of surrogates...&quot;</span>
+
+        <span class="n">original_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">original_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fft_cached</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_twins_cached</span> <span class="o">=</span> <span class="bp">False</span>
+
+        <span class="c">#  Create reference to np.histogram function</span>
+        <span class="n">numpy_hist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span>
+
+        <span class="c">#  Normalize original_data time series to zero mean and unit variance</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalized</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">normalize_time_series_array</span><span class="p">(</span><span class="n">original_data</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_normalized</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="c">#  Initialize density estimate</span>
+        <span class="n">density_estimate</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_bins</span><span class="p">)</span>
+
+        <span class="c">#  Initialize progress bar</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">progress</span> <span class="o">=</span> <span class="n">progressbar</span><span class="o">.</span><span class="n">ProgressBar</span><span class="p">(</span><span class="n">maxval</span><span class="o">=</span><span class="n">realizations</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">realizations</span><span class="p">):</span>
+            <span class="c">#  Update progress bar</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">progress</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+            <span class="c">#  Get the surrogate</span>
+            <span class="c">#  Mean and variance are conserved by all surrogates</span>
+            <span class="n">surrogates</span> <span class="o">=</span> <span class="n">surrogate_function</span><span class="p">(</span><span class="n">original_data</span><span class="p">)</span>
+
+            <span class="c">#  Get the correlation measure test matrix</span>
+            <span class="n">correlation_measure_test</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">test_function</span><span class="p">(</span><span class="n">original_data</span><span class="p">,</span>
+                                                            <span class="n">surrogates</span><span class="p">))</span>
+
+            <span class="c">#  Test if correlation measure values are outside range</span>
+            <span class="k">if</span> <span class="n">correlation_measure_test</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">interval</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">print</span> <span class="s">&quot;Warning! Correlation measure value left of range.&quot;</span>
+            <span class="k">if</span> <span class="n">correlation_measure_test</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">interval</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="k">print</span> <span class="s">&quot;Warning! Correlation measure value right of range.&quot;</span>
+
+            <span class="c">#  Estimate density of current realization</span>
+            <span class="p">(</span><span class="n">hist</span><span class="p">,</span> <span class="n">lbb</span><span class="p">)</span> <span class="o">=</span> <span class="n">numpy_hist</span><span class="p">(</span><span class="n">correlation_measure_test</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">,</span>
+                                     <span class="n">interval</span><span class="p">,</span> <span class="n">normed</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+            <span class="c">#  Add to density estimate over all realizations</span>
+            <span class="n">density_estimate</span> <span class="o">+=</span> <span class="n">hist</span>
+
+            <span class="c">#  Clean up (should be done automatically by Python,</span>
+            <span class="c">#  but you never know...)</span>
+            <span class="k">del</span> <span class="n">surrogates</span><span class="p">,</span> <span class="n">correlation_measure_test</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">progress</span><span class="o">.</span><span class="n">finish</span><span class="p">()</span>
+
+        <span class="c">#  Normalize density estimate</span>
+        <span class="n">density_estimate</span> <span class="o">/=</span> <span class="n">density_estimate</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="n">lbb</span> <span class="o">=</span> <span class="n">lbb</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">density_estimate</span><span class="p">,</span> <span class="n">lbb</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2008-2015, Jonathan F. Donges and pyunicorn authors.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

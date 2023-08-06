@@ -1,0 +1,1092 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pyunicorn.funcnet.coupling_analysis &mdash; pyunicorn 0.5.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.5.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pyunicorn 0.5.1 documentation" href="../../../sitemap.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+<a href="../../../index.html"><img src="../../../_static/logo.png" border="0" alt="py4sci"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../sitemap.html">
+              <img class="logo" src="../../../_static/logo.png" alt="Logo"/>
+            </a></p>
+<h3><a href="../../../sitemap.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../methods.html">Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_doc.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../publications.html">Publications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contact.html">Contact</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyunicorn.funcnet.coupling_analysis</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#</span>
+<span class="c"># This file is part of pyunicorn.</span>
+<span class="c"># Copyright (C) 2008--2015 Jonathan F. Donges and pyunicorn authors</span>
+<span class="c"># URL: &lt;http://www.pik-potsdam.de/members/donges/software&gt;</span>
+<span class="c"># License: BSD (3-clause)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Provides classes for analyzing spatially embedded complex networks, handling</span>
+<span class="sd">multivariate data.</span>
+<span class="sd">Written by Jakob Runge.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span>                        <span class="c"># array object and fast numerics</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">special</span><span class="p">,</span> <span class="n">linalg</span>   <span class="c"># special math functions</span>
+
+<span class="c"># import mpi                          # parallelized computations</span>
+
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">weave_inline</span>          <span class="c"># C++ inline code</span>
+
+
+<span class="c">#</span>
+<span class="c">#  Define class Coupling Analysis</span>
+<span class="c">#</span>
+
+<div class="viewcode-block" id="CouplingAnalysis"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis">[docs]</a><span class="k">class</span> <span class="nc">CouplingAnalysis</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Contains methods to calculate coupling matrices from large arrays</span>
+<span class="sd">    of scalar time series.</span>
+<span class="sd">    Comprises linear and information-theoretic measures, lagged</span>
+<span class="sd">    and directed couplings.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Definitions of internal methods</span>
+    <span class="c">#</span>
+
+<div class="viewcode-block" id="CouplingAnalysis.__init__"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">silence_level</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize an instance of CouplingAnalysis from data array.</span>
+
+<span class="sd">        :type data: multidimensional numpy array</span>
+<span class="sd">        :arg data: The time series array with time in first dimension.</span>
+<span class="sd">        :type silence_level: int &gt;= 0</span>
+<span class="sd">        :arg  silence_level: The higher, the less progress info is output.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">=</span> <span class="n">silence_level</span>
+        <span class="sd">&quot;&quot;&quot;(int&gt;=0) higher -&gt; less progress info&quot;&quot;&quot;</span>
+
+        <span class="c">#  Flatten array along spatial dimensions to allow</span>
+        <span class="c">#  for more convinient indexing</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_time</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n_time</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c">#  precalculation of p*log(p) needed for entropies</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plogp</span> <span class="o">=</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysis.__str__"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.__str__">[docs]</a>    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a string representation of the CouplingAnalysis object.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;CouplingAnalysis: </span><span class="si">%i</span><span class="s"> variables, </span><span class="si">%i</span><span class="s"> timesteps.&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_time</span><span class="p">)</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="CouplingAnalysis.test_data"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.test_data">[docs]</a>    <span class="k">def</span> <span class="nf">test_data</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return example test data as discussed in pyunicorn description paper.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+        <span class="n">noise</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">noise</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1000</span><span class="p">):</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.8</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">noise</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.8</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">noise</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.7</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">noise</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.7</span> <span class="o">*</span> <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">noise</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">data</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysis.symmetrize_by_absmax"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.symmetrize_by_absmax">[docs]</a>    <span class="k">def</span> <span class="nf">symmetrize_by_absmax</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">similarity_matrix</span><span class="p">,</span> <span class="n">lag_matrix</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns symmetrized similarity matrix.</span>
+
+<span class="sd">        Computes the largest absolute value for each pair (i,j) and (j,i) and</span>
+<span class="sd">        returns the in-place changed matrices of measures and lags. A negative</span>
+<span class="sd">        lag for an entry (i,j) in the lag_matrix then indicates a &#39;direction&#39;</span>
+<span class="sd">        j --&gt; i regarding the peak of the lag function, and vice versa for a</span>
+<span class="sd">        positive lag.</span>
+
+<span class="sd">        **Example:**</span>
+
+<span class="sd">        &gt;&gt;&gt; coup_ana = CouplingAnalysis(CouplingAnalysis.test_data())</span>
+<span class="sd">        &gt;&gt;&gt; similarity_matrix, lag_matrix = coup_ana.cross_correlation(</span>
+<span class="sd">        ...     tau_max=2)</span>
+<span class="sd">        &gt;&gt;&gt; r((similarity_matrix, lag_matrix))</span>
+<span class="sd">        (array([[ 1.    , 0.698 , 0.7788, 0.7535],</span>
+<span class="sd">                [ 0.4848, 1.    , 0.4507, 0.52  ],</span>
+<span class="sd">                [ 0.6219, 0.5704, 1.    , 0.5996],</span>
+<span class="sd">                [ 0.4833, 0.5503, 0.5002, 1.    ]]),</span>
+<span class="sd">         array([[0, 2, 1, 2], [0, 0, 0, 0],</span>
+<span class="sd">                [0, 2, 0, 1], [0, 2, 0, 0]]))</span>
+<span class="sd">        &gt;&gt;&gt; r(coup_ana.symmetrize_by_absmax(similarity_matrix, lag_matrix))</span>
+<span class="sd">        (array([[ 1.    , 0.698 , 0.7788, 0.7535],</span>
+<span class="sd">                [ 0.698 , 1.    , 0.5704, 0.5503],</span>
+<span class="sd">                [ 0.7788, 0.5704, 1.    , 0.5996],</span>
+<span class="sd">                [ 0.7535, 0.5503, 0.5996, 1.    ]]),</span>
+<span class="sd">         array([[ 0, 2, 1, 2], [-2, 0, -2, -2],</span>
+<span class="sd">                [-1, 2, 0, 1], [-2, 2, -1, 0]]))</span>
+
+<span class="sd">        :type similarity_matrix: array-like [float]</span>
+<span class="sd">        :arg  similarity_matrix: array-like [node, node] matrix of similarity</span>
+<span class="sd">                                 estimates</span>
+
+<span class="sd">        :type lag_matrix: array-like [int&gt;=0]</span>
+<span class="sd">        :arg  lag_matrix:  array-like [node, node] matrix of lags</span>
+
+<span class="sd">        :rtype: tuple of arrays</span>
+<span class="sd">        :returns: the value at the absolute maximum and the (pos or neg) lag.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int i,j;</span>
+<span class="s">        // loop over all node pairs</span>
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+<span class="s">            for (j = i+1; j &lt; N; j++) {</span>
+<span class="s">                // calculate max and argmax by comparing to</span>
+<span class="s">                // previous value and storing max</span>
+<span class="s">                if (fabs(similarity_matrix(i,j)) &gt;</span>
+<span class="s">                        fabs(similarity_matrix(j,i))) {</span>
+<span class="s">                    similarity_matrix(j,i) = similarity_matrix(i,j);</span>
+<span class="s">                    lag_matrix(j,i) = -lag_matrix(i,j);</span>
+<span class="s">                }</span>
+<span class="s">                else {</span>
+<span class="s">                    similarity_matrix(i,j) = similarity_matrix(j,i);</span>
+<span class="s">                    lag_matrix(i,j) = -lag_matrix(j,i);</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span> <span class="p">[</span><span class="s">&#39;similarity_matrix&#39;</span><span class="p">,</span> <span class="s">&#39;lag_matrix&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">similarity_matrix</span><span class="p">,</span> <span class="n">lag_matrix</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Define methods to estimate similarity measures</span>
+    <span class="c">#</span></div>
+<div class="viewcode-block" id="CouplingAnalysis.cross_correlation"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.cross_correlation">[docs]</a>    <span class="k">def</span> <span class="nf">cross_correlation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;max&#39;</span><span class="p">):</span>
+
+        <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">        Return cross correlation between all pairs of nodes.</span>
+
+<span class="sd">        Two lag-modes are available (default: lag_mode=&#39;max&#39;):</span>
+
+<span class="sd">        lag_mode = &#39;all&#39;:</span>
+<span class="sd">        Return 3-dimensional array of lagged cross correlations between all</span>
+<span class="sd">        pairs of nodes. An entry :math:`(i, j, \tau)` corresponds to</span>
+<span class="sd">        :math:`\rho(X^i_t-\tau, X^j_t)` for positive lags tau, i.e., the</span>
+<span class="sd">        direction i --&gt; j for :math:`\tau \ne 0`.</span>
+
+<span class="sd">        lag_mode = &#39;max&#39;:</span>
+<span class="sd">        Return matrix of absolute maxima and corresponding lags of lagged</span>
+<span class="sd">        cross correlation (CC) between all pairs of nodes.</span>
+<span class="sd">        Returns two usually asymmetric matrices of CC values and lags: In each</span>
+<span class="sd">        matrix, an entry :math:`(i, j)` corresponds to the (positive or</span>
+<span class="sd">        negative) value and lag, respectively, at absolute maximum of</span>
+<span class="sd">        :math:`\rho(X^i_t-\tau, X^j_t)` for positive lags tau, i.e., the</span>
+<span class="sd">        direction i --&gt; j for :math:`\tau &gt; 0`. The matrices are, thus,</span>
+<span class="sd">        asymmetric. The function :meth:`.symmetrize_by_absmax` can be used to</span>
+<span class="sd">        obtain a symmetric matrix.</span>
+
+<span class="sd">        **Example:**</span>
+
+<span class="sd">        &gt;&gt;&gt; coup_ana = CouplingAnalysis(CouplingAnalysis.test_data())</span>
+<span class="sd">        &gt;&gt;&gt; similarity_matrix, lag_matrix = coup_ana.cross_correlation(</span>
+<span class="sd">        ...     tau_max=5, lag_mode=&#39;max&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; r((similarity_matrix, lag_matrix))</span>
+<span class="sd">        (array([[ 1.   ,  0.757 ,  0.779 ,  0.7536],</span>
+<span class="sd">               [ 0.4847,  1.    ,  0.4502,  0.5197],</span>
+<span class="sd">               [ 0.6219,  0.5844,  1.    ,  0.5992],</span>
+<span class="sd">               [ 0.4827,  0.5509,  0.4996,  1.    ]]),</span>
+<span class="sd">         array([[0, 4, 1, 2], [0, 0, 0, 0], [0, 3, 0, 1], [0, 2, 0, 0]]))</span>
+
+<span class="sd">        :type tau_max: int [int&gt;=0]</span>
+<span class="sd">        :arg  tau_max: maximum lag of cross correlation lag function.</span>
+
+<span class="sd">        :type lag_mode: str [(&#39;max&#39;|&#39;all&#39;)]</span>
+<span class="sd">        :arg  lag_mode: lag-mode of cross correlations to return.</span>
+
+<span class="sd">        :rtype: 3D-array or tuple of matrices</span>
+<span class="sd">        :returns: all-lag array or matrices of value and lag at the absolute</span>
+<span class="sd">                  maximum.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">T</span><span class="p">,</span> <span class="n">N</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c"># Sanity checks</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;data is of type </span><span class="si">%s</span><span class="s">, &quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span>
+                            <span class="s">&quot;must be numpy.ndarray&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">N</span> <span class="o">&gt;</span> <span class="n">T</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;Warning: data.shape = </span><span class="si">%s</span><span class="s">,&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span>
+                  <span class="s">&quot; is it of shape (observations, variables) ?&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;NaNs in the data&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tau_max</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;tau_max = </span><span class="si">%d</span><span class="s">, &quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tau_max</span><span class="p">)</span>
+                             <span class="o">+</span> <span class="s">&quot;but 0 &lt;= tau_max&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;max&#39;</span><span class="p">,</span> <span class="s">&#39;all&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;lag_mode = </span><span class="si">%s</span><span class="s">, &quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">lag_mode</span><span class="p">)</span>
+                             <span class="o">+</span> <span class="s">&quot;but must be one of &#39;max&#39;, &#39;all&#39;&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Normalize time series to zero mean and unit variance for all lags</span>
+        <span class="n">corr_range</span> <span class="o">=</span> <span class="n">T</span> <span class="o">-</span> <span class="n">tau_max</span>
+        <span class="n">array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="c">#  Remove mean value from time series at each node</span>
+            <span class="n">array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">fastCopyAndTranspose</span><span class="p">(</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="p">:</span><span class="n">t</span><span class="o">+</span><span class="n">corr_range</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span>
+                <span class="n">data</span><span class="p">[</span><span class="n">t</span><span class="p">:</span><span class="n">t</span><span class="o">+</span><span class="n">corr_range</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">N</span><span class="p">))</span>
+
+            <span class="c">#  Normalize the variance of anomalies to one</span>
+            <span class="n">array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">/=</span> <span class="n">array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="c">#  Correct for nodes with zero variance in their time series</span>
+            <span class="n">array</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">array</span><span class="p">[</span><span class="n">t</span><span class="p">])]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="n">similarity_matrix</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+            <span class="n">lag_matrix</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int8&#39;</span><span class="p">)</span>
+
+            <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">            int i,j,tau,k, argmax;</span>
+<span class="s">            double crossij, max;</span>
+<span class="s">            // loop over all node pairs, NOT symmetric due to time shifts!</span>
+<span class="s">            for (i = 0; i &lt; N; i++) {</span>
+<span class="s">                for (j = 0; j &lt; N; j++) {</span>
+<span class="s">                    if( i != j){</span>
+<span class="s">                        max = 0.0;</span>
+<span class="s">                        argmax = 0;</span>
+<span class="s">                        // loop over taus INCLUDING the last tau value</span>
+<span class="s">                        for( tau = 0; tau &lt; tau_max + 1; tau++) {</span>
+<span class="s">                            crossij = 0;</span>
+<span class="s">                            // here the actual cross correlation is calculated</span>
+<span class="s">                            // assuming standardized arrays</span>
+<span class="s">                            for ( k = 0; k &lt; corr_range; k++) {</span>
+<span class="s">                                crossij += array(tau, i, k) *</span>
+<span class="s">                                           array(tau_max, j, k);</span>
+<span class="s">                            }</span>
+<span class="s">                            // calculate max and argmax by comparing to</span>
+<span class="s">                            // previous value and storing max</span>
+<span class="s">                            if (fabs(crossij) &gt; fabs(max)) {</span>
+<span class="s">                                max = crossij;</span>
+<span class="s">                                argmax = tau;</span>
+<span class="s">                            }</span>
+<span class="s">                        }</span>
+<span class="s">                        similarity_matrix(i,j) = max/(float)(corr_range);</span>
+<span class="s">                        lag_matrix(i,j) = tau_max - argmax;</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">            &quot;&quot;&quot;</span>
+            <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                         <span class="p">[</span><span class="s">&#39;array&#39;</span><span class="p">,</span> <span class="s">&#39;similarity_matrix&#39;</span><span class="p">,</span> <span class="s">&#39;lag_matrix&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">,</span>
+                          <span class="s">&#39;tau_max&#39;</span><span class="p">,</span> <span class="s">&#39;corr_range&#39;</span><span class="p">])</span>
+
+            <span class="k">return</span> <span class="n">similarity_matrix</span><span class="p">,</span> <span class="n">lag_matrix</span>
+
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+
+            <span class="n">lagfuncs</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span>
+                                   <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+
+            <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">            int i,j,tau,k, argmax;</span>
+<span class="s">            double crossij, max;</span>
+<span class="s">            // loop over all node pairs, NOT symmetric due to time shifts!</span>
+<span class="s">            for (i = 0; i &lt; N; i++) {</span>
+<span class="s">                for (j = 0; j &lt; N; j++) {</span>
+<span class="s">                    // loop over taus INCLUDING the last tau value</span>
+<span class="s">                    for( tau = 0; tau &lt; tau_max + 1; tau++) {</span>
+<span class="s">                        crossij = 0;</span>
+<span class="s">                        // here the actual cross correlation is calculated</span>
+<span class="s">                        // assuming standardized arrays</span>
+<span class="s">                        for ( k = 0; k &lt; corr_range; k++) {</span>
+<span class="s">                            crossij += array(tau, i, k) * array(tau_max, j, k);</span>
+<span class="s">                        }</span>
+<span class="s">                        lagfuncs(i,j,tau_max-tau) =</span>
+<span class="s">                            crossij/(float)(corr_range);</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">            &quot;&quot;&quot;</span>
+            <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                         <span class="p">[</span><span class="s">&#39;array&#39;</span><span class="p">,</span> <span class="s">&#39;lagfuncs&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;tau_max&#39;</span><span class="p">,</span> <span class="s">&#39;corr_range&#39;</span><span class="p">])</span>
+
+            <span class="k">return</span> <span class="n">lagfuncs</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysis.mutual_information"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.mutual_information">[docs]</a>    <span class="k">def</span> <span class="nf">mutual_information</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">estimator</span><span class="o">=</span><span class="s">&#39;knn&#39;</span><span class="p">,</span>
+                           <span class="n">knn</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;max&#39;</span><span class="p">):</span>
+
+        <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">        Return mutual information (MI) between all pairs of nodes.</span>
+
+<span class="sd">        Three estimators are available:</span>
+
+<span class="sd">        estimator = &#39;knn&#39; (Recommended):</span>
+<span class="sd">        Based on k-nearest-neighbors [Kraskov2004]_,</span>
+<span class="sd">        version 1 in their paper. Larger k have smaller variance, but larger</span>
+<span class="sd">        (typically negative) bias, and vice versa.</span>
+
+<span class="sd">        estimator = &#39;binning&#39;:</span>
+<span class="sd">        Binning estimator based on equal-quantile binning.</span>
+
+<span class="sd">        estimator = &#39;gauss&#39;:</span>
+<span class="sd">        Captures only linear part of association. Essentially estimates a</span>
+<span class="sd">        transformed partial correlation.</span>
+
+
+<span class="sd">        Two lag-modes are available (default: lag_mode=&#39;max&#39;):</span>
+
+<span class="sd">        lag_mode = &#39;all&#39;:</span>
+<span class="sd">        Return 3-dimensional array of lagged MI between all pairs of nodes. An</span>
+<span class="sd">        entry :math:`(i, j, \tau)` corresponds to :math:`I(X^i_t-\tau, X^j_t)`</span>
+<span class="sd">        for positive lags tau, i.e., the direction i --&gt; j for :math:`\tau \ne</span>
+<span class="sd">        0`.</span>
+
+<span class="sd">        lag_mode = &#39;max&#39;:</span>
+<span class="sd">        Return matrix of absolute maxima and corresponding lags of lagged</span>
+<span class="sd">        MI between all pairs of nodes.</span>
+<span class="sd">        Returns two usually asymmetric matrices of MI values and lags: In each</span>
+<span class="sd">        matrix, an entry :math:`(i, j)` corresponds to the value and lag,</span>
+<span class="sd">        respectively, at absolute maximum of :math:`I(X^i_t-\tau, X^j_t)` for</span>
+<span class="sd">        positive lags tau, i.e., the direction i --&gt; j for :math:`\tau &gt; 0`.</span>
+<span class="sd">        The matrices are, thus, asymmetric. The function</span>
+<span class="sd">        :meth:`.symmetrize_by_absmax` can be used to obtain a symmetric matrix.</span>
+
+<span class="sd">        Reference: [Kraskov2004]_</span>
+
+<span class="sd">        **Example:**</span>
+
+<span class="sd">        &gt;&gt;&gt; coup_ana = CouplingAnalysis(CouplingAnalysis.test_data())</span>
+<span class="sd">        &gt;&gt;&gt; similarity_matrix, lag_matrix = coup_ana.mutual_information(</span>
+<span class="sd">        ...     tau_max=5, knn=10, estimator=&#39;knn&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; similarity_matrix, lag_matrix</span>
+<span class="sd">        (array([[ 4.65048742,  0.43874303,  0.46520019,  0.41257444],</span>
+<span class="sd">               [ 0.14704162,  4.65048742,  0.10645443,  0.16393046],</span>
+<span class="sd">               [ 0.24829103,  0.2125767 ,  4.65048742,  0.22044939],</span>
+<span class="sd">               [ 0.12093173,  0.19902836,  0.14530452,  4.65048742]],</span>
+<span class="sd">               dtype=float32),</span>
+<span class="sd">        array([[0, 4, 1, 2],</span>
+<span class="sd">               [0, 0, 0, 0],</span>
+<span class="sd">               [0, 2, 0, 1],</span>
+<span class="sd">               [0, 2, 0, 0]], dtype=int8))</span>
+
+<span class="sd">        :type tau_max: int [int&gt;=0]</span>
+<span class="sd">        :arg  tau_max: maximum lag of MI lag function.</span>
+
+<span class="sd">        :type knn: int [int&gt;=1]</span>
+<span class="sd">        :arg  knn: nearest-neighbor MI estimation parameter. (default: 10)</span>
+
+<span class="sd">        :type bins: int [int&gt;=2]</span>
+<span class="sd">        :arg  bins: binning MI estimation parameter. (default: 6)</span>
+
+<span class="sd">        :type estimator: str [(&#39;knn&#39;|&#39;binning&#39;|&#39;gauss&#39;)]</span>
+<span class="sd">        :arg  estimator: MI estimator. (default: &#39;knn&#39;)</span>
+
+<span class="sd">        :type lag_mode: str [(&#39;max&#39;|&#39;all&#39;)]</span>
+<span class="sd">        :arg  lag_mode: lag-mode of MI to return.</span>
+
+<span class="sd">        :rtype: 3D-array or tuple of matrices</span>
+<span class="sd">        :returns: all-lag array or matrices of value and lag at the absolute</span>
+<span class="sd">                  maximum.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">T</span><span class="p">,</span> <span class="n">N</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c"># Sanity checks</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;data is of type </span><span class="si">%s</span><span class="s">, &quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span>
+                            <span class="s">&quot;must be numpy.ndarray&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">N</span> <span class="o">&gt;</span> <span class="n">T</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;Warning: data.shape = </span><span class="si">%s</span><span class="s">,&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span>
+                  <span class="s">&quot; is it of shape (observations, variables) ?&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">T</span> <span class="o">&lt;</span> <span class="mi">500</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;Warning: T = </span><span class="si">%s</span><span class="s"> ,&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">T</span><span class="p">)</span> <span class="o">+</span>
+                  <span class="s">&quot; unreliable estimation using MI estimator&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;NaNs in the data&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tau_max</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;tau_max = </span><span class="si">%d</span><span class="s">, &quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tau_max</span><span class="p">)</span>
+                             <span class="o">+</span> <span class="s">&quot;but 0 &lt;= tau_max&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;knn&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">knn</span> <span class="o">&gt;</span> <span class="n">T</span><span class="o">/</span><span class="mf">2.</span> <span class="ow">or</span> <span class="n">knn</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;knn = </span><span class="si">%s</span><span class="s"> , &quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">knn</span><span class="p">)</span> <span class="o">+</span>
+                                 <span class="s">&quot;should be between 1 and T/2&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="n">similarity_matrix</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+            <span class="n">lag_matrix</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int8&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="n">lagfuncs</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;binning&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">plogp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_plogp</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+                <span class="n">maximum</span> <span class="o">=</span> <span class="mf">0.</span>
+                <span class="n">lag_at_max</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">tau</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+
+                    <span class="n">X</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">tau</span><span class="p">)]</span>
+                    <span class="n">Y</span> <span class="o">=</span> <span class="p">[(</span><span class="n">j</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>
+                    <span class="n">Z</span> <span class="o">=</span> <span class="p">[]</span>
+
+                    <span class="n">XYZ</span> <span class="o">=</span> <span class="n">X</span> <span class="o">+</span> <span class="n">Y</span> <span class="o">+</span> <span class="n">Z</span>
+                    <span class="n">dim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">XYZ</span><span class="p">)</span>
+                    <span class="n">max_lag</span> <span class="o">=</span> <span class="n">tau_max</span>
+                    <span class="n">array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">dim</span><span class="p">,</span> <span class="n">T</span> <span class="o">-</span> <span class="n">max_lag</span><span class="p">))</span>
+                    <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">node</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">XYZ</span><span class="p">):</span>
+                        <span class="n">var</span><span class="p">,</span> <span class="n">lag</span> <span class="o">=</span> <span class="n">node</span>
+                        <span class="n">array</span><span class="p">[</span><span class="n">d</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">max_lag</span> <span class="o">+</span> <span class="n">lag</span><span class="p">:</span> <span class="n">T</span> <span class="o">+</span> <span class="n">lag</span><span class="p">,</span> <span class="n">var</span><span class="p">]</span>
+
+                    <span class="k">if</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;knn&#39;</span><span class="p">:</span>
+                        <span class="n">xyz</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+                        <span class="n">k_xz</span><span class="p">,</span> <span class="n">k_yz</span><span class="p">,</span> <span class="n">k_z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_nearest_neighbors</span><span class="p">(</span>
+                            <span class="n">array</span><span class="o">=</span><span class="n">array</span><span class="p">,</span> <span class="n">xyz</span><span class="o">=</span><span class="n">xyz</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">knn</span><span class="p">,</span> <span class="n">standardize</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+                        <span class="n">ixy_z</span> <span class="o">=</span> <span class="p">(</span><span class="n">special</span><span class="o">.</span><span class="n">digamma</span><span class="p">(</span><span class="n">knn</span><span class="p">)</span>
+                                 <span class="o">+</span> <span class="p">(</span><span class="o">-</span> <span class="n">special</span><span class="o">.</span><span class="n">digamma</span><span class="p">(</span><span class="n">k_xz</span><span class="p">)</span>
+                                    <span class="o">-</span> <span class="n">special</span><span class="o">.</span><span class="n">digamma</span><span class="p">(</span><span class="n">k_yz</span><span class="p">)</span>
+                                    <span class="o">+</span> <span class="n">special</span><span class="o">.</span><span class="n">digamma</span><span class="p">(</span><span class="n">k_z</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+
+                    <span class="k">elif</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;binning&#39;</span><span class="p">:</span>
+                        <span class="n">symb_array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_quantile_bin_array</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">bins</span><span class="p">)</span>
+
+                        <span class="c"># High-dimensional Histogram</span>
+                        <span class="n">hist</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bincount_hist</span><span class="p">(</span><span class="n">symb_array</span><span class="p">)</span>
+
+                        <span class="c"># Entropies by use of vectorized function plogp</span>
+                        <span class="n">hxyz</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plogp</span><span class="p">(</span><span class="n">hist</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                                <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">plogp</span><span class="p">(</span><span class="n">T</span><span class="p">))</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+                        <span class="n">hxz</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plogp</span><span class="p">(</span><span class="n">hist</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                               <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">plogp</span><span class="p">(</span><span class="n">T</span><span class="p">))</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+                        <span class="n">hyz</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plogp</span><span class="p">(</span><span class="n">hist</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                               <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">plogp</span><span class="p">(</span><span class="n">T</span><span class="p">))</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+                        <span class="n">hz</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">plogp</span><span class="p">(</span><span class="n">hist</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                              <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">plogp</span><span class="p">(</span><span class="n">T</span><span class="p">))</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">T</span><span class="p">)</span>
+
+                        <span class="n">ixy_z</span> <span class="o">=</span> <span class="n">hxz</span> <span class="o">+</span> <span class="n">hyz</span> <span class="o">-</span> <span class="n">hz</span> <span class="o">-</span> <span class="n">hxyz</span>
+
+                    <span class="k">elif</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;gauss&#39;</span><span class="p">:</span>
+
+                        <span class="c"># Standardize</span>
+                        <span class="n">array</span> <span class="o">-=</span> <span class="n">array</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                        <span class="n">array</span> <span class="o">/=</span> <span class="n">array</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">array</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;nans after standardizing, &quot;</span>
+                                             <span class="s">&quot;possibly constant array!&quot;&quot;&quot;</span><span class="p">)</span>
+
+                        <span class="n">x</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+                        <span class="n">y</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+
+                        <span class="n">ixy_z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_par_corr_to_cmi</span><span class="p">(</span>
+                            <span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="o">/</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="o">*</span>
+                                                         <span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">)))</span>
+
+                    <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">ixy_z</span> <span class="o">&gt;</span> <span class="n">maximum</span><span class="p">:</span>
+                            <span class="n">maximum</span> <span class="o">=</span> <span class="n">ixy_z</span>
+                            <span class="n">lag_at_max</span> <span class="o">=</span> <span class="n">tau</span>
+
+                    <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+                        <span class="n">lagfuncs</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">tau</span><span class="p">]</span> <span class="o">=</span> <span class="n">ixy_z</span>
+
+                <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+                    <span class="n">similarity_matrix</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">maximum</span>
+                    <span class="n">lag_matrix</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">lag_at_max</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">similarity_matrix</span><span class="p">,</span> <span class="n">lag_matrix</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">lagfuncs</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysis.information_transfer"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.information_transfer">[docs]</a>    <span class="k">def</span> <span class="nf">information_transfer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">estimator</span><span class="o">=</span><span class="s">&#39;knn&#39;</span><span class="p">,</span>
+                             <span class="n">knn</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">past</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">cond_mode</span><span class="o">=</span><span class="s">&#39;ity&#39;</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;max&#39;</span><span class="p">):</span>
+
+        <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">        Return bivariate information transfer between all pairs of nodes.</span>
+
+<span class="sd">        Two condition modes of information transfer are available</span>
+<span class="sd">        as described in [Runge2012b]_.</span>
+
+<span class="sd">        Information transfer to Y (ITY):</span>
+<span class="sd">            .. math::</span>
+<span class="sd">                I(X^i_t-\tau, X^j_t | X^j_t-1, ...,X^j_t-past)</span>
+
+<span class="sd">        Momentary information transfer (MIT):</span>
+<span class="sd">            .. math::</span>
+<span class="sd">                I(X^i_t-\tau, X^j_t | X^j_t-1, ...,X^j_t-past, X^i_t-\tau-1,</span>
+<span class="sd">                                       ...,X^j_t-\tau-past)</span>
+
+<span class="sd">        Two estimators are available:</span>
+
+<span class="sd">        estimator = &#39;knn&#39; (Recommended):</span>
+<span class="sd">        Based on k-nearest-neighbors [Kraskov2004]_,</span>
+<span class="sd">        version 1 in their paper. Larger k have smaller variance, but larger</span>
+<span class="sd">        (typically negative) bias, and vice versa.</span>
+
+<span class="sd">        estimator = &#39;gauss&#39;:</span>
+<span class="sd">        Captures only linear part of association. Essentially estimates a</span>
+<span class="sd">        transformed partial correlation.</span>
+
+
+<span class="sd">        Two lag-modes are available (default: lag_mode=&#39;max&#39;):</span>
+
+<span class="sd">        lag_mode = &#39;all&#39;:</span>
+<span class="sd">        Return 3-dimensional array of lag-functions between all pairs of nodes.</span>
+<span class="sd">        An entry :math:`(i, j, \tau)` corresponds to :math:`I(X^i_t-\tau, X^j_t</span>
+<span class="sd">        | ...)` for positive lags tau, i.e., the direction i --&gt; j for</span>
+<span class="sd">        :math:`\tau \ne 0`.</span>
+
+<span class="sd">        lag_mode = &#39;max&#39;:</span>
+<span class="sd">        Return matrix of absolute maxima and corresponding lags of</span>
+<span class="sd">        lag-functions between all pairs of nodes.</span>
+<span class="sd">        Returns two usually asymmetric matrices of values and lags: In each</span>
+<span class="sd">        matrix, an entry :math:`(i, j)` corresponds to the value and lag,</span>
+<span class="sd">        respectively, at absolute maximum of :math:`I(X^i_t-\tau, X^j_t | ...)`</span>
+<span class="sd">        for positive lags tau, i.e., the direction i --&gt; j for :math:`\tau &gt;</span>
+<span class="sd">        0`.  The matrices are, thus, asymmetric. The function</span>
+<span class="sd">        :meth:`.symmetrize_by_absmax` can be used to obtain a symmetric matrix.</span>
+
+<span class="sd">        **Example:**</span>
+
+<span class="sd">        &gt;&gt;&gt; coup_ana = CouplingAnalysis(CouplingAnalysis.test_data())</span>
+<span class="sd">        &gt;&gt;&gt; similarity_matrix, lag_matrix = coup_ana.information_transfer(</span>
+<span class="sd">        ...     tau_max=5, estimator=&#39;knn&#39;, knn=10)</span>
+<span class="sd">        &gt;&gt;&gt; r((similarity_matrix, lag_matrix))</span>
+<span class="sd">        (array([[ 0.    ,  0.1544,  0.3261,  0.3047],</span>
+<span class="sd">               [  0.0218,  0.    ,  0.0394,  0.0976],</span>
+<span class="sd">               [  0.0134,  0.0663,  0.    ,  0.1502],</span>
+<span class="sd">               [  0.0066,  0.0694,  0.0401,  0.    ]]),</span>
+<span class="sd">        array([[0, 2, 1, 2], [5, 0, 0, 0], [5, 1, 0, 1], [5, 0, 0, 0]]))</span>
+
+<span class="sd">        :type tau_max: int [int&gt;=0]</span>
+<span class="sd">        :arg  tau_max: maximum lag of ITY lag function.</span>
+
+<span class="sd">        :type past: int [int&gt;=1]</span>
+<span class="sd">        :arg  past: maximum lag of past history.</span>
+
+<span class="sd">        :type knn: int [int&gt;=1]</span>
+<span class="sd">        :arg  knn: nearest-neighbor ITY estimation parameter. (default: 10)</span>
+
+<span class="sd">        :type bins: int [int&gt;=2]</span>
+<span class="sd">        :arg  bins: binning ITY estimation parameter. (default: 6)</span>
+
+<span class="sd">        :type estimator: str [(&#39;knn&#39;|&#39;gauss&#39;)]</span>
+<span class="sd">        :arg  estimator: ITY estimator. (default: &#39;knn&#39;)</span>
+
+<span class="sd">        :type cond_mode: str [(&#39;ity&#39;|&#39;mit&#39;)]</span>
+<span class="sd">        :arg  cond_mode: condition mode. (default: &#39;ity&#39;)</span>
+
+<span class="sd">        :type lag_mode: str [(&#39;max&#39;|&#39;all&#39;)]</span>
+<span class="sd">        :arg  lag_mode: lag-mode of ITY to return.</span>
+
+<span class="sd">        :rtype: 3D-array or tuple of matrices</span>
+<span class="sd">        :returns: all-lag array or matrices of value and lag at the absolute</span>
+<span class="sd">                  maximum.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">T</span><span class="p">,</span> <span class="n">N</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c"># Sanity checks</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;data is of type </span><span class="si">%s</span><span class="s">, &quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">+</span>
+                            <span class="s">&quot;must be numpy.ndarray&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">N</span> <span class="o">&gt;</span> <span class="n">T</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;Warning: data.shape = </span><span class="si">%s</span><span class="s">,&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span>
+                  <span class="s">&quot; is it of shape (observations, variables) ?&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;knn&#39;</span> <span class="ow">and</span> <span class="n">T</span> <span class="o">&lt;</span> <span class="mi">500</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;Warning: T = </span><span class="si">%s</span><span class="s"> ,&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">T</span><span class="p">)</span> <span class="o">+</span>
+                  <span class="s">&quot; unreliable estimation using knn-estimator&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;NaNs in the data&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tau_max</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;tau_max = </span><span class="si">%d</span><span class="s">, &quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tau_max</span><span class="p">)</span>
+                             <span class="o">+</span> <span class="s">&quot;but 0 &lt;= tau_max&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;knn&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">knn</span> <span class="o">&gt;</span> <span class="n">T</span><span class="o">/</span><span class="mf">2.</span> <span class="ow">or</span> <span class="n">knn</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;knn = </span><span class="si">%s</span><span class="s"> , &quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">knn</span><span class="p">)</span> <span class="o">+</span>
+                                 <span class="s">&quot;should be between 1 and T/2&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="n">similarity_matrix</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+            <span class="n">lag_matrix</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int8&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="n">lagfuncs</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+                <span class="n">maximum</span> <span class="o">=</span> <span class="mf">0.</span>
+                <span class="n">lag_at_max</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">for</span> <span class="n">tau</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+
+                    <span class="n">X</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">tau</span><span class="p">)]</span>
+                    <span class="n">Y</span> <span class="o">=</span> <span class="p">[(</span><span class="n">j</span><span class="p">,</span> <span class="mi">0</span><span class="p">)]</span>
+                    <span class="k">if</span> <span class="n">cond_mode</span> <span class="o">==</span> <span class="s">&#39;ity&#39;</span><span class="p">:</span>
+                        <span class="n">Z</span> <span class="o">=</span> <span class="p">[(</span><span class="n">j</span><span class="p">,</span> <span class="o">-</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">past</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+                    <span class="k">elif</span> <span class="n">cond_mode</span> <span class="o">==</span> <span class="s">&#39;mit&#39;</span><span class="p">:</span>
+                        <span class="n">Z</span> <span class="o">=</span> <span class="p">[(</span><span class="n">j</span><span class="p">,</span> <span class="o">-</span><span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">past</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+                        <span class="n">Z</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="n">tau</span> <span class="o">-</span> <span class="n">p</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">past</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+
+                    <span class="n">XYZ</span> <span class="o">=</span> <span class="n">X</span> <span class="o">+</span> <span class="n">Y</span> <span class="o">+</span> <span class="n">Z</span>
+
+                    <span class="n">dim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">XYZ</span><span class="p">)</span>
+                    <span class="n">max_lag</span> <span class="o">=</span> <span class="n">tau_max</span> <span class="o">+</span> <span class="n">past</span>
+                    <span class="n">array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">dim</span><span class="p">,</span> <span class="n">T</span> <span class="o">-</span> <span class="n">max_lag</span><span class="p">))</span>
+                    <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">node</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">XYZ</span><span class="p">):</span>
+                        <span class="n">var</span><span class="p">,</span> <span class="n">lag</span> <span class="o">=</span> <span class="n">node</span>
+                        <span class="n">array</span><span class="p">[</span><span class="n">d</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">max_lag</span> <span class="o">+</span> <span class="n">lag</span><span class="p">:</span> <span class="n">T</span> <span class="o">+</span> <span class="n">lag</span><span class="p">,</span> <span class="n">var</span><span class="p">]</span>
+
+                    <span class="k">if</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;knn&#39;</span><span class="p">:</span>
+                        <span class="n">xyz</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+
+                        <span class="n">k_xz</span><span class="p">,</span> <span class="n">k_yz</span><span class="p">,</span> <span class="n">k_z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_nearest_neighbors</span><span class="p">(</span>
+                            <span class="n">array</span><span class="o">=</span><span class="n">array</span><span class="p">,</span> <span class="n">xyz</span><span class="o">=</span><span class="n">xyz</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">knn</span><span class="p">,</span> <span class="n">standardize</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+                        <span class="n">ixy_z</span> <span class="o">=</span> <span class="p">(</span><span class="n">special</span><span class="o">.</span><span class="n">digamma</span><span class="p">(</span><span class="n">knn</span><span class="p">)</span>
+                                 <span class="o">+</span> <span class="p">(</span><span class="o">-</span> <span class="n">special</span><span class="o">.</span><span class="n">digamma</span><span class="p">(</span><span class="n">k_xz</span><span class="p">)</span>
+                                    <span class="o">-</span> <span class="n">special</span><span class="o">.</span><span class="n">digamma</span><span class="p">(</span><span class="n">k_yz</span><span class="p">)</span>
+                                    <span class="o">+</span> <span class="n">special</span><span class="o">.</span><span class="n">digamma</span><span class="p">(</span><span class="n">k_z</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+
+                    <span class="k">elif</span> <span class="n">estimator</span> <span class="o">==</span> <span class="s">&#39;gauss&#39;</span><span class="p">:</span>
+
+                        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">array</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;nans in the array!&quot;</span><span class="p">)</span>
+
+                        <span class="c"># Standardize</span>
+                        <span class="n">array</span> <span class="o">-=</span> <span class="n">array</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                        <span class="n">array</span> <span class="o">/=</span> <span class="n">array</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">array</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;nans after standardizing, &quot;</span>
+                                             <span class="s">&quot;possibly constant array!&quot;&quot;&quot;</span><span class="p">)</span>
+
+                        <span class="n">x</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+                        <span class="n">y</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">array</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                            <span class="n">confounds</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="mi">2</span><span class="p">:,</span> <span class="p">:]</span>
+                            <span class="n">ortho_confounds</span> <span class="o">=</span> <span class="n">linalg</span><span class="o">.</span><span class="n">qr</span><span class="p">(</span>
+                                <span class="n">numpy</span><span class="o">.</span><span class="n">fastCopyAndTranspose</span><span class="p">(</span><span class="n">confounds</span><span class="p">),</span>
+                                <span class="n">mode</span><span class="o">=</span><span class="s">&#39;economic&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+                            <span class="n">x</span> <span class="o">-=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">ortho_confounds</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span>
+                                           <span class="n">ortho_confounds</span><span class="p">)</span>
+                            <span class="n">y</span> <span class="o">-=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">ortho_confounds</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span>
+                                           <span class="n">ortho_confounds</span><span class="p">)</span>
+
+                        <span class="n">ixy_z</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_par_corr_to_cmi</span><span class="p">(</span>
+                            <span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="o">/</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="o">*</span>
+                                                         <span class="n">numpy</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">)))</span>
+
+                    <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">ixy_z</span> <span class="o">&gt;</span> <span class="n">maximum</span><span class="p">:</span>
+                            <span class="n">maximum</span> <span class="o">=</span> <span class="n">ixy_z</span>
+                            <span class="n">lag_at_max</span> <span class="o">=</span> <span class="n">tau</span>
+
+                    <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+                        <span class="n">lagfuncs</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">tau</span><span class="p">]</span> <span class="o">=</span> <span class="n">ixy_z</span>
+
+                <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+                    <span class="n">similarity_matrix</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">maximum</span>
+                    <span class="n">lag_matrix</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">lag_at_max</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="n">similarity_matrix</span><span class="p">[</span><span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">),</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">0.</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="n">lagfuncs</span><span class="p">[</span><span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">),</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">),</span> <span class="mf">0.</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">similarity_matrix</span><span class="p">,</span> <span class="n">lag_matrix</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">lagfuncs</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Define helper methods</span>
+    <span class="c">#</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="CouplingAnalysis._par_corr_to_cmi"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis._par_corr_to_cmi">[docs]</a>    <span class="k">def</span> <span class="nf">_par_corr_to_cmi</span><span class="p">(</span><span class="n">par_corr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Transformation of partial correlation to conditional mutual</span>
+<span class="sd">        information scale using the (multivariate) Gaussian assumption.</span>
+
+<span class="sd">        :type par_corr: float or array</span>
+<span class="sd">        :arg  par_corr: partial correlation</span>
+
+<span class="sd">        :rtype: float</span>
+<span class="sd">        :returns: transformed partial correlation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="o">-</span><span class="mf">0.5</span><span class="o">*</span><span class="n">numpy</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">par_corr</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="CouplingAnalysis._get_nearest_neighbors"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis._get_nearest_neighbors">[docs]</a>    <span class="k">def</span> <span class="nf">_get_nearest_neighbors</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">xyz</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">standardize</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns nearest-neighbors for conditional mutual information estimator.</span>
+
+<span class="sd">        Reference: [Kraskov2004]_</span>
+
+<span class="sd">        :type array: array (float)</span>
+<span class="sd">        :arg  array: data array.</span>
+
+<span class="sd">        :type xyz: array [int(0|1|2)]</span>
+<span class="sd">        :arg  xyz: identifier of X, Y, Z in CMI</span>
+
+<span class="sd">        :type k: int [int&gt;=1]</span>
+<span class="sd">        :arg  k: nearest-neighbor MI estimation parameter.</span>
+
+<span class="sd">        :type standardize: bool</span>
+<span class="sd">        :arg  standardize: standardize array before estimation. (default: True)</span>
+
+<span class="sd">        :rtype: tuple of arrays</span>
+<span class="sd">        :returns: nearest neighbors for each sample point.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">dim</span><span class="p">,</span> <span class="n">T</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="k">if</span> <span class="n">standardize</span><span class="p">:</span>
+            <span class="c"># Standardize</span>
+            <span class="n">array</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+            <span class="n">array</span> <span class="o">-=</span> <span class="n">array</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">array</span> <span class="o">/=</span> <span class="n">array</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="c"># If the time series is constant, return nan rather than raising</span>
+            <span class="c"># Exception</span>
+            <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">array</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;nans after standardizing, &quot;</span>
+                                 <span class="s">&quot;possibly constant array!&quot;</span><span class="p">)</span>
+
+        <span class="c"># Add noise to destroy ties...</span>
+        <span class="n">array</span> <span class="o">+=</span> <span class="mf">1E-10</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">array</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="c"># Flatten for fast weave.inline access</span>
+        <span class="n">array</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+        <span class="n">dim_x</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">xyz</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">dim_y</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">xyz</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">dim_x</span><span class="p">)</span>
+        <span class="c"># dim_z = maxdim - dim_x - dim_y</span>
+
+        <span class="c"># Initialize</span>
+        <span class="n">k_xz</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int32&#39;</span><span class="p">)</span>
+        <span class="n">k_yz</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int32&#39;</span><span class="p">)</span>
+        <span class="n">k_z</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int32&#39;</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">        int i, j, index=0, t, m, n, d, kxz, kyz, kz, indexfound[T];//</span>
+<span class="s">        double  dz=0., dxyz=0., dx=0., dy=0., eps, epsmax;</span>
+<span class="s">        double dist[T*dim], dxyzarray[k+1];</span>
+
+<span class="s">        // Loop over time</span>
+<span class="s">        for(i = 0; i &lt; T; i++){</span>
+
+<span class="s">            // Growing cube algorithm: Test if n = #(points in epsilon-</span>
+<span class="s">            // environment of reference point i) &gt; k</span>
+<span class="s">            // Start with epsilon for which 95</span><span class="si">% o</span><span class="s">f points are inside the cube</span>
+<span class="s">            // for a multivariate Gaussian</span>
+<span class="s">            // eps increased by 2 later, also the initial eps</span>
+<span class="s">            eps = 1.*pow( float(k)/float(T), 1./dim);</span>
+
+<span class="s">            // n counts the number of neighbors</span>
+<span class="s">            n = 0;</span>
+<span class="s">            while(n &lt;= k){</span>
+<span class="s">                // Increase cube size</span>
+<span class="s">                eps *= 2.;</span>
+<span class="s">                // Start with zero again</span>
+<span class="s">                n = 0;</span>
+<span class="s">                // Loop through all points</span>
+<span class="s">                for(t = 0; t &lt; T; t++){</span>
+<span class="s">                    d = 0;</span>
+<span class="s">                    while(fabs(array[d*T + i] - array[d*T + t] ) &lt; eps</span>
+<span class="s">                            &amp;&amp; d &lt; dim){</span>
+<span class="s">                            d += 1;</span>
+<span class="s">                    }</span>
+<span class="s">                    // If all distances are within eps, the point t lies</span>
+<span class="s">                    // within eps and n is incremented</span>
+<span class="s">                    if(d == dim){</span>
+<span class="s">                        indexfound[n] = t;</span>
+<span class="s">                        n += 1;</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+
+<span class="s">            // Calculate distance to points only within epsilon environment</span>
+<span class="s">            // according to maximum metric</span>
+<span class="s">            for(j = 0; j &lt; n; j++){</span>
+<span class="s">                index = indexfound[j];</span>
+
+<span class="s">                dxyz = 0.;</span>
+<span class="s">                for(d = 0; d &lt; dim; d++){</span>
+<span class="s">                    dist[d*T + j] = fabs(array[d*T + i] - array[d*T + index]);</span>
+<span class="s">                    dxyz = fmax( dist[d*T + j], dxyz);</span>
+<span class="s">                }</span>
+
+<span class="s">                // Use insertion sort</span>
+<span class="s">                dxyzarray[j] = dxyz;</span>
+<span class="s">                if ( j &gt; 0 ){</span>
+<span class="s">                    // only list of smallest k+1 distances need to be kept!</span>
+<span class="s">                    m = fmin(k, j-1);</span>
+<span class="s">                    while ( m &gt;= 0 &amp;&amp; dxyzarray[m] &gt; dxyz ){</span>
+<span class="s">                        dxyzarray[m+1] = dxyzarray[m];</span>
+<span class="s">                        m -= 1;</span>
+<span class="s">                    }</span>
+<span class="s">                    dxyzarray[m+1] = dxyz;</span>
+<span class="s">                }</span>
+
+<span class="s">            }</span>
+
+<span class="s">            // Epsilon of k-th nearest neighbor in joint space</span>
+<span class="s">            epsmax = dxyzarray[k];</span>
+
+<span class="s">            // Count neighbors within epsmax in subspaces, since the reference</span>
+<span class="s">            // point is included, all neighbors are at least 1</span>
+<span class="s">            kz = 0;</span>
+<span class="s">            kxz = 0;</span>
+<span class="s">            kyz = 0;</span>
+<span class="s">            for(j = 0; j &lt; T; j++){</span>
+
+<span class="s">                // X-subspace</span>
+<span class="s">                dx = fabs(array[0*T + i] - array[0*T + j]);</span>
+<span class="s">                for(d = 1; d &lt; dim_x; d++){</span>
+<span class="s">                    dist[d*T + j] = fabs(array[d*T + i] - array[d*T + j]);</span>
+<span class="s">                    dx = fmax( dist[d*T + j], dx);</span>
+<span class="s">                }</span>
+
+<span class="s">                // Y-subspace</span>
+<span class="s">                dy = fabs(array[dim_x*T + i] - array[dim_x*T + j]);</span>
+<span class="s">                for(d = dim_x; d &lt; dim_x+dim_y; d++){</span>
+<span class="s">                    dist[d*T + j] = fabs(array[d*T + i] - array[d*T + j]);</span>
+<span class="s">                    dy = fmax( dist[d*T + j], dy);</span>
+<span class="s">                }</span>
+
+<span class="s">                // Z-subspace, if empty, dz stays 0</span>
+<span class="s">                dz = 0.;</span>
+<span class="s">                for(d = dim_x+dim_y; d &lt; dim ; d++){</span>
+<span class="s">                    dist[d*T + j] = fabs(array[d*T + i] - array[d*T + j]);</span>
+<span class="s">                    dz = fmax( dist[d*T + j], dz);</span>
+<span class="s">                }</span>
+
+<span class="s">                // For no conditions, kz is counted up to T</span>
+<span class="s">                if (dz &lt; epsmax){</span>
+<span class="s">                    kz += 1;</span>
+<span class="s">                    if (dx &lt; epsmax){</span>
+<span class="s">                        kxz += 1;</span>
+<span class="s">                    }</span>
+<span class="s">                    if (dy &lt; epsmax){</span>
+<span class="s">                        kyz += 1;</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">            // Write to numpy arrays</span>
+<span class="s">            k_xz[i] = kxz;</span>
+<span class="s">            k_yz[i] = kyz;</span>
+<span class="s">            k_z[i] = kz;</span>
+
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                     <span class="p">[</span><span class="s">&#39;array&#39;</span><span class="p">,</span> <span class="s">&#39;T&#39;</span><span class="p">,</span> <span class="s">&#39;dim_x&#39;</span><span class="p">,</span> <span class="s">&#39;dim_y&#39;</span><span class="p">,</span> <span class="s">&#39;k&#39;</span><span class="p">,</span> <span class="s">&#39;dim&#39;</span><span class="p">,</span>
+                      <span class="s">&#39;k_xz&#39;</span><span class="p">,</span> <span class="s">&#39;k_yz&#39;</span><span class="p">,</span> <span class="s">&#39;k_z&#39;</span><span class="p">],</span>
+                     <span class="n">blitz</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;&lt;math.h&gt;&quot;</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">k_xz</span><span class="p">,</span> <span class="n">k_yz</span><span class="p">,</span> <span class="n">k_z</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="CouplingAnalysis._quantile_bin_array"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis._quantile_bin_array">[docs]</a>    <span class="k">def</span> <span class="nf">_quantile_bin_array</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">6</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns symbolified array with aequi-quantile binning.</span>
+
+<span class="sd">        This partition results in a uniform distribution of the marginals.</span>
+
+<span class="sd">        :type array: array</span>
+<span class="sd">        :arg array: data</span>
+
+<span class="sd">        :type bins: int</span>
+<span class="sd">        :arg bins: number of bins</span>
+
+<span class="sd">        :rtype: array</span>
+<span class="sd">        :returns: converted data</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">dim</span><span class="p">,</span> <span class="n">T</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c"># get the bin quantile steps</span>
+        <span class="n">bin_edge</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">T</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">bins</span><span class="p">))</span>
+
+        <span class="n">symb_array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">dim</span><span class="p">,</span> <span class="n">T</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int32&#39;</span><span class="p">)</span>
+
+        <span class="c"># get the lower edges of the bins for every time series</span>
+        <span class="n">edges</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="p">::</span><span class="n">bin_edge</span><span class="p">]</span>
+        <span class="n">bins</span> <span class="o">=</span> <span class="n">edges</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c"># This gives the symbolic time series</span>
+        <span class="n">symb_array</span> <span class="o">=</span> <span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">T</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&gt;=</span>
+                      <span class="n">edges</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">bins</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">symb_array</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="CouplingAnalysis.bincount_hist"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.bincount_hist">[docs]</a>    <span class="k">def</span> <span class="nf">bincount_hist</span><span class="p">(</span><span class="n">symb_array</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computes histogram from symbolic array.</span>
+
+<span class="sd">        :type symb_array: array of integers</span>
+<span class="sd">        :arg symb_array: symbolic data</span>
+
+<span class="sd">        :rtype: array</span>
+<span class="sd">        :returns: (unnormalized) histogram</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">base</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">symb_array</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">D</span><span class="p">,</span> <span class="n">T</span> <span class="o">=</span> <span class="n">symb_array</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c"># Needed because numpy.bincount cannot process longs</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">base</span><span class="o">**</span><span class="n">D</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">base</span><span class="o">**</span><span class="n">D</span><span class="o">*</span><span class="mf">16.</span><span class="o">/</span><span class="mf">8.</span><span class="o">/</span><span class="mf">1024.</span><span class="o">**</span><span class="mi">3</span> <span class="o">&lt;</span> <span class="mf">3.</span><span class="p">,</span> <span class="p">(</span>
+            <span class="s">&#39;Dimension exceeds 3 GB of necessary memory &#39;</span> <span class="o">+</span>
+            <span class="s">&#39;(change this code line if you got more...)&#39;</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">D</span><span class="o">*</span><span class="n">base</span><span class="o">**</span><span class="n">D</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="o">**</span><span class="mi">65</span><span class="p">,</span> <span class="p">(</span>
+            <span class="s">&#39;base = </span><span class="si">%d</span><span class="s">, D = </span><span class="si">%d</span><span class="s">: Histogram failed: &#39;</span> <span class="o">+</span>
+            <span class="s">&#39;dimension D*base**D exceeds int64 data type&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">D</span><span class="p">)</span>
+
+        <span class="n">flathist</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">base</span><span class="o">**</span><span class="n">D</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int16&#39;</span><span class="p">)</span>
+        <span class="n">multisymb</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">T</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;int64&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
+            <span class="n">multisymb</span> <span class="o">+=</span> <span class="n">symb_array</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span><span class="o">*</span><span class="n">base</span><span class="o">**</span><span class="n">i</span>
+
+        <span class="n">result</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">multisymb</span><span class="p">)</span>
+        <span class="n">flathist</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)]</span> <span class="o">+=</span> <span class="n">result</span>
+
+        <span class="k">return</span> <span class="n">flathist</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="nb">tuple</span><span class="p">([</span><span class="n">base</span><span class="p">,</span> <span class="n">base</span><span class="p">]</span> <span class="o">+</span>
+                                      <span class="p">[</span><span class="n">base</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">D</span><span class="o">-</span><span class="mi">2</span><span class="p">)]))</span><span class="o">.</span><span class="n">T</span>
+</div>
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="CouplingAnalysis.create_plogp"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis.html#pyunicorn.funcnet.coupling_analysis.CouplingAnalysis.create_plogp">[docs]</a>    <span class="k">def</span> <span class="nf">create_plogp</span><span class="p">(</span><span class="n">T</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Precalculation of p*log(p) needed for entropies.</span>
+
+<span class="sd">        :type T: int</span>
+<span class="sd">        :arg  T: sample length</span>
+
+<span class="sd">        :rtype: array</span>
+<span class="sd">        :returns: p*log(p) array from p=1 to p=T</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">gfunc</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">T</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">gfunc</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">T</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">numpy</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">T</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">vectorize</span><span class="p">(</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">gfunc</span><span class="p">[</span><span class="n">t</span><span class="p">])</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2008-2015, Jonathan F. Donges and pyunicorn authors.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

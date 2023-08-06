@@ -1,0 +1,544 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pyunicorn.timeseries.visibility_graph &mdash; pyunicorn 0.5.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.5.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pyunicorn 0.5.1 documentation" href="../../../sitemap.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+<a href="../../../index.html"><img src="../../../_static/logo.png" border="0" alt="py4sci"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../sitemap.html">
+              <img class="logo" src="../../../_static/logo.png" alt="Logo"/>
+            </a></p>
+<h3><a href="../../../sitemap.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../methods.html">Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_doc.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../publications.html">Publications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contact.html">Contact</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyunicorn.timeseries.visibility_graph</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#</span>
+<span class="c"># This file is part of pyunicorn.</span>
+<span class="c"># Copyright (C) 2008--2015 Jonathan F. Donges and pyunicorn authors</span>
+<span class="c"># URL: &lt;http://www.pik-potsdam.de/members/donges/software&gt;</span>
+<span class="c"># License: BSD (3-clause)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Provides classes for the analysis of dynamical systems and time series based</span>
+<span class="sd">on recurrence plots, including measures of recurrence quantification</span>
+<span class="sd">analysis (RQA) and recurrence network analysis.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c"># array object and fast numerics</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">InteractingNetworks</span><span class="p">,</span> <span class="n">weave_inline</span>
+
+
+<span class="c">#</span>
+<span class="c">#  Class definitions</span>
+<span class="c">#</span>
+
+<div class="viewcode-block" id="VisibilityGraph"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph">[docs]</a><span class="k">class</span> <span class="nc">VisibilityGraph</span><span class="p">(</span><span class="n">InteractingNetworks</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class VisibilityGraph for generating and analyzing visibility graphs of</span>
+<span class="sd">    time series.</span>
+
+<span class="sd">    Visibility graphs were initially applied for time series analysis by</span>
+<span class="sd">    [Lacasa2008]_.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Internal methods</span>
+    <span class="c">#</span>
+
+<div class="viewcode-block" id="VisibilityGraph.__init__"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">time_series</span><span class="p">,</span> <span class="n">timings</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">missing_values</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                 <span class="n">horizontal</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">silence_level</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Missing values are handled as infinite values, effectively separating</span>
+<span class="sd">        the visibility graph into different disconnected components.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Missing values have to be marked by the Numpy NaN flag!</span>
+
+<span class="sd">        :type time_series: 2D array (time, dimension)</span>
+<span class="sd">        :arg time_series: The time series to be analyzed, can be scalar or</span>
+<span class="sd">            multi-dimensional.</span>
+<span class="sd">        :arg str timings: Timings of the observations in :attr:`time_series`.</span>
+<span class="sd">        :arg bool missing_values: Toggle special treatment of missing values in</span>
+<span class="sd">            :attr:`time_series`.</span>
+<span class="sd">        :arg bool horizontal: Indicates whether a horizontal visibility</span>
+<span class="sd">            relation is used.</span>
+<span class="sd">        :arg number silence_level: Inverse level of verbosity of the object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Set silence_level</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">=</span> <span class="n">silence_level</span>
+        <span class="sd">&quot;&quot;&quot;The inverse level of verbosity of the object.&quot;&quot;&quot;</span>
+
+        <span class="c">#  Set missing_values flag</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">missing_values</span> <span class="o">=</span> <span class="n">missing_values</span>
+        <span class="sd">&quot;&quot;&quot;Controls special treatment of missing values in</span>
+<span class="sd">           :attr:`time_series`.&quot;&quot;&quot;</span>
+
+        <span class="c">#  Store time series</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_series</span> <span class="o">=</span> <span class="n">time_series</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;The time series from which the visibility graph is constructed.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">timings</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">timings</span> <span class="o">=</span> <span class="n">timings</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">timings</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">time_series</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Store timings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">timings</span> <span class="o">=</span> <span class="n">timings</span>
+        <span class="sd">&quot;&quot;&quot;The timimgs of the time series data points.&quot;&quot;&quot;</span>
+
+        <span class="c">#  Get missing value indices</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">missing_values</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">missing_value_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_series</span><span class="p">)</span>
+
+        <span class="c">#  Determine visibility relations</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">horizontal</span><span class="p">:</span>
+            <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visibility_relations</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visibility_relations_horizontal</span><span class="p">()</span>
+
+        <span class="c">#  Initialize Network object</span>
+        <span class="n">InteractingNetworks</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">A</span><span class="p">,</span> <span class="n">directed</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                                     <span class="n">silence_level</span><span class="o">=</span><span class="n">silence_level</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.__str__"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.__str__">[docs]</a>    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a string representation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;VisibilityGraph: time series shape </span><span class="si">%s</span><span class="s">.</span><span class="se">\n</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">time_series</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">InteractingNetworks</span><span class="o">.</span><span class="n">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Visibility methods</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.visibility_relations"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.visibility_relations">[docs]</a>    <span class="k">def</span> <span class="nf">visibility_relations</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        TODO</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating visibility relations...&quot;</span>
+
+        <span class="c">#  Prepare</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_series</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_series</span><span class="p">)</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int8&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">missing_values</span><span class="p">:</span>
+            <span class="n">mv_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">missing_value_indices</span>
+
+            <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">            int i,j,k;</span>
+<span class="s">            float test;</span>
+
+<span class="s">            for (i = 0; i &lt; N - 2; i++) {</span>
+<span class="s">                for (j = i + 2; j &lt; N; j++) {</span>
+<span class="s">                    k = i + 1;</span>
+
+<span class="s">                    test = (x(j) - x(i)) / (t(j) - t(i));</span>
+
+<span class="s">                    while (!mv_indices(k)</span>
+<span class="s">                           &amp;&amp; (x(k) - x(i)) / (t(k) - t(i)) &lt; test &amp;&amp; k &lt; j) {</span>
+<span class="s">                        k++;</span>
+<span class="s">                    }</span>
+
+<span class="s">                    if (k == j)</span>
+<span class="s">                        A(i,j) = A(j,i) = 1;</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+
+<span class="s">            //  Add trivial connections of subsequent observations</span>
+<span class="s">            //  in time series</span>
+<span class="s">            for (i = 0; i &lt; N - 1; i++) {</span>
+<span class="s">                if (!mv_indices(i) &amp;&amp; !mv_indices(i+1))</span>
+<span class="s">                    A(i,i+1) = A(i+1,i) = 1;</span>
+<span class="s">            }</span>
+<span class="s">            &quot;&quot;&quot;</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">,</span> <span class="s">&#39;t&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;A&#39;</span><span class="p">,</span> <span class="s">&#39;mv_indices&#39;</span><span class="p">]</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">            int i,j,k;</span>
+<span class="s">            float test;</span>
+
+<span class="s">            for (i = 0; i &lt; N - 2; i++) {</span>
+<span class="s">                for (j = i + 2; j &lt; N; j++) {</span>
+<span class="s">                    k = i + 1;</span>
+
+<span class="s">                    test = (x(j) - x(i)) / (t(j) - t(i));</span>
+
+<span class="s">                    while ((x(k) - x(i)) / (t(k) - t(i)) &lt; test &amp;&amp; k &lt; j)</span>
+<span class="s">                        k++;</span>
+
+<span class="s">                    if (k == j)</span>
+<span class="s">                        A(i,j) = A(j,i) = 1;</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+
+<span class="s">            //  Add trivial connections of subsequent observations</span>
+<span class="s">            //  in time series</span>
+<span class="s">            for (i = 0; i &lt; N - 1; i++)</span>
+<span class="s">                A(i,i+1) = A(i+1,i) = 1;</span>
+<span class="s">            &quot;&quot;&quot;</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">,</span> <span class="s">&#39;t&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;A&#39;</span><span class="p">]</span>
+
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">A</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.visibility_relations_horizontal"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.visibility_relations_horizontal">[docs]</a>    <span class="k">def</span> <span class="nf">visibility_relations_horizontal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        TODO</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating horizontal visibility relations...&quot;</span>
+
+        <span class="c">#  Prepare</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_series</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_series</span><span class="p">)</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int8&quot;</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">            int i,j,k;</span>
+<span class="s">            float minimum;</span>
+
+<span class="s">            for (i = 0; i &lt; N - 2; i++) {</span>
+<span class="s">                for (j = i + 2; j &lt; N; j++) {</span>
+<span class="s">                    k = i + 1;</span>
+<span class="s">                    minimum = fmin(x(i), x(j));</span>
+
+<span class="s">                    while (x(k) &lt; minimum &amp;&amp; k &lt; j)</span>
+<span class="s">                        k++;</span>
+
+<span class="s">                    if (k == j)</span>
+<span class="s">                        A(i,j) = A(j,i) = 1;</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+
+<span class="s">            //  Add trivial connections of subsequent observations</span>
+<span class="s">            //  in time series</span>
+<span class="s">            for (i = 0; i &lt; N - 1; i++)</span>
+<span class="s">                A(i,i+1) = A(i+1,i) = 1;</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span> <span class="p">[</span><span class="s">&#39;x&#39;</span><span class="p">,</span> <span class="s">&#39;t&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;A&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">A</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Specific measures for visibility graphs</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.retarded_degree"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.retarded_degree">[docs]</a>    <span class="k">def</span> <span class="nf">retarded_degree</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return number of neighbors in the past of a node.&quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">retarded_degree</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">adjacency</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">retarded_degree</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">retarded_degree</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.advanced_degree"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.advanced_degree">[docs]</a>    <span class="k">def</span> <span class="nf">advanced_degree</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return number of neighbors in the future of a node.&quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">advanced_degree</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">adjacency</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">advanced_degree</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">A</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">:]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">advanced_degree</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.retarded_local_clustering"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.retarded_local_clustering">[docs]</a>    <span class="k">def</span> <span class="nf">retarded_local_clustering</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return probability that two neighbors of a node in its past are</span>
+<span class="sd">        connected.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">retarded_clustering</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+
+        <span class="c">#  Get full adjacency matrix</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">adjacency</span>
+        <span class="c">#  Get number of nodes</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span>
+
+        <span class="c">#  Get left degree</span>
+        <span class="n">retarded_degree</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">retarded_degree</span><span class="p">()</span>
+        <span class="c">#  Prepare normalization factor</span>
+        <span class="n">norm</span> <span class="o">=</span> <span class="n">retarded_degree</span> <span class="o">*</span> <span class="p">(</span><span class="n">retarded_degree</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">        long counter;</span>
+
+<span class="s">        //  Loop over all nodes</span>
+<span class="s">        for (int i = 2; i &lt; N; i++) {</span>
+<span class="s">            //  Check if i has right degree larger than 1</span>
+<span class="s">            if (norm(i) != 0) {</span>
+<span class="s">                //  Reset counter</span>
+<span class="s">                counter = 0;</span>
+
+<span class="s">                //  Loop over unique pairs of nodes in the past of i</span>
+<span class="s">                for (int j = 0; j &lt; i; j++) {</span>
+<span class="s">                    for (int k = 0; k &lt; j; k++) {</span>
+<span class="s">                        if (A(i,j) == 1 &amp;&amp; A(j,k) == 1</span>
+<span class="s">                            &amp;&amp; A(k,i) == 1) {</span>
+<span class="s">                            counter++;</span>
+<span class="s">                        }</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">                retarded_clustering(i) = counter / norm(i);</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span> <span class="p">[</span><span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;A&#39;</span><span class="p">,</span> <span class="s">&#39;norm&#39;</span><span class="p">,</span> <span class="s">&#39;retarded_clustering&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">retarded_clustering</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.advanced_local_clustering"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.advanced_local_clustering">[docs]</a>    <span class="k">def</span> <span class="nf">advanced_local_clustering</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return probability that two neighbors of a node in its future are</span>
+<span class="sd">        connected.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">advanced_clustering</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+
+        <span class="c">#  Get full adjacency matrix</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">adjacency</span>
+        <span class="c">#  Get number of nodes</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span>
+
+        <span class="c">#  Get right degree</span>
+        <span class="n">advanced_degree</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">advanced_degree</span><span class="p">()</span>
+        <span class="c">#  Prepare normalization factor</span>
+        <span class="n">norm</span> <span class="o">=</span> <span class="n">advanced_degree</span> <span class="o">*</span> <span class="p">(</span><span class="n">advanced_degree</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
+<span class="s">        long counter;</span>
+
+<span class="s">        //  Loop over all nodes</span>
+<span class="s">        for (int i = 0; i &lt; N - 2; i++) {</span>
+<span class="s">            //  Check if i has right degree larger than 1</span>
+<span class="s">            if (norm(i) != 0) {</span>
+<span class="s">                //  Reset counter</span>
+<span class="s">                counter = 0;</span>
+
+<span class="s">                //  Loop over unique pairs of nodes in the future of i</span>
+<span class="s">                for (int j = i + 1; j &lt; N; j++) {</span>
+<span class="s">                    for (int k = i + 1; k &lt; j; k++) {</span>
+<span class="s">                        if (A(i,j) == 1 &amp;&amp; A(j,k) == 1</span>
+<span class="s">                            &amp;&amp; A(k,i) == 1) {</span>
+<span class="s">                            counter++;</span>
+<span class="s">                        }</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">                advanced_clustering(i) = counter / norm(i);</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span> <span class="p">[</span><span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;A&#39;</span><span class="p">,</span> <span class="s">&#39;norm&#39;</span><span class="p">,</span> <span class="s">&#39;advanced_clustering&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">advanced_clustering</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.retarded_closeness"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.retarded_closeness">[docs]</a>    <span class="k">def</span> <span class="nf">retarded_closeness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return average path length to nodes in the past of a node.&quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">retarded_closeness</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">path_lengths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path_lengths</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">retarded_closeness</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">path_lengths</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">retarded_closeness</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.advanced_closeness"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.advanced_closeness">[docs]</a>    <span class="k">def</span> <span class="nf">advanced_closeness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return average path length to nodes in the future of a node.&quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">advanced_closeness</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">path_lengths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path_lengths</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">advanced_closeness</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">path_lengths</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">advanced_closeness</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.retarded_betweenness"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.retarded_betweenness">[docs]</a>    <span class="k">def</span> <span class="nf">retarded_betweenness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return betweenness of a node with respect to all pairs of nodes in its</span>
+<span class="sd">        past.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">retarded_betweenness</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">retarded_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">retarded_betweenness</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nsi_betweenness</span><span class="p">(</span>
+                <span class="n">sources</span><span class="o">=</span><span class="n">retarded_indices</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">retarded_indices</span><span class="p">)[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">retarded_betweenness</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.advanced_betweenness"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.advanced_betweenness">[docs]</a>    <span class="k">def</span> <span class="nf">advanced_betweenness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return betweenness of a node with respect to all pairs of nodes in its</span>
+<span class="sd">        future.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">advanced_betweenness</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">advanced_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+            <span class="n">advanced_betweenness</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nsi_betweenness</span><span class="p">(</span>
+                <span class="n">sources</span><span class="o">=</span><span class="n">advanced_indices</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">advanced_indices</span><span class="p">)[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">advanced_betweenness</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.trans_betweenness"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.trans_betweenness">[docs]</a>    <span class="k">def</span> <span class="nf">trans_betweenness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return betweenness of a node with respect to all pairs of nodes</span>
+<span class="sd">        with one node the past and one node in the future, respectively.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">trans_betweenness</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">retarded_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">advanced_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+            <span class="n">trans_betweenness</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nsi_betweenness</span><span class="p">(</span>
+                <span class="n">sources</span><span class="o">=</span><span class="n">retarded_indices</span><span class="p">,</span> <span class="n">targets</span><span class="o">=</span><span class="n">advanced_indices</span><span class="p">)[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">trans_betweenness</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Measures corrected for boundary effects</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.boundary_corrected_degree"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.boundary_corrected_degree">[docs]</a>    <span class="k">def</span> <span class="nf">boundary_corrected_degree</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a weighted degree corrected for trivial boundary effects.&quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">N_past</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">N_future</span> <span class="o">=</span> <span class="n">N_past</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">cdegree</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">retarded_degree</span><span class="p">()</span> <span class="o">*</span> <span class="n">N_past</span>
+                   <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">advanced_degree</span><span class="p">()</span> <span class="o">*</span> <span class="n">N_future</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">cdegree</span>
+</div>
+<div class="viewcode-block" id="VisibilityGraph.boundary_corrected_closeness"><a class="viewcode-back" href="../../../api/timeseries/visibility_graph.html#pyunicorn.timeseries.visibility_graph.VisibilityGraph.boundary_corrected_closeness">[docs]</a>    <span class="k">def</span> <span class="nf">boundary_corrected_closeness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a weighted closeness corrected for trivial boundary effects.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Prepare</span>
+        <span class="n">N_past</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">N_future</span> <span class="o">=</span> <span class="n">N_past</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">ccloseness</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">retarded_closeness</span><span class="p">()</span> <span class="o">/</span> <span class="n">N_past</span> <span class="o">+</span>
+                                     <span class="bp">self</span><span class="o">.</span><span class="n">advanced_closeness</span><span class="p">()</span> <span class="o">/</span> <span class="n">N_future</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">ccloseness</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2008-2015, Jonathan F. Donges and pyunicorn authors.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

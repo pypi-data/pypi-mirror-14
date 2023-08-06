@@ -1,0 +1,818 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pyunicorn.funcnet.coupling_analysis_pure_python &mdash; pyunicorn 0.5.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.5.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pyunicorn 0.5.1 documentation" href="../../../sitemap.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+<a href="../../../index.html"><img src="../../../_static/logo.png" border="0" alt="py4sci"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../sitemap.html">
+              <img class="logo" src="../../../_static/logo.png" alt="Logo"/>
+            </a></p>
+<h3><a href="../../../sitemap.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../methods.html">Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_doc.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../publications.html">Publications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contact.html">Contact</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyunicorn.funcnet.coupling_analysis_pure_python</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#</span>
+<span class="c"># This file is part of pyunicorn.</span>
+<span class="c"># Copyright (C) 2008--2015 Jonathan F. Donges and pyunicorn authors</span>
+<span class="c"># URL: &lt;http://www.pik-potsdam.de/members/donges/software&gt;</span>
+<span class="c"># License: BSD (3-clause)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Provides classes for analyzing spatially embedded complex networks, handling</span>
+<span class="sd">multivariate data and generating time series surrogates.</span>
+
+<span class="sd">Written by Jakob Runge.</span>
+<span class="sd">CMSI Method Reference: [Pompe2011]_</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c"># array object and fast numerics</span>
+<span class="kn">import</span> <span class="nn">numpy</span>
+
+
+<span class="c">#</span>
+<span class="c">#  Define class CouplingAnalysisPurePython</span>
+<span class="c">#</span>
+
+<div class="viewcode-block" id="CouplingAnalysisPurePython"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython">[docs]</a><span class="k">class</span> <span class="nc">CouplingAnalysisPurePython</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Contains methods to calculate coupling matrices from large arrays</span>
+<span class="sd">    of scalar time series.</span>
+
+<span class="sd">    Comprises linear and information theoretic measures, lagged</span>
+<span class="sd">    and directed (causal) couplings.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Definitions of internal methods</span>
+    <span class="c">#</span>
+
+<div class="viewcode-block" id="CouplingAnalysisPurePython.__init__"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataarray</span><span class="p">,</span> <span class="n">only_tri</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">silence_level</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize an instance of CouplingAnalysisPurePython.</span>
+
+<span class="sd">        Possible choices for only_tri:</span>
+<span class="sd">          - &quot;True&quot; will calculate only the upper triangle of the coupling</span>
+<span class="sd">            matrix, excluding the diagonal, assuming symmetry (not for directed</span>
+<span class="sd">            measures)</span>
+<span class="sd">          - &quot;False&quot; will calculate the whole matrix (asymmetry somes from</span>
+<span class="sd">             different integration ranges)</span>
+
+<span class="sd">        :type dataarray: 4D, 3D or 2D Numpy array [time, index, index] or</span>
+<span class="sd">                         [time, index]</span>
+<span class="sd">        :arg dataarray: The time series array with time in first dimension</span>
+<span class="sd">        :arg bool only_tri: Symmetric/asymmetric assumption on coupling matrix.</span>
+<span class="sd">        :arg int silence_level: The inverse level of verbosity of the object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c">#  only_tri will calculate the upper triangle excluding the diagonal</span>
+        <span class="c">#  only. This assumes stationarity on the time series</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">only_tri</span> <span class="o">=</span> <span class="n">only_tri</span>
+
+        <span class="c">#  Set silence level</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">=</span> <span class="n">silence_level</span>
+
+        <span class="c">#  Flatten observable anomaly array along lon/lat dimension to allow</span>
+        <span class="c">#  for more convinient indexing and transpose the whole array as this</span>
+        <span class="c">#  is faster in loops</span>
+        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndim</span><span class="p">(</span><span class="n">dataarray</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_time</span><span class="p">,</span> <span class="n">n_lev</span><span class="p">,</span> <span class="n">n_lat</span><span class="p">,</span> <span class="n">n_lon</span><span class="p">)</span> <span class="o">=</span> <span class="n">dataarray</span><span class="o">.</span><span class="n">shape</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="n">n_lev</span> <span class="o">*</span> <span class="n">n_lat</span> <span class="o">*</span> <span class="n">n_lon</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span>\
+                <span class="n">fastCopyAndTranspose</span><span class="p">(</span><span class="n">dataarray</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndim</span><span class="p">(</span><span class="n">dataarray</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_time</span><span class="p">,</span> <span class="n">n_lat</span><span class="p">,</span> <span class="n">n_lon</span><span class="p">)</span> <span class="o">=</span> <span class="n">dataarray</span><span class="o">.</span><span class="n">shape</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="n">n_lat</span> <span class="o">*</span> <span class="n">n_lon</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span>\
+                <span class="n">fastCopyAndTranspose</span><span class="p">(</span><span class="n">dataarray</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">))</span>
+
+        <span class="k">elif</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ndim</span><span class="p">(</span><span class="n">dataarray</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_time</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">)</span> <span class="o">=</span> <span class="n">dataarray</span><span class="o">.</span><span class="n">shape</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">fastCopyAndTranspose</span><span class="p">(</span><span class="n">dataarray</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;irregular array shape...&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">fastCopyAndTranspose</span><span class="p">(</span><span class="n">dataarray</span><span class="p">)</span>
+
+        <span class="c">#  factorials below 10 in a list for permutation patterns</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">factorial</span> <span class="o">=</span> \
+            <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="mi">720</span><span class="p">,</span> <span class="mi">5040</span><span class="p">,</span> <span class="mi">40320</span><span class="p">,</span> <span class="mi">362880</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">patternized</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">has_fft</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">originalFFT</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="c">#  lag_mode dict</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lag_modi</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;all&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s">&quot;sum&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s">&quot;max&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.__str__"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.__str__">[docs]</a>    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a string representation of the CouplingAnalysisPurePython</span>
+<span class="sd">        object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">return</span> <span class="s">&#39;CouplingAnalysisPurePython: </span><span class="si">%i</span><span class="s"> variables, </span><span class="si">%i</span><span class="s"> timesteps.&#39;</span> <span class="o">%</span> <span class="p">(</span>
+            <span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Define methods to calculate correlation strength and lags</span>
+    <span class="c">#</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Routines for calculating Cross Correlation</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.cross_correlation"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.cross_correlation">[docs]</a>    <span class="k">def</span> <span class="nf">cross_correlation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the normalized cross correlation from all pairs of nodes from</span>
+<span class="sd">        a range of time lags.</span>
+
+<span class="sd">        The calculation ranges are shown below::</span>
+
+<span class="sd">            (-------------------------total_time--------------------------)</span>
+<span class="sd">            (---tau_max---)(---------corr_range------------)(---tau_max---)</span>
+
+<span class="sd">        CC is calculated about corr_range and with the other time series</span>
+<span class="sd">        shifted by tau</span>
+
+<span class="sd">        Possible choices for lag_mode:</span>
+
+<span class="sd">        - &quot;all&quot; will return the full function for all lags, possible large</span>
+<span class="sd">          memory need if only_tri is True, only the upper triangle contains the</span>
+<span class="sd">          values, the lower one is zeros</span>
+<span class="sd">        - &quot;sum&quot; will return the sum over positive and negative lags seperatly,</span>
+<span class="sd">          each inclunding tau=0 corrmat[0] is the positive sum, corrmat[1] the</span>
+<span class="sd">          negative sum</span>
+<span class="sd">        - &quot;max&quot; will return only the maximum coupling (in corrmat[0]) and its</span>
+<span class="sd">          lag (in corrmat[1])</span>
+
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: the output mode</span>
+<span class="sd">        :rtype: 3D numpy array (float) [index, index, index]</span>
+<span class="sd">        :return: correlation matrix with different lag_mode choices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Normalize anomaly time series to zero mean and unit variance for all</span>
+        <span class="c">#  lags, array contains normalizations for all lags</span>
+        <span class="n">corr_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span>
+        <span class="n">normalized_array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">),</span>
+                                       <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="c">#  Remove mean value from time series at each vertex (grid point)</span>
+            <span class="n">normalized_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="p">[:,</span> <span class="n">t</span><span class="p">:</span><span class="n">t</span><span class="o">+</span><span class="n">corr_range</span><span class="p">]</span> <span class="o">-</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="p">[:,</span> <span class="n">t</span><span class="p">:</span><span class="n">t</span><span class="o">+</span><span class="n">corr_range</span><span class="p">]</span><span class="o">.</span>\
+                <span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="c">#  Normalize the variance of anomalies to one</span>
+            <span class="n">normalized_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">/=</span> <span class="n">normalized_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="o">.</span>\
+                <span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="c">#  Correct for grid points with zero variance in their time series</span>
+            <span class="n">normalized_array</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">normalized_array</span><span class="p">[</span><span class="n">t</span><span class="p">])]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_cc</span><span class="p">(</span><span class="n">normalized_array</span><span class="p">,</span> <span class="n">corr_range</span><span class="o">=</span><span class="n">corr_range</span><span class="p">,</span>
+                                  <span class="n">tau_max</span><span class="o">=</span><span class="n">tau_max</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="n">lag_mode</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.shuffled_surrogate_for_cc"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.shuffled_surrogate_for_cc">[docs]</a>    <span class="k">def</span> <span class="nf">shuffled_surrogate_for_cc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fourier</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                                  <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a correlation matrix calculated with an independently shuffled</span>
+<span class="sd">        surrogate of the dataarray of length corr_range for all taus.</span>
+
+<span class="sd">        :arg int corr_range: length of sample</span>
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: output mode</span>
+<span class="sd">        :rtype: 3D numpy array (float) [index, index, index]</span>
+<span class="sd">        :return: correlation matrix with different lag_mode choices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">corr_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span>
+
+        <span class="c"># Shuffle a copy of dataarray separatly for each node</span>
+        <span class="n">array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fourier</span><span class="p">:</span>
+            <span class="n">array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">correlatedNoiseSurrogates</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+                <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">array</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+        <span class="n">sample_array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="n">sample_array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">array</span><span class="p">[:,</span> <span class="p">:</span><span class="n">corr_range</span><span class="p">]</span>
+        <span class="n">sample_array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-=</span> <span class="n">sample_array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">sample_array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/=</span> <span class="n">sample_array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">sample_array</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">sample_array</span><span class="p">[</span><span class="mi">0</span><span class="p">])]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_cc</span><span class="p">(</span><span class="n">sample_array</span><span class="p">,</span> <span class="n">corr_range</span><span class="o">=</span><span class="n">corr_range</span><span class="p">,</span>
+                                 <span class="n">tau_max</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">abs</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="nb">abs</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">])])</span> <span class="o">*</span> <span class="p">(</span><span class="n">tau_max</span><span class="o">+</span><span class="mf">1.</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">abs</span><span class="p">(</span><span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                                   <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="o">-</span><span class="n">tau_max</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span>
+                                                        <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">))])</span>
+
+        <span class="k">return</span> <span class="n">corrmat</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.time_surrogate_for_cc"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.time_surrogate_for_cc">[docs]</a>    <span class="k">def</span> <span class="nf">time_surrogate_for_cc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sample_range</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                              <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a joint shuffled surrogate of the full dataarray of length</span>
+<span class="sd">        sample_range for all taus.</span>
+
+<span class="sd">        Used for time evolution analysis. First one initializes the</span>
+<span class="sd">        CouplingAnalysis class with the full dataarray and then this function</span>
+<span class="sd">        is called for every single surrogate.</span>
+
+<span class="sd">        :arg int sample_range: length of sample</span>
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: output mode</span>
+<span class="sd">        :rtype: 3D numpy array (float) [index, index, index]</span>
+<span class="sd">        :return: correlation matrix with different lag_mode choices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">perm</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span>
+            <span class="nb">range</span><span class="p">(</span><span class="n">tau_max</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span> <span class="o">-</span> <span class="n">tau_max</span><span class="p">))[:</span><span class="n">sample_range</span><span class="p">]</span>
+
+        <span class="n">sample_array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">sample_range</span><span class="p">),</span>
+                                   <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">tau</span> <span class="o">=</span> <span class="n">t</span> <span class="o">-</span> <span class="n">tau_max</span>
+            <span class="n">sample_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="p">[:,</span> <span class="n">perm</span> <span class="o">+</span> <span class="n">tau</span><span class="p">]</span>
+            <span class="n">sample_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">-=</span> <span class="n">sample_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">sample_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">/=</span> <span class="n">sample_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">sample_array</span><span class="p">[</span><span class="n">t</span><span class="p">][</span><span class="n">numpy</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">sample_array</span><span class="p">[</span><span class="n">t</span><span class="p">])]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_cc</span><span class="p">(</span><span class="n">sample_array</span><span class="p">,</span> <span class="n">corr_range</span><span class="o">=</span><span class="n">sample_range</span><span class="p">,</span>
+                                  <span class="n">tau_max</span><span class="o">=</span><span class="n">tau_max</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="n">lag_mode</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython._calculate_cc"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython._calculate_cc">[docs]</a>    <span class="k">def</span> <span class="nf">_calculate_cc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">,</span> <span class="n">tau_max</span><span class="p">,</span> <span class="n">lag_mode</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the CC matrix.</span>
+
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: output mode</span>
+<span class="sd">        :rtype: 3D numpy array (float) [index, index, index]</span>
+<span class="sd">        :return: correlation matrix with different lag_mode choices</span>
+
+<span class="sd">        ## lag_mode dict</span>
+<span class="sd">        mode = self.lag_modi[lag_mode]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c"># lag_mode dict</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lag_modi</span><span class="p">[</span><span class="n">lag_mode</span><span class="p">]</span>
+        <span class="n">only_tri</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">only_tri</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">),</span>
+                                  <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+
+        <span class="c"># loop over all node pairs, NOT symmetric due to time shifts!</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="o">-</span><span class="n">only_tri</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">((</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">only_tri</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+
+                <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">maxcross</span> <span class="o">=</span> <span class="mf">0.0</span>
+                    <span class="n">argmax</span> <span class="o">=</span> <span class="mi">0</span>
+
+                <span class="c"># loop over taus INCLUDING the last tau value</span>
+                <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+
+                    <span class="c"># here the actual cross correlation is calculated</span>
+                    <span class="n">crossij</span> <span class="o">=</span> <span class="p">(</span><span class="n">array</span><span class="p">[</span><span class="n">tau_max</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*</span> <span class="n">array</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="p">:])</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+                    <span class="c"># fill in values in matrix depending on lag_mode</span>
+                    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">corrmat</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">crossij</span>
+
+                    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">t</span> <span class="o">&lt;=</span> <span class="n">tau_max</span><span class="p">:</span>
+                            <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">crossij</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">t</span> <span class="o">&gt;=</span> <span class="n">tau_max</span><span class="p">:</span>
+                            <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">crossij</span><span class="p">)</span>
+
+                    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                        <span class="c"># calculate max and argmax by comparing to previous</span>
+                        <span class="c"># value and storing max</span>
+                        <span class="k">if</span> <span class="n">numpy</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">crossij</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">maxcross</span><span class="p">:</span>
+                            <span class="n">maxcross</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">crossij</span><span class="p">)</span>
+                            <span class="n">argmax</span> <span class="o">=</span> <span class="n">t</span>
+
+                <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">maxcross</span>
+                    <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">argmax</span> <span class="o">-</span> <span class="n">tau_max</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">only_tri</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+                <span class="n">corrmat</span> <span class="o">=</span> <span class="n">corrmat</span> <span class="o">+</span> <span class="n">corrmat</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;sum&#39;</span><span class="p">:</span>
+                <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+                <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+                <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+                <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-=</span> <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">corrmat</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Routines for calculating Mutual Information with adaptive bins</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.mutual_information"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.mutual_information">[docs]</a>    <span class="k">def</span> <span class="nf">mutual_information</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the normalized mutual information from all pairs of nodes from</span>
+<span class="sd">        a range of time lags.</span>
+
+<span class="sd">        MI = H_x + H_y - H_xy</span>
+
+<span class="sd">        Uses adaptive bins, where each marginal bin contains the same number of</span>
+<span class="sd">        samples. Then the marginal entropies have equal probable distributions</span>
+<span class="sd">        H_x = H_y = log(bins)</span>
+
+<span class="sd">        The calculation ranges are shown below::</span>
+
+<span class="sd">            (-------------------------total_time--------------------------)</span>
+<span class="sd">            (---tau_max---)(---------corr_range------------)(---tau_max---)</span>
+
+<span class="sd">        MI is calculated about corr_range and with the other time series</span>
+<span class="sd">        shifted by tau</span>
+
+<span class="sd">        Possible choices for lag_mode:</span>
+
+<span class="sd">        - &quot;all&quot; will return the full function for all lags, possible large</span>
+<span class="sd">          memory need if only_tri is True, only the upper triangle contains the</span>
+<span class="sd">          values, the lower one is zeros</span>
+<span class="sd">        - &quot;sum&quot; will return the sum over positive and negative lags seperatly,</span>
+<span class="sd">          each inclunding tau=0 corrmat[0] is the positive sum, corrmat[1] the</span>
+<span class="sd">          negative sum</span>
+<span class="sd">        - &quot;max&quot; will return only the maximum coupling (in corrmat[0]) and its</span>
+<span class="sd">          lag (in corrmat[1])</span>
+
+<span class="sd">        :arg int bins: number of bins for estimating MI</span>
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: output mode</span>
+<span class="sd">        :rtype: 3D numpy array (float) [index, index, index]</span>
+<span class="sd">        :return: correlation matrix with different lag_mode choices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">bins</span> <span class="o">&lt;</span> <span class="mi">255</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="s">&#39;uint8&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="s">&#39;int16&#39;</span>
+
+        <span class="c"># Normalize anomaly time series to zero mean and unit variance for all</span>
+        <span class="c"># lags, array contains normalizations for all lags</span>
+        <span class="n">corr_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span>
+
+        <span class="c"># get the bin quantile steps</span>
+        <span class="n">bin_edge</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">corr_range</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">bins</span><span class="p">))</span>
+
+        <span class="n">symbolic_array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">),</span>
+                                     <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+
+            <span class="n">array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="p">[:,</span> <span class="n">t</span><span class="p">:</span><span class="n">t</span><span class="o">+</span><span class="n">corr_range</span><span class="p">]</span>
+
+            <span class="c"># get the lower edges of the bins for every time series</span>
+            <span class="n">edges</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="p">::</span><span class="n">bin_edge</span><span class="p">]</span>
+            <span class="n">bins</span> <span class="o">=</span> <span class="n">edges</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c"># This gives the symbolic time series</span>
+            <span class="n">symbolic_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&gt;=</span>
+                 <span class="n">edges</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">bins</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_mi</span><span class="p">(</span><span class="n">symbolic_array</span><span class="p">,</span> <span class="n">corr_range</span><span class="o">=</span><span class="n">corr_range</span><span class="p">,</span>
+                                  <span class="n">bins</span><span class="o">=</span><span class="n">bins</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="n">tau_max</span><span class="p">,</span>
+                                  <span class="n">lag_mode</span><span class="o">=</span><span class="n">lag_mode</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.mutual_information_edges"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.mutual_information_edges">[docs]</a>    <span class="k">def</span> <span class="nf">mutual_information_edges</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">tau</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the normalized mutual information from all pairs of nodes from</span>
+<span class="sd">        a range of time lags.</span>
+
+<span class="sd">        MI = H_x + H_y - H_xy</span>
+
+<span class="sd">        Uses adaptive bins, where each marginal bin contains the same number of</span>
+<span class="sd">        samples. Then the marginal entropies have equal probable distributions</span>
+<span class="sd">        H_x = H_y = log(bins)</span>
+
+<span class="sd">        The calculation ranges are shown below::</span>
+
+<span class="sd">            (-------------------------total_time--------------------------)</span>
+<span class="sd">            (---tau_max---)(---------corr_range------------)(---tau_max---)</span>
+
+<span class="sd">        MI is calculated about corr_range and with the other time series</span>
+<span class="sd">        shifted by tau</span>
+
+<span class="sd">        Possible choices for lag_mode:</span>
+
+<span class="sd">        - &quot;all&quot; will return the full function for all lags, possible large</span>
+<span class="sd">          memory need if only_tri is True, only the upper triangle contains the</span>
+<span class="sd">          values, the lower one is zeros</span>
+<span class="sd">        - &quot;sum&quot; will return the sum over positive and negative lags seperatly,</span>
+<span class="sd">          each inclunding tau=0 corrmat[0] is the positive sum, corrmat[1] the</span>
+<span class="sd">          negative sum</span>
+<span class="sd">        - &quot;max&quot; will return only the maximum coupling (in corrmat[0]) and its</span>
+<span class="sd">          lag (in corrmat[1])</span>
+
+<span class="sd">        :arg int bins: number of bins for estimating MI</span>
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: output mode</span>
+<span class="sd">        :rtype: 2D numpy array (float) [index, index]</span>
+<span class="sd">        :return: bin edges for zero lag</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c"># get the bin quantile steps</span>
+        <span class="n">bin_edge</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_time</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">bins</span><span class="p">))</span>
+
+        <span class="n">array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="p">[:,</span> <span class="p">:]</span>
+        <span class="n">array</span><span class="p">[:</span><span class="o">-</span><span class="n">tau</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="n">tau</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span>
+
+        <span class="c"># get the lower edges of the bins for every time series</span>
+        <span class="n">edges</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="p">::</span><span class="n">bin_edge</span><span class="p">]</span>
+        <span class="n">bins</span> <span class="o">=</span> <span class="n">edges</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">edges</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.shuffled_surrogate_for_mi"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.shuffled_surrogate_for_mi">[docs]</a>    <span class="k">def</span> <span class="nf">shuffled_surrogate_for_mi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fourier</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                  <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a shuffled surrogate of normalized mutual information from all</span>
+<span class="sd">        pairs of nodes from a range of time lags.</span>
+
+<span class="sd">        :arg int bins: number of bins for estimating MI</span>
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: output mode</span>
+<span class="sd">        :rtype: 3D numpy array (float) [index, index, index]</span>
+<span class="sd">        :return: correlation matrix with different lag_mode choices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">bins</span> <span class="o">&lt;</span> <span class="mi">255</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="s">&#39;uint8&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="s">&#39;int16&#39;</span>
+
+        <span class="c">#  Normalize anomaly time series to zero mean and unit variance for all</span>
+        <span class="c">#  lags, array contains normalizations for all lags</span>
+        <span class="n">corr_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span>
+
+        <span class="c"># Shuffle a copy of dataarray seperatly for each node</span>
+        <span class="n">array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fourier</span><span class="p">:</span>
+            <span class="n">array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">correlatedNoiseSurrogates</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+                <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">array</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+
+        <span class="c"># get the bin quantile steps</span>
+        <span class="n">bin_edge</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">corr_range</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">bins</span><span class="p">))</span>
+
+        <span class="n">symbolic_array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="n">array</span> <span class="o">=</span> <span class="n">array</span><span class="p">[:,</span> <span class="p">:</span><span class="n">corr_range</span><span class="p">]</span>
+
+        <span class="c"># get the lower edges of the bins for every time series</span>
+        <span class="n">edges</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="p">::</span><span class="n">bin_edge</span><span class="p">]</span>
+        <span class="n">bins</span> <span class="o">=</span> <span class="n">edges</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c"># This gives the symbolic time series</span>
+        <span class="n">symbolic_array</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> \
+            <span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&gt;=</span>
+             <span class="n">edges</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">bins</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_mi</span><span class="p">(</span><span class="n">symbolic_array</span><span class="p">,</span> <span class="n">corr_range</span><span class="o">=</span><span class="n">corr_range</span><span class="p">,</span>
+                                 <span class="n">bins</span><span class="o">=</span><span class="n">bins</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span> <span class="o">*</span> <span class="p">(</span><span class="n">tau_max</span><span class="o">+</span><span class="mf">1.</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">res</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="o">-</span><span class="n">tau_max</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span>
+                                              <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">))])</span>
+
+        <span class="k">return</span> <span class="n">corrmat</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.time_surrogate_for_mi"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.time_surrogate_for_mi">[docs]</a>    <span class="k">def</span> <span class="nf">time_surrogate_for_mi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">sample_range</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                              <span class="n">lag_mode</span><span class="o">=</span><span class="s">&#39;all&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a joint shuffled surrogate of the full dataarray of length</span>
+<span class="sd">        sample_range for all taus.</span>
+
+<span class="sd">        Used for time evolution analysis. First one initializes the</span>
+<span class="sd">        CouplingAnalysis class with the full dataarray and then this function</span>
+<span class="sd">        is called for every single surrogate.</span>
+
+<span class="sd">        :arg int sample_range: length of sample</span>
+<span class="sd">        :arg int bins: number of bins for estimating MI</span>
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: output mode</span>
+<span class="sd">        :rtype: 3D numpy array (float) [index, index, index]</span>
+<span class="sd">        :return: correlation matrix with different lag_mode choices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">bins</span> <span class="o">&lt;</span> <span class="mi">255</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="s">&#39;uint8&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="s">&#39;int16&#39;</span>
+
+        <span class="n">perm</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">permutation</span><span class="p">(</span>
+            <span class="nb">range</span><span class="p">(</span><span class="n">tau_max</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span> <span class="o">-</span> <span class="n">tau_max</span><span class="p">))[:</span><span class="n">sample_range</span><span class="p">]</span>
+
+        <span class="c"># get the bin quantile steps</span>
+        <span class="n">bin_edge</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">sample_range</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">bins</span><span class="p">))</span>
+
+        <span class="n">symbolic_array</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">sample_range</span><span class="p">),</span>
+                                     <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">tau</span> <span class="o">=</span> <span class="n">t</span> <span class="o">-</span> <span class="n">tau_max</span>
+
+            <span class="n">array</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataarray</span><span class="p">[:,</span> <span class="n">perm</span> <span class="o">+</span> <span class="n">tau</span><span class="p">]</span>
+
+            <span class="c"># get the lower edges of the bins for every time series</span>
+            <span class="n">edges</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="p">::</span><span class="n">bin_edge</span><span class="p">]</span>
+            <span class="n">bins</span> <span class="o">=</span> <span class="n">edges</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c"># This gives the symbolic time series</span>
+            <span class="n">symbolic_array</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="p">(</span><span class="n">array</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">sample_range</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&gt;=</span>
+                 <span class="n">edges</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">bins</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calculate_mi</span><span class="p">(</span><span class="n">symbolic_array</span><span class="p">,</span> <span class="n">corr_range</span><span class="o">=</span><span class="n">sample_range</span><span class="p">,</span>
+                                  <span class="n">bins</span><span class="o">=</span><span class="n">bins</span><span class="p">,</span> <span class="n">tau_max</span><span class="o">=</span><span class="n">tau_max</span><span class="p">,</span>
+                                  <span class="n">lag_mode</span><span class="o">=</span><span class="n">lag_mode</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython._calculate_mi"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython._calculate_mi">[docs]</a>    <span class="k">def</span> <span class="nf">_calculate_mi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">,</span> <span class="n">corr_range</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">tau_max</span><span class="p">,</span> <span class="n">lag_mode</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the mi matrix.</span>
+
+<span class="sd">        :arg int bins: number of bins for estimating MI</span>
+<span class="sd">        :arg int tau_max: maximum lag in both directions, including last lag</span>
+<span class="sd">        :arg str lag_mode: output mode</span>
+<span class="sd">        :rtype: 3D numpy array (float) [index, index, index]</span>
+<span class="sd">        :return: correlation matrix with different lag_mode choices</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c"># lag_mode dict</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lag_modi</span><span class="p">[</span><span class="n">lag_mode</span><span class="p">]</span>
+        <span class="n">only_tri</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">only_tri</span><span class="p">)</span>
+
+        <span class="c"># Initialize</span>
+        <span class="n">hist2D</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">bins</span><span class="p">,</span> <span class="n">bins</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int32&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">),</span>
+                                  <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;sum&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+            <span class="n">corrmat</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&#39;float32&#39;</span><span class="p">)</span>
+
+        <span class="c"># Precalculation of the log</span>
+        <span class="n">gfunc</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">corr_range</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">corr_range</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">gfunc</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">t</span><span class="o">*</span><span class="n">numpy</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+        <span class="c"># loop over all node pairs, NOT symmetric due to time shifts!</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="o">-</span><span class="n">only_tri</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">((</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">*</span><span class="n">only_tri</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+
+                <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">maxcross</span> <span class="o">=</span> <span class="mf">0.0</span>
+                    <span class="n">argmax</span> <span class="o">=</span> <span class="mi">0</span>
+
+                <span class="c"># loop over taus from -tau_max to tau_max INCLUDING the last</span>
+                <span class="c"># tau value</span>
+                <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">tau_max</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="n">tau</span> <span class="o">=</span> <span class="n">t</span> <span class="o">-</span> <span class="n">tau_max</span>
+
+                    <span class="c"># here the joint probability distribution is calculated</span>
+                    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">corr_range</span><span class="p">):</span>
+                        <span class="n">indexi</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="n">tau_max</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span>
+                        <span class="n">indexj</span> <span class="o">=</span> <span class="n">array</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span><span class="p">]</span>
+                        <span class="n">hist2D</span><span class="p">[</span><span class="n">indexi</span><span class="p">,</span> <span class="n">indexj</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+
+                    <span class="c"># here the joint entropy is calculated by summing over all</span>
+                    <span class="c"># pattern combinations</span>
+                    <span class="n">jointent</span> <span class="o">=</span> <span class="mf">0.0</span>
+                    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">bins</span><span class="p">):</span>
+                        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">bins</span><span class="p">):</span>
+                            <span class="n">jointent</span> <span class="o">-=</span> <span class="n">gfunc</span><span class="p">[</span><span class="n">hist2D</span><span class="p">[</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">]]</span>
+                            <span class="n">hist2D</span><span class="p">[</span><span class="n">l</span><span class="p">,</span> <span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+                    <span class="n">jointent</span> <span class="o">/=</span> <span class="nb">float</span><span class="p">(</span><span class="n">corr_range</span><span class="p">)</span>
+                    <span class="n">jointent</span> <span class="o">+=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">corr_range</span><span class="p">))</span>
+
+                    <span class="c"># Mutual Information is...</span>
+                    <span class="n">mi</span> <span class="o">=</span> <span class="mf">0.0</span>
+                    <span class="n">mi</span> <span class="o">=</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">bins</span><span class="p">)</span> <span class="o">-</span> <span class="n">jointent</span>
+
+                    <span class="c"># norm the mi</span>
+                    <span class="n">mi</span> <span class="o">/=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">bins</span><span class="p">)</span>
+
+                    <span class="c"># fill in values in matrix depending on lag_mode</span>
+                    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">corrmat</span><span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">mi</span>
+
+                    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">t</span> <span class="o">&lt;=</span> <span class="n">tau_max</span><span class="p">:</span>
+                            <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">mi</span>
+                        <span class="k">if</span> <span class="n">t</span> <span class="o">&gt;=</span> <span class="n">tau_max</span><span class="p">:</span>
+                            <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+=</span> <span class="n">mi</span>
+
+                    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                        <span class="c"># calculate max and argmax by comparing to previous</span>
+                        <span class="c"># value and storing max</span>
+                        <span class="k">if</span> <span class="n">mi</span> <span class="o">&gt;</span> <span class="n">maxcross</span><span class="p">:</span>
+                            <span class="n">maxcross</span> <span class="o">=</span> <span class="n">mi</span>
+                            <span class="n">argmax</span> <span class="o">=</span> <span class="n">tau</span>
+
+                <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">maxcross</span>
+                    <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">argmax</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">only_tri</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;all&#39;</span><span class="p">:</span>
+                <span class="n">corrmat</span> <span class="o">=</span> <span class="n">corrmat</span> <span class="o">+</span> <span class="n">corrmat</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;sum&#39;</span><span class="p">:</span>
+                <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+                <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="n">lag_mode</span> <span class="o">==</span> <span class="s">&#39;max&#39;</span><span class="p">:</span>
+                <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">corrmat</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+                <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-=</span> <span class="n">corrmat</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">corrmat</span>
+
+    <span class="c">#</span>
+    <span class="c"># A subroutine for fourier surrogates (from J Donges)</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="CouplingAnalysisPurePython.correlatedNoiseSurrogates"><a class="viewcode-back" href="../../../api/funcnet/coupling_analysis_pure_python.html#pyunicorn.funcnet.coupling_analysis_pure_python.CouplingAnalysisPurePython.correlatedNoiseSurrogates">[docs]</a>    <span class="k">def</span> <span class="nf">correlatedNoiseSurrogates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates surrogates by Fourier transforming the original time series,</span>
+<span class="sd">        randomizing the phases and then applying an inverse Fourier transform.</span>
+<span class="sd">        Correlated noise surrogates share their power spectrum and</span>
+<span class="sd">        autocorrelation function with the original time series.</span>
+
+<span class="sd">        :type original: 2D array</span>
+<span class="sd">        :arg original: dim. 0 is index of time series, dim. 1 is time</span>
+<span class="sd">        :return: surrogate time series (same dimensions as original)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c">#  Calculate FFT of original time series</span>
+        <span class="c">#  The FFT of the original data has to be calculated only once, so it</span>
+        <span class="c">#  is stored in self.originalFFT</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_fft</span><span class="p">:</span>
+            <span class="n">surrogates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">originalFFT</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">surrogates</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">fft</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">originalFFT</span> <span class="o">=</span> <span class="n">surrogates</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">has_fft</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="p">(</span><span class="n">nNodes</span><span class="p">,</span> <span class="n">ntime</span><span class="p">)</span> <span class="o">=</span> <span class="n">original</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">ntime</span> <span class="o">%</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">lenPhase</span> <span class="o">=</span> <span class="p">(</span><span class="n">ntime</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lenPhase</span> <span class="o">=</span> <span class="p">(</span><span class="n">ntime</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+
+        <span class="c">#  Generate random phases uniformly distributed in the interval</span>
+        <span class="c">#  [0, 2*Pi]. Guarantee that the phases for positive and negative</span>
+        <span class="c">#  frquencies are the same to obtain real surrogates in the end!</span>
+        <span class="n">phases</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">low</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="mi">2</span> <span class="o">*</span> <span class="n">numpy</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span>
+                                      <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="n">nNodes</span><span class="p">,</span> <span class="n">lenPhase</span><span class="p">))</span>
+
+        <span class="c">#  Add random phases uniformly distributed in the interval [0, 2*Pi]</span>
+        <span class="n">surrogates</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span><span class="n">lenPhase</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">*=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mi">1j</span> <span class="o">*</span> <span class="n">phases</span><span class="p">)</span>
+
+        <span class="c">#  Discriminate between even and uneven number of samples</span>
+        <span class="c">#  Note that the output of fft has the following form:</span>
+        <span class="c">#  - Even sample number: (mean, pos. freq, nyquist freq, neg. freq)</span>
+        <span class="c">#  - Odd sample number: (mean, pos. freq, neg. freq)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">ntime</span> <span class="o">%</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">surrogates</span><span class="p">[:,</span> <span class="n">lenPhase</span><span class="o">+</span><span class="mi">2</span><span class="p">:</span><span class="n">ntime</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">numpy</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">surrogates</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span><span class="n">lenPhase</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">conjugate</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">surrogates</span><span class="p">[:,</span> <span class="n">lenPhase</span><span class="o">+</span><span class="mi">1</span><span class="p">:</span><span class="n">ntime</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="n">numpy</span><span class="o">.</span><span class="n">flipud</span><span class="p">(</span><span class="n">surrogates</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span><span class="n">lenPhase</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">conjugate</span><span class="p">())</span>
+
+        <span class="c">#  Calculate IFFT and take the real part, the remaining imaginary part</span>
+        <span class="c">#  is due to numerical errors</span>
+        <span class="k">return</span> <span class="n">numpy</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">numpy</span><span class="o">.</span><span class="n">real</span><span class="p">(</span>
+            <span class="n">numpy</span><span class="o">.</span><span class="n">fft</span><span class="o">.</span><span class="n">ifft</span><span class="p">(</span><span class="n">surrogates</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)))</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2008-2015, Jonathan F. Donges and pyunicorn authors.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

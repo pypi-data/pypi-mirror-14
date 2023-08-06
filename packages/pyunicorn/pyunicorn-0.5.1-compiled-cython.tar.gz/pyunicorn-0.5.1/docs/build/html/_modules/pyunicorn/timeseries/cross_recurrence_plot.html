@@ -1,0 +1,569 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pyunicorn.timeseries.cross_recurrence_plot &mdash; pyunicorn 0.5.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.5.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pyunicorn 0.5.1 documentation" href="../../../sitemap.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+<a href="../../../index.html"><img src="../../../_static/logo.png" border="0" alt="py4sci"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../sitemap.html">
+              <img class="logo" src="../../../_static/logo.png" alt="Logo"/>
+            </a></p>
+<h3><a href="../../../sitemap.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../methods.html">Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_doc.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../publications.html">Publications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contact.html">Contact</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyunicorn.timeseries.cross_recurrence_plot</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#</span>
+<span class="c"># This file is part of pyunicorn.</span>
+<span class="c"># Copyright (C) 2008--2015 Jonathan F. Donges and pyunicorn authors</span>
+<span class="c"># URL: &lt;http://www.pik-potsdam.de/members/donges/software&gt;</span>
+<span class="c"># License: BSD (3-clause)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Provides classes for the analysis of dynamical systems and time series based</span>
+<span class="sd">on recurrence plots, including measures of recurrence quantification</span>
+<span class="sd">analysis (RQA) and recurrence network analysis.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c"># array object and fast numerics</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+
+<span class="kn">from</span> <span class="nn">.recurrence_plot</span> <span class="kn">import</span> <span class="n">RecurrencePlot</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">weave_inline</span>   <span class="c"># C++ inline code</span>
+
+
+<span class="c">#</span>
+<span class="c">#  Class definitions</span>
+<span class="c">#</span>
+
+<div class="viewcode-block" id="CrossRecurrencePlot"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot">[docs]</a><span class="k">class</span> <span class="nc">CrossRecurrencePlot</span><span class="p">(</span><span class="n">RecurrencePlot</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class CrossRecurrencePlot for generating and quantitatively analyzing</span>
+<span class="sd">    :index:`cross recurrence plots &lt;single: cross recurrence plot&gt;`.</span>
+
+<span class="sd">    The CrossRecurrencePlot class supports the construction of cross recurrence</span>
+<span class="sd">    plots from two multi-dimensional time series, optionally using embedding.</span>
+<span class="sd">    Currently, manhattan, euclidean and supremum norms are provided for</span>
+<span class="sd">    measuring distances in phase space.</span>
+
+<span class="sd">    Methods for calculating commonly used measures of :index:`recurrence</span>
+<span class="sd">    quantification analysis &lt;pair: RQA; cross recurrence plot&gt;` (RQA) are</span>
+<span class="sd">    provided, e.g., determinism, maximum diagonal line length and laminarity.</span>
+<span class="sd">    The definitions of these measures together with a review of the theory and</span>
+<span class="sd">    applications of cross recurrence plots are given in [Marwan2007]_.</span>
+
+<span class="sd">    **Examples:**</span>
+
+<span class="sd">     - Create an instance of CrossRecurrencePlot from time series x and y with</span>
+<span class="sd">       a fixed recurrence threshold and without embedding::</span>
+
+<span class="sd">           CrossRecurrencePlot(x, y, threshold=0.1)</span>
+
+<span class="sd">     - Create an instance of CrossRecurrencePlot at a fixed recurrence rate and</span>
+<span class="sd">       using time delay embedding::</span>
+
+<span class="sd">           CrossRecurrencePlot(x, y, dim=3, tau=2,</span>
+<span class="sd">                               recurrence_rate=0.05).recurrence_rate()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Internal methods</span>
+    <span class="c">#</span>
+
+<div class="viewcode-block" id="CrossRecurrencePlot.__init__"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">metric</span><span class="o">=</span><span class="s">&quot;supremum&quot;</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                 <span class="n">sparse_rqa</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">silence_level</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="o">**</span><span class="n">kwds</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize an instance of CrossRecurrencePlot.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           For a cross recurrence plot, time series x and y generally do</span>
+<span class="sd">           **not** need to have the same length!</span>
+
+<span class="sd">        Either recurrence threshold ``threshold`` or recurrence rate</span>
+<span class="sd">        ``recurrence_rate`` have to be given as keyword arguments.</span>
+
+<span class="sd">        Embedding is only supported for scalar time series. If embedding</span>
+<span class="sd">        dimension ``dim`` and delay ``tau`` are **both** given as keyword</span>
+<span class="sd">        arguments, embedding is applied. Multidimensional time series are</span>
+<span class="sd">        processed as is by default. The same delay embedding is applied to both</span>
+<span class="sd">        time series x and y.</span>
+
+<span class="sd">        :type x: 2D array (time, dimension)</span>
+<span class="sd">        :arg x: One of the time series to be analyzed, can be scalar or</span>
+<span class="sd">            multi-dimensional.</span>
+<span class="sd">        :type y: 2D array (time, dimension)</span>
+<span class="sd">        :arg y: One of the time series to be analyzed, can be scalar or</span>
+<span class="sd">            multi-dimensional.</span>
+<span class="sd">        :arg str metric: The metric for measuring distances in phase space</span>
+<span class="sd">            (&quot;manhattan&quot;, &quot;euclidean&quot;, &quot;supremum&quot;).</span>
+<span class="sd">        :arg bool normalize: Decide whether to normalize both time series to</span>
+<span class="sd">            zero mean and unit standard deviation.</span>
+<span class="sd">        :arg number silence_level: Inverse level of verbosity of the object.</span>
+<span class="sd">        :arg number threshold: The recurrence threshold keyword for generating</span>
+<span class="sd">            the cross recurrence plot using a fixed threshold.</span>
+<span class="sd">        :arg number recurrence_rate: The recurrence rate keyword for generating</span>
+<span class="sd">            the cross recurrence plot using a fixed recurrence rate.</span>
+<span class="sd">        :arg number dim: The embedding dimension.</span>
+<span class="sd">        :arg number tau: The embedding delay.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">threshold</span> <span class="o">=</span> <span class="n">kwds</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;threshold&quot;</span><span class="p">)</span>
+        <span class="n">recurrence_rate</span> <span class="o">=</span> <span class="n">kwds</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;recurrence_rate&quot;</span><span class="p">)</span>
+
+        <span class="n">RecurrencePlot</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)),</span> <span class="n">metric</span><span class="o">=</span><span class="n">metric</span><span class="p">,</span> <span class="n">normalize</span><span class="o">=</span><span class="n">normalize</span><span class="p">,</span>
+            <span class="n">sparse_rqa</span><span class="o">=</span><span class="n">sparse_rqa</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="n">threshold</span><span class="p">,</span>
+            <span class="n">recurrence_rate</span><span class="o">=</span><span class="n">recurrence_rate</span><span class="p">,</span> <span class="n">silence_level</span><span class="o">=</span><span class="n">silence_level</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">CR</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="sd">&quot;&quot;&quot;The cross recurrence matrix.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="sd">&quot;&quot;&quot;The length of the embedded time series x.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="sd">&quot;&quot;&quot;The length of the embedded time series y.&quot;&quot;&quot;</span>
+
+        <span class="c">#  Store time series</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;The time series x.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span> <span class="o">=</span> <span class="n">y</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;The time series y.&quot;&quot;&quot;</span>
+
+        <span class="c">#  Reshape time series</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c">#  Normalize time series</span>
+        <span class="k">if</span> <span class="n">normalize</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">normalize_time_series</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">normalize_time_series</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">)</span>
+
+        <span class="c">#  Get embedding dimension and delay from **kwds</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">kwds</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;dim&quot;</span><span class="p">)</span>
+        <span class="n">tau</span> <span class="o">=</span> <span class="n">kwds</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;tau&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">tau</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c">#  Embed the time series</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">x_embedded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">embed_time_series</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">tau</span><span class="p">)</span>
+            <span class="sd">&quot;&quot;&quot;The embedded time series x.&quot;&quot;&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y_embedded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">embed_time_series</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">tau</span><span class="p">)</span>
+            <span class="sd">&quot;&quot;&quot;The embedded time series y.&quot;&quot;&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">x_embedded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">y_embedded</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span>
+
+        <span class="c">#  construct recurrence plot accordingly to threshold / recurrence rate</span>
+        <span class="k">if</span> <span class="n">threshold</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c">#  Calculate the recurrence matrix R using the radius of</span>
+            <span class="c">#  neighborhood threshold</span>
+            <span class="n">CrossRecurrencePlot</span><span class="o">.</span><span class="n">set_fixed_threshold</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">threshold</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">recurrence_rate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="c">#  Calculate the recurrence matrix R using a fixed recurrence rate</span>
+            <span class="n">CrossRecurrencePlot</span><span class="o">.</span>\
+                <span class="n">set_fixed_recurrence_rate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recurrence_rate</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NameError</span><span class="p">(</span>
+                <span class="s">&quot;Please give either threshold or recurrence_rate &quot;</span> <span class="o">+</span>
+                <span class="s">&quot;to construct the cross recurrence plot!&quot;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.__str__"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.__str__">[docs]</a>    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a string representation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s">&#39;CrossRecurrencePlot: time series shapes </span><span class="si">%s</span><span class="s">, </span><span class="si">%s</span><span class="s">.</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">+</span>
+                <span class="s">&#39;Embedding dimension </span><span class="si">%i</span><span class="se">\n</span><span class="s">Threshold </span><span class="si">%s</span><span class="s">, </span><span class="si">%s</span><span class="s"> metric&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">metric</span><span class="p">)</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Service methods</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.recurrence_matrix"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.recurrence_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">recurrence_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the current cross recurrence matrix :math:`CR`.</span>
+
+<span class="sd">        :rtype: 2D square Numpy array</span>
+<span class="sd">        :return: the current cross recurrence matrix :math:`CR`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">CR</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.distance_matrix"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.distance_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">distance_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_embedded</span><span class="p">,</span> <span class="n">y_embedded</span><span class="p">,</span> <span class="n">metric</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return phase space cross distance matrix :math:`D` according to the</span>
+<span class="sd">        chosen metric.</span>
+
+<span class="sd">        :type x_embedded: 2D array (time, embedding dimension)</span>
+<span class="sd">        :arg x_embedded: The phase space trajectory x.</span>
+<span class="sd">        :type y_embedded: 2D array (time, embedding dimension)</span>
+<span class="sd">        :arg y_embedded: The phase space trajectory y.</span>
+<span class="sd">        :arg str metric: The metric for measuring distances in phase space</span>
+<span class="sd">            (&quot;manhattan&quot;, &quot;euclidean&quot;, &quot;supremum&quot;).</span>
+<span class="sd">        :rtype: 2D square array</span>
+<span class="sd">        :return: the phase space cross distance matrix :math:`D`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Return distance matrix according to chosen metric:</span>
+        <span class="k">if</span> <span class="n">metric</span> <span class="o">==</span> <span class="s">&quot;manhattan&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">manhattan_distance_matrix</span><span class="p">(</span><span class="n">x_embedded</span><span class="p">,</span> <span class="n">y_embedded</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">metric</span> <span class="o">==</span> <span class="s">&quot;euclidean&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">euclidean_distance_matrix</span><span class="p">(</span><span class="n">x_embedded</span><span class="p">,</span> <span class="n">y_embedded</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">metric</span> <span class="o">==</span> <span class="s">&quot;supremum&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">supremum_distance_matrix</span><span class="p">(</span><span class="n">x_embedded</span><span class="p">,</span> <span class="n">y_embedded</span><span class="p">)</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Calculate recurrence plot</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.manhattan_distance_matrix"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.manhattan_distance_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">manhattan_distance_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_embedded</span><span class="p">,</span> <span class="n">y_embedded</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the manhattan distance matrix from two (embedded) time series.</span>
+
+<span class="sd">        :type x_embedded: 2D Numpy array (time, embedding dimension)</span>
+<span class="sd">        :arg x_embedded: The phase space trajectory x.</span>
+<span class="sd">        :type y_embedded: 2D Numpy array (time, embedding dimension)</span>
+<span class="sd">        :arg y_embedded: The phase space trajectory y.</span>
+<span class="sd">        :rtype: 2D rectangular Numpy array (&quot;float32&quot;)</span>
+<span class="sd">        :return: the manhattan distance matrix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating the manhattan distance matrix...&quot;</span>
+
+        <span class="n">ntime_x</span> <span class="o">=</span> <span class="n">x_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">ntime_y</span> <span class="o">=</span> <span class="n">y_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">x_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ntime_x</span><span class="p">,</span> <span class="n">ntime_y</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int j, k, l;</span>
+<span class="s">        float sum;</span>
+
+<span class="s">        //  Calculate the manhattan distance matrix</span>
+
+<span class="s">        for (j = 0; j &lt; ntime_x; j++) {</span>
+<span class="s">            for (k = 0; k &lt; ntime_y; k++) {</span>
+<span class="s">                sum = 0;</span>
+<span class="s">                for (l = 0; l &lt; dim; l++) {</span>
+<span class="s">                    //  Use manhattan norm</span>
+<span class="s">                    sum += fabs(x_embedded(j,l) - y_embedded(k,l));</span>
+<span class="s">                }</span>
+<span class="s">                distance(j,k) = sum;</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                     <span class="p">[</span><span class="s">&#39;ntime_x&#39;</span><span class="p">,</span> <span class="s">&#39;ntime_y&#39;</span><span class="p">,</span> <span class="s">&#39;dim&#39;</span><span class="p">,</span> <span class="s">&#39;x_embedded&#39;</span><span class="p">,</span> <span class="s">&#39;y_embedded&#39;</span><span class="p">,</span>
+                      <span class="s">&#39;distance&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">distance</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.euclidean_distance_matrix"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.euclidean_distance_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">euclidean_distance_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_embedded</span><span class="p">,</span> <span class="n">y_embedded</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the euclidean distance matrix from two (embedded) time series.</span>
+
+<span class="sd">        :type x_embedded: 2D Numpy array (time, embedding dimension)</span>
+<span class="sd">        :arg x_embedded: The phase space trajectory x.</span>
+<span class="sd">        :type y_embedded: 2D Numpy array (time, embedding dimension)</span>
+<span class="sd">        :arg y_embedded: The phase space trajectory y.</span>
+<span class="sd">        :rtype: 2D rectangular Numpy array (&quot;float32&quot;)</span>
+<span class="sd">        :return: the euclidean distance matrix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating the euclidean distance matrix...&quot;</span>
+
+        <span class="n">ntime_x</span> <span class="o">=</span> <span class="n">x_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">ntime_y</span> <span class="o">=</span> <span class="n">y_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">x_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ntime_x</span><span class="p">,</span> <span class="n">ntime_y</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int j, k, l;</span>
+<span class="s">        float sum, diff;</span>
+
+<span class="s">        //  Calculate the euclidean distance matrix</span>
+
+<span class="s">        for (j = 0; j &lt; ntime_x; j++) {</span>
+<span class="s">            for (k = 0; k &lt; ntime_y; k++) {</span>
+<span class="s">                sum = 0;</span>
+<span class="s">                for (l = 0; l &lt; dim; l++) {</span>
+<span class="s">                    //  Use euclidean norm</span>
+<span class="s">                    diff = fabs(x_embedded(j,l) - y_embedded(k,l));</span>
+<span class="s">                    sum += diff * diff;</span>
+<span class="s">                }</span>
+<span class="s">                distance(j,k) = sqrt(sum);</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                     <span class="p">[</span><span class="s">&#39;ntime_x&#39;</span><span class="p">,</span> <span class="s">&#39;ntime_y&#39;</span><span class="p">,</span> <span class="s">&#39;dim&#39;</span><span class="p">,</span> <span class="s">&#39;x_embedded&#39;</span><span class="p">,</span> <span class="s">&#39;y_embedded&#39;</span><span class="p">,</span>
+                      <span class="s">&#39;distance&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">distance</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.supremum_distance_matrix"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.supremum_distance_matrix">[docs]</a>    <span class="k">def</span> <span class="nf">supremum_distance_matrix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x_embedded</span><span class="p">,</span> <span class="n">y_embedded</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the supremum distance matrix from two (embedded) time series.</span>
+
+<span class="sd">        :type x_embedded: 2D Numpy array (time, embedding dimension)</span>
+<span class="sd">        :arg x_embedded: The phase space trajectory x.</span>
+<span class="sd">        :type y_embedded: 2D Numpy array (time, embedding dimension)</span>
+<span class="sd">        :arg y_embedded: The phase space trajectory y.</span>
+<span class="sd">        :rtype: 2D rectangular Numpy array (&quot;float32&quot;)</span>
+<span class="sd">        :return: the supremum distance matrix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating the supremum distance matrix...&quot;</span>
+
+        <span class="n">ntime_x</span> <span class="o">=</span> <span class="n">x_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">ntime_y</span> <span class="o">=</span> <span class="n">y_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">x_embedded</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">ntime_x</span><span class="p">,</span> <span class="n">ntime_y</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;float32&quot;</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int j, k, l;</span>
+<span class="s">        float temp_diff, diff;</span>
+
+<span class="s">        //  Calculate the supremum distance matrix</span>
+
+<span class="s">        for (j = 0; j &lt; ntime_x; j++) {</span>
+<span class="s">            for (k = 0; k &lt; ntime_y; k++) {</span>
+<span class="s">                temp_diff = diff = 0;</span>
+<span class="s">                for (l = 0; l &lt; dim; l++) {</span>
+<span class="s">                    //  Use supremum norm</span>
+<span class="s">                    temp_diff = fabs(x_embedded(j,l) - y_embedded(k,l));</span>
+
+<span class="s">                    if (temp_diff &gt; diff)</span>
+<span class="s">                        diff = temp_diff;</span>
+<span class="s">                }</span>
+<span class="s">                distance(j,k) = diff;</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span>
+                     <span class="p">[</span><span class="s">&#39;ntime_x&#39;</span><span class="p">,</span> <span class="s">&#39;ntime_y&#39;</span><span class="p">,</span> <span class="s">&#39;dim&#39;</span><span class="p">,</span> <span class="s">&#39;x_embedded&#39;</span><span class="p">,</span> <span class="s">&#39;y_embedded&#39;</span><span class="p">,</span>
+                      <span class="s">&#39;distance&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">distance</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.set_fixed_threshold"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.set_fixed_threshold">[docs]</a>    <span class="k">def</span> <span class="nf">set_fixed_threshold</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">threshold</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the cross recurrence plot to a fixed threshold.</span>
+
+<span class="sd">        Modifies / sets the class variables :attr:`CR`, :attr:`N` and :attr:`M`</span>
+<span class="sd">        accordingly.</span>
+
+<span class="sd">        :arg number threshold: The recurrence threshold.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating cross recurrence plot at fixed threshold...&quot;</span>
+
+        <span class="c">#  Get distance matrix, according to self.metric</span>
+        <span class="n">distance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_embedded</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_embedded</span><span class="p">,</span>
+                                        <span class="bp">self</span><span class="o">.</span><span class="n">metric</span><span class="p">)</span>
+
+        <span class="c">#  Get length of time series x and y</span>
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">)</span> <span class="o">=</span> <span class="n">distance</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c">#  Initialize recurrence matrix</span>
+        <span class="n">recurrence</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int8&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Thresholding the distance matrix</span>
+        <span class="n">recurrence</span><span class="p">[</span><span class="n">distance</span> <span class="o">&lt;</span> <span class="n">threshold</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c">#  Clean up</span>
+        <span class="k">del</span> <span class="n">distance</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">CR</span> <span class="o">=</span> <span class="n">recurrence</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="n">N</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">=</span> <span class="n">M</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.set_fixed_recurrence_rate"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.set_fixed_recurrence_rate">[docs]</a>    <span class="k">def</span> <span class="nf">set_fixed_recurrence_rate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recurrence_rate</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the cross recurrence plot to a fixed recurrence rate.</span>
+
+<span class="sd">        Modifies / sets the class variables :attr:`CR`, :attr:`N` and :attr:`M`</span>
+<span class="sd">        accordingly.</span>
+
+<span class="sd">        :arg number recurrence_rate: The recurrence rate.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating cross recurrence plot at </span><span class="se">\</span>
+<span class="s">fixed recurrence rate...&quot;</span>
+
+        <span class="c">#  Get distance matrix, according to self.metric</span>
+        <span class="n">distance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">distance_matrix</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_embedded</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_embedded</span><span class="p">,</span>
+                                        <span class="bp">self</span><span class="o">.</span><span class="n">metric</span><span class="p">)</span>
+
+        <span class="c">#  Get length of time series x and y</span>
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">)</span> <span class="o">=</span> <span class="n">distance</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c">#  Get threshold to obtain fixed recurrence rate</span>
+        <span class="n">threshold</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">threshold_from_recurrence_rate</span><span class="p">(</span><span class="n">distance</span><span class="p">,</span>
+                                                        <span class="n">recurrence_rate</span><span class="p">)</span>
+
+        <span class="c">#  Initialize recurrence matrix</span>
+        <span class="n">recurrence</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">M</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s">&quot;int8&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Thresholding the distance matrix</span>
+        <span class="n">recurrence</span><span class="p">[</span><span class="n">distance</span> <span class="o">&lt;</span> <span class="n">threshold</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c">#  Clean up</span>
+        <span class="k">del</span> <span class="n">distance</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">CR</span> <span class="o">=</span> <span class="n">recurrence</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="n">N</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">M</span> <span class="o">=</span> <span class="n">M</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Extended RQA measures</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.recurrence_rate"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.recurrence_rate">[docs]</a>    <span class="k">def</span> <span class="nf">recurrence_rate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return cross recurrence rate.</span>
+
+<span class="sd">        Alias to :meth:`cross_recurrence_rate`, since</span>
+<span class="sd">        :meth:`RecurrencePlot.recurrence_rate` would give incorrect results</span>
+<span class="sd">        here.</span>
+
+<span class="sd">        :rtype: number (float)</span>
+<span class="sd">        :return: the cross recurrence rate.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cross_recurrence_rate</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.cross_recurrence_rate"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.cross_recurrence_rate">[docs]</a>    <span class="k">def</span> <span class="nf">cross_recurrence_rate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return cross recurrence rate.</span>
+
+<span class="sd">        :rtype: number (float)</span>
+<span class="sd">        :return: the cross recurrence rate.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">CR</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">M</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CrossRecurrencePlot.balance"><a class="viewcode-back" href="../../../api/timeseries/cross_recurrence_plot.html#pyunicorn.timeseries.cross_recurrence_plot.CrossRecurrencePlot.balance">[docs]</a>    <span class="k">def</span> <span class="nf">balance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return balance of the cross recurrence plot.</span>
+
+<span class="sd">        Might be useful for detecting the direction of coupling between systems</span>
+<span class="sd">        using cross recurrence analysis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#  Get cross recurrence matrix</span>
+        <span class="n">CR</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">recurrence_matrix</span><span class="p">()</span>
+
+        <span class="c">#  Get sum of upper triangle of cross recurrence matrix, excluding the</span>
+        <span class="c">#  main diagonal</span>
+        <span class="n">upper_triangle_sum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">triu</span><span class="p">(</span><span class="n">CR</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="c">#  Get sum of lower triangle of cross recurrence matrix, excluding the</span>
+        <span class="c">#  main diagonal</span>
+        <span class="n">lower_triangle_sum</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tril</span><span class="p">(</span><span class="n">CR</span><span class="p">,</span> <span class="n">k</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="c">#  Return balance</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">upper_triangle_sum</span> <span class="o">-</span> <span class="n">lower_triangle_sum</span><span class="p">)</span> <span class="o">/</span> \
+            <span class="nb">float</span><span class="p">(</span><span class="n">upper_triangle_sum</span> <span class="o">+</span> <span class="n">lower_triangle_sum</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2008-2015, Jonathan F. Donges and pyunicorn authors.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

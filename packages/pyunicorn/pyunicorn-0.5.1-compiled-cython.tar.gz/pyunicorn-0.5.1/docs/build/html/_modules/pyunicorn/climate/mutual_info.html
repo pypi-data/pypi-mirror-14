@@ -1,0 +1,787 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pyunicorn.climate.mutual_info &mdash; pyunicorn 0.5.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.5.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pyunicorn 0.5.1 documentation" href="../../../sitemap.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+<a href="../../../index.html"><img src="../../../_static/logo.png" border="0" alt="py4sci"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../sitemap.html">
+              <img class="logo" src="../../../_static/logo.png" alt="Logo"/>
+            </a></p>
+<h3><a href="../../../sitemap.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../methods.html">Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_doc.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../publications.html">Publications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contact.html">Contact</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyunicorn.climate.mutual_info</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#</span>
+<span class="c"># This file is part of pyunicorn.</span>
+<span class="c"># Copyright (C) 2008--2015 Jonathan F. Donges and pyunicorn authors</span>
+<span class="c"># URL: &lt;http://www.pik-potsdam.de/members/donges/software&gt;</span>
+<span class="c"># License: BSD (3-clause)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Provides classes for generating and analyzing complex climate networks.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c">#</span>
+<span class="c">#  Import essential packages</span>
+<span class="c">#</span>
+
+<span class="c"># array object and fast numerics</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+<span class="c">#  Import progress bar for easy progress bar handling</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="kn">import</span> <span class="n">progressbar</span>
+<span class="c"># C++ inline code</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="kn">import</span> <span class="n">weave_inline</span>
+<span class="c">#  Import cnNetwork for Network base class</span>
+<span class="kn">from</span> <span class="nn">.climate_network</span> <span class="kn">import</span> <span class="n">ClimateNetwork</span>
+
+
+<span class="n">LONG_TYPE</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span>
+<span class="n">DOUBLE_TYPE</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span>
+
+
+<span class="c">#</span>
+<span class="c">#  Define class MutualInfoClimateNetwork</span>
+<span class="c">#</span>
+
+<div class="viewcode-block" id="MutualInfoClimateNetwork"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork">[docs]</a><span class="k">class</span> <span class="nc">MutualInfoClimateNetwork</span><span class="p">(</span><span class="n">ClimateNetwork</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents a mutual information climate network.</span>
+
+<span class="sd">    Constructs a static climate network based on mutual information at zero</span>
+<span class="sd">    lag, as in [Ueoka2008]_.</span>
+
+<span class="sd">    Mutual information climate networks are undirected, since mutual</span>
+<span class="sd">    information is a symmetrical measure. In contrast to Pearson correlation</span>
+<span class="sd">    used in :class:`.TsonisClimateNetwork`, mutual information has the</span>
+<span class="sd">    potential to detect nonlinear statistical interdependencies.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Defines internal methods</span>
+    <span class="c">#</span>
+
+<div class="viewcode-block" id="MutualInfoClimateNetwork.__init__"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">link_density</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">non_local</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">node_weight_type</span><span class="o">=</span><span class="s">&quot;surface&quot;</span><span class="p">,</span> <span class="n">winter_only</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                 <span class="n">silence_level</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize an instance of MutualInfoClimateNework.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Either threshold **OR** link_density have to be given!</span>
+
+<span class="sd">        Possible choices for ``node_weight_type``:</span>
+<span class="sd">          - None (constant unit weights)</span>
+<span class="sd">          - &quot;surface&quot; (cos lat)</span>
+<span class="sd">          - &quot;irrigation&quot; (cos**2 lat)</span>
+
+<span class="sd">        :type data: :class:`.ClimateData`</span>
+<span class="sd">        :arg data: The climate data used for network construction.</span>
+
+<span class="sd">        :arg float threshold: The threshold of similarity measure, above which</span>
+<span class="sd">            two nodes are linked in the network.</span>
+<span class="sd">        :arg float link_density: The networks&#39;s desired link density.</span>
+<span class="sd">        :arg bool non_local: Determines, whether links between spatially close</span>
+<span class="sd">            nodes should be suppressed.</span>
+<span class="sd">        :arg str node_weight_type: The type of geographical node weight to be</span>
+<span class="sd">            used.</span>
+<span class="sd">        :arg bool winter_only: Determines, whether only data points from the</span>
+<span class="sd">            winter months (December, January and February) should be used for</span>
+<span class="sd">            analysis. Possibly, this further suppresses the annual cycle in the</span>
+<span class="sd">            time series.</span>
+<span class="sd">        :arg int silence_level: The inverse level of verbosity of the object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Generating a mutual information climate network...&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">=</span> <span class="n">silence_level</span>
+
+        <span class="c">#  Set instance variables</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="sd">&quot;&quot;&quot;(ClimateData) - The climate data used for network construction.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">N</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prescribed_link_density</span> <span class="o">=</span> <span class="n">link_density</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_winter_only</span> <span class="o">=</span> <span class="n">winter_only</span>
+
+        <span class="c">#  Class specific settings</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mi_file</span> <span class="o">=</span> <span class="s">&quot;mutual_information_&quot;</span> <span class="o">+</span> <span class="n">data</span><span class="o">.</span><span class="n">data_source</span> <span class="o">+</span> <span class="s">&quot;_&quot;</span> \
+            <span class="o">+</span> <span class="n">data</span><span class="o">.</span><span class="n">observable_name</span> <span class="o">+</span> <span class="s">&quot;.data&quot;</span>
+        <span class="sd">&quot;&quot;&quot;(string) - The name of the file for storing the mutual information</span>
+<span class="sd">                      matrix.&quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_winter_only</span><span class="p">(</span><span class="n">winter_only</span><span class="p">)</span>
+        <span class="n">ClimateNetwork</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">grid</span><span class="p">,</span>
+                                <span class="n">similarity_measure</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_similarity_measure</span><span class="p">,</span>
+                                <span class="n">threshold</span><span class="o">=</span><span class="n">threshold</span><span class="p">,</span>
+                                <span class="n">non_local</span><span class="o">=</span><span class="n">non_local</span><span class="p">,</span>
+                                <span class="n">directed</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                                <span class="n">node_weight_type</span><span class="o">=</span><span class="n">node_weight_type</span><span class="p">,</span>
+                                <span class="n">silence_level</span><span class="o">=</span><span class="n">silence_level</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.__str__"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.__str__">[docs]</a>    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a string representation of MutualInfoClimateNetwork.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;MutualInfoClimateNetwork:</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">+</span> <span class="n">ClimateNetwork</span><span class="o">.</span><span class="n">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Defines methods to calculate the mutual information matrix</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.eval_weave_calculate_mutual_information"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.eval_weave_calculate_mutual_information">[docs]</a>    <span class="k">def</span> <span class="nf">eval_weave_calculate_mutual_information</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">anomaly</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Compare the fast and slow weave code to calculate mutual information.</span>
+
+<span class="sd">        :type anomaly: 2D Numpy array (time, index)</span>
+<span class="sd">        :arg anomaly: The anomaly time series.</span>
+
+<span class="sd">        :rtype: tuple of two 2D Numpy arrays (index, index)</span>
+<span class="sd">        :return: the mutual information matrices from fast and slow algorithm.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mi_fast</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weave_calculate_mutual_information</span><span class="p">(</span><span class="n">anomaly</span><span class="p">,</span> <span class="n">fast</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">mi_slow</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weave_calculate_mutual_information</span><span class="p">(</span><span class="n">anomaly</span><span class="p">,</span> <span class="n">fast</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">mi_fast</span><span class="p">,</span> <span class="n">mi_slow</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork._weave_calculate_mutual_information"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork._weave_calculate_mutual_information">[docs]</a>    <span class="k">def</span> <span class="nf">_weave_calculate_mutual_information</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">anomaly</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+                                            <span class="n">fast</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the mutual information matrix at zero lag.</span>
+
+<span class="sd">        The weave code is adopted from the Tisean 3.0.1 mutual.c module.</span>
+
+<span class="sd">        :type anomaly: 2D Numpy array (time, index)</span>
+<span class="sd">        :arg anomaly: The anomaly time series.</span>
+
+<span class="sd">        :arg int n_bins: The number of bins for estimating probability</span>
+<span class="sd">            distributions.</span>
+<span class="sd">        :arg bool fast: Indicates, whether fast or slow algorithm should be</span>
+<span class="sd">            used.</span>
+<span class="sd">        :rtype: 2D array (index, index)</span>
+<span class="sd">        :return: the mutual information matrix at zero lag.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating mutual information matrix at zero lag from </span><span class="se">\</span>
+<span class="s">anomaly values using Weave...&quot;</span>
+
+        <span class="c">#  Normalize anomaly time series to zero mean and unit variance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">normalize_time_series_array</span><span class="p">(</span><span class="n">anomaly</span><span class="p">)</span>
+
+        <span class="c">#  Create local transposed copy of anomaly</span>
+        <span class="n">anomaly</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fastCopyAndTranspose</span><span class="p">(</span><span class="n">anomaly</span><span class="p">)</span>
+
+        <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">)</span> <span class="o">=</span> <span class="n">anomaly</span><span class="o">.</span><span class="n">shape</span>
+
+        <span class="c">#  Get common range for all histograms</span>
+        <span class="n">range_min</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">anomaly</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
+        <span class="n">range_max</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">anomaly</span><span class="o">.</span><span class="n">max</span><span class="p">())</span>
+
+        <span class="c">#  Rescale all time series to the interval [0,1],</span>
+        <span class="c">#  using the maximum range of the whole dataset.</span>
+        <span class="n">scaling</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="mf">1.</span> <span class="o">/</span> <span class="p">(</span><span class="n">range_max</span> <span class="o">-</span> <span class="n">range_min</span><span class="p">))</span>
+
+        <span class="c">#  Create array to hold symbolic trajectories</span>
+        <span class="n">symbolic</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">anomaly</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">LONG_TYPE</span><span class="p">)</span>
+
+        <span class="c">#  Initialize array to hold 1d-histograms of individual time series</span>
+        <span class="n">hist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">LONG_TYPE</span><span class="p">)</span>
+
+        <span class="c">#  Initialize array to hold 2d-histogram for one pair of time series</span>
+        <span class="n">hist2d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_bins</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">LONG_TYPE</span><span class="p">)</span>
+
+        <span class="c">#  Initialize mutual information array</span>
+        <span class="n">mi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">N</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">DOUBLE_TYPE</span><span class="p">)</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        int i, j, k, l, m;</span>
+<span class="s">        int symbol, symbol_i, symbol_j;</span>
+<span class="s">        double norm, rescaled, hpl, hpm, plm;</span>
+
+<span class="s">        //  Calculate histogram norm</span>
+<span class="s">        norm = 1.0 / n_samples;</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+<span class="s">            for (k = 0; k &lt; n_samples; k++) {</span>
+
+<span class="s">                //  Calculate symbolic trajectories for each time series,</span>
+<span class="s">                //  where the symbols are bins.</span>
+<span class="s">                rescaled = scaling * (anomaly(i,k) - range_min);</span>
+
+<span class="s">                if (rescaled &lt; 1.0) {</span>
+<span class="s">                    symbolic(i,k) = rescaled * n_bins;</span>
+<span class="s">                }</span>
+<span class="s">                else {</span>
+<span class="s">                    symbolic(i,k) = n_bins - 1;</span>
+<span class="s">                }</span>
+
+<span class="s">                //  Calculate 1d-histograms for single time series</span>
+<span class="s">                symbol = symbolic(i,k);</span>
+<span class="s">                hist(i,symbol) += 1;</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+<span class="s">            for (j = 0; j &lt;= i; j++) {</span>
+
+<span class="s">                //  The case i = j is not of interest here!</span>
+<span class="s">                if (i != j) {</span>
+<span class="s">                    //  Calculate 2d-histogram for one pair of time series</span>
+<span class="s">                    //  (i,j).</span>
+<span class="s">                    for (k = 0; k &lt; n_samples; k++) {</span>
+<span class="s">                        symbol_i = symbolic(i,k);</span>
+<span class="s">                        symbol_j = symbolic(j,k);</span>
+<span class="s">                        hist2d(symbol_i,symbol_j) += 1;</span>
+<span class="s">                    }</span>
+
+<span class="s">                    //  Calculate mutual information for one pair of time</span>
+<span class="s">                    //  series (i,j).</span>
+<span class="s">                    for (l = 0; l &lt; n_bins; l++) {</span>
+<span class="s">                        hpl = hist(i,l) * norm;</span>
+<span class="s">                        if (hpl &gt; 0.0) {</span>
+<span class="s">                            for (m = 0; m &lt; n_bins; m++) {</span>
+<span class="s">                                hpm = hist(j,m) * norm;</span>
+<span class="s">                                if (hpm &gt; 0.0) {</span>
+<span class="s">                                    plm = hist2d(l,m) * norm;</span>
+<span class="s">                                    if (plm &gt; 0.0) {</span>
+<span class="s">                                        mi(i,j) += plm * log(plm/hpm/hpl);</span>
+<span class="s">                                    }</span>
+<span class="s">                                }</span>
+<span class="s">                            }</span>
+<span class="s">                        }</span>
+<span class="s">                    }</span>
+
+<span class="s">                    //  Symmetrize MI</span>
+<span class="s">                    mi(j,i) = mi(i,j);</span>
+
+<span class="s">                    //  Reset hist2d to zero in all bins</span>
+<span class="s">                    for (l = 0; l &lt; n_bins; l++) {</span>
+<span class="s">                        for (m = 0; m &lt; n_bins; m++) {</span>
+<span class="s">                            hist2d(l,m) = 0;</span>
+<span class="s">                        }</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">            }</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+
+        <span class="c"># anomaly must be a contiguous Numpy array for this code to work</span>
+        <span class="c"># correctly! All the other arrays are generated from scratch in this</span>
+        <span class="c"># method and are guaranteed to be contiguous by Numpy.</span>
+        <span class="n">fastCode</span> <span class="o">=</span> <span class="s">r&quot;&quot;&quot;</span>
+<span class="s">        long i, j, k, l, m, in_bins, jn_bins, ln_bins, in_samples, jn_samples,</span>
+<span class="s">             in_nodes;</span>
+<span class="s">        double norm, rescaled, hpl, hpm, plm;</span>
+
+<span class="s">        double *p_anomaly;</span>
+<span class="s">        float *p_mi, *p_mi2;</span>
+<span class="s">        long *p_symbolic, *p_symbolic1, *p_symbolic2, *p_hist, *p_hist1,</span>
+<span class="s">             *p_hist2, *p_hist2d;</span>
+
+<span class="s">        //  Calculate histogram norm</span>
+<span class="s">        norm = 1.0 / n_samples;</span>
+
+<span class="s">        //  Initialize in_samples, in_bins</span>
+<span class="s">        in_samples = in_bins = 0;</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+
+<span class="s">            //  Set pointer to anomaly(i,0)</span>
+<span class="s">            p_anomaly = anomaly + in_samples;</span>
+<span class="s">            //  Set pointer to symbolic(i,0)</span>
+<span class="s">            p_symbolic = symbolic + in_samples;</span>
+
+<span class="s">            for (k = 0; k &lt; n_samples; k++) {</span>
+
+<span class="s">                //  Rescale sample into interval [0,1]</span>
+<span class="s">                rescaled = scaling * (*p_anomaly - range_min);</span>
+
+<span class="s">                //  Calculate symbolic trajectories for each time series,</span>
+<span class="s">                //  where the symbols are bin numbers.</span>
+<span class="s">                if (rescaled &lt; 1.0) {</span>
+<span class="s">                    *p_symbolic = rescaled * n_bins;</span>
+<span class="s">                }</span>
+<span class="s">                else {</span>
+<span class="s">                    *p_symbolic = n_bins - 1;</span>
+<span class="s">                }</span>
+
+<span class="s">                //  Calculate 1d-histograms for single time series</span>
+<span class="s">                //  Set pointer to hist(i, *p_symbolic)</span>
+<span class="s">                p_hist = hist + in_bins + *p_symbolic;</span>
+<span class="s">                (*p_hist)++;</span>
+
+<span class="s">                //  Set pointer to anomaly(k+1,i)</span>
+<span class="s">                p_anomaly++;</span>
+<span class="s">                //  Set pointer to symbolic(k+1,i)</span>
+<span class="s">                p_symbolic++;</span>
+<span class="s">            }</span>
+<span class="s">            in_samples += n_samples;</span>
+<span class="s">            in_bins += n_bins;</span>
+<span class="s">        }</span>
+
+<span class="s">        //  Initialize in_samples, in_bins, in_nodes</span>
+<span class="s">        in_samples = in_bins = in_nodes = 0;</span>
+
+<span class="s">        for (i = 0; i &lt; N; i++) {</span>
+
+<span class="s">            //  Set pointer to mi(i,0)</span>
+<span class="s">            p_mi = mi + in_nodes;</span>
+<span class="s">            //  Set pointer to mi(0,i)</span>
+<span class="s">            p_mi2 = mi + i;</span>
+
+<span class="s">            //  Initialize jn_samples, jn_bins</span>
+<span class="s">            jn_samples = jn_bins = 0;</span>
+
+<span class="s">            for (j = 0; j &lt;= i; j++) {</span>
+
+<span class="s">                //  Don&#39;t do anything for i = j, this case is not of</span>
+<span class="s">                //  interest here!</span>
+<span class="s">                if (i != j) {</span>
+
+<span class="s">                    //  Set pointer to symbolic(i,0)</span>
+<span class="s">                    p_symbolic1 = symbolic + in_samples;</span>
+<span class="s">                    //  Set pointer to symbolic(j,0)</span>
+<span class="s">                    p_symbolic2 = symbolic + jn_samples;</span>
+
+<span class="s">                    //  Calculate 2d-histogram for one pair of time series</span>
+<span class="s">                    //  (i,j).</span>
+<span class="s">                    for (k = 0; k &lt; n_samples; k++) {</span>
+
+<span class="s">                        //  Set pointer to hist2d(*p_symbolic1, *p_symbolic2)</span>
+<span class="s">                        p_hist2d = hist2d + (*p_symbolic1)*n_bins</span>
+<span class="s">                                   + *p_symbolic2;</span>
+
+<span class="s">                        (*p_hist2d)++;</span>
+
+<span class="s">                        //  Set pointer to symbolic(i,k+1)</span>
+<span class="s">                        p_symbolic1++;</span>
+<span class="s">                        //  Set pointer to symbolic(j,k+1)</span>
+<span class="s">                        p_symbolic2++;</span>
+<span class="s">                    }</span>
+
+<span class="s">                    //  Calculate mutual information for one pair of time</span>
+<span class="s">                    //  series (i,j).</span>
+
+<span class="s">                    //  Set pointer to hist(i,0)</span>
+<span class="s">                    p_hist1 = hist + in_bins;</span>
+
+<span class="s">                    //  Initialize ln_bins</span>
+<span class="s">                    ln_bins = 0;</span>
+
+<span class="s">                    for (l = 0; l &lt; n_bins; l++) {</span>
+
+<span class="s">                        //  Set pointer to hist(j,0)</span>
+<span class="s">                        p_hist2 = hist + jn_bins;</span>
+<span class="s">                        //  Set pointer to hist2d(l,0)</span>
+<span class="s">                        p_hist2d = hist2d + ln_bins;</span>
+
+<span class="s">                        hpl = (*p_hist1) * norm;</span>
+
+<span class="s">                        if (hpl &gt; 0.0) {</span>
+<span class="s">                            for (m = 0; m &lt; n_bins; m++) {</span>
+
+<span class="s">                                hpm = (*p_hist2) * norm;</span>
+
+<span class="s">                                if (hpm &gt; 0.0) {</span>
+<span class="s">                                    plm = (*p_hist2d) * norm;</span>
+<span class="s">                                    if (plm &gt; 0.0) {</span>
+<span class="s">                                        *p_mi += plm * log(plm/hpm/hpl);</span>
+<span class="s">                                    }</span>
+<span class="s">                                }</span>
+
+<span class="s">                                //  Set pointer to hist(j,m+1)</span>
+<span class="s">                                p_hist2++;</span>
+<span class="s">                                //  Set pointer to hist2d(l,m+1)</span>
+<span class="s">                                p_hist2d++;</span>
+<span class="s">                            }</span>
+<span class="s">                        }</span>
+<span class="s">                        //  Set pointer to hist(i,l+1)</span>
+<span class="s">                        p_hist1++;</span>
+
+<span class="s">                        ln_bins += n_bins;</span>
+<span class="s">                    }</span>
+
+<span class="s">                    //  Symmetrize MI</span>
+<span class="s">                    *p_mi2 = *p_mi;</span>
+
+<span class="s">                    //  Initialize ln_bins</span>
+<span class="s">                    ln_bins = 0;</span>
+
+<span class="s">                    //  Reset hist2d to zero in all bins</span>
+<span class="s">                    for (l = 0; l &lt; n_bins; l++) {</span>
+
+<span class="s">                        //  Set pointer to hist2d(l,0)</span>
+<span class="s">                        p_hist2d = hist2d + ln_bins;</span>
+
+<span class="s">                        for (m = 0; m &lt; n_bins; m++) {</span>
+<span class="s">                            *p_hist2d = 0;</span>
+
+<span class="s">                            //  Set pointer to hist2d(l,m+1)</span>
+<span class="s">                            p_hist2d++;</span>
+<span class="s">                        }</span>
+<span class="s">                        ln_bins += n_bins;</span>
+<span class="s">                    }</span>
+<span class="s">                }</span>
+<span class="s">                //  Set pointer to mi(i,j+1)</span>
+<span class="s">                p_mi++;</span>
+<span class="s">                //  Set pointer to mi(j+1,i)</span>
+<span class="s">                p_mi2 += N;</span>
+
+<span class="s">                jn_samples += n_samples;</span>
+<span class="s">                jn_bins += n_bins;</span>
+<span class="s">            }</span>
+<span class="s">            in_samples += n_samples;</span>
+<span class="s">            in_bins += n_bins;</span>
+<span class="s">            in_nodes += N;</span>
+<span class="s">        }</span>
+<span class="s">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;anomaly&#39;</span><span class="p">,</span> <span class="s">&#39;n_samples&#39;</span><span class="p">,</span> <span class="s">&#39;N&#39;</span><span class="p">,</span> <span class="s">&#39;n_bins&#39;</span><span class="p">,</span> <span class="s">&#39;scaling&#39;</span><span class="p">,</span> <span class="s">&#39;range_min&#39;</span><span class="p">,</span>
+                <span class="s">&#39;symbolic&#39;</span><span class="p">,</span> <span class="s">&#39;hist&#39;</span><span class="p">,</span> <span class="s">&#39;hist2d&#39;</span><span class="p">,</span> <span class="s">&#39;mi&#39;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">fast</span><span class="p">:</span>
+            <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">fastCode</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">blitz</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">weave_inline</span><span class="p">(</span><span class="nb">locals</span><span class="p">(),</span> <span class="n">code</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Done!&quot;</span>
+
+        <span class="k">return</span> <span class="n">mi</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork._calculate_mutual_information"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork._calculate_mutual_information">[docs]</a>    <span class="k">def</span> <span class="nf">_calculate_mutual_information</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">anomaly</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">32</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the mutual information matrix at zero lag.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Slow since solely based on Python and Numpy!</span>
+
+<span class="sd">        :type anomaly: 2D array (time, index)</span>
+<span class="sd">        :arg anomaly: The anomaly time series.</span>
+<span class="sd">        :arg int n_bins: The number of bins for estimating probability</span>
+<span class="sd">                     distributions.</span>
+<span class="sd">        :rtype: 2D array (index, index)</span>
+<span class="sd">        :return: the mutual information matrix at zero lag.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Calculating mutual information matrix at zero lag from </span><span class="se">\</span>
+<span class="s">anomaly values...&quot;</span>
+
+        <span class="c">#  Define references to numpy functions for faster function calls</span>
+        <span class="n">histogram</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span>
+        <span class="n">histogram2d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram2d</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span>
+
+        <span class="c">#  Normalize anomaly time series to zero mean and unit variance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">normalize_time_series_array</span><span class="p">(</span><span class="n">anomaly</span><span class="p">)</span>
+
+        <span class="c">#  Get faster reference to length of time series = number of samples</span>
+        <span class="c">#  per grid point.</span>
+        <span class="n">n_samples</span> <span class="o">=</span> <span class="n">anomaly</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c">#  Initialize mutual information array</span>
+        <span class="n">mi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">))</span>
+
+        <span class="c">#  Get common range for all histograms</span>
+        <span class="n">range_min</span> <span class="o">=</span> <span class="n">anomaly</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+        <span class="n">range_max</span> <span class="o">=</span> <span class="n">anomaly</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+        <span class="c">#  Calculate the histograms for each time series</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="n">n_bins</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">p</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">histogram</span><span class="p">(</span>
+                <span class="n">anomaly</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">n_bins</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="p">(</span><span class="n">range_min</span><span class="p">,</span> <span class="n">range_max</span><span class="p">)</span>
+            <span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s">&quot;float64&quot;</span><span class="p">)</span>
+
+        <span class="c">#  Normalize by total number of samples = length of each time series</span>
+        <span class="n">p</span> <span class="o">/=</span> <span class="n">n_samples</span>
+
+        <span class="c">#  Make sure that bins with zero estimated probability are not counted</span>
+        <span class="c">#  in the entropy measures.</span>
+        <span class="n">p</span><span class="p">[</span><span class="n">p</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="c">#  Compute the information entropies of each time series</span>
+        <span class="n">H</span> <span class="o">=</span> <span class="o">-</span> <span class="p">(</span><span class="n">p</span> <span class="o">*</span> <span class="n">log</span><span class="p">(</span><span class="n">p</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="c">#  Initialize progress bar</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">progress</span> <span class="o">=</span> <span class="n">progressbar</span><span class="o">.</span><span class="n">ProgressBar</span><span class="p">(</span><span class="n">maxval</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+        <span class="c">#  Calculate only the lower half of the MI matrix, since MI is</span>
+        <span class="c">#  symmetric with respect to X and Y.</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+            <span class="c">#  Update progress bar every 10 steps</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">10</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">progress</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">i</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
+                <span class="c">#  Calculate the joint probability distribution</span>
+                <span class="n">pxy</span> <span class="o">=</span> <span class="n">histogram2d</span><span class="p">(</span>
+                    <span class="n">anomaly</span><span class="p">[:,</span> <span class="n">i</span><span class="p">],</span> <span class="n">anomaly</span><span class="p">[:,</span> <span class="n">j</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">n_bins</span><span class="p">,</span>
+                    <span class="nb">range</span><span class="o">=</span><span class="p">((</span><span class="n">range_min</span><span class="p">,</span> <span class="n">range_max</span><span class="p">),</span>
+                           <span class="p">(</span><span class="n">range_min</span><span class="p">,</span> <span class="n">range_max</span><span class="p">)))[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s">&quot;float64&quot;</span><span class="p">)</span>
+
+                <span class="c">#  Normalize joint distribution</span>
+                <span class="n">pxy</span> <span class="o">/=</span> <span class="n">n_samples</span>
+
+                <span class="c">#  Compute the joint information entropy</span>
+                <span class="n">pxy</span><span class="p">[</span><span class="n">pxy</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">HXY</span> <span class="o">=</span> <span class="o">-</span> <span class="p">(</span><span class="n">pxy</span> <span class="o">*</span> <span class="n">log</span><span class="p">(</span><span class="n">pxy</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+                <span class="c">#  ... and store the result</span>
+                <span class="n">mi</span><span class="o">.</span><span class="n">itemset</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">),</span> <span class="n">H</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">+</span> <span class="n">H</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="o">-</span> <span class="n">HXY</span><span class="p">)</span>
+                <span class="n">mi</span><span class="o">.</span><span class="n">itemset</span><span class="p">((</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">),</span> <span class="n">mi</span><span class="o">.</span><span class="n">item</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">progress</span><span class="o">.</span><span class="n">finish</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">mi</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.calculate_similarity_measure"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.calculate_similarity_measure">[docs]</a>    <span class="k">def</span> <span class="nf">calculate_similarity_measure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">anomaly</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the mutual information matrix.</span>
+
+<span class="sd">        Encapsulates calculation of mutual information with standard</span>
+<span class="sd">        parameters.</span>
+
+<span class="sd">        :type anomaly: 2D Numpy array (time, index)</span>
+<span class="sd">        :arg anomaly: The anomaly time series.</span>
+
+<span class="sd">        :rtype: 2D Numpy array (index, index)</span>
+<span class="sd">        :return: the mutual information matrix at zero lag.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weave_calculate_mutual_information</span><span class="p">(</span><span class="n">anomaly</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.mutual_information"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.mutual_information">[docs]</a>    <span class="k">def</span> <span class="nf">mutual_information</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">anomaly</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return mutual information matrix at zero lag.</span>
+
+<span class="sd">        Check if mutual information matrix (MI) was already calculated before:</span>
+<span class="sd">          - If yes, return MI from a data file.</span>
+<span class="sd">          - If not, return MI from calculation and store in file.</span>
+
+<span class="sd">        :type anomaly: 2D Numpy array (time, index)</span>
+<span class="sd">        :arg anomaly: The anomaly time series.</span>
+<span class="sd">        :arg bool dump: Store MI in data file.</span>
+
+<span class="sd">        :rtype: 2D Numpy array (index, index)</span>
+<span class="sd">        :return: the mutual information matrix at zero lag.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c">#  Try to load MI from file</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;Loading mutual information matrix from </span><span class="si">%s</span><span class="s">...&quot;</span> <span class="o">%</span> \
+                    <span class="bp">self</span><span class="o">.</span><span class="n">mi_file</span>
+
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mi_file</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">mi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+                <span class="c">#  Check if the dimensions of mutual_information correspond to</span>
+                <span class="c">#  the grid.</span>
+                <span class="k">if</span> <span class="n">mi</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">N</span><span class="p">):</span>
+                    <span class="k">print</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mi_file</span> <span class="o">+</span>
+                           <span class="s">&quot; in current directory has incorrect dimensions!&quot;</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span>
+
+        <span class="k">except</span> <span class="p">(</span><span class="ne">IOError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;An error occured while loading data from </span><span class="si">%s</span><span class="s">.&quot;</span> <span class="o">%</span> \
+                    <span class="bp">self</span><span class="o">.</span><span class="n">mi_file</span>
+                <span class="k">print</span> <span class="s">&quot;Recalculating mutual information.&quot;</span>
+
+            <span class="n">mi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weave_calculate_mutual_information</span><span class="p">(</span><span class="n">anomaly</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">dump</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mi_file</span><span class="p">,</span> <span class="s">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">silence_level</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">print</span> <span class="s">&quot;Storing in&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mi_file</span>
+                    <span class="n">mi</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">mi</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.winter_only"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.winter_only">[docs]</a>    <span class="k">def</span> <span class="nf">winter_only</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Indicate, if only winter months were used for network generation.</span>
+
+<span class="sd">        :return bool: whether only winter months were used for network</span>
+<span class="sd">            generation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_winter_only</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork._set_winter_only"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork._set_winter_only">[docs]</a>    <span class="k">def</span> <span class="nf">_set_winter_only</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">winter_only</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Toggle use of exclusively winter data points for network generation.</span>
+
+<span class="sd">        :arg bool winter_only: Indicates whether only winter months were used</span>
+<span class="sd">            for network generation.</span>
+<span class="sd">        :arg bool dump: Store MI in data file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_winter_only</span> <span class="o">=</span> <span class="n">winter_only</span>
+        <span class="k">if</span> <span class="n">winter_only</span><span class="p">:</span>
+            <span class="n">winter_anomaly</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">anomaly_selected_months</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">11</span><span class="p">])</span>
+            <span class="n">mi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutual_information</span><span class="p">(</span><span class="n">winter_anomaly</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="n">dump</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mutual_information</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">anomaly</span><span class="p">(),</span> <span class="n">dump</span><span class="o">=</span><span class="n">dump</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_similarity_measure</span> <span class="o">=</span> <span class="n">mi</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.set_winter_only"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.set_winter_only">[docs]</a>    <span class="k">def</span> <span class="nf">set_winter_only</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">winter_only</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Toggle use of exclusively winter data points for network generation.</span>
+
+<span class="sd">        Also explicitly regenerates the instance of MutualInfoClimateNetwork.</span>
+
+<span class="sd">        :arg bool winter_only: Indicates whether only winter months were used</span>
+<span class="sd">            for network generation.</span>
+<span class="sd">        :arg bool dump: Store MI in data file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_winter_only</span><span class="p">(</span><span class="n">winter_only</span><span class="p">,</span> <span class="n">dump</span><span class="o">=</span><span class="n">dump</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_regenerate_network</span><span class="p">()</span>
+
+    <span class="c">#</span>
+    <span class="c">#  Defines methods to calculate  weighted network measures</span>
+    <span class="c">#</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.mutual_information_weighted_average_path_length"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.mutual_information_weighted_average_path_length">[docs]</a>    <span class="k">def</span> <span class="nf">mutual_information_weighted_average_path_length</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return mutual information weighted average path length.</span>
+
+<span class="sd">        :return float: the mutual information weighted average path length.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="s">&quot;mutual_information&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path_lengths_cached</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_link_attribute</span><span class="p">(</span><span class="s">&quot;mutual_information&quot;</span><span class="p">,</span>
+                                    <span class="nb">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mutual_information</span><span class="p">()))</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">average_path_length</span><span class="p">(</span><span class="s">&quot;mutual_information&quot;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.mutual_information_weighted_closeness"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.mutual_information_weighted_closeness">[docs]</a>    <span class="k">def</span> <span class="nf">mutual_information_weighted_closeness</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return mutual information weighted closeness.</span>
+
+<span class="sd">        :rtype: 1D Numpy array [index]</span>
+<span class="sd">        :return: the mutual information weighted closeness sequence.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="s">&quot;mutual_information&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path_lengths_cached</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_link_attribute</span><span class="p">(</span><span class="s">&quot;mutual_information&quot;</span><span class="p">,</span>
+                                    <span class="nb">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mutual_information</span><span class="p">()))</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">closeness</span><span class="p">(</span><span class="s">&quot;mutual_information&quot;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="MutualInfoClimateNetwork.local_mutual_information_weighted_vulnerability"><a class="viewcode-back" href="../../../api/climate/mutual_info.html#pyunicorn.climate.mutual_info.MutualInfoClimateNetwork.local_mutual_information_weighted_vulnerability">[docs]</a>    <span class="k">def</span> <span class="nf">local_mutual_information_weighted_vulnerability</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return mutual information weighted vulnerability.</span>
+
+<span class="sd">        :rtype: 1D Numpy array [index]</span>
+<span class="sd">        :return: the mutual information weighted vulnerability sequence.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="s">&quot;mutual_information&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path_lengths_cached</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">set_link_attribute</span><span class="p">(</span><span class="s">&quot;mutual_information&quot;</span><span class="p">,</span>
+                                    <span class="nb">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mutual_information</span><span class="p">()))</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">local_vulnerability</span><span class="p">(</span><span class="s">&quot;mutual_information&quot;</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2008-2015, Jonathan F. Donges and pyunicorn authors.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>

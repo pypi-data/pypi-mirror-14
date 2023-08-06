@@ -1,0 +1,673 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>pyunicorn.utils.mpi &mdash; pyunicorn 0.5.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/sphinxdoc.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '0.5.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="pyunicorn 0.5.1 documentation" href="../../../sitemap.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+
+<div style="background-color: white; text-align: left; padding: 10px 10px 15px 15px">
+<a href="../../../index.html"><img src="../../../_static/logo.png" border="0" alt="py4sci"/></a>
+</div>
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../../../sitemap.html">
+              <img class="logo" src="../../../_static/logo.png" alt="Logo"/>
+            </a></p>
+<h3><a href="../../../sitemap.html">Table Of Contents</a></h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../index.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../methods.html">Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api_doc.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../development.html">Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../publications.html">Publications</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contact.html">Contact</a></li>
+</ul>
+
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for pyunicorn.utils.mpi</h1><div class="highlight"><pre>
+<span class="c">#!/usr/bin/python</span>
+<span class="c"># -*- coding: utf-8 -*-</span>
+<span class="c">#</span>
+<span class="c"># This file is part of pyunicorn.</span>
+<span class="c"># Copyright (C) 2008--2015 Jonathan F. Donges and pyunicorn authors</span>
+<span class="c"># URL: &lt;http://www.pik-potsdam.de/members/donges/software&gt;</span>
+<span class="c"># License: BSD (3-clause)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Module for parallelization using mpi4py.</span>
+
+<span class="sd">Allows for easy parallelization in master/slaves mode with one master</span>
+<span class="sd">submitting function or method calls to slaves.</span>
+<span class="sd">Uses mpi4py if available, otherwise processes calls sequentially in one</span>
+<span class="sd">process.</span>
+
+<span class="sd">Examples:</span>
+<span class="sd">=========</span>
+
+<span class="sd">Save the following lines in ``demo_mpi.py`` and run::</span>
+
+<span class="sd">    &gt; mpirun -n 10 python demo_mpi.py</span>
+
+<span class="sd">1. Use master/slaves parallelization with the Network class:</span>
+
+<span class="sd">   .. literalinclude:: ../../../../examples/modules/mpi/network_large.py</span>
+
+<span class="sd">2. Do a Monte Carlo simulation as master/slaves:</span>
+
+<span class="sd">   .. literalinclude:: ../../../../examples/modules/mpi/network_mc.py</span>
+
+<span class="sd">3. Do a parameter scan without communication with a master, and just save</span>
+<span class="sd">   the results in files:</span>
+
+<span class="sd">   .. literalinclude:: ../../../../examples/modules/mpi/network_scan_no_comm.py</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c">#</span>
+<span class="c">#  Imports</span>
+<span class="c">#</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span>
+
+
+<span class="c"># try to get the communicator object to see whether mpi is available:</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">mpi4py</span> <span class="kn">import</span> <span class="n">MPI</span>
+    <span class="n">comm</span> <span class="o">=</span> <span class="n">MPI</span><span class="o">.</span><span class="n">COMM_WORLD</span>
+    <span class="sd">&quot;&quot;&quot;(mpi4py.MPI.Comm instance) MPI communicator.&quot;&quot;&quot;</span>
+    <span class="n">available</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="sd">&quot;&quot;&quot;(bool) indicates that slaves are available.&quot;&quot;&quot;</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="n">available</span> <span class="o">=</span> <span class="bp">False</span>
+
+
+<span class="k">class</span> <span class="nc">MPIException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="ne">Exception</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="c"># initialize:</span>
+
+<span class="k">if</span> <span class="n">available</span><span class="p">:</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">comm</span><span class="o">.</span><span class="n">size</span>
+    <span class="sd">&quot;&quot;&quot;(int) number of MPI nodes (master and slaves).&quot;&quot;&quot;</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="n">comm</span><span class="o">.</span><span class="n">rank</span>
+    <span class="sd">&quot;&quot;&quot;(int) rank of this MPI node (0 is the master).&quot;&quot;&quot;</span>
+    <span class="n">am_master</span> <span class="o">=</span> <span class="p">(</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="sd">&quot;&quot;&quot;(bool) indicates that this MPI node is the master.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">size</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">available</span> <span class="o">=</span> <span class="bp">False</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">rank</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">am_master</span> <span class="o">=</span> <span class="bp">True</span>
+
+<span class="n">am_slave</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">am_master</span>
+<span class="sd">&quot;&quot;&quot;(bool) indicates that this MPI node is a slave.&quot;&quot;&quot;</span>
+<span class="n">n_slaves</span> <span class="o">=</span> <span class="n">size</span> <span class="o">-</span> <span class="mi">1</span>
+<span class="sd">&quot;&quot;&quot;(int) no. of slaves available.&quot;&quot;&quot;</span>
+<span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+<span class="sd">&quot;&quot;&quot;(float) starting time of this MPI node.&quot;&quot;&quot;</span>
+<span class="n">stats</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">(list of dictionaries)</span>
+<span class="sd">stats[id] contains processing statistics for the last call with this id. Keys:</span>
+
+<span class="sd">  - &quot;id&quot;: id of the call</span>
+<span class="sd">  - &quot;rank&quot;: MPI node who processed the call</span>
+<span class="sd">  - &quot;this_time&quot;: wall time for processing the call</span>
+<span class="sd">  - &quot;time_over_est&quot;: quotient of actual over estimated wall time</span>
+<span class="sd">  - &quot;n_processed&quot;: no. of calls processed so far by that slave, including this</span>
+<span class="sd">  - &quot;total_time&quot;: total wall time until this call was finished</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c"># initialization on master with slaves:</span>
+
+<span class="k">if</span> <span class="n">am_master</span><span class="p">:</span>
+
+    <span class="n">total_time_est</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    (numpy array of ints)</span>
+<span class="sd">    total_time_est[i] is the current estimate of the total time</span>
+<span class="sd">    MPI slave i will work on already submitted calls.</span>
+<span class="sd">    On slave i, only total_time_est[i] is available.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">total_time_est</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">inf</span>
+    <span class="n">queue</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="sd">&quot;&quot;&quot;(list) ids of submitted calls&quot;&quot;&quot;</span>
+    <span class="n">assigned</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    (dictionary)</span>
+<span class="sd">    assigned[id] is the slave assigned to the call with that id.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">slave_queue</span> <span class="o">=</span> <span class="p">[[]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span><span class="p">)]</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    (list of lists)</span>
+<span class="sd">    slave_queue[i] contains the ids of calls assigned to slave i.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">n_processed</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s">&quot;int&quot;</span><span class="p">)</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    (list of ints)</span>
+<span class="sd">    n_processed[rank] is the total number of calls processed by MPI node rank.</span>
+<span class="sd">    On slave i, only total_time[i] is available.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">total_time</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    (list of floats)</span>
+<span class="sd">    total_time[rank] is the total wall time until that node finished its last</span>
+<span class="sd">    call.  On slave i, only total_time[i] is available.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">available</span><span class="p">:</span>
+        <span class="c"># dictionary for results:</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        (dictionary)</span>
+<span class="sd">        if mpi is not available, the result of submit_call(..., id=a) will be</span>
+<span class="sd">        cached in results[a] until get_result(a).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="submit_call"><a class="viewcode-back" href="../../../api/utils/mpi.html#pyunicorn.utils.mpi.submit_call">[docs]</a>    <span class="k">def</span> <span class="nf">submit_call</span><span class="p">(</span><span class="n">name_to_call</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(),</span> <span class="n">kwargs</span><span class="o">=</span><span class="p">{},</span>
+                    <span class="n">module</span><span class="o">=</span><span class="s">&quot;__main__&quot;</span><span class="p">,</span> <span class="n">time_est</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">slave</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Submit a call for parallel execution.</span>
+
+<span class="sd">        If called by the master and slaves are available, the call is submitted</span>
+<span class="sd">        to a slave for asynchronous execution.</span>
+
+<span class="sd">        If called by a slave or if no slaves are available, the call is instead</span>
+<span class="sd">        executed synchronously on this MPI node.</span>
+
+<span class="sd">        **Examples:**</span>
+
+<span class="sd">            1. Provide ids and time estimate explicitly:</span>
+
+<span class="sd">               .. code-block:: python</span>
+
+<span class="sd">                  for n in range(0,10):</span>
+<span class="sd">                      mpi.submit_call(&quot;doit&quot;, (n,A[n]), id=n, time_est=n**2)</span>
+
+<span class="sd">                  for n in range(0,10):</span>
+<span class="sd">                      result[n] = mpi.get_result(n)</span>
+
+<span class="sd">            2. Use generated ids stored in a list:</span>
+
+<span class="sd">               .. code-block:: python</span>
+
+<span class="sd">                  for n in range(0,10):</span>
+<span class="sd">                      ids.append(mpi.submit_call(&quot;doit&quot;, (n,A[n])))</span>
+
+<span class="sd">                  for n in range(0,10):</span>
+<span class="sd">                      results.append(mpi.get_result(ids.pop()))</span>
+
+<span class="sd">            3. Ignore ids altogether:</span>
+
+<span class="sd">               .. code-block:: python</span>
+
+<span class="sd">                  for n in range(0,10):</span>
+<span class="sd">                      mpi.submit_call(&quot;doit&quot;, (n,A[n]))</span>
+
+<span class="sd">                  for n in range(0,10):</span>
+<span class="sd">                      results.append(mpi.get_next_result())</span>
+
+<span class="sd">            4. Call a module function and use keyword arguments:</span>
+
+<span class="sd">               .. code-block:: python</span>
+
+<span class="sd">                  mpi.submit_call(&quot;solve&quot;, (), {&quot;a&quot;:a, &quot;b&quot;:b},</span>
+<span class="sd">                      module=&quot;numpy.linalg&quot;)</span>
+
+<span class="sd">            5. Call a static class method from a package:</span>
+
+<span class="sd">               .. code-block:: python</span>
+
+<span class="sd">                  mpi.submit_call(&quot;Network._get_histogram&quot;, (values, n_bins),</span>
+<span class="sd">                      module=&quot;pyunicorn&quot;)</span>
+
+<span class="sd">              Note that it is module=&quot;pyunicorn&quot; and not</span>
+<span class="sd">              module=&quot;pyunicorn.network&quot; here.</span>
+
+<span class="sd">        :arg str name_to_call: name of callable object (usually a function or</span>
+<span class="sd">            static method of a class) as contained in the namespace specified</span>
+<span class="sd">            by module.</span>
+<span class="sd">        :arg tuple args: the positional arguments to provide to the callable</span>
+<span class="sd">            object.  Tuples of length 1 must be written (arg,).  Default: ()</span>
+<span class="sd">        :arg dict kwargs: the keyword arguments to provide to the callable</span>
+<span class="sd">            object.  Default: {}</span>
+<span class="sd">        :arg str module: optional name of the imported module or submodule in</span>
+<span class="sd">            whose namespace the callable object is contained. For objects</span>
+<span class="sd">            defined on the script level, this is &quot;__main__&quot;, for objects</span>
+<span class="sd">            defined in an imported package, this is the package name. Must be a</span>
+<span class="sd">            key of the dictionary sys.modules (check there after import if in</span>
+<span class="sd">            doubt).  Default: &quot;__main__&quot;</span>
+<span class="sd">        :arg float time_est: estimated relative completion time for this call;</span>
+<span class="sd">            used to find a suitable slave. Default: 1</span>
+<span class="sd">        :type id: object or None</span>
+<span class="sd">        :arg  id: unique id for this call. Must be a possible dictionary key.</span>
+<span class="sd">            If None, a random id is assigned and returned. Can be re-used after</span>
+<span class="sd">            get_result() for this is. Default: None</span>
+<span class="sd">        :type slave: int &gt; 0 and &lt; mpi.size, or None</span>
+<span class="sd">        :arg  slave: optional no. of slave to assign the call to. If None, the</span>
+<span class="sd">            call is assigned to the slave with the smallest current total time</span>
+<span class="sd">            estimate. Default: None</span>
+<span class="sd">        :return object: id of call, to be used in get_result().</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">id</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="nb">id</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">id</span> <span class="ow">in</span> <span class="n">assigned</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MPIException</span><span class="p">(</span><span class="s">&quot;id &quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">),</span> <span class="s">&quot; already in queue!&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">slave</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">am_slave</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MPIException</span><span class="p">(</span>
+                <span class="s">&quot;only the master can use slave= in submit_call()&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">slave</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">slave</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">slave</span> <span class="o">&gt;=</span> <span class="n">size</span><span class="p">:</span>
+            <span class="c"># find slave with least estimated total time:</span>
+            <span class="n">slave</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">total_time_est</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">available</span><span class="p">:</span>
+            <span class="c"># send name to call, args, time_est to slave:</span>
+            <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;MPI master : assigning call with id&quot;</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span> <span class="s">&quot;to slave&quot;</span><span class="p">,</span> \
+                      <span class="n">slave</span><span class="p">,</span> <span class="s">&quot;:&quot;</span><span class="p">,</span> <span class="n">name_to_call</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">,</span> <span class="s">&quot;...&quot;</span>
+            <span class="n">comm</span><span class="o">.</span><span class="n">send</span><span class="p">((</span><span class="n">name_to_call</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">time_est</span><span class="p">),</span>
+                      <span class="n">dest</span><span class="o">=</span><span class="n">slave</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># do it myself right now:</span>
+            <span class="n">slave</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;MPI master : calling&quot;</span><span class="p">,</span> <span class="n">name_to_call</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">,</span> <span class="s">&quot;...&quot;</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">object_to_call</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">name_to_call</span><span class="p">,</span>
+                                      <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module</span><span class="p">]</span><span class="o">.</span><span class="n">__dict__</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module</span><span class="p">]</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+                <span class="k">raise</span>
+            <span class="n">call_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+            <span class="n">results</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">object_to_call</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">this_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">call_time</span>
+            <span class="n">n_processed</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">total_time</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span>
+            <span class="n">stats</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s">&quot;id&quot;</span><span class="p">:</span> <span class="nb">id</span><span class="p">,</span> <span class="s">&quot;rank&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                          <span class="s">&quot;this_time&quot;</span><span class="p">:</span> <span class="n">this_time</span><span class="p">,</span>
+                          <span class="s">&quot;time_over_est&quot;</span><span class="p">:</span> <span class="n">this_time</span> <span class="o">/</span> <span class="n">time_est</span><span class="p">,</span>
+                          <span class="s">&quot;n_processed&quot;</span><span class="p">:</span> <span class="n">n_processed</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                          <span class="s">&quot;total_time&quot;</span><span class="p">:</span> <span class="n">total_time</span><span class="p">[</span><span class="mi">0</span><span class="p">]})</span>
+
+        <span class="n">total_time_est</span><span class="p">[</span><span class="n">slave</span><span class="p">]</span> <span class="o">+=</span> <span class="n">time_est</span>
+        <span class="n">queue</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+        <span class="n">slave_queue</span><span class="p">[</span><span class="n">slave</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+        <span class="n">assigned</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">slave</span>
+        <span class="k">return</span> <span class="nb">id</span>
+</div>
+<div class="viewcode-block" id="get_result"><a class="viewcode-back" href="../../../api/utils/mpi.html#pyunicorn.utils.mpi.get_result">[docs]</a>    <span class="k">def</span> <span class="nf">get_result</span><span class="p">(</span><span class="nb">id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return result of earlier submitted call.</span>
+
+<span class="sd">        Can only be called by the master.</span>
+
+<span class="sd">        If the call is not yet finished, waits for it to finish.</span>
+<span class="sd">        Results should be collected in the same order as calls were submitted.</span>
+<span class="sd">        For each slave, the results of calls assigned to that slave must be</span>
+<span class="sd">        collected in the same order as those calls were submitted.</span>
+<span class="sd">        Can only be called once per call.</span>
+
+<span class="sd">        :type id: object</span>
+<span class="sd">        :arg  id: id of an earlier submitted call, as provided to or returned</span>
+<span class="sd">                  by submit_call().</span>
+
+<span class="sd">        :rtype:  object</span>
+<span class="sd">        :return: return value of call.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="n">assigned</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">available</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">slave_queue</span><span class="p">[</span><span class="n">source</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="nb">id</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">MPIException</span><span class="p">(</span><span class="s">&quot;get_result(&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+                                   <span class="o">+</span> <span class="s">&quot;) called before get_result(&quot;</span>
+                                   <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">slave_queue</span><span class="p">[</span><span class="n">source</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="s">&quot;)!&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;MPI master : retrieving result for call with id&quot;</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span>\
+                      <span class="s">&quot;from slave&quot;</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="s">&quot;...&quot;</span>
+            <span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">this_stats</span><span class="p">)</span> <span class="o">=</span> <span class="n">comm</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">)</span>
+            <span class="n">stats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">this_stats</span><span class="p">)</span>
+            <span class="n">n_processed</span><span class="p">[</span><span class="n">source</span><span class="p">]</span> <span class="o">=</span> <span class="n">this_stats</span><span class="p">[</span><span class="s">&quot;n_processed&quot;</span><span class="p">]</span>
+            <span class="n">total_time</span><span class="p">[</span><span class="n">source</span><span class="p">]</span> <span class="o">=</span> <span class="n">this_stats</span><span class="p">[</span><span class="s">&quot;total_time&quot;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;MPI master : returning result for call with id&quot;</span><span class="p">,</span> <span class="nb">id</span><span class="p">,</span> \
+                      <span class="s">&quot;...&quot;</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">results</span><span class="p">[</span><span class="nb">id</span><span class="p">]</span>
+            <span class="c"># TODO: rather return a copy and del the original?</span>
+        <span class="n">queue</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+        <span class="n">slave_queue</span><span class="p">[</span><span class="n">source</span><span class="p">]</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+        <span class="n">assigned</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span>
+</div>
+<div class="viewcode-block" id="get_next_result"><a class="viewcode-back" href="../../../api/utils/mpi.html#pyunicorn.utils.mpi.get_next_result">[docs]</a>    <span class="k">def</span> <span class="nf">get_next_result</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return result of next earlier submitted call whose result has not yet</span>
+<span class="sd">        been got.</span>
+
+<span class="sd">        Can only be called by the master.</span>
+
+<span class="sd">        If the call is not yet finished, waits for it to finish.</span>
+
+<span class="sd">        :rtype:  object</span>
+<span class="sd">        :return: return value of call, or None of there are no more calls in</span>
+<span class="sd">                 the queue.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">queue</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">id</span> <span class="o">=</span> <span class="n">queue</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">get_result</span><span class="p">(</span><span class="nb">id</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="info"><a class="viewcode-back" href="../../../api/utils/mpi.html#pyunicorn.utils.mpi.info">[docs]</a>    <span class="k">def</span> <span class="nf">info</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Print processing statistics.</span>
+
+<span class="sd">        Can only be called by the master.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">call_times</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">s</span><span class="p">[</span><span class="s">&quot;this_time&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">stats</span><span class="p">])</span>
+        <span class="n">call_quotients</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">s</span><span class="p">[</span><span class="s">&quot;time_over_est&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">stats</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">available</span><span class="p">:</span>
+            <span class="n">slave_quotients</span> <span class="o">=</span> <span class="n">total_time</span><span class="o">/</span><span class="n">total_time_est</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;MPI: processing statistics</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     =====================</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     results collected:         &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">n_processed</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     results not yet collected: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">queue</span><span class="p">))</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     total reported time:       &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">call_times</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     mean time per call:        &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">call_times</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     std.dev. of time per call: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">call_times</span><span class="o">.</span><span class="n">std</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     coeff. of var. of actual over estd. time per call: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">call_quotients</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">/</span><span class="n">call_quotients</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     slaves:                      &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">n_slaves</span><span class="p">)</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     mean calls per slave:        &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">n_processed</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     std.dev. of calls per slave: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">n_processed</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">std</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     min calls per slave:         &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">n_processed</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">min</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     max calls per slave:         &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">n_processed</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">max</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     mean time per slave:        &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">total_time</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     std.dev. of time per slave: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">total_time</span><span class="o">.</span><span class="n">std</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     coeff. of var. of actual over estd. time per slave: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">slave_quotients</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">/</span><span class="n">slave_quotients</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;MPI: processing statistics</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     =====================</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     results collected:         &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">n_processed</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     results not yet collected: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">queue</span><span class="p">))</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     total reported time:       &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">call_times</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     mean time per call:        &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">call_times</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     std.dev. of time per call: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">call_times</span><span class="o">.</span><span class="n">std</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">+</span>
+                  <span class="s">&quot;     coeff. of var. of actual over estd. time per call: &quot;</span> <span class="o">+</span>
+                  <span class="nb">str</span><span class="p">(</span><span class="n">call_quotients</span><span class="o">.</span><span class="n">std</span><span class="p">()</span><span class="o">/</span><span class="n">call_quotients</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span> <span class="o">+</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="terminate"><a class="viewcode-back" href="../../../api/utils/mpi.html#pyunicorn.utils.mpi.terminate">[docs]</a>    <span class="k">def</span> <span class="nf">terminate</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Tell all slaves to terminate.</span>
+
+<span class="sd">        Can only be called by the master.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">global</span> <span class="n">available</span>
+        <span class="k">if</span> <span class="n">available</span><span class="p">:</span>
+            <span class="c"># tell slaves to terminate:</span>
+            <span class="k">for</span> <span class="n">slave</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">size</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="s">&quot;MPI master : telling slave&quot;</span><span class="p">,</span> <span class="n">slave</span><span class="p">,</span> \
+                          <span class="s">&quot;to terminate...&quot;</span>
+                <span class="n">comm</span><span class="o">.</span><span class="n">send</span><span class="p">((</span><span class="s">&quot;terminate&quot;</span><span class="p">,</span> <span class="p">(),</span> <span class="p">{},</span> <span class="s">&quot;&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dest</span><span class="o">=</span><span class="n">slave</span><span class="p">)</span>
+            <span class="n">available</span> <span class="o">=</span> <span class="bp">False</span>
+</div>
+    <span class="k">def</span> <span class="nf">abort</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Abort execution on all MPI nodes immediately.</span>
+
+<span class="sd">        Can be called by master and slaves.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;MPI master : aborting...&quot;</span>
+        <span class="n">comm</span><span class="o">.</span><span class="n">Abort</span><span class="p">()</span>
+
+<span class="k">else</span><span class="p">:</span>  <span class="c"># am_slave and available:</span>
+
+    <span class="n">total_time_est</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">)</span><span class="o">*</span><span class="n">numpy</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">total_time_est</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">n_processed</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">)</span><span class="o">*</span><span class="n">numpy</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">n_processed</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">total_time</span> <span class="o">=</span> <span class="n">numpy</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">size</span><span class="p">)</span><span class="o">*</span><span class="n">numpy</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">total_time</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">serve</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Serve submitted calls until told to finish.</span>
+
+<span class="sd">        Can only be called by slaves.</span>
+
+<span class="sd">        Call this function from inside your definition of slave() if slaves</span>
+<span class="sd">        need to perform initializations different from the master, like this:</span>
+
+<span class="sd">        &gt;&gt;&gt; def slave():</span>
+<span class="sd">        &gt;&gt;&gt;     do = whatever + initialization - is * necessary</span>
+<span class="sd">        &gt;&gt;&gt;     mpi.serve()</span>
+<span class="sd">        &gt;&gt;&gt;     do = whatever + cleanup - is * necessary</span>
+
+<span class="sd">        If you don&#39;t define slave(), serve() will be called automatically by</span>
+<span class="sd">        mpi.run().</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;MPI slave &quot;</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="s">&quot;: waiting for calls.&quot;</span>
+        <span class="c"># wait for orders:</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="c"># get next task from queue:</span>
+            <span class="p">(</span><span class="n">name_to_call</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">,</span> <span class="n">module</span><span class="p">,</span> <span class="n">time_est</span><span class="p">)</span> <span class="o">=</span> \
+                <span class="n">comm</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="c"># TODO: add some timeout and check whether master lives!</span>
+            <span class="k">if</span> <span class="n">name_to_call</span> <span class="o">==</span> <span class="s">&quot;terminate&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="s">&quot;MPI slave&quot;</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="s">&quot;: terminating...&quot;</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;MPI slave&quot;</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="s">&quot;: calling&quot;</span><span class="p">,</span> <span class="n">name_to_call</span><span class="p">,</span>\
+                      <span class="n">args</span><span class="p">,</span> <span class="s">&quot;...&quot;</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">object_to_call</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">name_to_call</span><span class="p">,</span>
+                                      <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module</span><span class="p">]</span><span class="o">.</span><span class="n">__dict__</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module</span><span class="p">]</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+                <span class="k">raise</span>
+            <span class="n">total_time_est</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span> <span class="o">+=</span> <span class="n">time_est</span>
+            <span class="n">call_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">object_to_call</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">this_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">call_time</span>
+            <span class="n">n_processed</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">stats</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s">&quot;id&quot;</span><span class="p">:</span> <span class="nb">id</span><span class="p">,</span> <span class="s">&quot;rank&quot;</span><span class="p">:</span> <span class="n">rank</span><span class="p">,</span>
+                          <span class="s">&quot;this_time&quot;</span><span class="p">:</span> <span class="n">this_time</span><span class="p">,</span>
+                          <span class="s">&quot;time_over_est&quot;</span><span class="p">:</span> <span class="n">this_time</span> <span class="o">/</span> <span class="n">time_est</span><span class="p">,</span>
+                          <span class="s">&quot;n_processed&quot;</span><span class="p">:</span> <span class="n">n_processed</span><span class="p">[</span><span class="n">rank</span><span class="p">],</span>
+                          <span class="s">&quot;total_time&quot;</span><span class="p">:</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">})</span>
+            <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;MPI slave&quot;</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="s">&quot;: sending result...&quot;</span>
+            <span class="n">comm</span><span class="o">.</span><span class="n">send</span><span class="p">((</span><span class="n">result</span><span class="p">,</span> <span class="n">stats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="n">dest</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+<div class="viewcode-block" id="abort"><a class="viewcode-back" href="../../../api/utils/mpi.html#pyunicorn.utils.mpi.abort">[docs]</a>    <span class="k">def</span> <span class="nf">abort</span><span class="p">():</span>
+        <span class="n">traceback</span><span class="o">.</span><span class="n">print_exc</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">_verbose</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;MPI slave&quot;</span><span class="p">,</span> <span class="n">rank</span><span class="p">,</span> <span class="s">&quot;: aborting...&quot;</span>
+        <span class="n">comm</span><span class="o">.</span><span class="n">Abort</span><span class="p">()</span>
+
+    <span class="c"># TODO: update total_time_est at return time</span>
+</div>
+<span class="n">_verbose</span> <span class="o">=</span> <span class="bp">False</span>
+
+
+<div class="viewcode-block" id="run"><a class="viewcode-back" href="../../../api/utils/mpi.html#pyunicorn.utils.mpi.run">[docs]</a><span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">verbose</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run in master/slaves mode until master() finishes.</span>
+
+<span class="sd">    Must be called on all MPI nodes after function master() was defined.</span>
+
+<span class="sd">    On the master, run() calls master() and returns when master() returns.</span>
+
+<span class="sd">    On each slave, run() calls slave() if that is defined, or calls serve()</span>
+<span class="sd">    otherwise, and returns when slave() returns, or when master() returns on</span>
+<span class="sd">    the master, or when master calls terminate().</span>
+
+<span class="sd">    :arg bool verbose: whether processing information should be printed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c"># transfer verbose into global environment:</span>
+    <span class="k">global</span> <span class="n">_verbose</span>
+    <span class="n">_verbose</span> <span class="o">=</span> <span class="n">verbose</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    (bool) indicated whether processing information should be printed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_globals</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="s">&#39;__main__&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__dict__</span>
+
+    <span class="k">if</span> <span class="n">available</span><span class="p">:</span>  <span class="c"># run in mpi mode</span>
+        <span class="k">if</span> <span class="n">am_master</span><span class="p">:</span>  <span class="c"># I&#39;m master</span>
+            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;MPI master : started, using&quot;</span><span class="p">,</span> <span class="n">size</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="s">&quot;slaves.&quot;</span>
+            <span class="k">try</span><span class="p">:</span>  <span class="c"># put everything in a try block to be able to terminate!</span>
+                <span class="k">if</span> <span class="s">&quot;master&quot;</span> <span class="ow">in</span> <span class="n">_globals</span><span class="p">:</span>
+                    <span class="n">_globals</span><span class="p">[</span><span class="s">&quot;master&quot;</span><span class="p">]()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="s">&quot;MPI master : function master() not found!&quot;</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">abort</span><span class="p">()</span>
+            <span class="n">terminate</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                <span class="k">print</span> <span class="s">&quot;MPI master : finished.&quot;</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c"># I&#39;m slave</span>
+            <span class="k">if</span> <span class="s">&quot;slave&quot;</span> <span class="ow">in</span> <span class="n">_globals</span><span class="p">:</span>
+                <span class="n">_globals</span><span class="p">[</span><span class="s">&quot;slave&quot;</span><span class="p">]()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">serve</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c"># run as single processor</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;MPI master : not available, running as a single process.&quot;</span>
+        <span class="k">if</span> <span class="s">&quot;master&quot;</span> <span class="ow">in</span> <span class="n">_globals</span><span class="p">:</span>
+            <span class="n">_globals</span><span class="p">[</span><span class="s">&quot;master&quot;</span><span class="p">]()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;MPI master : function master() not found!&quot;</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;MPI master : finished.&quot;</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../../index.html">home</a>|&nbsp;</li>
+        <li><a href="../../../search.html">search</a>|&nbsp;</li>
+
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2008-2015, Jonathan F. Donges and pyunicorn authors.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.1.
+    </div>
+  </body>
+</html>
