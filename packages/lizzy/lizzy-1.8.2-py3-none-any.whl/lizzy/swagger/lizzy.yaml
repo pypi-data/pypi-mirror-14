@@ -1,0 +1,336 @@
+swagger: "2.0"
+
+info:
+  title: Lizzy
+  description: REST Service to deploy AWS CF templates using Senza
+  version: "1.1"
+
+basePath: /api
+
+schemes:
+ - https
+
+consumes:
+  - application/json
+
+produces:
+  - application/json
+
+securityDefinitions:
+  oauth:
+    type: oauth2
+    flow: password
+    tokenUrl: "{{token_url}}"
+    scopes:
+        "{{deployer_scope}}": Can deploy and change stacks
+
+paths:
+  /stacks:
+    get:
+      summary: List all stacks
+      description: |
+        Lists all stacks created by lizzy.
+      operationId: lizzy.api.all_stacks
+      security:
+        - oauth:
+            - "{{deployer_scope}}"
+      responses:
+        200:
+          description: List of stacks
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/stack'
+        401:
+          description: |
+            Stacks were not retrieved because the access token was not provided or was not valid for this operation
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            $ref: '#/definitions/problem'
+    post:
+      summary: Create new stack
+      description: |
+        Adds a new stack to be created by lizzy and returns the information needed to keep track of deployment
+      operationId: lizzy.api.create_stack
+      responses:
+        201:
+          description: |
+            Stack to be created. The CloudFormation Stack creation can still fail later.
+          schema:
+            $ref: '#/definitions/stack'
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+        400:
+          description: Stack was not created because request was invalid or because the deployment failed.
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            $ref: '#/definitions/problem'
+        401:
+          description: |
+            Stack was not created because the access token was not provided or was not valid for this operation
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            $ref: '#/definitions/problem'
+      security:
+        - oauth:
+            - "{{deployer_scope}}"
+      parameters:
+        - name: new_stack
+          required: true
+          in: body
+          schema:
+            $ref: '#/definitions/new_stack'
+  /stacks/{stack-id}:
+    get:
+      summary: Retrieves a lizzy stack
+      description: Retrieves a lizzy stack by stack id
+      operationId: lizzy.api.get_stack
+      security:
+        - oauth:
+            - "{{deployer_scope}}"
+      parameters:
+        - name: stack-id
+          in: path
+          description: Stack Id
+          required: true
+          type: string
+      responses:
+        200:
+          description: Stack information
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            $ref: '#/definitions/stack'
+        401:
+          description: |
+            Stack was not retrieved because the access token was not provided or was not valid for this operation
+          schema:
+            $ref: '#/definitions/problem'
+        404:
+          description: |
+            Stack was not found. It's possible for a stack to exist on an AWS account and not be found by lizzy
+            because lizzy only handles stacks created by itself.
+          schema:
+            $ref: '#/definitions/problem'
+    delete:
+      summary: Delete a lizzy stack
+      description: Marks the stack identified by stack id for deletion.
+      operationId: lizzy.api.delete_stack
+      responses:
+        204:
+          description: Stack was/will be deleted
+        401:
+          description: |
+            Stack was not deleted because the access token was not provided or was not valid for this operation
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            $ref: '#/definitions/problem'
+        500:
+          description: |
+            Stack was not deleted because of a senza error
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            $ref: '#/definitions/problem'
+      security:
+        - oauth:
+            - "{{deployer_scope}}"
+      parameters:
+        - name: stack-id
+          in: path
+          description: Stack id
+          required: true
+          type: string
+    patch:
+      summary: Update stack
+      description: Update stack. Currently the only parameters that can be changed are the instance traffic and Taupage image.
+      operationId: lizzy.api.patch_stack
+      responses:
+        202:
+          description: Changed stack
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            type: object
+            $ref: '#/definitions/stack'
+        401:
+          description: |
+            Stack will not be updated because the access token was not provided or was not valid for this operation
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            $ref: '#/definitions/problem'
+        404:
+          description: |
+            Stack was not found. It's possible for a stack to exist on an AWS account and not be found by lizzy
+            because lizzy only handles stacks created by itself.
+          headers:
+            X-Lizzy-Version:
+              description: Lizzy Version
+              type: string
+          schema:
+            $ref: '#/definitions/problem'
+      security:
+        - oauth:
+            - "{{deployer_scope}}"
+      parameters:
+      - name: stack-id
+        in: path
+        description: Stack id
+        required: true
+        type: string
+      - name: stack_patch
+        in: body
+        required: true
+        schema:
+          $ref: '#/definitions/stack_patch'
+  /metrics:  # metrics endpoint is mostly for ZMON support
+    get:
+      tags: [System]
+      operationId: uwsgi_metrics.view
+      summary: Get request metrics
+      responses:
+        200:
+          description: Dropwizard metrics
+definitions:
+  new_stack:
+    type: object
+    properties:
+      image_version:
+        type: string
+        description: Docker image version to deploy
+      application_version:
+        type: string
+        description: Version of the application to use for stack name and kio
+      stack_version:
+        type: string
+        description: |
+            Version of the application to use for stack name, this will
+            override the version provided in the application_version
+      keep_stacks:
+        type: integer
+        format: int32
+        description: Number of older stacks to keep
+      new_traffic:
+        type: integer
+        format: int32
+        description: Percentage of the traffic to be routed to new version
+      parameters:
+        type: array
+        description: List of parameters to pass to senza
+        items:
+          type: string
+      senza_yaml:
+        type: string
+        description: YAML to provide to senza
+      disable_rollback:
+        type: boolean
+        description: Disable stack rollback on error
+    required:
+      - image_version
+      - keep_stacks
+      - new_traffic
+      - senza_yaml
+  stack:
+    type: object
+    properties:
+      stack_id:
+        type: string
+        description: Unique ID for the stack. Will be the same as the stack if the stack is successfully created.
+      creation_time:
+        type: string
+        format: dateTime
+        example: 2015-07-08T12:53:58+0000
+        description: Date and time of stack creation on lizzy in ISO 8601 format
+      image_version:
+        type: string
+        description: Docker image version of the stack
+      parameters:
+        type: array
+        description: List of parameters to be passed to senza
+        items:
+          type: string
+      senza_yaml:
+        type: string
+        description: YAML to provide to senza
+      stack_name:
+        type: string
+        description: Cloud formation stack name prefix
+      stack_version:
+        type: string
+        description: Cloud formation stack version
+      status:
+        type: string
+        description: Status of stack, can be be CF:STATUS_IN_CLOUD_FORMATION or some lizzy specific status
+      application_version:
+        type: string
+        description: Version of the application used for stack name and kio
+  stack_patch:
+    type: object
+    properties:
+      new_traffic:
+        type: integer
+        format: int32
+        description: Percentage of the traffic to be routed to stack
+        minimum: 0
+        maximum: 100
+      new_ami_image:
+        type: string
+        description: "Use specified image (AMI ID or \"latest\")"
+        example: latest
+  problem:
+    description: |
+      Provides information about an error of some kind the service has encountered.
+    required:
+      - type
+      - title
+      - detail
+      - status
+    properties:
+      type:
+        type: string
+        format: uri
+        description: |
+          An URI that identifies the type of problem represented by this object. Dereferencing this URI may or may
+          not provide a human-readable description about the type of problem.
+      title:
+        type: string
+        description: |
+          A short human-readable description of the type of problem represented by this object. Does not contain
+          information specific to the given occurrence of the problem, and will not change between different
+          occurrences of the same type.
+      status:
+        type: integer
+        format: int32
+        description: |
+          The HTTP status code associated with the type of problem represented by this object.
+      detail:
+        type: string
+        description: |
+          A human-readable description of the specific occurrence of the project represented by this object.
