@@ -1,0 +1,3 @@
+
+class VinsCfgParseError(Exception):
+    pass
