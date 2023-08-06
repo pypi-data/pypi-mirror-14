@@ -1,0 +1,114 @@
+{% extends 'pagetree/base_pagetree.html' %}
+{% load render %}
+
+{% block js %}
+{% for pageblock in section.pageblock_set.all %}
+{% with block=pageblock %}
+{% renderjs pageblock %}
+{% endwith %}
+{% endfor %}
+{% endblock %}
+
+{% block css %}
+{% for pageblock in section.pageblock_set.all %}
+{% with block=pageblock %}
+{% rendercss pageblock %}
+{% endwith %}
+{% endfor %}
+{% endblock %}
+
+{% block bodyclass %}module-{{module.slug}}{% endblock %}
+
+{% block bodyid %}section-{{section.id}}{% endblock %}
+
+{% block title %}{{section.label}}{% endblock %}
+
+{% block pagetitle %}<h1>{{section.label}}</h1>{% endblock %}
+
+{% block moduletabs %}
+
+<ul class="nav navbar-nav">
+  {% for section in modules %}
+  <li {% if section.id == module.id %}class="active"{% endif %}>
+      <a href="{{section.get_absolute_url}}">{{section.label}}</a>
+  </li>
+  {% endfor %}
+</ul>
+
+{% endblock %}
+
+{% block navrightextra %}
+{% if not request.user.is_anonymous %}
+<a href="{{section.get_edit_url}}" class="btn btn-success">edit page</a>
+{% endif %}
+{% endblock %}
+
+
+{% block sidenav %}
+        <!-- ###### Secondary Navigation ###### -->
+        {% if module.get_children %}
+        <h3>Sections</h3>
+        {% include "pagetree/menu.html" %}
+        {% endif %}
+{% endblock %}
+
+{% block content %}
+<div id="content">
+{% if needs_submit %}
+{% if is_submitted %}
+{% else %}
+<form action="." method="post">{% csrf_token %}
+{% endif %}
+{% endif %}
+
+
+{% for pageblock in section.pageblock_set.all %}
+{% with block=pageblock %}
+<div class="pageblock{% if pageblock.css_extra %} {{pageblock.css_extra}}{% endif %}">
+{% if pageblock.label %}<h3>{{pageblock.label}}</h3>{% endif %}
+{% render pageblock %}
+</div>
+{% endwith %}
+{% endfor %}
+
+
+{% if needs_submit %}
+{% if request.user.is_anonymous %}
+{% else %}
+
+{% if is_submitted %}
+{% if allow_redo or request.user.is_superuser %}
+<form action="." method="post">{% csrf_token %}
+<input type="hidden" name="action" value="reset" />
+<input type="submit" value="clear your answers and try again" class="btn" />
+</form>
+{% endif %}
+{% else %}
+<input type="submit" value="Submit" class="btn btn-primary" />
+
+</form>
+{% endif %}
+{% endif %}
+{% endif %}
+
+{% include "pagetree/toc.html" %}
+
+</div>
+{% endblock %}
+
+{% block content-nav %}
+{% with previous=section.get_previous next_section=section.get_next %}
+<ul class="pager">
+{% if previous %}
+  <li class="previous">
+        <a href="{{previous.get_absolute_url}}">&larr; {{previous.label}}</a>
+  </li>
+{% endif %}
+
+{% if next_section %}
+<li class="next"><a href="{{next_section.get_absolute_url}}">{{next_section.label}} &rarr;</a></li>
+
+{% endif %}
+</ul>
+{% endwith %}
+{% endblock %}
