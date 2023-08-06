@@ -1,0 +1,380 @@
+Metadata-Version: 1.1
+Name: fc.qemu
+Version: 0.7.18
+Summary: Qemu VM management utilities
+Home-page: http://bitbucket.org/flyingcircus/fc.qemu
+Author: Christian Kauhaus, Christian Theune
+Author-email: mail@flyingcircus.io
+License: BSD
+Description: =============================================
+        Flying Circus QEMU virtual machine management
+        =============================================
+        
+        This package provides a utility to manage virtual machines and their life cycle
+        in the Flying Circus. We try to keep specifics of our environment out of there,
+        but we make a few assumptions:
+        
+        * VM disks (root, swap, tmp) are stored in Ceph
+        * There is a script `create-vm` that will prepare a fresh root disk image.
+        
+        The utility allows you to
+        
+        * start, stop and migrate VMs between hosts
+        * run a daemon that enforces the policy about running VMs
+          given by a set of config files
+        * resize disks.
+        
+        
+        Config format
+        =============
+        
+        Generic template
+        ----------------
+        
+        The Qemu config file will be generated from a template. If no template is found
+        in `/etc/qemu/qemu.vm.cfg.in`, a built-in default template will be used. Refer
+        to qemu.vm.cfg.in in the source distribution.
+        
+        
+        Per-VM configuration
+        --------------------
+        
+        Expects a config file for each VM in `/etc/qemu/vm/*.cfg`.
+        
+        The config file format is YAML.
+        
+        Format::
+        
+            name: test00
+            parameters:
+                id: 12345
+                resource_group: test
+        
+                online: true
+                kvm_host: bob
+        
+                disk: 5
+                memory: 512
+                cores: 1
+        
+                nics:
+                - srv: 00-01-02-03-05-06
+                - fe: 00-01-02-03-05-06
+        
+        
+        .. vim: set ft=rst:
+        
+        Release notes
+        =============
+        
+        
+        0.7.18 (2016-04-04)
+        -------------------
+        
+        - Another brownbag release: the snapshot refactoring wasn't tested properly
+          if snapshots actually existed.
+        
+        
+        0.7.17 (2016-04-04)
+        -------------------
+        
+        - Fix unicode/str issue: consul json decoded into unicode but librbd requires
+          a plain string.
+        
+        0.7.16 (2016-03-31)
+        -------------------
+        
+        - Fix regression in snapshot taking.
+        
+        
+        0.7.15 (2016-03-20)
+        -------------------
+        
+        - Account for different mkfs options for XFS and mkfs.ext4 (#19079).
+        - Improved Vagrant VM bootstrapping.
+        - Refactor classes in hazmat/{ceph.py,volume.py} (#19079).
+        - Use the "rbd_pool" ENC option to allow VM-specific selection of the RBD pool
+          instead of deriving it from the resource group name.
+        - Improve success rate of recovering from failed migrations properly: certain
+          conditions would result in only partially released locks from the target
+          leading to inconsistent states.
+        
+        0.7.14 (2016-01-21)
+        -------------------
+        
+        - Use XFS for tmp partitions (#17873).
+        - Drop super-floppy setup von vdc and use a proper partition table instead
+          (#17873).
+        - Fix file permissions for ENC seed JSON file.
+        
+        
+        0.7.13 (2015-12-10)
+        -------------------
+        
+        - Ignore consul requests for VMs with missing configuration (#18841).
+        - Speed up initial NTP sync in Vagrant to avoid failing Ceph tests due to
+          unsynced MONs.
+        - Refine Ceph.unlock() to remove own locks in a best-effort manner. This is
+          needed to recover from incomplete migrations (#18771).
+        - Improve error handling with failed monitor connections.
+        
+        
+        0.7.12 (2015-11-11)
+        -------------------
+        
+        - Improve error handling during migration.
+        - Fix timeout during fsfreeze that leads to locked up VMs (#18917).
+        
+        
+        0.7.11 (2015-11-04)
+        -------------------
+        
+        - Switch `aio` setting in default qemu.vm.cfg to "threads". This will keep
+          fc-qemu compatible with future Qemu versions (#18743).
+        - Improve logging.
+        - Place initial copy of ENC data in `/tmp/fc-data/enc.json`.
+        
+        
+        0.7.10 (2015-08-12)
+        -------------------
+        
+        - Refactor system-wide configuration code.
+        - Create swap and tmp partition with proper filesystem labels (#16783).
+        - Fix rare race condition during tmp volume creation.
+        - Set filesystem labels for swap and tmp volumes (#17078).
+        
+        
+        0.7.9 (2015-08-03)
+        ------------------
+        
+        - Add "snapshot" command. Can be triggered from command line and
+          via consul.
+        
+        
+        0.7.8 (2015-07-27)
+        ------------------
+        
+        - Improve detection of running instances.
+        
+        - Broaden check for monitor connection to handle dual stack
+          environments.
+        
+        
+        0.7.7 (2015-07-14)
+        ------------------
+        
+        - Fix migration issue: we ended up de-registering at the wrong time.
+        
+        
+        0.7.6 (2015-07-01)
+        ------------------
+        
+        - Quickfix: newer mkfs.ext4 versions need a '-F' flag to overwrite
+          filesystems (#14920).
+        
+        
+        0.7.5 (2015-07-01)
+        ------------------
+        
+        - Spawn individual VM actions usings multiprocessing. Wait until all migrations
+          are done (#14920).
+        - Increase allowed migration downtime to keep migration time for busy VMs in
+          bounds (#14920).
+        - Fix exception handling errors during Consul event processing (#14920).
+        - Give udev mapping a bit to settle.
+        - Improve log readability.
+        
+        
+        0.7.4 (2015-06-02)
+        ------------------
+        
+        - Rectify brown-bag release.
+        - Fix some unnoticed, arbitrary test failures.
+        
+        
+        0.7.3 (2015-06-02)
+        ------------------
+        
+        - Make event processing from consul fork for each VM and return the
+          master process early to avoid blocking the consul agent.
+        
+        - More logging related to migrations.
+        
+        
+        0.7.2 (2015-05-26)
+        ------------------
+        
+        - Adapt to QEMU 2.2.1: uses now stdvga by default (#15748).
+        
+        
+        0.7.1 (2015-05-20)
+        ------------------
+        
+        - Fix bug with inmigration Consul service registration (#15313).
+        - Change KV name name space for nodes from "vm/" to "node/" (#14920).
+        
+        
+        0.7 (2015-05-18)
+        ----------------
+        
+        - Consul service registration (#15313).
+        - Coordinate migration via Consul (#15313).
+        
+        
+        0.6.4 (2015-02-27)
+        ------------------
+        
+        - Tolerate "setup" as an intermediate migration status as encountered in the
+          wild.
+        
+        
+        0.6.3 (2015-02-19)
+        ------------------
+        
+        - Improve pid file parser to deal correctly with trailing lines and empty pid
+          files.
+        - Ensure that exceptions are properly logged if they occur directly after
+          daemonizing (e.g., in Agent.__init__()) (#13867).
+        
+        
+        0.6.2 (2015-01-22)
+        ------------------
+        
+        - Relax PyYaml and psutil version requirements to accommodate to the Flying
+          Circus managed platform.
+        
+        
+        0.6.1 (2015-01-22)
+        ------------------
+        
+        - Improve logging and error messages (#13867).
+        - Fix unwanted behaviour during error conditions (#13867).
+        
+        
+        0.6 (2015-01-15)
+        ----------------
+        
+        - Implement live migration. Use "inmigrate" and "outmigrate" commands
+          to coordinate the process (#13229).
+        - Note that the qemu.cfg.in template has changed!
+        - Improve test coverage.
+        
+        
+        0.5.1 (2014-11-22)
+        ------------------
+        
+        - Bugfix: remove Ceph discard call since it seems to be unstable (#13414).
+        - Improve operability by reworking what is logged to fc-qemu.log.
+        
+        
+        0.5 (2014-11-21)
+        ----------------
+        
+        - Root filesystem shrink during VM start (#13414).
+        - Add 'force-unlock' action to break stale locks (e.g., after a VM host went
+          down).
+        
+        
+        0.4.3 (2014-11-13)
+        ------------------
+        
+        - Read Qemu config file template from `/etc/qemu/qemu.vm.cfg.in`.
+        - Fix tests and documentation.
+        
+        
+        0.4.2 (2014-11-12)
+        ------------------
+        
+        - Rate limit entropy transfer from host to guest (#13751).
+        - Add 'restart' command to simplify VM restarts.
+        
+        
+        0.4.1 (2014-09-24)
+        ------------------
+        
+        - Do not require the PID to match the machine name for determining
+          online status. This caused issues for VMs with names longer than 11
+          characters: http://status.flyingcircus.io/incidents/3j8wsrszlx2w
+        
+        
+        0.4 (2014-09-16)
+        ----------------
+        
+        - Allow selecting the specific command line to call for creating a VM
+          using a config file + formatting syntax.
+        
+        - Add test coverage to show that we gracefully recover from crashed VMs
+          upon a subsequent 'ensure'.
+        
+        0.3 (2014-09-13)
+        ----------------
+        
+        - Refactor and rename to 'fc.qemu'.
+          Integrate most functionality that was previously placed in our
+          init scripts and localconfig (fc.agent) utilities.
+        
+        - Add a lot of test coverage.
+        
+        
+        0.2.6 (2014-08-21)
+        ------------------
+        
+        - Fix incoming VM detection for an already locked _and_ started VM.
+        
+        
+        0.2.5 (2014-08-20)
+        ------------------
+        
+        * Implement a safety-belt to prohibit migrating VMs that have not
+          yet been started with the supported /run/kvm.*.cfg.in format.
+        
+        
+        fc.qemu development
+        ===================
+        
+        Workstation development
+        -----------------------
+        
+        Prepare Vagrant environment::
+        
+            host$ hg clone https://bitbucket.org/flyingcircus/fc.qemu
+            host$ cd fc.qemu
+            host$ vagrant up
+            host$ vagrant ssh
+        
+        Prepare virtualenv::
+        
+            vm$ cd /vagrant
+            vm$ virtualenv --system-site-packages .
+            vm$ bin/pip install -r requirements.txt
+        
+        Run the tests::
+        
+            vm$ cd /vagrant
+            vm$ sudo bin/py.test
+        
+        Test execution automatically updates a coverage report in the `htmlcov`
+        directory.
+        
+        Run end-to-end migration test::
+        
+            vm$ cd /vagrant
+            vm$ sudo ./test-migration.sh
+        
+        
+        Real-world testing on FCIO DEV network
+        --------------------------------------
+        
+        * Check out the source on a VM host
+        * Create virtualenv: `virtualenv --system-site-packages .`
+        * Set Puppet stopper
+        * Make symlink /usr/src/fc.qemu point to the local checkout
+        * Install fc-qemu package in development mode:
+          `ACCEPT_KEYWORDS="**" emerge -1 fc-qemu`
+        
+        .. vim: set ft=rst:
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Environment :: Console
+Classifier: Programming Language :: Python :: 2.7
