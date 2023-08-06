@@ -1,0 +1,118 @@
+# Copyright 2015 Nicta
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: wait for ssh to come up on controller
+  hosts: all
+  gather_facts: no
+  tasks:
+    - local_action:
+        module: wait_for
+        host: "{{ inventory_hostname }}"
+        port: "{{ nat_ssh_port_forwarding }}"
+        delay: 20
+        timeout: 300
+        state: started
+
+
+- name: configure controller
+  hosts: controller
+  user: ubuntu
+  become: True
+  vars:
+    central_logging_level: '{{ central_logging_level }}'
+    byo_volume: '{{ byo_volume }}'
+  tasks:
+    - name: register aws assigned hostname 
+      shell: hostname
+      register: default_hostname
+
+    - name: add controller/registry entry to hosts file
+      lineinfile: dest=/etc/hosts line="127.0.0.1 controller registry"
+
+    - name: add hostname entry to hosts file
+      lineinfile: dest=/etc/hosts line="{{ ansible_eth0.ipv4.address }} {{ default_hostname.stdout }}"
+
+    - name: check if registry is running
+      shell: curl -I http://registry:5000/
+      register: result
+      ignore_errors: True
+
+    - name: docker private registry
+      shell: docker run -d
+        -e SETTINGS_FLAVOR=s3
+        -e AWS_BUCKET={{ clusterous_s3_bucket }}
+        -e STORAGE_PATH={{ registry_s3_path }}
+        -e AWS_KEY={{ AWS_KEY }}
+        -e AWS_SECRET={{ AWS_SECRET }}
+        -p 5000:5000 registry
+      async: 600
+      poll: 3
+      when: result|failed
+
+    # Format and mount shared volume
+    - name: format ebs
+      shell: mkfs -t ext4 /dev/xvdf
+      when: byo_volume == 0
+    - file: path=/home/data state=directory mode=0755
+    - name: mount volume /home/data
+      mount: name=/home/data src=/dev/xvdf fstype=ext4 state=mounted
+    - file: path=/home/data state=directory mode=0755 owner=ubuntu group=ubuntu  
+
+    # Make shared volume available via NFS
+    - name: nfs share
+      lineinfile: dest=/etc/exports line="/home/data            *(rw,sync,no_root_squash,no_all_squash)"
+    - name: restart nfs
+      service: name=nfs-kernel-server state=restarted
+
+    # DNS
+    - name: get default DNS resolver ip
+      shell: grep 'nameserver' /etc/resolv.conf | awk '{ print $2 }'
+      register: default_dns_ip
+    - name: Add default DNS resolver to mesos-dns
+      shell: sed -i -- 's/\["8.8.8.8"\]/\["{{ default_dns_ip.stdout }}"\,"8.8.8.8"\]/g' /opt/mesos-dns/config.json
+    - name: set dns resolver to controller's own IP
+      lineinfile: dest=/etc/resolv.conf regexp='^nameserver' line="nameserver {{ ansible_eth0.ipv4.address }}" mode=0755
+    - name: restart mesos-dns
+      service: name=mesos-dns state=restarted
+
+
+    # Copy remote ansible scripts
+    - name: copy remote ansible scripts
+    # Create Clusterous directory on controller
+      file: path=/home/ubuntu/{{ remote_host_scripts_dir }} state=directory mode=0777
+    - copy: src={{ remote_scripts_dir }}/ dest=/home/ubuntu/{{ remote_host_scripts_dir }}
+    - copy: src={{ remote_scripts_dir }}/ansible.cfg dest=/home/ubuntu/.ansible.cfg
+
+    # Ensure Zookeeper, Mesos master, and Marathon are (re)started
+    - name: zookeeper is restarted
+      service: name=zookeeper state=restarted
+    - name: mesos master is restarted
+      service: name=mesos-master state=restarted
+    - name: marathon is restarted
+      service: name=marathon state=restarted
+
+    # Central logging
+    - lineinfile: dest=/etc/hosts line="{{ central_logging_ip }} central-logging"
+      when: central_logging_level > 1
+    - name: check if rsyslog is forwarding to logstash
+      shell: cat /etc/rsyslog.conf| grep 5514
+      register: result
+      ignore_errors: True
+      when: central_logging_level > 1
+    - name: Rsyslog to logstash
+      shell: echo '*.* @central-logging:5514' >> /etc/rsyslog.conf
+      when: central_logging_level > 1 and result.stdout.find('5514') == -1
+    - name: Restart rsyslog
+      service: name=rsyslog state=restarted
+      when: central_logging_level > 1
