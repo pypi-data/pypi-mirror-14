@@ -1,0 +1,120 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+import json
+import re
+import subprocess
+import sys
+from time import sleep
+
+
+class Banksearch:
+    """Banksearch module"""
+    def __call__(self, code):
+        name, idnum = self.check_code(code)
+        res = self.blockstack_request(name)
+
+        if ('data_record' not in res or 'cname' not in res['data_record'] or
+                'iban' not in res['data_record']['cname'][0]):
+            print('Bad blockstack response: {}'.format(res))
+            raise SystemExit
+
+        # Calculate 2-digit checksum of an IBAN.
+        iban = res['data_record']['cname'][0]['iban']
+        #print('IBAN is: {}'.format(iban))
+        checksum = int(self.luhn_checksum(iban))
+        #print('checksum is: {}'.format(checksum))
+
+        if checksum == idnum:
+            out = ('[{iban}],[{bic}],[{country}],[{name}],[{issuer}],'
+                   '[{ver}],[{checksum}]')
+
+            if 'country' not in res['data_record']['cname'][0]:
+                country = None
+            else:
+                country = res['data_record']['cname'][0]['country']
+
+            if 'name' not in res['data_record']['cname'][0]:
+                name = None
+            else:
+                name = res['data_record']['cname'][0]['name']
+
+            if 'bic' not in res['data_record']['cname'][0]:
+                bic = None
+            else:
+                bic = res['data_record']['cname'][0]['bic']
+
+            if 'issuer' not in res['data_record']['cname'][0]:
+                issuer = None
+            else:
+                issuer = res['data_record']['cname'][0]['issuer']
+
+            if 'ver' not in res['data_record']['cname'][0]:
+                ver = None
+            else:
+                ver = res['data_record']['cname'][0]['ver']
+
+            print out.format(country=country,
+                             checksum=checksum,
+                             iban=iban,
+                             name=name,
+                             ver=ver,
+                             issuer=issuer,
+                             bic=bic)
+        else:
+            #print('Bad checksum: {}'.format(checksum))
+            print('Error')
+
+    def blockstack_request(self, name):
+        """Lookup request to the blockstack server"""
+        cmd = 'blockstack lookup {name}.id'
+        process = subprocess.Popen(cmd.format(name=name),  shell=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        while process.poll() is None:
+            sleep(1)
+
+        stdout, stderr = process.communicate()
+
+        try:
+            res = json.loads(stdout)
+        except ValueError as e:
+            raise SystemExit(e)
+
+        return res
+
+    def check_code(self, code):
+        """Validate code"""
+        if not code:
+            print('Empty code')
+            raise SystemExit
+
+        if not re.search('^[a-zA-Z]{1,12}[0-9]{1}$', code):
+            raise SystemExit('Bad code format')
+
+        char_code = re.match('^[a-zA-Z]{1,12}', code).group()
+        idnum = re.search('[0-9]{1}$', code).group()
+        #print('Char code is: {0}, idnum is: {1}'.format(char_code, idnum))
+        return char_code, int(idnum)
+
+    def luhn_checksum(self, card_number):
+
+        digits = self.digits_of(card_number)
+        odd_digits = digits[-1::-2]
+        even_digits = digits[-2::-2]
+        total = sum(odd_digits)
+
+        for digit in even_digits:
+            total += sum(self.digits_of(2 * digit))
+
+        return total % 10
+
+    def digits_of(self, number):
+        return [int(digit) for digit in str(number)]
+
+
+
+if __name__ == '__main__':
+    b = Banksearch()
+    if len(sys.argv) < 2:
+        raise SystemExit('Usage: python {0} abc12'.format(sys.argv[0]))
+    b(sys.argv[1])
