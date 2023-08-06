@@ -1,0 +1,44 @@
+#!/usr/bin/python
+# PYTHON_ARGCOMPLETE_OK
+
+import osex.locate
+
+import sys
+import locale
+import argparse
+import argcomplete
+import ioex.cursesex
+
+def _init_argparser():
+
+    argparser = argparse.ArgumentParser(description = None)
+    argparser.add_argument('--database-path')
+    argparser.add_argument('--ignore-case', action='store_true')
+    argparser.add_argument('--match-all', action='store_true')
+    argparser.add_argument('--multiple', action='store_true')
+    argparser.add_argument('--update-database', action='store_true')
+    argparser.add_argument('--update-require-visibility', choices = ['yes', 'no'])
+    argparser.add_argument('patterns', metavar = 'pattern', nargs = '+')
+    return argparser
+
+def main(argv):
+
+    argparser = _init_argparser()
+    argcomplete.autocomplete(argparser)
+    args = argparser.parse_args(argv)
+    params = vars(args)
+
+    if args.update_require_visibility == 'yes':
+        args.update_require_visibility = True
+    elif args.update_require_visibility == 'no':
+        args.update_require_visibility = False
+
+    paths = ioex.cursesex.tty_wrapper(osex.locate.locate_select, **vars(args))
+    if paths is None:
+        return 1
+    else:
+        print('\n'.join(paths).encode(locale.getpreferredencoding()))
+        return 0
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
