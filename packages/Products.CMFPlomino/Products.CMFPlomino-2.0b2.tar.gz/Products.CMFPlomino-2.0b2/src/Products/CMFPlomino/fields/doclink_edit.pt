@@ -1,0 +1,58 @@
+<span tal:define="selection python:options['selection'];
+                field python:options['field'];
+                widget python:field.widget;
+                name python:field.id;
+                current python:options['fieldvalue'];
+                lcurrent python:(hasattr(current,'split') and [current]) or current;
+                lcurrent_ids python:[p.split('/')[-1] for p in lcurrent];
+                ">
+    <tal:widget tal:condition="python:widget=='SELECT'">
+        <select class="pat-select2" tal:attributes="id name; name name"><tal:loop tal:repeat="v selection">
+            <option tal:define="l python:v.split('|')"
+                tal:attributes="value python:l[1];
+                    selected python:(lcurrent and (lcurrent[0]==l[1] or lcurrent_ids[0]==l[1]) and 1) or 0"
+                tal:content="python:l[0]">value</option>
+        </tal:loop></select>
+    </tal:widget>
+    <tal:widget tal:condition="python:widget=='MULTISELECT'">
+        <select class="pat-select2" tal:attributes="id name; name name" multiple="true" lines="4"><tal:loop tal:repeat="v selection">
+                <tal:block tal:define="l python:v.split('|')">
+                    <option 
+                        tal:attributes="value python:l[1]; selected python:((lcurrent and (l[1] in lcurrent or l[1] in lcurrent_ids) and 1) or 0"
+                        tal:content="python:l[0]">value</option>
+                </tal:block>
+        </tal:loop></select>
+    </tal:widget>
+    <tal:widget tal:condition="python:widget=='VIEW'" >
+        <table tal:define="sourceview python:field.sourceview;
+                           v python:field.getParentDatabase().getView(sourceview);
+                           columns python:v.getColumns()">
+            <tr>
+                <th>&nbsp;&nbsp;</th>
+                <tal:block tal:repeat="c columns">
+                    <th tal:condition="not: c/hidden_column|nothing">&nbsp;<span
+                        tal:content="c/Title">Title</span>&nbsp;</th>
+                </tal:block>
+            </tr>
+            <tal:documents tal:define="listdocuments python:[b for b in v.getAllDocuments(getObject=False) if v.hasReadPermission(b.getObject())];"
+                        tal:repeat="brain listdocuments">
+                <tr tal:define="oddrow repeat/brain/odd"
+                    tal:attributes="class python:(oddrow and 'even') or 'odd'">
+                    <td><input type="checkbox" 
+                    tal:attributes="name name;
+                            value python:brain.getPath();
+                            checked python:((current and brain.id in lcurrent_ids) and 1) or 0">
+                    </td>
+                    <tal:block tal:repeat="c columns">
+                        <td tal:condition="not: c/hidden_column|nothing"><span
+                            tal:define="cname c/id;
+                                        vname v/id;
+                                        cvalue python:getattr(brain, v.getIndexKey(cname));
+                                        "
+                            tal:content="structure cvalue" /></td>
+                    </tal:block>
+                </tr>
+            </tal:documents>
+        </table>
+    </tal:widget>
+</span>
