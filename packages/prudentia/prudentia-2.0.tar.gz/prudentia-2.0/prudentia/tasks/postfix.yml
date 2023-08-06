@@ -1,0 +1,57 @@
+---
+  # Parameters:
+  #  server_name: Server name or IP address to use for postfix (provided)
+  #  root_mail_address: Where to forward root mail (provided, optional)
+
+  - name: Postfix | Check if is installed
+    command: test -x /usr/sbin/postfix
+    register: postfix_present
+    when: ansible_os_family == "Debian"
+    ignore_errors: yes
+    tags:
+      - postfix
+
+  - name: Postfix | Set up postmail selections
+    command: echo "postfix postfix/main_mailer_type select Internet Site" | debconf-set-selections
+    when: ansible_os_family == "Debian" and postfix_present|failed
+    sudo: yes
+    tags:
+      - postfix
+
+  - name: Postfix | Set up postmail selections
+    command: echo "postfix postfix/mailname string {{server_name}}" | debconf-set-selections
+    when: ansible_os_family == "Debian" and postfix_present|failed
+    sudo: yes
+    tags:
+      - postfix
+
+  - name: Postfix | Install postfix and mailutils
+    apt: force=yes state=present pkg={{item}}
+    when: ansible_os_family == "Debian" and postfix_present|failed
+    with_items:
+      - postfix
+      - mailutils
+    sudo: yes
+    tags:
+      - postfix
+
+  - name: Postfix | Redirect root mails
+    lineinfile: "dest=/etc/aliases line='root: {{root_mail_address}}' insertafter=EOF"
+    when: (root_mail_address is defined) or (root_mail_address != "")
+    sudo: yes
+    tags:
+      - postfix
+
+  - name: Postfix | Run postalias
+    command: "postalias /etc/aliases"
+    when: (root_mail_address is defined) or (root_mail_address != "")
+    sudo: yes
+    tags:
+      - postfix
+
+  - name: Postfix | Restart
+    service: name=postfix state=restarted
+    when: ansible_os_family == "Debian" and postfix_present|failed
+    sudo: yes
+    tags:
+      - postfix
