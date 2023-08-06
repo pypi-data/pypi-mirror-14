@@ -1,0 +1,8 @@
+__title__ = 'tomb_cli'
+__summary__ = 'Top level CLI command for tomb'
+__uri__ = 'http://github.com/tomborine/tomb_cli'
+__version__ = '0.0.4'
+__author__ = 'John Anderson'
+__email__ = 'sontek@gmail.com'
+__license__ = 'MIT'
+__copyright__ = '2015 John Anderson (sontek)'
