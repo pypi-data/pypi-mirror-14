@@ -1,0 +1,13 @@
+=======
+Credits
+=======
+
+Development Lead
+----------------
+
+* Daniel Roy Greenfeld <pydanny@gmail.com>
+
+Contributors
+------------
+
+* Edward Betts (@EdwardBetts)
