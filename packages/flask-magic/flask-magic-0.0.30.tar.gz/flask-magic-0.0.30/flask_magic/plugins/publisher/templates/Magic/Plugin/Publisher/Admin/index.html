@@ -1,0 +1,102 @@
+{% import "Magic/macros/forms.html" as forms with context %}
+{% import "Magic/macros/widget.html" as widget with context %}
+{% include "Magic/Plugin/Publisher/Admin/_include.html" %}
+
+
+{% if types %}
+    <div class="hidden-md hidden-lg">
+        {%  call forms.get('PublisherAdmin:index', id='select-post-selector') %}
+            {{ forms.select(label="Select Post Type", name="type_id", options=[('', 'All')] + types_options, selected=selected_type.id )}}
+        {% endcall %}
+    </div>
+
+    <div class="hidden-sm hidden-xs">
+        <ul class="nav nav-tabs">
+            <li class="{% if not selected_type %}active{% endif %}">
+                <a href="{{ url_for('PublisherAdmin:index') }}">All Posts</a>
+            </li>
+            {% for type in types %}
+                <li role="presentation" class="{% if selected_type and selected_type.id == type.id %}active{% endif %}">
+                    <a href="{{ url_for('PublisherAdmin:index', type_id=type.id) }}">{{ type.name }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <p></p>
+
+    <div class="well well-sm text-center">
+        <a
+            href="{{ url_for('PublisherAdmin:new', type_id=selected_type.id) }}"
+            class=" btn btn-info btn-lg btn-block">
+            <i class="fa fa-plus"></i>
+            New <strong>{{ selected_type.name | default('', true) }}</strong> Post
+        </a>
+    </div>
+
+{% endif %}
+
+
+{% if posts %}
+
+
+{% call widget.panel("%s Posts" % (selected_type.name if selected_type else " All") , type="table") %}
+    <table class="table table-hover table-condensed sorted_table">
+    <thead>
+        {% if not selected_type %}
+            <th class="hidden-xs">Type</th>
+        {% endif %}
+
+        <th>Title</th>
+        <th  class="hidden-xs" >Author</th>
+        <th class="hidden-xs">Categories</th>
+        <th>Date</th>
+        <th></th>
+    </thead>
+
+    <tbody>
+        {% for post in posts %}
+            <tr>
+                {% if not selected_type %}
+                    <td  class="hidden-xs">{{ post.type.name }}</td>
+                {% endif %}
+
+                <td>
+                    <a href="{{ url_for("PublisherAdmin:edit", id=post.id) }}">{{ post.title }}</a>
+                    {% if not post.is_published %}
+                     <small> - {{ post.status }}</small>
+                    {% endif %}
+                </td>
+                <td class="hidden-xs">{{ post.author.name }}</td>
+                <td  class="hidden-xs">{% for cat in post.categories %}{{ cat.name}} - {% endfor %}</td>
+                <td>
+                    {% if post.is_published %}
+                        <div class="date-status label label-success">Published</div>
+                        <div class="date">{{ post.published_at }}</div>
+                    {% else %}
+                        <div class="date-status label label-warning">Last modified</div>
+                        <div class="date">{{ post.updated_at }}</div>
+                    {% endif %}
+                </td>
+
+                <td>
+                    <a href="{{ url_for("PublisherAdmin:preview", id=post.id) }}" class=""><i class="fa fa-eye"></i></a>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endcall %}
+
+
+{{ widget.pagination(posts, **query_vars) }}
+
+{% endif %}
+
+<script>
+    $(function(){
+        $("select[name='type_id']").change(function(){
+            $("#select-post-selector").submit()
+        })
+    })
+</script>
