@@ -1,0 +1,139 @@
+{% extends 'report_html_purchase/reports/base.html' %}
+
+{% block title %}
+  Purchase {{ records|join('# ', 'reference') }}
+{% endblock %}
+
+{% block report_header scoped %}
+  {% set purchase = record %}
+  <span class="h3 pull-right">
+    {% if purchase.state == 'quotation' %}
+      RFQ
+    {% elif purchase.state == 'draft' %}
+      Draft PO
+    {% else %}
+      Purchase Order
+    {% endif %}
+  </span>
+  <table class="table no-border">
+    {% if purchase.reference %}
+    <tr>
+      <td align="right"><b>Purchase #</b></td>
+      <td>{{ purchase.reference }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td align="right"><b>Purchase Date</b></td>
+      <td>{{ purchase.purchase_date and purchase.purchase_date|dateformat }}</td>
+    </tr>
+  </table>
+{% endblock report_header %}
+
+{% block report_body scoped %}
+  {% set purchase = record %}
+  <table class="table no-border">
+    <tr>
+      {% if purchase.invoice_address %}
+      <td align="right" class="col-xs-1"><b>Vendor</b></td>
+      <td class="col-xs-5">
+        <address>
+          {% for line in purchase.invoice_address.full_address.split('\n') %}
+            {{ line }}<br/>
+          {% endfor %}
+        </address>
+      </td>
+      {% endif %}
+      {% if purchase.warehouse and purchase.warehouse.address %}
+      <td align="right" class="col-xs-1"><b>Ship To</b></td>
+      <td class="col-xs-5">
+        <address>
+          {% for line in purchase.warehouse.address.full_address.split('\n') %}
+            {{ line }}<br/>
+          {% endfor %}
+        </address>
+      </td>
+      {% endif %}
+    </tr>
+  </table>
+  <table class="table">
+      <tbody>
+        <tr>
+          <th>#</th>
+          <th>Product</th>
+          <th>Description</th>
+          <th class="text-right">Quantity</th>
+          {% if purchase.state != 'quotation' %}
+            <th class="text-right">Unit Price</th>
+            <th class="text-right">Amount</th>
+          {% endif %}
+        </tr>
+        {% for line in purchase.lines %}
+          <tr>
+            <td>{{ loop.index }}</i></td>
+            <td>
+              {% if line.product %}
+                {{ line.product.code }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>
+              {% if line.product %}
+                {{ line.product.name }}
+              {% else %}
+                {{ line.description }}
+              {% endif %}
+            </td>
+            <td class="text-right">
+              {% if line.quantity is not none %}
+                {{ formatLang(line.quantity, purchase.party.lang, digits=line.unit_digits) }} {% if line.unit.symbol != 'u' %}{{ line.unit.symbol }}{% endif %}
+              {% endif %}
+            </td>
+            {% if purchase.state != 'quotation' %}
+              <td class="text-right">
+                {% if line.unit_price is not none %}
+                  {{ line.unit_price|currencyformat(purchase.currency.code, format="\xa4#,##0.0000") }}{% if line.unit.symbol != 'u' %}/{{ line.unit.symbol }}{% endif %}
+                {% endif %}
+              </td>
+              <td class="text-right">
+                {{ line.amount|currencyformat(purchase.currency.code) }}
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if purchase.state != 'quotation' %}
+    <table class="table no-border">
+      <tbody>
+        <tr>
+          <td class="col-xs-8"></td>
+          <td class="col-xs-2 text-right">
+            <b>Subtotal</b> &nbsp;
+          </td>
+          <td class="col-xs-2 text-right">
+            {{ purchase.untaxed_amount|currencyformat(purchase.currency.code) }}
+          </td>
+        </tr>
+        <tr>
+          <td class="col-xs-8"></td>
+          <td class="col-xs-2 text-right">
+            <b>Tax</b> &nbsp;
+          </td>
+          <td class="col-xs-2 text-right">
+            {{ purchase.tax_amount|currencyformat(purchase.currency.code) }}
+          </td>
+        </tr>
+        <tr>
+          <td class="col-xs-8"></td>
+          <td class="col-xs-2 text-right">
+            <span class="h3">Total &nbsp;</span>
+          </td>
+          <td class="col-xs-2 text-right">
+            <span class="h3">{{ purchase.total_amount|currencyformat(purchase.currency.code) }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    {% endif %}
+{% endblock report_body %}
