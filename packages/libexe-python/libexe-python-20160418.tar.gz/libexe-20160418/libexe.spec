@@ -1,0 +1,107 @@
+Name: libexe
+Version: 20160418
+Release: 1
+Summary: Library to access the executable (EXE) format
+Group: System Environment/Libraries
+License: LGPL
+Source: %{name}-%{version}.tar.gz
+URL: https://github.com/libyal/libexe/
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+              
+              
+
+%description
+libexe is a library to access the executable (EXE) format
+
+%package devel
+Summary: Header files and libraries for developing applications for libexe
+Group: Development/Libraries
+Requires: libexe = %{version}-%{release}
+
+%description devel
+Header files and libraries for developing applications for libexe.
+
+%package tools
+Summary: Several tools for reading executable (EXE) files
+Group: Applications/System
+Requires: libexe = %{version}-%{release} 
+ 
+
+%description tools
+Several tools for reading executable (EXE) files
+
+%package python
+Summary: Python 2 bindings for libexe
+Group: System Environment/Libraries
+Requires: libexe = %{version}-%{release} python
+BuildRequires: python-devel
+
+%description python
+Python 2 bindings for libexe
+
+%package python3
+Summary: Python 3 bindings for libexe
+Group: System Environment/Libraries
+Requires: libexe = %{version}-%{release} python3
+BuildRequires: python3-devel
+
+%description python3
+Python 3 bindings for libexe
+
+%prep
+%setup -q
+
+%build
+%configure --prefix=/usr --libdir=%{_libdir} --mandir=%{_mandir} --enable-python2 --enable-python3
+make %{?_smp_mflags}
+
+%install
+rm -rf %{buildroot}
+%make_install
+
+%clean
+rm -rf %{buildroot}
+
+%post -p /sbin/ldconfig
+
+%postun -p /sbin/ldconfig
+
+%files
+%defattr(644,root,root,755)
+%doc AUTHORS COPYING NEWS README
+%attr(755,root,root) %{_libdir}/*.so.*
+
+%files devel
+%defattr(644,root,root,755)
+%doc AUTHORS COPYING NEWS README ChangeLog
+%{_libdir}/*.a
+%{_libdir}/*.la
+%{_libdir}/*.so
+%{_libdir}/pkgconfig/libexe.pc
+%{_includedir}/*
+%{_mandir}/man3/*
+
+%files tools
+%defattr(644,root,root,755)
+%doc AUTHORS COPYING NEWS README
+%attr(755,root,root) %{_bindir}/exeinfo
+%{_mandir}/man1/*
+
+%files python
+%defattr(644,root,root,755)
+%doc AUTHORS COPYING NEWS README
+%{_libdir}/python2*/site-packages/*.a
+%{_libdir}/python2*/site-packages/*.la
+%{_libdir}/python2*/site-packages/*.so
+
+%files python3
+%defattr(644,root,root,755)
+%doc AUTHORS COPYING NEWS README
+%{_libdir}/python3*/site-packages/*.a
+%{_libdir}/python3*/site-packages/*.la
+%{_libdir}/python3*/site-packages/*.so
+
+%changelog
+* Tue Apr 19 2016 Joachim Metz <joachim.metz@gmail.com> 20160418-1
+- Auto-generated
+
