@@ -1,0 +1,11 @@
+__version__ = "0.0.2"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = 'develop'
+__git_remote_tracking_branch__ = 'origin/develop'
+__git_remote_url__ = 'git@git.infinidat.com:host-opensource/dnssimple.git'
+__git_head_hash__ = 'a9cee3745b5e709620c2b718a07ee9179b7e56c8'
+__git_head_subject__ = 'Finished Release v0.0.2'
+__git_head_message__ = '* develop:\n  buildout.cfg: adding infi.traceback to requirements'
+__git_dirty_diff__ = ''
+__git_commit_date__ = '2016-04-10 16:13:16'
