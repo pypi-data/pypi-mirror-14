@@ -1,0 +1,11 @@
+__version__ = "0.0.3"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = 'develop'
+__git_remote_tracking_branch__ = 'origin/develop'
+__git_remote_url__ = 'git@git.infinidat.com:host-opensource/dnssimple.git'
+__git_head_hash__ = '33be4519c415b4a55b1fc0bc8f222edd14a1c14d'
+__git_head_subject__ = 'Finished Release v0.0.3'
+__git_head_message__ = '* develop:\n  refactoring'
+__git_dirty_diff__ = ''
+__git_commit_date__ = '2016-04-10 16:23:57'
