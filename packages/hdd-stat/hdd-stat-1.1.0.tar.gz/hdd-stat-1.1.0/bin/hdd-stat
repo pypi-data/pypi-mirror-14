@@ -1,0 +1,36 @@
+#!/usr/bin/python
+from prettytable import PrettyTable
+from hdd_stat.stat import get_labels, get_full_stat
+
+def sizeof_fmt(num, suffix='B'):
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.1f %s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f %s%s" % (num, 'Yi', suffix)
+
+labels = get_labels()
+data = get_full_stat(labels)
+
+tbl = PrettyTable(['Device', 'Label', 'Mount', 'Total', 'Used', 'Free', 'Percent'])
+tbl.align = "l"
+tbl.align['Total'] = tbl.align['Used'] = tbl.align['Free'] = tbl.align['Percent'] = "r"
+
+sum_usage = dict(total=0,used=0,free=0)
+
+for part in data:
+    sum_usage['total'] += part.total
+    sum_usage['free'] += part.free
+    sum_usage['used'] += part.used
+    tbl.add_row([
+        part.device,
+        part.label,
+        part.mount,
+        sizeof_fmt(part.total),
+        sizeof_fmt(part.used),
+        sizeof_fmt(part.free),
+        part.percent
+    ])
+
+print(tbl)
+print("Summary:\nTotal: %s, Used: %s, Free: %s" % (sizeof_fmt(sum_usage['total']), sizeof_fmt(sum_usage['used']), sizeof_fmt(sum_usage['free'])))
