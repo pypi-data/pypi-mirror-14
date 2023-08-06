@@ -1,0 +1,171 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Quickstart &mdash; Flask-SSE 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Flask-SSE 0.1 documentation" href="index.html" />
+    <link rel="next" title="API" href="api.html" />
+    <link rel="prev" title="Flask-SSE" href="index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="api.html" title="API"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Flask-SSE"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Flask-SSE 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="quickstart">
+<h1>Quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h1>
+<p>Here&#8217;s a quick working example of how Flask-SSE works.</p>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p><a class="reference external" href="https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events">Server-sent events</a> do <em>not</em> work with Flask&#8217;s built-in development server,
+because it handles HTTP requests one at a time. The SSE stream is intended
+to be an infinite stream of events, so it will never complete. If you try
+to run this code on with the built-in development server, the server will
+be unable to take any other requests once you connect to this stream.
+Instead, you must use a web server with asychronous workers. <a class="reference external" href="http://gunicorn.org/">Gunicorn</a>
+can work with <a class="reference external" href="http://www.gevent.org/">gevent</a> to use asychronous workers: see <a class="reference external" href="http://docs.gunicorn.org/en/latest/design.html#design" title="(in Gunicorn v19.5.0)"><span class="xref std std-ref">gunicorn&#8217;s
+design documentation</span></a>.</p>
+<p class="last">You will also need a <a class="reference external" href="http://www.redis.io/">Redis</a> server running locally for this example to work.</p>
+</div>
+<p>Make a virtual environment and install Flask-SSE, <code class="docutils literal"><span class="pre">gunicorn</span></code>, and <code class="docutils literal"><span class="pre">gevent</span></code>.
+You will also need to make sure you have a <a class="reference external" href="http://www.redis.io/">Redis</a> server running locally.</p>
+<div class="highlight-bash"><div class="highlight"><pre><span></span>$ mkvirtualenv sse
+$ pip install flask-sse gunicorn gevent
+</pre></div>
+</div>
+<p>Make a file on your computer called <code class="docutils literal"><span class="pre">sse.py</span></code>, with the following content:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">json</span>
+<span class="kn">from</span> <span class="nn">flask_sse</span> <span class="kn">import</span> <span class="n">sse</span>
+
+<span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+<span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">&quot;REDIS_URL&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;redis://localhost&quot;</span>
+<span class="n">app</span><span class="o">.</span><span class="n">register_blueprint</span><span class="p">(</span><span class="n">sse</span><span class="p">,</span> <span class="n">url_prefix</span><span class="o">=</span><span class="s1">&#39;/stream&#39;</span><span class="p">)</span>
+
+<span class="nd">@app.route</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">index</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">&quot;index.html&quot;</span><span class="p">)</span>
+
+<span class="nd">@app.route</span><span class="p">(</span><span class="s1">&#39;/hello&#39;</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">publish_hello</span><span class="p">():</span>
+    <span class="n">sse</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="s1">&#39;event-type&#39;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;Hello!&quot;</span><span class="p">})</span>
+    <span class="k">return</span> <span class="s2">&quot;Message sent!&quot;</span>
+</pre></div>
+</div>
+<p>Make a <code class="docutils literal"><span class="pre">templates</span></code> folder next to <code class="docutils literal"><span class="pre">sse.py</span></code>, and create a file named
+<code class="docutils literal"><span class="pre">index.html</span></code> in that folder, with the following content:</p>
+<div class="highlight-html"><div class="highlight"><pre><span></span><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="p">&lt;</span><span class="nt">html</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">head</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">title</span><span class="p">&gt;</span>Flask-SSE Quickstart<span class="p">&lt;/</span><span class="nt">title</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">head</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>Flask-SSE Quickstart<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="kd">var</span> <span class="nx">source</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">EventSource</span><span class="p">(</span><span class="s2">&quot;{{ url_for(&#39;sse.stream&#39;) }}&quot;</span><span class="p">);</span>
+    <span class="nx">source</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s1">&#39;event-type&#39;</span><span class="p">,</span> <span class="kd">function</span><span class="p">(</span><span class="nx">event</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">var</span> <span class="nx">data</span> <span class="o">=</span> <span class="nx">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">event</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span>
+        <span class="nx">alert</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span>
+    <span class="p">},</span> <span class="kc">false</span><span class="p">);</span>
+  <span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">body</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">html</span><span class="p">&gt;</span>
+</pre></div>
+</div>
+<p>Run your code using gunicorn&#8217;s gevent workers:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span></span>$ gunicorn sse:app --worker-type gevent --bind 127.0.0.1:8000
+</pre></div>
+</div>
+<p>Open your web browser, and visit <code class="docutils literal"><span class="pre">127.0.0.1:8000</span></code>. Your web browser will
+automatically connect to the server-sent event stream. Open another tab, and
+visit <code class="docutils literal"><span class="pre">127.0.0.1:8000/hello</span></code>. You should get a Javascript alert in the first
+tab when you do so.</p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">Flask-SSE</a></li>
+      <li>Next: <a href="api.html" title="next chapter">API</a></li>
+  </ul></li>
+</ul>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/quickstart.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  
+    <a href="http://github.com/singingwolfboy/flask-sse" class="github"><img src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
+  
+
+  <div class="footer">
+    &copy; Copyright 2016, David Baumgold.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>
