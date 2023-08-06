@@ -1,0 +1,115 @@
+Metadata-Version: 1.1
+Name: ubjsonstream
+Version: 0.0.2
+Summary: A library for serializing and async deserializing UBJSON
+Home-page: UNKNOWN
+Author: Tomasz Sieprawski
+Author-email: tomasz@sieprawski.eu
+License: MIT
+Description: = What it is =
+        
+        Ubjsonstream is a pure 100% Python-3.x library for dealing with UBJSON ([1]) format.
+        
+        It contains:
+        * an asynchronous deserializer built upon something-like-state-machine concept - you give it a callback, you pass it data, callback gets called as soon as any valid data is parsed.
+        	Of course you can pass it a regular string/bytearray with data, and it will parse it for you. But in case you have very large data, you can leave this asynchronous.
+        * a regular serializer - you give it an object, you get pure data,
+        * and serializer can also pretty-print objects.
+        
+        This library does not neccessarily adhere 1-to-1 to proposed drafts, but covers pretty much.
+        
+        = What is covered =
+        
+        Types:
+        * `null` <=> `None`
+        * `noop` <=> custom `ubjsonstream.NOOP` singleton
+        * `true`/`false` <=> `True`/`False`
+        * `uint8`/`int8`/`int16`/`int32`/`int64` <=> int
+        	* Serializer chooses the best ubjson type depending on the value. See `src/ubjsonstream/writer.py` `IntMatcher`.
+        * `float32`/`float64` <=> `float`
+        	* Currently serializer hardcodes to `float64`. Don't have now the idea how to check whether float32 is better for a number.
+        * `char` <=> 1-length `str`, only in deserializer
+        * high-precision-number <=> Python's `Decimal`
+        	* Note: As the draft says, deserializer first parses an integer length for the HPNs. Currently there is no limit for that (aka both uint8 and int64 can be parsed), and there is no security around that. Be warned.
+        * `string` <=> `str`
+        	* Same as for HPNs.
+        * `array` <=> `list`
+        	* Deserializer supports both optimized formats (known length + known type).
+        	* Serializer deduces which format to use.
+        		* Optimized formats are used always for length>3. Did not think that type/count is worth for shorter ones. But I did not make any statistics towards that. There is no switch for that.
+        		* If all elements are exact same type, the array will be typed. By exact I mean that array of int8 and int64 will be left untyped for now.
+        		* Not sure whether this is legal, but... Typed array of unoptimized arrays are supported!
+        		* Of course, typed arrays of 512-nulls are supported. And they are very short!
+        * `object` <=> `dict`
+        	* Optimized formats supported same way as for arrays.
+        
+        = Stuff to be done =
+        * Probably more hardcore test suite...
+        * User-defined custom markers (and their de/serializers).
+        	* Maybe a preludium to some kinky RPC?
+        	* This may be helpful in some high-enterprisy internal projects with already defined 50 data types.
+        * Maybe migrate some code to C? I think that 99,999% of this code does not require objects, inheritance nor duck-typing.
+        * Promoting int/float values when optimizing containers. For now array of 99x int8 and 1x int64 will remain unoptimized. Ok, the example might be bad, you can reverse the numbers.
+        * loads() and dumps(). Python nerds will love it.
+        * Add type hints from PEP-484 into code.
+        * Or maybe forcing optimizations on containers? Probably some new Python types for that would help.
+        * I am not proud of the design of it all. Lots of classes and state-machine oriented it is, but not neccessarily this is readible. But it works.
+        
+        = Structure =
+        Obviously `src` contains all sources:
+        * `src/ubjsonstream/reader.py` is the deserializing stuff,
+        * `src/ubjsonstream/writer.py` is the serializing stuff, 
+        * `src/test` contain tests for all of these. These are not unit ones, but... I think they test throughly the whole library. Among these are:
+        	* Generated tests for all primitives
+        	* Generated tests for containers:
+        		* unoptimized, optimized with count, optimized with type
+        		* arrays, objects
+        		* empty, with one element, with n elements of one type (not only primitives), with 1 elements per type, with n x n
+        		* up to 3rd level
+        	* Some basic corner cases (e.g. no array-end marker allowed after array-type marker).
+        
+        = Requirements =
+        
+        * Python >= 3.x. Library uses `unittest.mock`.
+        	* No sign of generators here!
+        * Optional: `pip install coverage`
+        
+        = Building =
+        
+        Probably:
+        
+        	python setup.py install
+        
+        Or, if you want to build some eggs/wheels:
+        
+        	python setup.py bdist_egg
+        	python setup.py bdist_wheel # If you have wheel installed of course.
+        
+        = Usage =
+        
+        To follow someday... For now, you can adhere to tests in `src/test/__init__.py`:
+        	* `TestCornerCases` - some corner cases. These hardcoded inputs are bad and invalid.
+        	* `TestReadWriteVariousCombinations` - ok, this does not show you example objects to (de)serialize (they are generated by `generate_reader_tests` - you are brave, you will understand these), but basic usage is visible pretty much,
+        
+        Running'em:
+        
+        	python setup.py test
+        
+        If you have `coverage` tool, you can see how badly written this is:
+        
+        	python setup.py coverage
+        
+        And then check `covhtml/index.html`.
+        
+        = Contact =
+        * Tomasz Sieprawski <tomasz@sieprawski.eu>
+        
+        [1] http://ubjson.org/
+        
+Keywords: ubjson
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
