@@ -1,0 +1,231 @@
+mixcloud-python
+===============
+
+
+A Python wrapper around the Mixcloud API
+
+    It allows you to create Python objects of Mixcloud resources such as User, Categories, Tags etc.
+    All Mixcloud resources are converted from JSON to Python objects.
+
+    For more info check
+    * www.mixcloud.com/developers/documentation/
+
+
+Installation
+------------
+To install mixcloud-python: ::
+
+    pip install mixcloud-python
+
+Usage
+-----
+To use mixcloud-python, you must first create a `Client` instance,
+
+    import mixcloud
+
+    client = mixcloud.Client()
+
+    user = client.get_user('Kasa007')
+
+    user.name
+
+Resources
+-----
+Here is a list of classes and their methods.
+
+**User**
+
+client.get_user('Kasa007') # Pass a user
+
+Instance :
+
+Example of available Instance of a user object:
+
+    client = mixcloud.Client()
+
+    user = client.get_user('Kasa007')
+
+    user.username
+
+    user.city
+
+    user.url
+
+
+Check Mixcloud documentation for all available user fields
+
+
+**Categories**
+
+deep_house_categorie = client.get_categories('deep-house') # Pass a Categorie
+
+Instance :
+
+Example of available Instance of a Categories object:
+
+    client = mixcloud.Client()
+
+    deep_house_categorie = client.get_categories('deep-house')
+
+    deep_house_categorie.url
+
+    deep_house_categorie.slug
+
+    deep_house_categorie.format
+
+
+Check Mixcloud documentation for all available categories fields
+
+**Tags**
+
+deep_house_categorie = client.get_tag('funk') # Pass a tag
+
+Instance :
+
+Example of available Instance of a Categories object:
+
+    client = mixcloud.Client()
+
+    funk_tag = client.get_tag('funk')
+
+    funk_tag.url
+
+    funk_tag.name
+
+    funk_tag.key
+
+
+Check Mixcloud documentation for all available Tags fields
+
+**Popular**
+
+popular_songs = client.get_popular(limit=2) # Pass a limit optional
+
+Instance :
+
+Example of available Instance of a Popular object:
+
+    client = mixcloud.Client()
+
+    popular_songs = client.get_popular(limit=2)
+
+    popular_songs.data[0].name
+
+    popular_songs.data[0].url
+
+    popular_songs.data[0].tags[0].name
+
+    popular_songs.data[0].tags[0].url
+
+
+Check Mixcloud documentation for all available Popular fields
+
+
+**Hot**
+
+popular_songs = client.get_hot(limit=2) # Pass a limit optional
+
+Instance :
+
+Example of available Instance of a Popular object:
+
+    client = mixcloud.Client()
+
+    hot_songs = client.get_hot(limit=2)
+
+    hot_songs.data[0].name
+
+    hot_songs.data[0].url
+
+    hot_songs.data[0].tags[0].name
+
+    hot_songs.data[0].tags[0].url
+
+
+Check Mixcloud documentation for all available Hot fields
+
+**New**
+
+popular_songs = client.get_new(limit=2) # Pass a limit optional
+
+Instance :
+
+Example of available Instance of a Popular object:
+
+    client = mixcloud.Client()
+
+    new_songs = client.get_new(limit=2)
+
+    new_songs.data[0].name
+
+    new_songs.data[0].url
+
+    new_songs.data[0].tags[0].name
+
+    new_songs.data[0].tags[0].url
+
+Get next page:
+
+    new_songs.next_paging()
+
+Get pervious page:
+
+    new_songs.previous_paging()
+
+
+Check Mixcloud documentation for all available New fields
+
+
+**Search**
+
+popular_songs = client.search('kasa007', 'user') # Pass type and query
+
+Instance :
+
+Example of available Instance of a Popular object:
+
+    client = mixcloud.Client()
+
+    search_user = client.search('kasa007', 'user')
+
+    search_user.data[0].name
+
+    search_user.data[0].url
+
+
+Check Mixcloud documentation for all available Search fields
+
+Create Object from resource
+------------
+
+Let's say you want to make a python object of the city London, and the url is https://api.mixcloud.com/discover/city:london/
+
+Example of creating an object out of this url:
+
+    client = mixcloud.Client()
+
+    discover_london = client.get_url('https://api.mixcloud.com/discover/city:london/')
+
+    discover_london.url
+
+    discover_london.name
+
+    discover_london.key
+
+Requirements
+^^^^^^^^^^^^
+#. Python 2.7+ or  Python 3 +
+#. `Requests 2.7.0+ <http://docs.python-requests.org/en/master//>`_
+#. `Six 1.4.1+ <https://pythonhosted.org/six/>`_
+
+
+Running the test
+-----------------
+Run test:
+    python mixcloud/tests.py
+
+
+Authors
+-------
+
+`mixcloud-python` was written by `Said Ali <said.ali@msn.com>`_.
