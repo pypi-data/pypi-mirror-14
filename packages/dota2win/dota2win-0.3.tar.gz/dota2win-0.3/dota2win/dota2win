@@ -1,0 +1,308 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+__version__ = '0.3'
+
+##----PACKAGE------##
+import argparse
+import time
+import sys
+import os
+from argparse import RawTextHelpFormatter
+from pkg_resources import resource_filename
+from multiprocessing import Pool
+import urllib2
+import random
+import cookielib
+
+##----MAIN---------##
+def main():
+	args_raw = get_args()
+
+	if args_raw.which == 'hero':
+		run_mode_hero(args_raw)
+
+	elif args_raw.which == 'player':
+		run_mode_player(args_raw)
+
+	elif args_raw.which == 'team':
+		run_mode_team(args_raw)
+
+##----CODA---------##
+	make_ornament('> END', 100, ' ', 1, 1)
+	make_ornament('', 100, '-', 0, 0)
+	print ('\t|' + ' '*47 + '__.' + ' '*48 + '|\n'
+'\t|' + ' '*32 + '___.  ____.   |  |  __. __.__.   __.' + ' '*30 + '|\n'
+'\t|' + ' '*30 + '_/ ___\ \__  \  |  | <   y  |\  \ /  /' + ' '*30 + '|\n'
+'\t|' + ' '*30 + '\  c___  /  a \_|  l__\___  | >  x  <' + ' '*31 + '|\n'
+'\t|' + ' '*31 + '\_____>(______/|____//_____|/__/ \__\\' + ' '*30 + '|\n'
+'\t|' + '~'*42 + 'www.calyx.biz' + '~'*43 + '|\n\n')
+
+##----FUNCTION-----##
+#---get args---
+def get_args():
+	tool = os.path.basename(sys.argv[0])
+	author = 'Yamol'
+	email = 'xlccalyx@qq.com'
+	date = 'Apr 26, 2016'
+	update_date = ''
+	home = 'www.calyx.biz'
+
+	parser = argparse.ArgumentParser(description='\ttool:   ' + tool + ' v' + __version__ + '\n\tdate:   ' + date + '\n\tauthor: ' + author + ' (' + email + ')\n\thome:   ' + home + '\n', prog=tool, formatter_class=RawTextHelpFormatter)
+
+	parser.add_argument('-V', '--version', action='version', version='%(prog)s v' + __version__)
+
+	subparser = parser.add_subparsers(help='select 1 of 3 modes! dota2win hero/player/team -h for further help!')
+
+#---subparser for mode hero
+	subparser_hero = subparser.add_parser('hero', help='mode hero, for hero pick strategy.')
+	subparser_hero.set_defaults(which='hero')
+	subparser_hero.add_argument('-P', '--prepare', help='download all data.', default=False, action='store_true')
+	subparser_hero.add_argument('-R', '--refresh', help='refresh all data.', default=False, action='store_true')
+	subparser_hero.add_argument('-D', '--default', help='set default value.', default=False, action='store_true')
+	subparser_hero.add_argument('-I', '--infor', help='create and show the dota2 hero information.', default=False, action='store_true')
+	subparser_hero.add_argument('-A', '--anti', help='anti-hero names, separate names by \',\'.', default='')
+	subparser_hero.add_argument('-C', '--comb', help='comb-hero names, separate names by \',\'.', default='')
+	subparser_hero.add_argument('-S', '--skill', help='skill type, default: h, (all, pro, vh, n).', default='h')
+	subparser_hero.add_argument('-L', '--ladder', help='ladder type, default: y, (all, n).', default='y')
+	subparser_hero.add_argument('-T', '--time', help='time type, default: month, (week, all, v686, v685, v684).', default='month')
+	subparser_hero.add_argument('-E', '--server', help='server type, default: world, (cn, all).', default='world')
+
+#---subparser for mode player
+	subparser_player_raw = subparser.add_parser('player', help='mode player, to aim at against player.')
+	subparser_player_raw.set_defaults(which='player')
+	subparser_player = subparser_player_raw.add_mutually_exclusive_group()
+	subparser_player.add_argument('-I', '--infor', help='create and show the dota2 player information.', default=False, action='store_true')
+	subparser_player.add_argument('-A', '--anti', help='anti-player name.')
+
+#---subparser for mode team
+	subparser_team_raw = subparser.add_parser('team', help='mode team, to aim at against team.')
+	subparser_team_raw.set_defaults(which='team')
+	subparser_team = subparser_team_raw.add_mutually_exclusive_group()
+	subparser_team.add_argument('-I', '--infor', help='create and show the dota2 team information.', default=False, action='store_true')
+	subparser_team.add_argument('-A', '--anti', help='anti-team name.')
+
+#	args_dict = {'anti':'宙斯,幽鬼,虚空假面', 'comb':'祈求者,帕吉', 'skill':'h', 'ladder':'y', 'time':'month', 'server':'world'}
+	args = parser.parse_args()
+#	args = get_class_from_dict(**args_dict)
+
+#---head
+	print '\n\n\t' + ' '.join(sys.argv[:]) + '\n'
+	make_ornament('', 100, '-', 0, 0)
+	make_ornament('tool:   ' + tool + ' v' + __version__, 100, ' ', 0, 0)
+	make_ornament('author: ' + author + ' (' + email + ')', 100, ' ', 0, 0)
+	make_ornament('', 100, '-', 0, 0)
+	make_ornament('> BEGIN', 100, ' ', 1, 1)
+
+	return args
+
+#---run mode hero---
+def run_mode_hero(args_raw):
+	dota2win_dir = make_dir(os.getcwd() + '/dota2win/')
+	hero_dir = make_dir(dota2win_dir + 'hero/')
+	hero_data_dir = make_dir(hero_dir + 'data/')
+	hero_name_file = resource_filename('dota2win', 'dota2.hero.name.txt')
+	hero_name = open(hero_name_file, 'rU').readlines()
+	#hero_name = open('/home/tongji1/data/liyx/dota2/dota2win/dota2.hero.name.txt', 'rU').readlines()
+	hero_name_split = [[y.lower() for y in x.rstrip().split('\t')] for x in hero_name]
+	hero_id_all = [x[0] for x in hero_name_split]
+	args = run_preset_hero(hero_dir, args_raw)
+
+	if args.infor:
+		os.system('cp ' + hero_name_file + ' ' + os.getcwd())
+		make_ornament('dota2.hero.name.txt created! check current directory!', 100, ' ', 1, 0)
+
+	elif args.prepare:
+		if args.refresh:
+			hero_data_old_dir = make_dir(dota2win_dir + 'hero/old_data/')
+			os.system('mv ' + hero_data_dir[:-1] + ' ' + hero_data_old_dir + time.strftime("%m%d%y", time.localtime()))
+		run_prepare_hero(hero_data_dir, hero_id_all, args)
+
+	elif args.default:
+		run_hero_default(hero_dir, args)
+
+	else:
+		#anti = '宙斯,幽鬼,虚空假面'
+		hero_id_anti = get_hero_id(hero_name_split, args.anti, 'anti')
+
+		#comb = '祈求者,帕吉'
+		hero_id_comb = get_hero_id(hero_name_split, args.comb, 'comb')
+
+		make_ornament('', 100, ' ', 0, 0)
+		get_best_hero_pick(hero_id_all, hero_id_anti, hero_id_comb, hero_dir, args, dota2win_dir)
+
+#---run preset hero--
+def run_preset_hero(hero_dir, args_raw):
+	hero_default_file = hero_dir + 'hero.default.txt'
+	if not os.path.isfile(hero_default_file):
+		return args_raw
+	else:
+		hero_default = dict([x.split() for x in open(hero_default_file, 'rU').readlines()])
+		args_dict = {'version':args_raw.version, 'prepare':args_raw.prepare, 'refresh':args_raw.refresh, 'default':args_raw.default, 'infor':args_raw.infor, 'anti':args_raw.anti, 'comb':args_raw.comb, 'skill':hero_default['skill'], 'ladder':hero_default['ladder'], 'time':hero_default['time'], 'server':hero_default['server']}
+		args = get_class_from_dict(**args_dict)
+		return args
+
+#---run prepare hero--
+def run_prepare_hero(hero_data_dir, hero_id_all, args):
+	hero_type_all = ['anti', 'comb']
+#	skill_type = ['all', 'pro', 'vh', 'h', 'n'][4:]
+#	ladder_type = ['all', 'y', 'n'][1:2]
+#	time_type = ['month', 'week', 'all', 'v686', 'v685', 'v684'][0:1]
+#	server_type = ['cn', 'world', 'all'][1:2]
+	for hero_type in hero_type_all:
+		for hero_id in hero_id_all:
+			hero_win_score_file = hero_data_dir + '_'.join([hero_type, hero_id, args.skill, args.ladder, args.time, args.server]) + '.txt'
+			if not os.path.isfile(hero_win_score_file):
+				get_hero_win_score(hero_data_dir, hero_type, hero_id, args)
+
+#---get hero win score--
+def get_hero_win_score(hero_data_dir, hero_type, hero_id, args):
+	#hero_type = ['anti', 'comb'][0]
+	#skill_type = ['all', 'pro', 'vh', 'h', 'n'][4]
+	#ladder_type = ['all', 'y', 'n'][1]
+	#time_type = ['month', 'week', 'all', 'v686', 'v685', 'v684'][0]
+	#server_type = ['cn', 'world', 'all'][1]
+	hero_win_score_file = hero_data_dir + '_'.join([hero_type, hero_id, args.skill, args.ladder, args.time, args.server]) + '.txt'
+	if not os.path.isfile(hero_win_score_file):
+		hero_page_url = 'http://dotamax.com/hero/detail/match_up_%s/%s/?skill=%s&ladder=%s&time=%s&server=%s' % (hero_type, hero_id, args.skill, args.ladder, args.time, args.server)
+		url_content = get_url_content(hero_page_url)
+		hero_page_infor = url_content.split('<tr><td><a href="/hero/detail/')[1:]
+		hero_page_infor_name = [x.split('"><img')[0] for x in hero_page_infor]
+		hero_page_infor_score = [x.split('"height: 10px">')[1].split('%</div>')[0] for x in hero_page_infor]
+		hero_win_score_raw = [hero_page_infor_name[i] + '\t' + hero_page_infor_score[i] + '\n' for i in range(len(hero_page_infor_name))]
+		if hero_type == 'anti':
+			hero_win_score_sort = sorted(hero_win_score_raw, key = lambda x:float(x.split()[1]))
+		else:
+			hero_win_score_sort = sorted(hero_win_score_raw, key = lambda x:float(x.split()[1]), reverse=True)
+		write_content(hero_win_score_file, hero_win_score_sort)
+	else:
+		hero_win_score_sort = open(hero_win_score_file, 'rU').readlines()
+	hero_win_score = dict([x.split() for x in hero_win_score_sort])
+	make_ornament('_'.join([hero_type, hero_id, args.skill, args.ladder, args.time, args.server]), 100, ' ', 1, 0)
+	return hero_win_score
+
+#---run hero default--
+def run_hero_default(hero_dir, args):
+	hero_default_file = hero_dir + 'hero.default.txt'
+	hero_default = 'skill\t%s\nladder\t%s\ntime\t%s\nserver\t%s\n' % (args.skill, args.ladder, args.time, args.server)
+	write_content(hero_default, hero_default_file)
+
+#---get hero id--
+def get_hero_id(hero_name_split, args_hero_type, type):
+	hero_name = args_hero_type.split(',')
+	hero_id_raw = [get_hero_id(hero_name_split, x) for x in hero_name]
+	for i in range(len(hero_name)):
+		make_ornament([type + '-', 'WARNING! '][hero_id_raw[i] == 'na'] + hero_name[i] + ': ' + hero_id_raw[i], 100 + [0, len(hero_name[i]) - len(hero_name[i].decode('utf-8'))*2][len(hero_name[i]) != len(hero_name[i].decode('utf-8'))], ' ', 0, 0)
+	hero_id = [x for x in hero_id_raw if x != 'na']
+	return hero_id
+
+#---get hero id--
+def get_hero_id(hero_name_split, any_name):
+	hero_id = [x[0] for x in hero_name_split if any_name.lower() in x]
+	if len(hero_id) == 1:
+		return hero_id[0]
+	else:
+		return 'na'
+
+#---get best hero pick--
+def get_best_hero_pick(hero_id_all, hero_id_anti, hero_id_comb, hero_dir, args, dota2win_dir):
+	hero_id_all_backup = hero_id_all[:]
+	for hero_id in hero_id_anti + hero_id_comb:
+		hero_id_all_backup.remove(hero_id)
+	best_hero_pick_score = dict(zip(hero_id_all_backup, [[0]]*len(hero_id_all_backup)))
+	for hero_id in hero_id_anti:
+		hero_win_score = get_hero_win_score(hero_data_dir, 'anti', hero_id, args)
+		for x, y in hero_win_score.items():
+			if x in best_hero_pick_score.keys():
+				best_hero_pick_score[x] = best_hero_pick_score[x] + [-float(y)]
+	for hero_id in hero_id_comb:
+		hero_win_score = get_hero_win_score(hero_data_dir, 'comb', hero_id, args)
+		for x, y in hero_win_score.items():
+			if x in best_hero_pick_score.keys():
+				best_hero_pick_score[x] = best_hero_pick_score[x] + [float(y)]
+	best_hero_pick_table = [str(sum(best_hero_pick_score[x])) + '\t' + x + '\t' + str(sum(best_hero_pick_score[x][1:][:len(hero_id_anti)])) + '\t' + '\t'.join([str(y) for y in best_hero_pick_score[x][1:][:len(hero_id_anti)]]) + '\t' + str(sum(best_hero_pick_score[x][1:][len(hero_id_anti):])) + '\t' + '\t'.join([str(y) for y in best_hero_pick_score[x][1:][len(hero_id_anti):]]) + '\n' for x in best_hero_pick_score.keys()]
+	best_hero_pick = ['skill:\t%s\nladder:\t%s\ntime:\t%s\nserver:\t%s\n' % (args.skill, args.ladder, args.time, args.server)] + ['score\tid\tanti_score\tanti:' + '\tanti:'.join(hero_id_anti) + '\tcomb_score\tcomb:' + '\tcomb:'.join(hero_id_comb) + '\n'] + sorted(best_hero_pick_table, key = lambda x:float(x.split()[0]), reverse=True)
+	best_hero_pick_file = hero_dir + time.strftime("%m%d%y%H%M%S", time.localtime()) + '.txt'
+#	write_content(best_hero_pick_file, best_hero_pick)
+	best_hero_pick_sort_all = '\t|\n\t|' + ''.join(best_hero_pick[:20]).replace('\n', '\n\t|')
+	best_hero_pick_sort_anti = '\n\t|' + best_hero_pick[1] + '\t|' + ''.join(sorted(best_hero_pick[2:], key = lambda x:float(x.split()[2]), reverse=True)[:15]).replace('\n', '\n\t|')
+	print best_hero_pick_sort_all + best_hero_pick_sort_anti
+
+#--common--
+class get_class_from_dict:
+	def __init__(self, **entries): 
+		self.__dict__.update(entries)
+
+def add_thousand_separator(int_number):
+	return str(format(int(int_number), ','))
+
+def get_absolute_file(file):
+	split_file = [x for x in file.split('/') if x != '']
+	current_dir = os.getcwd()
+	split_current_dir = [x for x in current_dir.split('/') if x != '']
+	if len(set(split_file)&set(split_current_dir)) == 0:
+		absolute_file = current_dir + '/' + file
+	else:
+		absolute_file = file
+	if os.path.isfile(absolute_file):
+		return absolute_file
+	else:
+		return 'WRONG file or directory!'
+
+def get_process_time(function_name, is_finish=0, width=100, indent=16):
+	function_name_indent = ' '*(indent - len(function_name.split(':')[0])) + function_name
+	if is_finish == 0:		
+		make_ornament(function_name_indent + ' '*(width - 23 - len(function_name_indent)) + '  -running', width)
+	else:
+		make_ornament(function_name_indent + ' '*(width - 23 - len(function_name_indent)) + ' -finished', width)
+
+def get_url_content(url):
+#	fake_header = {"User-Agent": "Mozilla/5.0 (Windows; U; Windows NT 5.1; zh-CN; rv:1.9.1) Gecko/20090624 Firefox/3.5", "Referer": 'http://www.baidu.com/'}
+#	my_headers = ['Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0; .NET CLR 2.0.50727; .NET CLR 3.0.04506.30; .NET CLR 3.0.04506.648)', 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0; .NET CLR 2.0.50727; InfoPath.1', 'Mozilla/4.0 (compatible; GoogleToolbar 5.0.2124.2070; Windows 6.0; MSIE 8.0.6001.18241)', 'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)', 'Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0; Sleipnir/2.9.8)']
+#	random_header = random.choice(my_headers)
+	#url = 'http://dotamax.com/hero/detail/match_up_anti/zuus/?skill=n&time=month&server=world&ladder=y'
+#	req = urllib2.Request(url)
+#	req.add_header("User-Agent", random_header)
+#	req.add_header('Host', 'blog.csdn.net')
+#	req.add_header('Referer', 'http://blog.csdn.net')
+#	req.add_header('GET', url)
+#	url_content = urllib2.urlopen(req).read()
+	pause_time = [1, 2, 3, 4, 5]
+	time.sleep(random.choice(pause_time))
+	url_content = urllib2.build_opener(urllib2.HTTPCookieProcessor).open(url).read()
+	#url_content = urllib2.urlopen(urllib2.Request(url)).read()
+	return url_content
+
+def make_dir(dir):
+	dir = dir.strip().rstrip("\\")
+	if not os.path.exists(dir):
+		os.makedirs(dir)
+	return dir
+
+def make_initial_upper(word):
+	initial_upper = word[0].upper() + word[1:].lower()
+	return initial_upper
+
+def make_ornament(title, width=100, ornament_type=' ', show_time=1, show_date = 0):
+	if show_time == 1:
+		if show_date == 0:
+			ornament = '\t|' + title + ornament_type*(width - 13 - len(title)) + ' @ ' + time.strftime("%X", time.localtime()) + '|'
+		else:
+			ornament = '\t|' + title + ornament_type*(width - 24 - len(title)) + ' @ ' + time.strftime("%Y-%m-%d %X", time.localtime()) + '|'
+	else:
+		ornament = '\t|' + title + ornament_type*(width - 2 - len(title)) + '|'
+	print ornament
+
+def write_content(content_file, content):
+	output = open(content_file, 'w')
+	output.writelines(content)
+	output.close()
+
+##----PROCESS------##
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.stderr.write("User interrupted me! ;-) Bye!\n")
+        sys.exit(0)
+
+##----TEST--------##
