@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+# -*- coding: utf-8
+
+import os
+import sys
+
+import anvio
+import anvio.dbops as dbops
+import anvio.utils as utils
+import anvio.terminal as terminal 
+
+from anvio.errors import ConfigError, FilesNPathsError
+
+
+__author__ = "A. Murat Eren"
+__copyright__ = "Copyright 2015, The anvio Project"
+__credits__ = []
+__license__ = "GPL 3.0"
+__version__ = anvio.__version__
+__maintainer__ = "A. Murat Eren"
+__email__ = "a.murat.eren@gmail.com"
+
+
+run = terminal.Run()
+progress = terminal.Progress()
+
+def main(args):
+    # first check whether this computer is capable of doing an HMM search.
+    missing_programs =  utils.get_missing_programs_for_hmm_analysis()
+    if missing_programs:
+        raise ConfigError, "Well, in order to run this program, you need %s to be installed on your system." %\
+                                                                                     (', and '.join(missing_programs))
+
+    # then check whether we are going to use the default HMM profiles, or run it for a new one.
+    sources = {}
+    if args.hmm_profile_dir:
+        if not os.path.exists(args.hmm_profile_dir):
+            raise ConfigError, 'No such file or directory: "%s"' % args.hmm_profile_dir
+        sources = utils.get_HMM_sources_dictionary([args.hmm_profile_dir])
+        run.info('HMM profiles', '%d source%s been loaded: %s' % (len(sources),
+                                                          's' if len(sources) > 1 else '',
+                                                          ', '.join(['%s (%d genes)' % (s, len(sources[s]['genes']))\
+                                                                                                    for s in sources])))
+    else:
+        # sources will be loaded from defaults. 
+        pass
+
+    search_tables = dbops.TablesForHMMHits(args.contigs_db)
+    search_tables.debug = args.debug
+    search_tables.populate_search_tables(sources)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='This program deals with populating tables that store HMM hits in an\
+                                                  contigs database. See the documentation for more information.')
+
+    parser.add_argument(*anvio.A('contigs-db'), **anvio.K('contigs-db'))
+    parser.add_argument(*anvio.A('hmm-profile-dir'), **anvio.K('hmm-profile-dir'))
+    parser.add_argument(*anvio.A('debug'), **anvio.K('debug'))
+
+    args = parser.parse_args()
+
+    try:
+        main(args)
+    except ConfigError, e:
+        print e
+        sys.exit(-1)
+    except FilesNPathsError, e:
+        print e
+        sys.exit(-2)

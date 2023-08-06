@@ -1,0 +1,96 @@
+#!/usr/bin/env python
+# -*- coding: utf-8
+
+import sys
+import argparse
+
+import anvio
+import anvio.utils as u
+import anvio.dbops as dbops
+import anvio.terminal as terminal
+import anvio.clustering as clustering
+
+from anvio.errors import ConfigError, FilesNPathsError
+from anvio.clusteringconfuguration import ClusteringConfiguration
+
+
+__author__ = "A. Murat Eren"
+__copyright__ = "Copyright 2015, The anvio Project"
+__credits__ = []
+__license__ = "GPL 3.0"
+__version__ = anvio.__version__
+__maintainer__ = "A. Murat Eren"
+__email__ = "a.murat.eren@gmail.com"
+
+
+run = terminal.Run()
+progress = terminal.Progress()
+
+def experimental_organization(args):
+    split_names = []
+
+    if not args.skip_store_in_db and not args.profile_db:
+        raise ConfigError, "OK. When you don't use the --skip-store-in-db flag, you need to define a\
+                            profile database to be explicit about where to store the resulting tree."
+
+    if args.profile_db:
+        dbops.is_profile_db(args.profile_db)
+    dbops.is_contigs_db(args.contigs_db)
+
+    if not args.skip_store_in_db and not args.name:
+        raise ConfigError, "Since you have not used the --skip-store-in-db flag, this program will attempt\
+                            store resulting clustering into the profile database, and it needs a name for\
+                            this tree. Please use the --name flag to provide one."
+
+    if args.name:
+        u.is_this_name_OK_for_database('--name', args.name)
+
+    if args.profile_db:
+        profile_db = dbops.ProfileDatabase(args.profile_db)
+        if int(profile_db.meta['merged']):
+            split_names = profile_db.db.get_single_column_from_table('mean_coverage_splits', 'contig')
+        else:
+            split_names = profile_db.db.get_single_column_from_table('atomic_data_splits', 'contig')
+        profile_db.disconnect()
+
+    db_paths = {'CONTIGS.db': args.contigs_db}
+    config = ClusteringConfiguration(args.config_file, args.input_directory, db_paths = db_paths, row_ids_of_interest = split_names)
+
+    config.print_summary(run)
+    
+    if args.dry_run:
+        sys.exit()
+    
+    newick = clustering.order_contigs_simple(config, progress = terminal.Progress(), debug = True)
+    
+    if args.output_file:
+        open(args.output_file, 'w').write(newick + '\n')
+        run.info('Output', args.output_file, mc='green')
+
+    if args.profile_db:
+        dbops.add_hierarchical_clustering_to_db(args.profile_db, args.name, newick, run = run)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='why yes we do stuff here.')
+    parser.add_argument('config_file', metavar = 'PATH', default = None, type=str,
+                        help = 'Config file for clustering of contigs. See documentation for help.')
+
+    parser.add_argument(*anvio.A('profile-db'), **anvio.K('profile-db', {'required': False}))
+    parser.add_argument(*anvio.A('contigs-db'), **anvio.K('contigs-db'))
+    parser.add_argument(*anvio.A('experimental-org-input-dir'), **anvio.K('experimental-org-input-dir'))
+    parser.add_argument(*anvio.A('clustering-name'), **anvio.K('clustering-name'))
+    parser.add_argument(*anvio.A('skip-store-in-db'), **anvio.K('skip-store-in-db'))
+    parser.add_argument(*anvio.A('output-file'), **anvio.K('output-file'))
+    parser.add_argument(*anvio.A('dry-run'), **anvio.K('dry-run'))
+    
+    args = parser.parse_args()
+
+    try:
+        experimental_organization(args)
+    except ConfigError, e:
+        print e
+        sys.exit(-1)
+    except FilesNPathsError, e:
+        print e
+        sys.exit(-2)

@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+# -*- coding: utf-8
+"""A script to call CONCOCT clustering on a merged anvi'o profile"""
+
+import sys
+
+import anvio
+import anvio.utils as utils
+import anvio.concoct as concoct
+import anvio.filesnpaths as filesnpaths
+
+from anvio.errors import ConfigError, FilesNPathsError
+
+
+__author__ = "Christopher Quince"
+__copyright__ = "Copyright 2015, The anvio Project"
+__credits__ = []
+__license__ = "GPL 3.0"
+__version__ = anvio.__version__
+__maintainer__ = "A. Murat Eren"
+__email__ = "a.murat.eren@gmail.com"
+
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description="A script to call CONCOCT clustering on a merged anvi'o profile")
+
+    parser.add_argument(*anvio.A('profile-db'), **anvio.K('profile-db'))
+    parser.add_argument(*anvio.A('contigs-db'), **anvio.K('contigs-db'))
+    parser.add_argument(*anvio.A('output-file'), **anvio.K('output-file'))
+    parser.add_argument(*anvio.A('skip-store-in-db'), **anvio.K('skip-store-in-db'))
+    parser.add_argument(*anvio.A('source-identifier'), **anvio.K('source-identifier', {'default': 'CONCOCT'}))
+    parser.add_argument(*anvio.A('debug'), **anvio.K('debug'))
+
+    args = parser.parse_args()
+
+    try:
+        source = args.source_identifier.strip()
+        if not len(source):
+            raise ConfigError, 'Nice try. Source identifier cannot be emtpy'
+        try:
+            utils.check_sample_id(source)
+        except:
+            raise ConfigError, '"%s" is not a proper source name. A proper one should be a single word and not contain\
+                                ANY characters but digits, ASCII letters and underscore character(s). There should not be\
+                                any space characters, and the source ID shoudl not start with a digit.' % source
+
+        # make sure output file is writable before the analysis...
+        if args.output_file:
+            filesnpaths.is_output_file_writable(args.output_file)
+
+        c = concoct.CONCOCT(args)
+        c.cluster()
+
+        if args.output_file:
+            c.store_clusters_as_TAB_delimited_text(args.output_file)
+        if not args.skip_store_in_db:
+            c.store_clusters_in_db(source = source)
+
+    except ConfigError, e:
+        print e
+        sys.exit(-1)
+    except FilesNPathsError, e:
+        print e
+        sys.exit(-2)
