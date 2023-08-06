@@ -1,0 +1,1285 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# PYTHON_ARGCOMPLETE_OK
+#
+# git-phab - git subcommand to integrate with phabricator
+#
+# Copyright (C) 2008  Owen Taylor
+# Copyright (C) 2015  Xavier Claessens <xavier.claessens@collabora.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, If not, see
+# http://www.gnu.org/licenses/.
+
+import tempfile
+import subprocess
+import argparse
+import argcomplete
+from datetime import datetime
+import git
+import os
+import re
+import sys
+import json
+import appdirs
+import shutil
+from urllib.parse import urlsplit, urlunsplit
+
+
+class Colors(object):
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+
+class GitPhab:
+    def __init__(self):
+        self.task = None
+        self.remote = None
+        self.assume_yes = False
+        self.reviewers = None
+        self.cc = None
+        self.projects = None
+        self.output_directory = None
+
+    def check_conduit_reply(self, reply):
+        if reply['errorMessage'] is not None:
+            self.die(reply['errorMessage'])
+
+    # Copied from git-bz
+    def die(self, message):
+        print(message, file=sys.stderr)
+        sys.exit(1)
+
+    def prompt(self, message):
+        if self.assume_yes:
+            print(message + " [yn] y")
+            return True
+
+        try:
+            while True:
+                line = input(message + " [yn] ")
+                if line == 'y' or line == 'Y':
+                    return True
+                elif line == 'n' or line == 'N':
+                    return False
+        except KeyboardInterrupt:
+            # Ctrl+C doesn’t cause a newline
+            print("")
+            sys.exit(1)
+
+    # Copied from git-bz
+    def edit_file(self, filename):
+        editor = self.repo.git.var("GIT_EDITOR")
+        process = subprocess.Popen(editor + " " + filename, shell=True)
+        process.wait()
+        if process.returncode != 0:
+            self.die("Editor exited with non-zero return code")
+
+    # Copied from git-bz
+    def edit_template(self, template):
+        # Prompts the user to edit the text 'template' and returns list of
+        # lines with comments stripped
+
+        handle, filename = tempfile.mkstemp(".txt", "git-phab-")
+        f = os.fdopen(handle, "w")
+        f.write(template)
+        f.close()
+
+        self.edit_file(filename)
+
+        with open(filename, 'r') as f:
+            return [l for l in f.readlines() if not l.startswith("#")]
+
+    def create_task(self):
+        task_infos = None
+        while not task_infos:
+            task_infos = self.edit_template(
+                "\n"
+                "# Merge branch: %s\n"
+                "# Please enter a task title and description for the merge "
+                "request" % self.repo.active_branch.name)
+
+        description = ""
+        title = task_infos[0]
+        if len(task_infos) > 1:
+            description = '\n'.join(task_infos[1:])
+
+        reply = self.conduit("maniphest.createtask", {
+            "title": title,
+            "description": description,
+            "projectPHIDs": self.project_phids,
+        })
+
+        return reply
+
+    def task_from_branchname(self, bname):
+        # Match 'foo/bar/T123-description'
+        m = re.fullmatch('(.+/)?(T[0-9]+)(-.*)?', bname)
+        return m.group(2) if m else None
+
+    def get_commits(self, revision_range):
+        try:
+            # See if the argument identifies a single revision
+            commits = [self.repo.rev_parse(revision_range)]
+        except:
+            # If not, assume the argument is a range
+            try:
+                commits = list(self.repo.iter_commits(revision_range))
+            except:
+                # If not again, the argument must be invalid — perhaps the user
+                # has accidentally specified a bug number but not a revision.
+                commits = []
+
+        if len(commits) == 0:
+            self.die("'%s' does not name any commits. Use HEAD to specify "
+                     "just the last commit" % revision_range)
+
+        return commits
+
+    def get_differential_link(self, commit):
+        m = re.search('(^Differential Revision: )(.*)$',
+                      commit.message, re.MULTILINE)
+        return None if m is None else m.group(2)
+
+    def get_differential_id(self, commit):
+        link = self.get_differential_link(commit)
+        return int(link[link.rfind('/') + 2:]) if link else None
+
+    def format_commit(self, commit, status=None):
+        result = u"%s%s%s —" % (Colors.HEADER, commit.hexsha[:7], Colors.ENDC)
+
+        diffid = self.get_differential_id(commit)
+        if not diffid:
+            status = "Not attached"
+        if diffid:
+            result += u" D%s" % diffid
+        if status:
+            result += u" %s%s%s" % (
+                Colors.OKGREEN if status == "Accepted" else Colors.WARNING,
+                status,
+                Colors.ENDC)
+
+        return result + u" — %s" % commit.summary
+
+    def print_commits(self, commits):
+        statuses = {}
+        for c in commits:
+            diffid = self.get_differential_id(c)
+            if diffid:
+                statuses[int(diffid)] = "Unknown"
+
+        reply = self.conduit('differential.query', {
+            "ids": list(statuses.keys())
+        })
+
+        if reply["error"]:
+            print("Could not get informations about differentials status")
+        else:
+            for diff in reply["response"]:
+                statuses[int(diff["id"])] = diff["statusName"]
+
+        for c in commits:
+            diffid = self.get_differential_id(c)
+            status = statuses.get(int(diffid)) if diffid else None
+            print(self.format_commit(c, status))
+
+    def conduit(self, cmd, params):
+        data = bytes(json.dumps(params), 'utf-8')
+        arc_cmd = ['arc']
+        if self.arcrc:
+            arc_cmd += ['--arcrc-file', self.arcrc]
+
+        arc_cmd += ['call-conduit', cmd]
+        output = subprocess.check_output(arc_cmd,
+                                         input=data)
+        return json.loads(output.decode('utf-8'))
+
+    def in_feature_branch(self):
+        # If current branch is "master" it's obviously not a feature branch.
+        if self.branch_name in ['master']:
+            return False
+
+        tracking = self.repo.head.reference.tracking_branch()
+
+        # If current branch is not tracking any remote branch it's probably
+        # a feature branch.
+        if not tracking or not tracking.is_remote():
+            return True
+
+        # If the tracking remote branch has a different name we can assume
+        # it's a feature branch (e.g. 'my-branch' is tracking 'origin/master')
+        if tracking.remote_head != self.branch_name:
+            return True
+
+        # The current branch has the same name than its tracking remote branch
+        # (e.g. "gnome-3-18" tracking "origin/gnome-3-18"). It's probably not
+        # a feature branch.
+        return False
+
+    def branch_name_with_task(self):
+        if self.branch_name.startswith(self.task):
+            return self.branch_name
+
+        name = self.task
+
+        # Only append current branch name if it seems to be a feature branch.
+        # We want "T123-fix-a-bug" but not "T123-master" or "T123-gnome-3-18".
+        if self.in_feature_branch():
+            name += '-' + self.branch_name
+
+        return name
+
+    def get_wip_branch(self):
+        return "wip/phab/" + self.branch_name_with_task()
+
+    def filter_already_proposed_commits(self, commits, all_commits):
+        if not self.task or not self.remote:
+            return
+
+        remote_commit = None
+
+        # Check if we already have a branch for current task on our remote
+        remote = self.repo.remote(self.remote)
+        bname = self.get_wip_branch()
+        for r in remote.refs:
+            if r.remote_head == bname:
+                remote_commit = r.commit
+                break
+
+        try:
+            # Fetch what has already been proposed on the task if we don't have
+            # it locally yet.
+            if not remote_commit:
+                remote_commit = self.fetch()[0]
+
+            # Get the index in commits and all_commits lists of the common
+            # ancestor between HEAD and what has already been proposed.
+            common_ancestor = self.repo.git.merge_base(remote_commit.hexsha,
+                                                       commits[0].hexsha)
+            common_commit = self.repo.commit(common_ancestor)
+            commits_idx = commits.index(common_commit)
+            all_commits_idx = all_commits.index(common_commit)
+        except:
+            return
+
+        print("Excluding already proposed commits %s..%s" % (
+              commits[-1].hexsha[:7], commits[commits_idx].hexsha[:7]))
+        del commits[commits_idx:]
+        del all_commits[all_commits_idx:]
+
+    def read_arcconfig(self):
+        path = os.path.join(self.repo.working_tree_dir, '.arcconfig')
+        try:
+            with open(path) as f:
+                self.arcconfig = json.load(f)
+        except FileNotFoundError as e:
+            self.die("Could not find any .arcconfig file.\n"
+                     "Make sure the current repository is properly configured "
+                     "for phabricator")
+
+        try:
+            self.phabricator_uri = self.arcconfig["phabricator.uri"]
+        except KeyError as e:
+            self.die("Could not find '%s' in .arcconfig.\n"
+                     "Make sure the current repository is properly configured "
+                     "for phabricator" % e.args[0])
+
+        # Remove trailing '/' if any
+        if self.phabricator_uri[-1] == '/':
+            self.phabricator_uri = self.phabricator_uri[:-1]
+
+    def get_config_path(self):
+        return os.path.join(appdirs.user_config_dir('git'), 'phab')
+
+    def read_config(self):
+        path = self.get_config_path()
+        try:
+            with open(path) as f:
+                self.config = json.load(f)
+        except FileNotFoundError as e:
+            self.config = {}
+
+        if 'emails' not in self.config:
+            self.config['emails'] = {}
+
+    def write_config(self):
+        path = self.get_config_path()
+
+        dir = os.path.dirname(path)
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+
+        with open(path, 'w') as f:
+            json.dump(self.config, f, sort_keys=True, indent=4,
+                      separators=(',', ': '))
+
+    def ensure_project_phids(self):
+        reply = self.conduit("project.query", {"names": self.projects})
+        self.project_phids = list(reply["response"]["data"].keys())
+
+        names = [p["name"].lower() for p in reply["response"]["data"].values()]
+        for p in self.projects:
+            if p not in names:
+                self.die("%sProject `%s` doesn't seem to exist%s" %
+                         (Colors.FAIL, p, Colors.ENDC))
+
+    def validate_remote(self):
+        # If a remote is setup ensure that it's valid
+        # Validate that self.remote exists
+        try:
+            self.repo.remote(self.remote)
+        except:
+            self.die("%s not a valid remote. Aborting." % self.remote)
+
+        # Get remote's fetch URL. Unfortunately we can't get it from config
+        # using remote.config_reader.get('url') otherwise it won't rewrite the
+        # URL using url.*.insteadOf configs.
+        try:
+            output = self.repo.git.remote('show', '-n', self.remote)
+            m = re.search('Fetch URL: (.*)$', output, re.MULTILINE)
+            self.remote_url = m.group(1)
+        except:
+            self.die("Failed to get fetch URL for remote %s" % self.remote)
+
+        # Make sure the user knows what he's doing if the remote's fetch URL is
+        # using ssh, otherwise reviewers might not be able to pull their
+        # branch.
+        url = urlsplit(self.remote_url)
+        if url.scheme in ["ssh", "git+ssh"]:
+            try:
+                force_ssh = self.repo.config_reader().get_value(
+                    'phab', 'force-ssh-remote')
+            except:
+                force_ssh = False
+
+            if not force_ssh:
+                ret = self.prompt(
+                    "The configured phab.remote (%s) is using ssh.\n"
+                    "It means it might not be readable by some people.\n"
+                    "Are you sure you want to continue?" % self.remote)
+                if ret:
+                    writer = self.repo.config_writer()
+                    writer.set_value('phab', 'force-ssh-remote', True)
+                    writer.release()
+                else:
+                    pushurl = urlunsplit(url)
+                    fetchurl = urlunsplit(url._replace(scheme='git'))
+                    self.die("To reconfigure your remote, run:\n"
+                             "  git remote set-url {0} {1}\n"
+                             "  git remote set-url --push {0} {2}\n"
+                             "Note that if you're using url.*.insteadOf you "
+                             "could define url.*.pushInsteadOf as well."
+                             .format(self.remote, fetchurl, pushurl))
+
+    def validate_args(self):
+        self.repo = git.Repo(os.getcwd(), search_parent_directories=True)
+        self.read_arcconfig()
+        self.read_config()
+
+        if not self.remote:
+            try:
+                self.remote = self.repo.config_reader().get_value(
+                    'phab', 'remote')
+            except:
+                pass
+
+        if self.remote:
+            self.validate_remote()
+        # Try to guess the task from branch name
+        if self.repo.head.is_detached:
+            self.die("HEAD is currently detached. Aborting.")
+        self.branch_name = self.repo.head.reference.name
+        self.branch_task = self.task_from_branchname(self.branch_name)
+
+        if not self.task and self.task != "T":
+            self.task = self.branch_task
+
+        # Validate the self.task is in the right format
+        if self.task and not re.fullmatch('T[0-9]*', self.task):
+            self.die("Task '%s' is not in the correct format. "
+                     "Expecting 'T123'." % self.task)
+
+        if hasattr(self, 'revision_range') and not self.revision_range:
+            tracking = self.repo.head.reference.tracking_branch()
+            if not tracking:
+                self.die("There is no tracking information for the current "
+                         "branch.\n"
+                         "Please specify the patches you want to attach by "
+                         "setting the <revision range> \n\n"
+                         "If you wish to set tracking information for this "
+                         "branch you can do so with: \n"
+                         "  git branch --set-upstream-to <remote>/<branch> %s"
+                         % self.branch_name)
+            self.revision_range = str(tracking) + '..'
+            print("Using revision range '%s'" % self.revision_range)
+
+        if not self.reviewers:
+            self.reviewers = self.arcconfig.get("default-reviewers")
+
+        self.projects = self.projects.split(',') if self.projects else []
+        if "project" in self.arcconfig:
+            self.projects.append(self.arcconfig["project"])
+        if "project.name" in self.arcconfig:
+            self.projects.append(self.arcconfig["project.name"])
+        if "projects" in self.arcconfig:
+            for p in self.arcconfig["projects"].split(','):
+                self.projects.append(p)
+        self.projects = [s.strip().lower() for s in self.projects]
+        if len(self.projects) == 0:
+            self.die("No project has been defined.\n"
+                     "You can add 'projects': 'p1, p2' in your .arcconfig\n"
+                     "Aborting.")
+
+    def line_in_headers(self, line, headers):
+        for header in headers:
+            if re.match('^' + re.escape(header), line, flags=re.I):
+                return True
+        return False
+
+    def parse_commit_msg(self, msg):
+        subject = None
+        body = []
+        git_fields = []
+        phab_fields = []
+
+        # Those are common one-line git field headers
+        git_headers = ['Signed-off-by:', 'Acked-by:', 'Reported-by:',
+                       'Tested-by:', 'Reviewed-by:']
+        # Those are understood by Phabricator
+        phab_headers = ['Cc:', 'differential revision:']
+
+        for line in msg.splitlines():
+            if not subject:
+                subject = line
+                continue
+
+            if self.line_in_headers(line, git_headers):
+                git_fields.append(line)
+                continue
+
+            if self.line_in_headers(line, phab_headers):
+                phab_fields.append(line)
+                continue
+
+            body.append(line)
+
+        return subject, body, git_fields + phab_fields
+
+    def format_commit_msg(self, subject, body, fields, ask=False):
+        # This is the list of fields phabricator will search by default in
+        # commit message, case insensitive. It will confuse phabricator's
+        # parser if they appear in the subject or body of the commit message.
+        blacklist = ['title:', 'summary:', 'test plan:', 'testplan:',
+                     'tested:', 'tests:', 'reviewer:', 'reviewers:',
+                     'reviewed by:', 'cc:', 'ccs:', 'subscriber:',
+                     'subscribers:', 'project:', 'projects:',
+                     'maniphest task:', 'maniphest tasks:',
+                     'differential revision:', 'conflicts:', 'git-svn-id:',
+                     'auditors:']
+
+        subject = subject.strip()
+        body = '\n'.join(body).strip()
+        fields = '\n'.join(fields).strip()
+
+        for header in blacklist:
+            header_ = header[:-1] + '_:'
+            s = re.sub(re.escape(header), header_, subject, flags=re.I)
+            b = re.sub(re.escape(header), header_, body, flags=re.I)
+            if (s != subject or b != body) and (not ask or
+               self.prompt("Commit message contains '%s'.\n"
+                           "It could confuse phabricator's parser.\n"
+                           "Do you want to prefix is with an underscore?" %
+                           header)):
+                subject = s
+                body = b
+
+        return '\n\n'.join([subject, body, fields])
+
+    def format_user(self, fullname):
+        # Check if the email is in our config
+        email = self.config['emails'].get(fullname)
+        if email:
+            return "%s <%s>" % (fullname, email)
+
+        # Check if the email is in git log
+        output = self.repo.git.shortlog(summary=True, email=True, number=True)
+        m = re.search(re.escape(fullname) + ' <.*>$', output, re.MULTILINE)
+        if m:
+            return m.group(0)
+
+        # Ask user for the email
+        email = input("Please enter email address for %s: " % fullname).strip()
+        if len(email) > 0:
+            self.config['emails'][fullname] = email
+            self.write_config()
+            return "%s <%s>" % (fullname, email)
+
+        return None
+
+    def get_reviewers_and_tasks(self, commit):
+        reviewers = []
+        tasks = []
+
+        diffid = self.get_differential_id(commit)
+        if not diffid:
+            return reviewers, tasks
+
+        # This seems to be the only way to get the Maniphest and
+        # reviewers of a differential.
+        reply = self.conduit('differential.getcommitmessage', {
+            'revision_id': diffid
+        })
+        msg = reply['response']
+
+        # Get tasks bound to this differential
+        m = re.search('^Maniphest Tasks: (.*)$', msg, re.MULTILINE)
+        tasks = [t.strip() for t in m.group(1).split(',')] if m else []
+
+        # Get people who approved this differential
+        m = re.search('^Reviewed By: (.*)$', msg, re.MULTILINE)
+        usernames = [r.strip() for r in m.group(1).split(',')] if m else []
+        if usernames:
+            reply = self.conduit('user.query', {
+                'usernames': usernames
+            })
+            for user in reply['response']:
+                person = self.format_user(user['realName'])
+                if person:
+                    reviewers.append(person)
+
+        return reviewers, tasks
+
+    def remove_ourself_from_reviewers(self):
+        if self.reviewers is None:
+            return
+        reply = self.conduit("user.whoami", {})
+        username = reply['response']['userName']
+        reviewers = [r.strip() for r in self.reviewers.split(',')]
+        reviewers = list(filter(lambda r: r != username, reviewers))
+        self.reviewers = ','.join(reviewers)
+
+    def do_attach(self):
+        if self.repo.is_dirty():
+            self.die("Repository is dirty. Aborting.")
+
+        # If we are in branch "T123" and user does "git phab attach -t T456",
+        # that's suspicious. Better stop before doing a mistake.
+        if self.branch_task and self.branch_task != self.task:
+            self.die("Your current branch name suggests task %s but you're "
+                     "going to attach to task %s. Aborting."
+                     % (self.branch_task, self.task))
+
+        self.ensure_project_phids()
+        self.remove_ourself_from_reviewers()
+
+        summary = ""
+
+        # Oldest commit is last in the list
+        commits = self.get_commits(self.revision_range)
+        s = commits[-1].hexsha + "^..HEAD"
+        all_commits = list(self.repo.iter_commits(s))
+
+        # Sanity checks
+        for c in commits:
+            if c not in all_commits:
+                self.die("'%s' is not in current tree. Aborting." % c.hexsha)
+            if len(c.parents) > 1:
+                self.die("'%s' is a merge commit. Aborting." % c.hexsha)
+
+        self.filter_already_proposed_commits(commits, all_commits)
+        if not commits:
+            print("Everything has already been proposed")
+            return
+
+        # Ask confirmation before doing any harm
+        self.print_commits(commits)
+
+        if self.arcconfig.get('git-phab.force-tasks') and not self.task:
+            self.task = "T"
+
+        if self.task == "T":
+            agreed = self.prompt("Attach above commits "
+                                 "and create a new task ?")
+        elif self.task:
+            agreed = self.prompt("Attach above commits to task %s?" %
+                                 self.task)
+        else:
+            agreed = self.prompt("Attach above commits?")
+
+        if not agreed:
+            print("Aborting")
+            sys.exit(0)
+
+        if self.task == "T":
+            try:
+                self.task = self.create_task()["response"]["objectName"]
+                summary += "New: task %s\n" % self.task
+            except KeyError:
+                self.die("Could not create task.")
+
+        orig_commit = self.repo.head.commit
+        orig_branch = self.repo.head.reference
+
+        arc_cmd = ['arc']
+        if self.arcrc:
+            arc_cmd += ['--arcrc-file', self.arcrc]
+
+        arc_cmd += ['diff',
+                    '--allow-untracked',
+                    '--config', 'history.immutable=false',
+                    '--verbatim']
+        if self.reviewers:
+            arc_cmd.append('--reviewers=' + self.reviewers)
+        if self.cc:
+            arc_cmd.append('--cc=' + self.cc)
+        if self.message:
+            arc_cmd.append('--message=' + self.message)
+        arc_cmd.append('HEAD~1')
+
+        arc_failed = False
+        try:
+            # Detach HEAD from the branch; this gives a cleaner reflog for the
+            # branch
+            print("Moving to starting point")
+            self.repo.head.reference = commits[-1].parents[0]
+            self.repo.head.reset(index=True, working_tree=True)
+
+            for commit in reversed(all_commits):
+                self.repo.git.cherry_pick(commit.hexsha)
+
+                if not arc_failed and commit in commits:
+                    # Add extra info in the commit msg. It is important that
+                    # phabricator fields are last, after all common git fields
+                    # like 'Reviewed-by:', etc. Note that "Depends on" is not a
+                    # field and is parsed from the body part.
+                    subject, body, fields = self.parse_commit_msg(
+                        commit.message)
+                    last_revision_id = self.get_differential_id(
+                        self.repo.head.commit.parents[0])
+                    if last_revision_id:
+                        body.append("Depends on D%s" % last_revision_id)
+                    if self.task:
+                        fields.append("Maniphest Tasks: %s" % self.task)
+                    fields.append("Projects: %s" %
+                                  ','.join(self.project_phids))
+                    msg = self.format_commit_msg(subject, body, fields)
+
+                    cur_orig_commit = self.repo.head.commit
+                    self.repo.git.commit(amend=True, message=msg)
+
+                    print("attach " + commit.hexsha)
+                    try:
+                        subprocess.check_call(arc_cmd)
+                    except:
+                        print("Command '%s' failed. Finnish rebuilding branch "
+                              "without proposing further patches" % arc_cmd)
+                        arc_failed = True
+                        self.repo.head.commit = cur_orig_commit
+                        summary += "Failed proposing: %s -- " \
+                            "NO MORE PATCH PROPOSED\n" % self.format_commit(
+                                self.repo.head.commit)
+                        continue
+
+                    # arc diff modified our commit message. Re-commit it with
+                    # the original message, adding only the
+                    # "Differential Revision:" line.
+                    msg = commit.message
+                    orig_link = self.get_differential_link(commit)
+                    new_link = self.get_differential_link(
+                        self.repo.head.commit)
+                    if orig_link is None and new_link is not None:
+                        msg = msg + '\nDifferential Revision: ' + new_link
+                        summary += "New: "
+                    else:
+                        summary += "Updated: "
+
+                    self.repo.head.commit = cur_orig_commit
+                    self.repo.git.commit(amend=True, message=msg)
+
+                    summary += self.format_commit(self.repo.head.commit) + "\n"
+                else:
+                    print("pick " + commit.hexsha)
+                    summary += "Picked: %s\n" % self.format_commit(commit)
+
+            orig_branch.commit = self.repo.head.commit
+            self.repo.head.reference = orig_branch
+        except:
+            print("Cleaning up back to original state on error")
+            self.repo.head.commit = orig_commit
+            orig_branch.commit = orig_commit
+            self.repo.head.reference = orig_branch
+            self.repo.head.reset(index=True, working_tree=True)
+            raise
+
+        if self.remote and self.task and not arc_failed:
+            try:
+                branch = self.get_wip_branch()
+                remote = self.repo.remote(self.remote)
+                if self.prompt('Push HEAD to %s/%s?' % (remote, branch)):
+                    info = remote.push('HEAD:refs/heads/' + branch,
+                                       force=True)[0]
+                    if not info.flags & info.ERROR:
+                        summary += "Branch pushed to %s/%s\n" % (remote,
+                                                                 branch)
+                    else:
+                        print("Could not push branch %s/%s: %s" % (
+                            remote, branch, info.summary))
+
+                uri = "%s#%s" % (self.remote_url, branch)
+                try:
+                    self.conduit('maniphest.update', {
+                        "id": int(self.task[1:]),
+                        "auxiliary": {
+                            "std:maniphest:git:uri-branch": uri
+                        }
+                    })
+                except:
+                    print("Failed to set std:maniphest:git:uri-branch to %s"
+                          % uri)
+
+            except Exception as e:
+                summary += "Failed: push wip branch: %s\n" % e
+
+        if self.task and not self.branch_task:
+            # Check if we already have a branch for this task
+            branch = None
+            for b in self.repo.branches:
+                if self.task_from_branchname(b.name) == self.task:
+                    branch = b
+                    break
+
+            if branch:
+                # There is a branch corresponding to our task, but it's not the
+                # current branch. It's weird case that should rarely happen.
+                if self.prompt('Reset branch %s to what has just been sent '
+                               'to phabricator?' % branch.name):
+                    branch.commit = self.repo.head.commit
+                    summary += "Branch %s reset to %s\n" % \
+                               (branch.name, branch.commit)
+            else:
+                new_bname = self.branch_name_with_task()
+                if self.in_feature_branch():
+                    if self.prompt("Rename current branch to '%s'?" %
+                                   new_bname):
+                        self.repo.head.reference.rename(new_bname)
+                        summary += "Branch renamed to %s\n" % new_bname
+                else:
+                    # Current branch is probably something like 'master' or
+                    # 'gnome-3-18', better create a new branch than renaming.
+                    if self.prompt("Create and checkout a new branch called: "
+                                   "'%s'?" % new_bname):
+                        new_branch = self.repo.create_head(new_bname)
+                        tracking = self.repo.head.reference.tracking_branch()
+                        if tracking:
+                            new_branch.set_tracking_branch(tracking)
+                        new_branch.checkout()
+
+                        summary += "Branch %s created and checked out\n" % \
+                                   new_bname
+
+        print("\n\nSummary:")
+        print(summary)
+
+    def has_been_applied(self, revision):
+        did = int(revision['id'])
+
+        for c in self.repo.iter_commits():
+            i = self.get_differential_id(c)
+            if i == did:
+                return True
+        return False
+
+    def move_to_output_directory(self, revision, diff, filename, n=0):
+        assert self.output_directory
+        os.makedirs(self.output_directory, exist_ok=True)
+
+        name = "{:04d}-{}.patch".format(
+            n, revision['title'].replace(" ", "_").replace("/", "_"))
+        target = os.path.join(self.output_directory, name)
+        shutil.copy(filename, target)
+        print(target)
+
+    def get_diff_phid(self, phid):
+        # Convert diff phid to a name
+        reply = self.conduit("phid.query", {"phids": [phid]})
+
+        self.check_conduit_reply(reply)
+        assert(len(reply['response']) == 1)
+
+        # Convert name to a diff json object
+        response = reply['response'][phid]
+        assert(response['type'] == "DIFF")
+
+        d = response['name'].strip("Diff ")
+        reply = self.conduit("differential.querydiffs", {
+            "ids": [d]
+        })
+        self.check_conduit_reply(reply)
+        assert(len(reply['response']) == 1)
+
+        response = reply['response'][d]
+        assert(response['sourceControlSystem'] == "git")
+
+        return response
+
+    def get_revision_and_diff(self, diff=None, phid=None):
+        if diff is not None:
+            query = {"ids": [diff]}
+        else:
+            query = {"phids": [phid]}
+
+        reply = self.conduit("differential.query",  query)
+        self.check_conduit_reply(reply)
+        assert(len(reply['response']) == 1)
+
+        revision = reply['response'][0]
+
+        diff = self.get_diff_phid(revision['activeDiffPHID'])
+
+        return revision, diff
+
+    def write_patch_file(self, revision, diff):
+        date = datetime.utcfromtimestamp(int(diff['dateModified']))
+
+        handle, filename = tempfile.mkstemp(".patch", "git-phab-")
+        f = os.fdopen(handle, "w")
+
+        f.write("Date: {} +0000\n".format(date))
+        f.write("From: {} <{}>\n".format(
+            diff['authorName'],
+            diff['authorEmail']))
+        f.write("Subject: {}\n\n".format(revision['title']))
+
+        # Drop the arc insert Depends on Dxxxx line if needed
+        summary = re.sub(re.compile("^\s*Depends on D\d+\n?", re.M), "",
+                         revision['summary'])
+        f.write("{}\n".format(summary))
+        f.write("Differential Revision: {}/D{}\n".format(
+            self.phabricator_uri, revision['id']))
+
+        arc_cmd = ['arc']
+        if self.arcrc:
+            arc_cmd += ['--arcrc-file', self.arcrc]
+        arc_cmd += ["export", "--git", "--revision", revision['id']]
+
+        output = subprocess.check_output(arc_cmd, universal_newlines=True)
+
+        f.write(output)
+        f.close()
+
+        return filename
+
+    def am_patch(self, filename):
+        try:
+            self.repo.git.am(filename)
+        except git.exc.GitCommandError as e:
+            print(e)
+            self.repo.git.am("--abort")
+            self.die("{}git am failed, aborting{}".format(
+                Colors.FAIL, Colors.ENDC))
+
+    def do_cherry_pick(self):
+        if self.repo.is_dirty():
+            self.die("Repository is dirty. Aborting.")
+
+        print("Checking revision: ", self.differential)
+        did = self.differential.strip("D")
+
+        revision, diff = self.get_revision_and_diff(diff=did)
+
+        if self.has_been_applied(revision):
+            self.die("{} was already applied\n".format(self.differential))
+
+        filename = self.write_patch_file(revision, diff)
+        if self.output_directory:
+            self.move_to_output_directory(revision, diff, filename)
+        else:
+            self.am_patch(filename)
+        os.unlink(filename)
+
+    def do_merge(self):
+        if self.repo.is_dirty():
+            self.die("Repository is dirty. Aborting.")
+
+        print("Checking revision: ", self.differential)
+        did = self.differential.strip("D")
+
+        revision, diff = self.get_revision_and_diff(diff=did)
+        dq = [(revision, diff)]
+        pq = []
+
+        while dq != []:
+            top = dq.pop()
+            pq.append(top)
+            depends = top[0]['auxiliary']['phabricator:depends-on']
+            for p in depends:
+                revision, diff = self.get_revision_and_diff(phid=p)
+
+                if self.has_been_applied(revision):
+                    print("Already applied revision: ", revision['id'])
+                    continue
+
+                print("Getting Depend: D{}".format(revision['id']))
+                dq.append((revision, diff))
+
+        n = 0
+        while pq != []:
+            (r, d) = pq.pop()
+
+            filename = self.write_patch_file(r, d)
+            if self.output_directory:
+                self.move_to_output_directory(r, d, filename, n)
+            else:
+                print("Applying D{}".format(r['id']))
+                self.am_patch(filename)
+            os.unlink(filename)
+            n += 1
+
+    def do_log(self):
+        commits = self.get_commits(self.revision_range)
+        self.print_commits(commits)
+
+    def fetch(self):
+        reply = self.conduit('maniphest.query', {
+            "ids": [int(self.task[1:])]
+        })
+        props = list(reply['response'].values())[0]
+        uri = props['auxiliary']['std:maniphest:git:uri-branch']
+        remote, branch = uri.split('#')
+
+        print("Git URI: %s, branch: %s" % (remote, branch))
+        self.repo.git.fetch(remote, "%s" % branch)
+
+        commit = self.repo.commit('FETCH_HEAD')
+        print("Commit '%s' from remote branch '%s' has been fetched" %
+              (commit.hexsha, branch))
+
+        return (commit, branch)
+
+    def do_fetch(self):
+        if not self.task:
+            self.die("No task provided. Aborting.")
+
+        self.fetch()
+
+    def do_checkout(self):
+        if not self.task:
+            self.die("No task provided. Aborting.")
+
+        commit, remote_branch_name = self.fetch()
+
+        # Lookup for an existing branch for this task
+        branch = None
+        for b in self.repo.branches:
+            if self.task_from_branchname(b.name) == self.task:
+                branch = b
+                break
+
+        if branch:
+            if not self.prompt("Do you want to reset branch %s to %s?" %
+                               (branch.name, commit.hexsha)):
+                self.die("Aborting")
+            branch.commit = commit
+            print("Branch %s has been reset." % branch.name)
+        else:
+            name = remote_branch_name[remote_branch_name.rfind('/') + 1:]
+            branch = self.repo.create_head(name, commit=commit)
+            print("New branch %s has been created." % branch.name)
+
+        branch.checkout()
+
+    def do_browse(self):
+        urls = []
+        if not self.objects:
+            if not self.task:
+                self.die("Could not figure out a task from branch name")
+            self.objects = [self.task]
+
+        for obj in self.objects:
+            if re.fullmatch('(T|D)[0-9]+', obj):
+                urls.append(self.phabricator_uri + "/" + obj)
+                continue
+
+            try:
+                commit = self.repo.rev_parse(obj)
+            except git.BadName:
+                self.die("Wrong commit hash: %s" % obj)
+
+            uri = self.get_differential_link(commit)
+            if not uri:
+                print("Could not find a differential for %s" % obj)
+                continue
+            urls.append(uri)
+
+        for url in urls:
+            print("Openning: %s" % url)
+            subprocess.check_call(["xdg-open", url],
+                                  stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL)
+
+    def do_clean(self):
+        branch_task = []
+        for r in self.repo.references:
+            if r.is_remote() and r.remote_name != self.remote:
+                continue
+
+            task = self.task_from_branchname(r.name)
+            if task:
+                branch_task.append((r, task))
+
+        task_ids = [t[1:] for b, t in branch_task]
+        reply = self.conduit('maniphest.query', {"ids": task_ids})
+
+        for tphid, task in reply["response"].items():
+            if not task["isClosed"]:
+                continue
+
+            for branch, task_name in branch_task:
+                if task["objectName"] != task_name:
+                    continue
+
+                if self.prompt("Task '%s' has been closed, do you want to "
+                               "delete branch '%s'?" % (task_name, branch)):
+                    if branch.is_remote():
+                        self.repo.git.push(self.remote,
+                                           ":" + branch.remote_head)
+                    else:
+                        self.repo.delete_head(branch, force=True)
+
+                    print("  -> Branch %s was deleted" % branch.name)
+
+    def do_land(self):
+        if self.repo.is_dirty():
+            self.die("Repository is dirty. Aborting.")
+
+        if self.task:
+            commit, remote_branch_name = self.fetch()
+            branch = self.repo.active_branch
+            if not self.prompt("Do you want to reset branch %s to %s?" %
+                               (branch.name, commit.hexsha)):
+                self.die("Aborting")
+
+            branch.commit = commit
+
+        # Collect commits that will be pushed
+        output = self.repo.git.push(dry_run=True, porcelain=True)
+        m = re.search('[0-9a-z]+\.\.[0-9a-z]+', output)
+        commits = self.get_commits(m.group(0)) if m else []
+
+        # Sanity checks
+        if len(commits) == 0:
+            self.die("No commits to push. Aborting.")
+        if commits[0] != self.repo.head.commit:
+            self.die("Top commit to push is not HEAD.")
+        for c in commits:
+            if len(c.parents) > 1:
+                self.die("'%s' is a merge commit. Aborting." % c.hexsha)
+
+        orig_commit = self.repo.head.commit
+        orig_branch = self.repo.head.reference
+        all_tasks = []
+        try:
+            # Detach HEAD from the branch; this gives a cleaner reflog for the
+            # branch
+            self.repo.head.reference = commits[-1].parents[0]
+            self.repo.head.reset(index=True, working_tree=True)
+            for commit in reversed(commits):
+                self.repo.git.cherry_pick(commit.hexsha)
+
+                reviewers, tasks = self.get_reviewers_and_tasks(commit)
+                all_tasks += tasks
+
+                # Rewrite commit message:
+                # - Add "Reviewed-by:" line
+                # - Ensure body doesn't contain blacklisted words
+                # - Ensure phabricator fields are last to make its parser happy
+                subject, body, fields = self.parse_commit_msg(
+                    self.repo.head.commit.message)
+
+                for r in reviewers:
+                    # Note that we prepend here to make sur phab fields
+                    # stay last.
+                    fields.insert(0, "Reviewed-by: " + r)
+
+                msg = self.format_commit_msg(subject, body, fields, True)
+                self.repo.git.commit(amend=True, message=msg)
+
+            orig_branch.commit = self.repo.head.commit
+            self.repo.head.reference = orig_branch
+        except:
+            print("Cleaning up back to original state on error")
+            self.repo.head.commit = orig_commit
+            orig_branch.commit = orig_commit
+            self.repo.head.reference = orig_branch
+            self.repo.head.reset(index=True, working_tree=True)
+            raise
+
+        self.print_commits(commits)
+        if self.no_push:
+            return
+
+        # Ask confirmation
+        if not self.prompt("Do you want to push above commits?"):
+            print("Aborting")
+            exit(0)
+
+        # Do the real push
+        self.repo.git.push()
+
+        # Propose to close tasks
+        for task in set(all_tasks):
+            if self.prompt("Do you want to close '%s'?" % task):
+                self.conduit("maniphest.update", {
+                    'id': int(task[1:]),
+                    'status': 'resolved'
+                })
+
+    def run(self):
+        self.validate_args()
+        method = 'do_' + self.subparser_name.replace('-', '_')
+        getattr(self, method)()
+
+
+def DisabledCompleter(prefix, **kwargs):
+    return []
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Phabricator integration.')
+    subparsers = parser.add_subparsers(dest='subparser_name')
+    subparsers.required = True
+
+    parser.add_argument('--arcrc', help="arc configuration file")
+
+    attach_parser = subparsers.add_parser(
+        'attach', help="Generate a Differential for each commit")
+    attach_parser.add_argument(
+        '--reviewers', '-r', metavar='<username1,#project2,...>',
+        help="A list of reviewers") \
+        .completer = DisabledCompleter
+    attach_parser.add_argument(
+        '--cc', '--subscribers', metavar='<username1,#project2,...>',
+        help="A list of subscribers") \
+        .completer = DisabledCompleter
+    attach_parser.add_argument(
+        '--message', '-m', metavar='<message>',
+        help=("When updating a revision, use the specified message instead of "
+              "prompting")) \
+        .completer = DisabledCompleter
+    attach_parser.add_argument(
+        '--task', '-t', metavar='<T123>',
+        nargs="?", const="T",
+        help=("Set the task this Differential refers to")) \
+        .completer = DisabledCompleter
+    attach_parser.add_argument(
+        '--remote', metavar='<remote>',
+        help=("A remote repository to push to. "
+              "Overrides 'phab.remote' configuration.")) \
+        .completer = DisabledCompleter
+    attach_parser.add_argument(
+        '--assume-yes', '-y', dest="assume_yes", action="store_true",
+        help="Assume `yes` as answer to all prompts.") \
+        .completer = DisabledCompleter
+    attach_parser.add_argument(
+        '--projects', '-p', dest="projects",
+        metavar='<project1,project2,...>',
+        help="A list of `extra` projects (they will be added to"
+        "any project(s) configured in .arcconfig)") \
+        .completer = DisabledCompleter
+    attach_parser.add_argument(
+        'revision_range', metavar='<revision range>',
+        nargs='?', default=None,
+        help="commit or revision range to attach. When not specified, "
+             "the tracking branch is used") \
+        .completer = DisabledCompleter
+
+    cherrypick_parser = subparsers.add_parser(
+        'cherry-pick', help="Cherrypick a patch from differential")
+    cherrypick_parser.add_argument(
+        '--output-directory', '-o',
+        metavar='<directory>',
+        help="Directory to put patches in")
+    cherrypick_parser.add_argument(
+        'differential', metavar='Differential ID',
+        default=None,
+        help="help Differential ID to cherrypick") \
+        .completer = DisabledCompleter
+
+    merge_parser = subparsers.add_parser(
+        'merge', help="Merge a revision and its dependencies")
+    merge_parser.add_argument(
+        '--output-directory', '-o',
+        metavar='<directory>',
+        help="Directory to put patches in")
+    merge_parser.add_argument(
+        'differential', metavar='Differential ID',
+        default=None,
+        help="help Differential ID to merge") \
+        .completer = DisabledCompleter
+
+    log_parser = subparsers.add_parser(
+        'log', help="Show commit logs with their differential ID")
+    log_parser.add_argument(
+        'revision_range', metavar='<revision range>',
+        nargs='?', default=None,
+        help="commit or revision range to show. When not specified, "
+             "the tracking branch is used") \
+        .completer = DisabledCompleter
+
+    fetch_parser = subparsers.add_parser(
+        'fetch', help="Fetch a task's branch")
+    fetch_parser.add_argument(
+        'task', metavar='<T123>', nargs='?',
+        help="The task to fetch") \
+        .completer = DisabledCompleter
+
+    checkout_parser = subparsers.add_parser(
+        'checkout', help="Checkout a task's branch")
+    checkout_parser.add_argument(
+        'task', metavar='<T123>', nargs='?',
+        help="The task to checkout") \
+        .completer = DisabledCompleter
+
+    browse_parser = subparsers.add_parser(
+        'browse', help="Open the task of the current "
+        "branch in web browser")
+    browse_parser.add_argument(
+        'objects', nargs='*', default=[],
+        help="The 'objects' to browse. It can either be a task ID, "
+             "a revision ID, a commit hash or empty to open current branch's "
+             "task.") \
+        .completer = DisabledCompleter
+
+    clean_parser = subparsers.add_parser(
+        'clean', help="Clean all branches for which the associated task"
+        " has been closed")
+
+    land_parser = subparsers.add_parser(
+        'land', help="Run 'git push' but also close related tasks")
+    land_parser.add_argument(
+        '--no-push', action="store_true",
+        help="Only rewrite commit messages but do not push.") \
+        .completer = DisabledCompleter
+    land_parser.add_argument(
+        'task', metavar='<T123>', nargs='?',
+        help="The task to land") \
+        .completer = DisabledCompleter
+
+    argcomplete.autocomplete(parser)
+
+    obj = GitPhab()
+    parser.parse_args(namespace=obj)
+    obj.run()
