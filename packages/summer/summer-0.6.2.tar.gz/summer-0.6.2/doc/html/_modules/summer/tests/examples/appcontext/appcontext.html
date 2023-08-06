@@ -1,0 +1,271 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>summer.tests.examples.appcontext.appcontext &mdash; py-summer 0.6.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../../../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../../',
+        VERSION:     '0.6.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../../_static/doctools.js"></script>
+    <link rel="top" title="py-summer 0.6.0 documentation" href="../../../../../index.html" />
+    <link rel="up" title="Module code" href="../../../../index.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for summer.tests.examples.appcontext.appcontext</h1><div class="highlight"><pre>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Time-stamp: &lt; appcontext.py (2016-01-31 04:04) &gt;</span>
+
+<span class="c1"># Copyright (C) 2009-2016 Martin Slouf &lt;martin.slouf@sourceforge.net&gt;</span>
+<span class="c1">#</span>
+<span class="c1"># This file is a part of Summer.</span>
+<span class="c1">#</span>
+<span class="c1"># Summer is free software; you can redistribute it and/or modify it under</span>
+<span class="c1"># the terms of the GNU Lesser General Public License as published by the Free</span>
+<span class="c1"># Software Foundation; either version 3 of the License, or (at your option)</span>
+<span class="c1"># any later version.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU Lesser General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU Lesser General Public License</span>
+<span class="c1"># along with this program; if not, write to the Free Software</span>
+<span class="c1"># Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA</span>
+
+<span class="sd">&quot;&quot;&quot;This module demonstrates the very core usage of the summer application</span>
+<span class="sd">framework.</span>
+
+<span class="sd">For people familiar with Java spring framework -- this file defines the</span>
+<span class="sd">``ApplicationContext`` class.  All configuration is placed directly in your</span>
+<span class="sd">*Python* code.</span>
+
+<span class="sd">Among other resources somewhere in your application you will have a file</span>
+<span class="sd">like this -- a file defining a &#39;context&#39; for your application business</span>
+<span class="sd">layer.  You can of course have more layers, more contexts, ...</span>
+
+<span class="sd">Such a context class serves as a container for your business objects.  Once</span>
+<span class="sd">you have you context initialized, you may usually access all your</span>
+<span class="sd">application&#39;s services from one single place.  The best is, that all the</span>
+<span class="sd">creation, dependency and initialization logic among your business objects</span>
+<span class="sd">is defined there.</span>
+
+<span class="sd">Objects deployed into the context should be stateless and can be treated as</span>
+<span class="sd">singletons (but there is no rule for that and you can deploy whatever you</span>
+<span class="sd">want in any way you like it) -- please see any discussion on inversion of</span>
+<span class="sd">control containers (IoC) for more info.</span>
+
+<span class="sd">This simple example shows:</span>
+
+<span class="sd">  1. sample context definition with very simple declarative transaction</span>
+<span class="sd">  handling</span>
+
+<span class="sd">  2. basic concept how to use logging and custom configuration files --</span>
+<span class="sd">  logging config (defined by Python stdlib), summer framework config</span>
+<span class="sd">  (including database connection definition) and custom config for your</span>
+<span class="sd">  project</span>
+
+<span class="sd">  3. So you get an idea, what its all about :-)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># usual imports</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">optparse</span>
+
+<span class="c1"># import the summer framework</span>
+<span class="kn">import</span> <span class="nn">summer</span>
+
+<span class="c1"># reasonable and simple convention on getting a logger</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="OptionParser"><a class="viewcode-back" href="../../../../../example-appcontext.html#summer.tests.examples.appcontext.appcontext.OptionParser">[docs]</a><span class="k">class</span> <span class="nc">OptionParser</span><span class="p">(</span><span class="n">optparse</span><span class="o">.</span><span class="n">OptionParser</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Command line parser.</span>
+
+<span class="sd">    This class has access to custom config to appropriately set the default</span>
+<span class="sd">    values.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="n">config</span></div>
+
+
+<div class="viewcode-block" id="Entity"><a class="viewcode-back" href="../../../../../example-appcontext.html#summer.tests.examples.appcontext.appcontext.Entity">[docs]</a><span class="k">class</span> <span class="nc">Entity</span><span class="p">(</span><span class="n">summer</span><span class="o">.</span><span class="n">Entity</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Entities are usually ORM mapped classes :py:class:`summer.domain.Entity`&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="EntityDao"><a class="viewcode-back" href="../../../../../example-appcontext.html#summer.tests.examples.appcontext.appcontext.EntityDao">[docs]</a><span class="k">class</span> <span class="nc">EntityDao</span><span class="p">(</span><span class="n">summer</span><span class="o">.</span><span class="n">Dao</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Dao object for our :py:class:`Entity`.</span>
+
+<span class="sd">    Entity persistence logic is usually managed by a Dao object; usually</span>
+<span class="sd">    you will subclass those provided by py-summer, see</span>
+<span class="sd">    :py:class:`summer.dao.Dao` for details.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session_factory</span><span class="p">):</span>
+        <span class="n">summer</span><span class="o">.</span><span class="n">Dao</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session_factory</span><span class="p">)</span>
+
+    <span class="nd">@summer.transactional</span>
+<div class="viewcode-block" id="EntityDao.find"><a class="viewcode-back" href="../../../../../example-appcontext.html#summer.tests.examples.appcontext.appcontext.EntityDao.find">[docs]</a>    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Dao methods are usually declared as transactional.  That does not say</span>
+<span class="sd">        they always run in separate transaction, but it says that such a</span>
+<span class="sd">        method can be run in transaction if run inside a transactional</span>
+<span class="sd">        proxy :py:class:`summer.txaop.TransactionalProxy`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div></div>
+
+
+<div class="viewcode-block" id="EntityManager"><a class="viewcode-back" href="../../../../../example-appcontext.html#summer.tests.examples.appcontext.appcontext.EntityManager">[docs]</a><span class="k">class</span> <span class="nc">EntityManager</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;This class manages entities using the Dao, probably it adds some</span>
+<span class="sd">    business logic for creating a new object and such.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_dao</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="nd">@summer.transactional</span>
+<div class="viewcode-block" id="EntityManager.create_entity"><a class="viewcode-back" href="../../../../../example-appcontext.html#summer.tests.examples.appcontext.appcontext.EntityManager.create_entity">[docs]</a>    <span class="k">def</span> <span class="nf">create_entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Method is marked as transactional.  See below how transactional proxy is</span>
+<span class="sd">        created.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;creating new entity&quot;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="ApplicationContext"><a class="viewcode-back" href="../../../../../example-appcontext.html#summer.tests.examples.appcontext.appcontext.ApplicationContext">[docs]</a><span class="k">class</span> <span class="nc">ApplicationContext</span><span class="p">(</span><span class="n">summer</span><span class="o">.</span><span class="n">Context</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;The much anticipated application context class.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path_to_module</span><span class="p">,</span> <span class="n">customcfg</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:py:class:`summer.context.Context` has some more arguments, but usually</span>
+<span class="sd">        those 2 are the only ones required, as the others defaults to</span>
+<span class="sd">        reasonable values, see api doc.  See how easy is to pass a</span>
+<span class="sd">        &#39;path_to_module&#39; in &#39;run.py&#39;.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">summer</span><span class="o">.</span><span class="n">Context</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path_to_module</span><span class="p">,</span> <span class="n">customcfg</span><span class="p">)</span>
+
+<div class="viewcode-block" id="ApplicationContext.context_init"><a class="viewcode-back" href="../../../../../example-appcontext.html#summer.tests.examples.appcontext.appcontext.ApplicationContext.context_init">[docs]</a>    <span class="k">def</span> <span class="nf">context_init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Please see api doc.</span>
+
+<span class="sd">        By now we suppose we have some core objects defined in context</span>
+<span class="sd">        based on configuration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># on the first lines you will probably complete your SQLAlchemy</span>
+        <span class="c1"># ORM, if you use one, with something like below, but for now, lets</span>
+        <span class="c1"># just skip it, once done, your ORM layer is fully configured and</span>
+        <span class="c1"># ready to use</span>
+        <span class="c1"># self.table_definitions = TableDefinitions(self.session_factory)</span>
+        <span class="c1"># self.class_mappings = ClassMappings(self.session_factory)</span>
+
+        <span class="c1"># we deploy our command line parser -- which access some settings</span>
+        <span class="c1"># from our config file, so it holds a reference to it</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">option_parser</span> <span class="o">=</span> <span class="n">OptionParser</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+
+        <span class="c1"># lets deploy our only DAO -- any data access object should have a</span>
+        <span class="c1"># reference to session factory to obtain session from it any time</span>
+        <span class="c1"># it accesses data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entity_dao</span> <span class="o">=</span> <span class="n">EntityDao</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span><span class="p">)</span>
+        <span class="c1"># also any data aware object, that has some transactional methods,</span>
+        <span class="c1"># can be deployed as transactional proxy, the proxy itself accesses</span>
+        <span class="c1"># the session factory, but is capable to obtain it from the target</span>
+        <span class="c1"># object -- no need to pass it as a constructor arg -- there is a</span>
+        <span class="c1"># very simple convention -- it just looks for &#39;session_factory&#39;</span>
+        <span class="c1"># attribute in the target object (ie. our DAO)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entity_dao_proxy</span> <span class="o">=</span> <span class="n">summer</span><span class="o">.</span><span class="n">TransactionProxy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entity_dao</span><span class="p">)</span>
+
+        <span class="c1"># the same as for EntityDao is for EntityManager, we deploy the</span>
+        <span class="c1"># non-proxied dao and as it defines its own transaction boundaries</span>
+        <span class="c1"># we deploy also a transaction proxy.  we should provide the</span>
+        <span class="c1"># session factory now, because the detection mechanism is not very</span>
+        <span class="c1"># smart and just checks for an attribute named &#39;session_factory&#39;</span>
+        <span class="c1"># inside a target object as said earlier and apparently</span>
+        <span class="c1"># EntityManager class has no such attribute</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entity_manager</span> <span class="o">=</span> <span class="n">EntityManager</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">entity_dao</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entity_manager_proxy</span> <span class="o">=</span> <span class="n">summer</span><span class="o">.</span><span class="n">TransactionProxy</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">entity_manager</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../../../../index.html">Documentation overview</a><ul>
+  <li><a href="../../../../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2009-2016, martinslouf@users.sourceforge.net.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,118 @@
+Basic Concepts
+==============
+
+Summer framework provides several usefull utilities to organize your
+application.
+
+It aims to be simple, relatively straitforward and takes inspiration in
+other successful projects, such as Java spring framework.
+
+Usually, in any non-trivial application, you would like to have:
+
+#. Some configuration (ie. log config, various options, ...)
+#. Separation of business logic
+#. Access some kind of a data store (ie. SQL, LDAP, ...)
+
+Summer framework provides a container to create, deploy and manage
+dependencies among your business objects using convention over
+configuration approach.
+
+Configuration
+-------------
+
+Usually you provide configuration for:
+
+#. Logging in your application (``logging.cfg``) consumed by standard
+   *Python* utilities somewhere in your code, like::
+
+     LOGGING_CFG = os.path.join(os.path.dirname(__file__), "logging.cfg")
+     logging.config.fileConfig(LOGGING_CFG)
+     logger = logging.getLogger(__name__)
+     # ...
+     logger.info("logging config = %s", LOGGING_CFG)
+
+#. Summer framework itself (by default named as ``summer.cfg``).  Summer
+   configuration file is consumed by standard *Python*
+   :py:class:`optparse.OptionParser` utility.  There is a sample configuration file
+   in each of the :doc:`examples`.
+
+#. (Optionally) your application configuration file
+   (:py:class:`optparse.OptionParser` format)
+
+
+Business logic
+--------------
+
+You can organize your business objects any way you like, but you can use
+:py:class:`summer.context.Context` class to deploy your business objects.
+You create all the objects in one single place, managing their
+inter-dependencies.  Usually, your business objects should be designed as
+singletons, once deployed, you can easily access them from any part of your
+program.
+
+So usually entry point of each of your program may look like this::
+
+  import logging
+
+  # ...
+
+  # configure logging as soon as possible
+  LOGGING_CFG = os.path.join(os.path.dirname(__file__), "logging.cfg")
+  logging.config.fileConfig(LOGGING_CFG)
+  logger = logging.getLogger(__name__)
+  logger.info("logging config = %s", LOGGING_CFG)
+
+  # ....
+
+  if __name__ == "__main__":
+      # provide name of custom config file
+      ctx = ApplicationContext(__file__, "custom.cfg")
+      # obtain any business object and call whatever your program does
+      database_manager = ctx.database_manager
+      database_manager.create_database()
+      database_manager.process_data()
+
+Regardless how complex your logic is, there is usually one single entry
+point to your program ie. ``__main__`` module, which can parse for example
+command line options, start gui, process data, do both, ...
+
+Accessing data store
+--------------------
+
+While accessing any traditional data store, you usually need to obtain a
+*connection* to such a storage (sql database connection, ldap session,
+...), say a *resource*.  You yourself should manage such a *resource* in
+your program, so you acquire a fresh one each time you access it and you
+usually should release it once not needed anymore while handling any
+exceptional states that may arise.
+
+For example, it is not uncommon in a web application to obtain connection
+to database when you start processing a request and release it once the
+request processing ends and client is sent an output.  You may have some
+kind of a *global* variable to use it in your code -- many *Python* *MVC*
+frameworks work that way.
+
+There is nothing wrong in such a case, but maybe you want a bit more
+control over resources consumed (why open a connection to database, if you
+do not need one in your request processing?) or you may be writing a
+console/desktop application where there is no such a notion of
+*request/response*, so you should acquire and release the resources by
+yourself or maybe you want to write a fine grained test case or
+... whatever.
+
+Doing *resource* allocation by hand is tedious and error prone task.
+
+Summer can help you there.  *First*, you can provide usual properties to
+access a data store in your ``summer.cfg`` configuration file.  You can
+provide *SQLAlchemy* connection strings for SQL database and LDAP server
+properties (host, port, username, password) to access a LDAP.
+
+*Second*, summer framework provides :py:func:`summer.txaop.transactional`
+and :py:func:`summer.lxaop.ldapaop` method annotations as well as some
+other infrastructure classes to ease you from resource allocation.
+
+Any method annotated with this annotation will acquire the appropriate
+*resource* each time it is invoked and provide you with a local variable
+that represents this resource for you to use it, which gets properly
+released at method end.  You can issue a SQL statement or access LDAP
+session without worrying of manual resource handling.

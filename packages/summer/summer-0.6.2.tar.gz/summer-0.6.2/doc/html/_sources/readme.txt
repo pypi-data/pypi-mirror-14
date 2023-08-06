@@ -1,0 +1,4 @@
+README
+======
+
+.. literalinclude:: ../../README.txt

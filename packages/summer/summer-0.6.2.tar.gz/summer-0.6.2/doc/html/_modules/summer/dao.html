@@ -1,0 +1,565 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>summer.dao &mdash; summer 0.6.2 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="summer 0.6.2 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> summer
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.6.2
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../readme.html">README</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../basic-concepts.html">Basic Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">summer apidoc</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">summer</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+    <li>summer.dao</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for summer.dao</h1><div class="highlight"><pre>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Time-stamp: &lt; dao.py (2016-02-29 06:34) &gt;</span>
+
+<span class="c1"># Copyright (C) 2009-2016 Martin Slouf &lt;martin.slouf@sourceforge.net&gt;</span>
+<span class="c1">#</span>
+<span class="c1"># This file is a part of Summer.</span>
+<span class="c1">#</span>
+<span class="c1"># Summer is free software; you can redistribute it and/or modify it under</span>
+<span class="c1"># the terms of the GNU Lesser General Public License as published by the Free</span>
+<span class="c1"># Software Foundation; either version 3 of the License, or (at your option)</span>
+<span class="c1"># any later version.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU Lesser General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU Lesser General Public License</span>
+<span class="c1"># along with this program; if not, write to the Free Software</span>
+<span class="c1"># Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA</span>
+
+<span class="sd">&quot;&quot;&quot;Provides *DAO* support.</span>
+
+<span class="sd">Base :py:class:`Dao` class provides access to virtual</span>
+<span class="sd">:py:attr:`Dao.session` and py:attr:`Dao.connection` attributes.</span>
+
+<span class="sd">That means that inside any *DAO* object subclassed from :py:class:`Dao` you</span>
+<span class="sd">can access current (thread-bound) *SQLAlchemy* session simply by accessing</span>
+<span class="sd">:py:attr:`Dao.session` and direct connection to database by accessing</span>
+<span class="sd">:py:attr:`Dao.connection`.  Alternatives are :py:meth:`Dao.get_session` and</span>
+<span class="sd">:py:meth:`Dao.get_connection`.</span>
+
+<span class="sd">Much more interesting is :py:class:`EntityDao` class which is inteded to be</span>
+<span class="sd">used as a base *DAO* class for your :py:class:`summer.domain.Entity`.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+
+<span class="kn">from</span> <span class="nn">sqlalchemy.engine</span> <span class="kn">import</span> <span class="n">Connection</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="kn">import</span> <span class="n">Query</span><span class="p">,</span> <span class="n">Session</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm.exc</span> <span class="kn">import</span> <span class="n">NoResultFound</span>
+
+<span class="kn">from</span> <span class="nn">.domain</span> <span class="kn">import</span> <span class="n">Entity</span><span class="p">,</span> <span class="n">Filter</span>
+<span class="kn">from</span> <span class="nn">.ex</span> <span class="kn">import</span> <span class="n">ApplicationException</span>
+<span class="kn">from</span> <span class="nn">.sf</span> <span class="kn">import</span> <span class="n">SessionFactory</span>
+<span class="kn">from</span> <span class="nn">.txaop</span> <span class="kn">import</span> <span class="n">transactional</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Dao"><a class="viewcode-back" href="../../api-orm.html#summer.dao.Dao">[docs]</a><span class="k">class</span> <span class="nc">Dao</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Base *DAO* class.</span>
+
+<span class="sd">    Provides safe access to thread bound session through :py:attr:`session`</span>
+<span class="sd">    attribute.  Alternative is :py:meth:`get_session`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Dao.__init__"><a class="viewcode-back" href="../../api-orm.html#summer.dao.Dao.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session_factory</span><span class="p">:</span> <span class="n">SessionFactory</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates :py:class:`Dao` instance.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            session_factory (SessionFactory): session factory to be used</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span> <span class="o">=</span> <span class="n">session_factory</span></div>
+
+<div class="viewcode-block" id="Dao.__getattribute__"><a class="viewcode-back" href="../../api-orm.html#summer.dao.Dao.__getattribute__">[docs]</a>    <span class="k">def</span> <span class="nf">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attrname</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Access to virtual :py:attr:`session` and :py:attr:`connection` attribute.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">attrname</span> <span class="o">==</span> <span class="s2">&quot;session&quot;</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Dao.session access by &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+            <span class="n">attrval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_session</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">attrname</span> <span class="o">==</span> <span class="s2">&quot;connection&quot;</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Dao.connection access by &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+            <span class="n">attrval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_connection</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">attrval</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="n">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attrname</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">attrval</span></div>
+
+<div class="viewcode-block" id="Dao.get_session"><a class="viewcode-back" href="../../api-orm.html#summer.dao.Dao.get_session">[docs]</a>    <span class="k">def</span> <span class="nf">get_session</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Session</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Get current session (bound to current thread).</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Session: current :py:class:`Session` instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span><span class="o">.</span><span class="n">get_sqlalchemy_session</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="Dao.get_connection"><a class="viewcode-back" href="../../api-orm.html#summer.dao.Dao.get_connection">[docs]</a>    <span class="k">def</span> <span class="nf">get_connection</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Connection</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Get current connection (bound to current thread).</span>
+
+<span class="sd">        Use :py:data:`Dao.get_connection().connection` to obtain *Python DB</span>
+<span class="sd">        API 2.0 connection* object.</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Connection: current :py:class:`Connection` instance</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span><span class="o">.</span><span class="n">get_session</span><span class="p">()</span><span class="o">.</span><span class="n">get_connection</span><span class="p">()</span></div></div>
+
+
+<div class="viewcode-block" id="EntityDao"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao">[docs]</a><span class="k">class</span> <span class="nc">EntityDao</span><span class="p">(</span><span class="n">Dao</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Base *DAO* class for persistent classes subclassed from</span>
+<span class="sd">    :py:class:`summer.domain.Entity`.</span>
+
+<span class="sd">    Provides basic persistent operations.</span>
+
+<span class="sd">    Defines another virtual attribute -- :py:attr:`query` -- access to</span>
+<span class="sd">    generic *SQLAlchemy* query over :py:attr:`clazz`.  Alternative is</span>
+<span class="sd">    :py:meth:`get_query`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="EntityDao.__init__"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session_factory</span><span class="p">:</span> <span class="n">SessionFactory</span><span class="p">,</span> <span class="n">clazz</span><span class="p">:</span> <span class="nb">type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates :py:class:`EntityDao` instance.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            session_factory (SessionFactory): session factory intance to be</span>
+<span class="sd">                                              passed to superclass</span>
+<span class="sd">                                              (:py:class:`Dao`)</span>
+
+<span class="sd">            clazz (type): reference to class type</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">Dao</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session_factory</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clazz</span> <span class="o">=</span> <span class="n">clazz</span></div>
+
+<div class="viewcode-block" id="EntityDao.__getattribute__"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.__getattribute__">[docs]</a>    <span class="k">def</span> <span class="nf">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attrname</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">object</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Access to virtual :py:attr:`query` attribute.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">attrname</span> <span class="o">==</span> <span class="s2">&quot;query&quot;</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;EntityDao.query access by &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+            <span class="n">attrval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_query</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">attrval</span> <span class="o">=</span> <span class="n">Dao</span><span class="o">.</span><span class="n">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attrname</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">attrval</span></div>
+
+<div class="viewcode-block" id="EntityDao.get_query"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.get_query">[docs]</a>    <span class="k">def</span> <span class="nf">get_query</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Query</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Get query over :py:attr:`clazz`.</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Query: :py:class:`Query` instance over :py:attr:`clazz`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_session</span><span class="p">()</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">clazz</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="EntityDao._check_entity"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao._check_entity">[docs]</a>    <span class="k">def</span> <span class="nf">_check_entity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">:</span> <span class="n">Entity</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check if entity is correct.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            entity (Entity): entity instance to be checked</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">entity</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">DaoException</span><span class="p">(</span><span class="s2">&quot;entity == None&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">entity</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">clazz</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;entity is not instance of </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">clazz</span>
+            <span class="k">raise</span> <span class="n">DaoException</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">entity_class</span><span class="o">=</span><span class="n">entity</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="EntityDao._get_result_list"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao._get_result_list">[docs]</a>    <span class="k">def</span> <span class="nf">_get_result_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="n">Query</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">:</span> <span class="n">Filter</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Get list of entities with filter offset applied.  Useful for paging.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            query (Query): query to be executed</span>
+
+<span class="sd">            query_filter (Filter): filter to be used for paging</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            list: list of entities using query and paging supplied</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;query </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;query_filter </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">)</span>
+        <span class="c1"># apply query_filter limits</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">offset</span><span class="p">(</span><span class="n">query_filter</span><span class="o">.</span><span class="n">get_offset</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">query_filter</span><span class="o">.</span><span class="n">get_max_results</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">limit</span><span class="p">(</span><span class="n">query_filter</span><span class="o">.</span><span class="n">get_max_results</span><span class="p">())</span>
+        <span class="c1"># query</span>
+        <span class="k">return</span> <span class="n">query</span><span class="o">.</span><span class="n">all</span><span class="p">()</span></div>
+
+    <span class="nd">@transactional</span>
+<div class="viewcode-block" id="EntityDao.get"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ident</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Entity</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Get entity by :py:attr:`Entity.id` attribute.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            ident (object): primary key for :py:class:`Entity`</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Entity: entity instance or raise :py:class:`NoResultFound` if</span>
+<span class="sd">                    none is found</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">populate_existing</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">ident</span><span class="p">)</span></div>
+
+    <span class="nd">@transactional</span>
+<div class="viewcode-block" id="EntityDao.save"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.save">[docs]</a>    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">:</span> <span class="n">Entity</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Entity</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Save an entity.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            entity (Entity): entity to be persisted</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Entity: persisted instance</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_entity</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_session</span><span class="p">()</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">entity</span></div>
+
+    <span class="nd">@transactional</span>
+<div class="viewcode-block" id="EntityDao.merge"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.merge">[docs]</a>    <span class="k">def</span> <span class="nf">merge</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity</span><span class="p">:</span> <span class="n">Entity</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Entity</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Merge an entity.</span>
+
+<span class="sd">        Same as :py:meth:`save`, but entity is associated with current session</span>
+<span class="sd">        if it is not.  For example if entity comes from another session</span>
+<span class="sd">        (or thread).</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            entity (Entity): entity to be merged</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Entity: persisted instance</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_entity</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_session</span><span class="p">()</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">entity</span></div>
+
+    <span class="nd">@transactional</span>
+<div class="viewcode-block" id="EntityDao.delete"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.delete">[docs]</a>    <span class="k">def</span> <span class="nf">delete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">entity_or_id</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Entity</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Delete an entity.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            entity_or_id (object): either :py:class:`Entity` or its primary</span>
+<span class="sd">                                   key</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Entity: just deleted entity instance</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">entity_or_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">clazz</span><span class="p">):</span>
+            <span class="n">entity</span> <span class="o">=</span> <span class="n">entity_or_id</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">entity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">entity_or_id</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_entity</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_session</span><span class="p">()</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">entity</span></div>
+
+    <span class="nd">@transactional</span>
+<div class="viewcode-block" id="EntityDao.find"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.find">[docs]</a>    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">:</span> <span class="n">Filter</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Find collection of entities.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            query_filter (Filter): filter with at least paging set</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            list: list of entities using query and paging supplied</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_result_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">)</span></div>
+
+    <span class="nd">@transactional</span>
+<div class="viewcode-block" id="EntityDao.get_by_uniq"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.get_by_uniq">[docs]</a>    <span class="k">def</span> <span class="nf">get_by_uniq</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">col_value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Entity</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Get entity by its unique attribute value.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            col_name (str): attribute column name</span>
+
+<span class="sd">            col_value (object): attribute value</span>
+
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Entity: entity instance or raise :py:class:`NoResultFound` if</span>
+<span class="sd">                    none is found.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">col_name</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">,</span> <span class="s2">&quot;col_name == None&quot;</span>
+        <span class="k">assert</span> <span class="n">col_value</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">,</span> <span class="s2">&quot;col_value == None&quot;</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="n">col_name</span><span class="p">:</span> <span class="n">col_value</span><span class="p">}</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">one</span><span class="p">()</span></div>
+
+    <span class="nd">@transactional</span>
+<div class="viewcode-block" id="EntityDao.get_by_uniq_or_none"><a class="viewcode-back" href="../../api-orm.html#summer.dao.EntityDao.get_by_uniq_or_none">[docs]</a>    <span class="k">def</span> <span class="nf">get_by_uniq_or_none</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">col_value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Entity</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Get entity by its unique attribute value.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            col_name (str): attribute column name</span>
+
+<span class="sd">            col_value (object): attribute value</span>
+
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            Entity: entity instance or ``None`` if none is found.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">tmp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_by_uniq</span><span class="p">(</span><span class="n">col_name</span><span class="p">,</span> <span class="n">col_value</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">tmp</span>
+        <span class="k">except</span> <span class="n">NoResultFound</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;no result found for </span><span class="si">%s</span><span class="s2"> having </span><span class="si">%s</span><span class="s2"> == </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span>
+                             <span class="bp">self</span><span class="o">.</span><span class="n">clazz</span><span class="p">,</span> <span class="n">col_name</span><span class="p">,</span> <span class="n">col_value</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">None</span></div></div>
+
+
+<div class="viewcode-block" id="CodeEntityDao"><a class="viewcode-back" href="../../api-orm.html#summer.dao.CodeEntityDao">[docs]</a><span class="k">class</span> <span class="nc">CodeEntityDao</span><span class="p">(</span><span class="n">EntityDao</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Base *DAO* class for persistent classes subclassed from</span>
+<span class="sd">    :py:class:`summer.domain.CodeEntity`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="CodeEntityDao.__init__"><a class="viewcode-back" href="../../api-orm.html#summer.dao.CodeEntityDao.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session_factory</span><span class="p">:</span> <span class="n">SessionFactory</span><span class="p">,</span> <span class="n">clazz</span><span class="p">:</span> <span class="nb">type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates :py:class:`CodeEntityDao` instance.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            session_factory (SessionFactory): session factory intance to be</span>
+<span class="sd">                                              passed to superclass</span>
+<span class="sd">                                              (:py:class:`Dao`)</span>
+
+<span class="sd">            clazz (type): reference to class type</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">EntityDao</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session_factory</span><span class="p">,</span> <span class="n">clazz</span><span class="p">)</span></div>
+
+    <span class="nd">@transactional</span>
+<div class="viewcode-block" id="CodeEntityDao.find_map"><a class="viewcode-back" href="../../api-orm.html#summer.dao.CodeEntityDao.find_map">[docs]</a>    <span class="k">def</span> <span class="nf">find_map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query_filter</span><span class="p">:</span> <span class="n">Filter</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+        <span class="sd">&quot;&quot;&quot;Loads the objects into a map by :py:attr:`CodeEntity.code` attribute</span>
+<span class="sd">        used as a map key.</span>
+
+<span class="sd">            query_filter (Filter): filter with at least paging set</span>
+
+<span class="sd">        Returns:</span>
+
+<span class="sd">            dict: dictionary of entities using query and paging supplied</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">hash_map</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query_filter</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">col</span><span class="p">:</span>
+            <span class="n">hash_map</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">code</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="k">return</span> <span class="n">hash_map</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">DaoException</span><span class="p">(</span><span class="n">ApplicationException</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">ApplicationException</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2009-2016, martinslouf@users.sourceforge.net.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'0.6.2',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

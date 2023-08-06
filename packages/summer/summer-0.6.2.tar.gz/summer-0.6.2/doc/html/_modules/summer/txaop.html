@@ -1,0 +1,366 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>summer.txaop &mdash; summer 0.6.2 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="summer 0.6.2 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> summer
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.6.2
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../readme.html">README</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../basic-concepts.html">Basic Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">summer apidoc</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">summer</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+    <li>summer.txaop</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for summer.txaop</h1><div class="highlight"><pre>
+<span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Time-stamp: &lt; txaop.py (2016-02-14 12:26) &gt;</span>
+
+<span class="c1"># Copyright (C) 2009-2016 Martin Slouf &lt;martin.slouf@sourceforge.net&gt;</span>
+<span class="c1">#</span>
+<span class="c1"># This file is a part of Summer.</span>
+<span class="c1">#</span>
+<span class="c1"># Summer is free software; you can redistribute it and/or modify it under</span>
+<span class="c1"># the terms of the GNU Lesser General Public License as published by the Free</span>
+<span class="c1"># Software Foundation; either version 3 of the License, or (at your option)</span>
+<span class="c1"># any later version.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU Lesser General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU Lesser General Public License</span>
+<span class="c1"># along with this program; if not, write to the Free Software</span>
+<span class="c1"># Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA</span>
+
+<span class="sd">&quot;&quot;&quot;Declarative transaction management.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">types</span>
+
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="kn">import</span> <span class="n">Session</span>
+
+<span class="kn">from</span> <span class="nn">.aop</span> <span class="kn">import</span> <span class="n">AroundMethodAdvice</span><span class="p">,</span> <span class="n">Proxy</span>
+<span class="kn">from</span> <span class="nn">.tx</span> <span class="kn">import</span> <span class="n">TransactionCallback</span><span class="p">,</span> <span class="n">TransactionWrapper</span>
+<span class="kn">from</span> <span class="nn">.sf</span> <span class="kn">import</span> <span class="n">SessionFactory</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="transactional"><a class="viewcode-back" href="../../api-orm.html#summer.txaop.transactional">[docs]</a><span class="k">def</span> <span class="nf">transactional</span><span class="p">(</span><span class="n">func</span><span class="p">:</span> <span class="n">types</span><span class="o">.</span><span class="n">FunctionType</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Method decorator marking method as transactional.</span>
+
+<span class="sd">    Use together with :py:class:`TransactionAdvice` and</span>
+<span class="sd">    :py:class:`TransactionalProxy`.</span>
+
+<span class="sd">    Methods decorated with :py:func:`transactional` can be run within a</span>
+<span class="sd">    transaction if wrapped in :py:class:`TransactionalProxy`.</span>
+
+<span class="sd">    Usually it is required to access *SQLAlchemy* session from within the</span>
+<span class="sd">    transaction.  Encouraged access to current thread-bound *SQLAlchemy*</span>
+<span class="sd">    session is through :py:class:`summer.sf.SessionFactory`.</span>
+
+<span class="sd">    Preferred way to manipulate your persistent entities is through *DAO*</span>
+<span class="sd">    objects (:py:mod:`summer.dao`).  Intended use case for this decorator</span>
+<span class="sd">    is to mark such :py:class:`summer.dao.EntityDao` methods and then</span>
+<span class="sd">    access current *SQLAlchemy* session by using</span>
+<span class="sd">    :py:attr:`summer.dao.Dao.session` from within the *DAO* method.  Thus</span>
+<span class="sd">    you can access *SQLAlchemy* session (and manipulate data), and still</span>
+<span class="sd">    have the transaction boundaries defined on top of your business</span>
+<span class="sd">    methods.</span>
+
+<span class="sd">    Args:</span>
+
+<span class="sd">        func (types.FunctionType): function to be decorated</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">func</span><span class="o">.</span><span class="n">transactional</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="c1"># mame .. method name</span>
+    <span class="c1"># mame = &quot;%s.%s&quot; % (func.im_class.__name__, func.__name__)</span>
+    <span class="n">mame</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">__name__</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;method </span><span class="si">%s</span><span class="s2"> decorated as transactional&quot;</span><span class="p">,</span> <span class="n">mame</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">func</span></div>
+
+
+<div class="viewcode-block" id="TransactionAdvice"><a class="viewcode-back" href="../../api-orm.html#summer.txaop.TransactionAdvice">[docs]</a><span class="k">class</span> <span class="nc">TransactionAdvice</span><span class="p">(</span><span class="n">AroundMethodAdvice</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Together with :py:func:`transactional` decorator forms a *transaction</span>
+<span class="sd">    aspect*.  Advice gets invoked if method is marked with</span>
+<span class="sd">    :py:func:`transactional` and if object is wrapped in</span>
+<span class="sd">    :py:class:`TransactionProxy`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">class</span> <span class="nc">Callback</span><span class="p">(</span><span class="n">TransactionCallback</span><span class="p">):</span>
+
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">advice</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Creates internal :py:class:`TransactionCallback` instance.</span>
+
+<span class="sd">            Args:</span>
+
+<span class="sd">                advice (TransactionAdvice): reference to parent</span>
+<span class="sd">                                            :py:class:`TransactionAdvice`</span>
+
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">TransactionCallback</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">advice</span> <span class="o">=</span> <span class="n">advice</span>
+
+        <span class="k">def</span> <span class="nf">txrun</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">session</span><span class="p">:</span> <span class="n">Session</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">advice</span><span class="o">.</span><span class="n">method</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">result</span>
+
+<div class="viewcode-block" id="TransactionAdvice.__init__"><a class="viewcode-back" href="../../api-orm.html#summer.txaop.TransactionAdvice.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">:</span> <span class="n">types</span><span class="o">.</span><span class="n">MethodType</span><span class="p">,</span>
+                 <span class="n">session_factory</span><span class="p">:</span> <span class="n">SessionFactory</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates :py:class:`TransactionAdvice` instance.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            method (types.MethodType): instance method marked by</span>
+<span class="sd">                                       :py:func:`transactional` decorator</span>
+
+<span class="sd">            session_factory (SessionFactory): session factory to be used</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">AroundMethodAdvice</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span> <span class="o">=</span> <span class="n">session_factory</span></div>
+
+<div class="viewcode-block" id="TransactionAdvice.around"><a class="viewcode-back" href="../../api-orm.html#summer.txaop.TransactionAdvice.around">[docs]</a>    <span class="k">def</span> <span class="nf">around</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Wraps the target method invocation within a transaction.  If any</span>
+<span class="sd">        exception is raised it gets re-thrown and the transaction is rolled</span>
+<span class="sd">        back, see :py:class:`summer.tx.TransactionWrapper`.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;tx around advice start for &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mame</span><span class="p">)</span>
+        <span class="n">tx</span> <span class="o">=</span> <span class="n">TransactionWrapper</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span><span class="p">)</span>
+        <span class="n">callback</span> <span class="o">=</span> <span class="n">TransactionAdvice</span><span class="o">.</span><span class="n">Callback</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">tx</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">callback</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;tx around advice end for &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mame</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">result</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;tx around advice error for &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mame</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">ex</span></div></div>
+
+
+<div class="viewcode-block" id="TransactionProxy"><a class="viewcode-back" href="../../api-orm.html#summer.txaop.TransactionProxy">[docs]</a><span class="k">class</span> <span class="nc">TransactionProxy</span><span class="p">(</span><span class="n">Proxy</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Intercepts method invocations on target object with transaction logic.</span>
+
+<span class="sd">    It either calls the target object&#39;s method directly or invokes the</span>
+<span class="sd">    :py:class:`TransactionAdvice` if the method is marked by</span>
+<span class="sd">    :py:func:`transactional`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="TransactionProxy.__init__"><a class="viewcode-back" href="../../api-orm.html#summer.txaop.TransactionProxy.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">session_factory</span><span class="p">:</span> <span class="n">SessionFactory</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates the :py:class:`TransactionProxy` instance.</span>
+
+<span class="sd">        Searches the *target* object for :py:func:`transactional` decorated</span>
+<span class="sd">        methods.  It creates a :py:class:`TransactionalAdvice` object for</span>
+<span class="sd">        each method found.  Invocation of such a method means invoking a</span>
+<span class="sd">        :py:class:`TransactionalAdvice` object instead, wrapping the call</span>
+<span class="sd">        with transaction.</span>
+
+<span class="sd">        Args:</span>
+
+<span class="sd">            target (object): any object that is searched for transactional</span>
+<span class="sd">                             methods</span>
+
+
+<span class="sd">            session_factory (SessionFactory): session factory to be used;</span>
+<span class="sd">                                              if ``None``, *target* object</span>
+<span class="sd">                                              is searched for</span>
+<span class="sd">                                              ``session_factory`` attribute</span>
+<span class="sd">                                              which is used instead</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">Proxy</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;creating tx proxy for &#39;</span><span class="si">%s</span><span class="s2">&#39;&quot;</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">session_factory</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span> <span class="o">=</span> <span class="n">target</span><span class="o">.</span><span class="n">session_factory</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span> <span class="o">=</span> <span class="n">session_factory</span>
+        <span class="n">methods</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_decorated_methods</span><span class="p">(</span><span class="n">transactional</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">methods</span><span class="p">:</span>
+            <span class="n">advice</span> <span class="o">=</span> <span class="n">TransactionAdvice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">session_factory</span><span class="p">)</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">advice</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;tx advice &#39;</span><span class="si">%s</span><span class="s2">&#39; created&quot;</span><span class="p">,</span> <span class="n">advice</span><span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2009-2016, martinslouf@users.sourceforge.net.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'0.6.2',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
