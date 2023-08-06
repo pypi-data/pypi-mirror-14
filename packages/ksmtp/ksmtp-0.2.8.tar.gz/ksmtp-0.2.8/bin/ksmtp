@@ -1,0 +1,277 @@
+#!/usr/bin/env python
+
+"""
+
+ksmtp - Simple Python SMTP relay replacement for sendmail with SSL authentication
+
+
+ksmtp
+=====
+
+Simple Python SMTP relay replacement for sendmail with SSL authentication
+
+Useful for relaying all email through an account like Gmail, without the
+messy configurations of Postfix / Sendmail.
+
+Source
+======
+
+PyPI - https://pypi.python.org/pypi/ksmtp
+GitHub - https://github.com/oeey/ksmtp
+
+Usage
+=====
+
+  1) pip install ksmtp
+  2) edit /etc/ksmtp.conf with your login credentials
+  3) (optional) create symlink to ksmtp to replace sendmail
+     ln -s `which ksmtp` /usr/sbin/sendmail
+  4) send test mail
+     ksmtp test@test.com -s "some subject"
+
+Issues
+======
+
+Gmail:
+If you get an "smtplib.SMTPAuthenticationError" and your credentials are
+correct, you may need to "allow less secure apps access" to your account.
+
+See https://support.google.com/accounts/answer/6010255
+
+"""
+
+import smtplib
+import email.mime.text
+import optparse
+import os
+import sys
+import pwd
+import ConfigParser
+import re
+
+
+# Configuration options
+conf = {}
+conf["to"] = None               # user@domain.com - to address
+conf["from"] = None             # user@domain.com - from address
+conf["catch-all"] = None        # user@domain.com - send all mail to override
+conf["user"] = None             # username
+conf["pass"] = None             # password
+conf["server"] = 'localhost'    # localhost / smtp.gmail.com
+conf["port"] = 25               # 25 / 587 (tls) / 465 (ssl)
+conf["secure"] = False          # tls / ssl
+conf["subject"] = ''            # '' - default subject
+conf["verbose"] = False         # verbose output
+
+CONF_FILE = '/etc/ksmtp.conf'
+CONF_SECTION = 'ksmtp'
+
+
+def print_dict(conf):
+    for key in conf:
+        print key, '=', conf[key]
+
+
+def parse_config(conf):
+    if os.path.exists(CONF_FILE):
+        parser = ConfigParser.ConfigParser()
+        parser.read(CONF_FILE)
+        if parser.has_section(CONF_SECTION):
+            if parser.has_option(CONF_SECTION, 'disabled'):
+                conf["disabled"] = parser.get(CONF_SECTION, 'disabled')
+            if parser.has_option(CONF_SECTION, 'to'):
+                conf["to"] = parser.get(CONF_SECTION, 'to')
+            if parser.has_option(CONF_SECTION, 'from'):
+                conf["from"] = parser.get(CONF_SECTION, 'from')
+            if parser.has_option(CONF_SECTION, 'catch-all'):
+                conf["catch-all"] = parser.get(CONF_SECTION, 'catch-all')
+            if parser.has_option(CONF_SECTION, 'user'):
+                conf["user"] = parser.get(CONF_SECTION, 'user')
+            if parser.has_option(CONF_SECTION, 'pass'):
+                conf["pass"] = parser.get(CONF_SECTION, 'pass')
+            if parser.has_option(CONF_SECTION, 'server'):
+                conf["server"] = parser.get(CONF_SECTION, 'server')
+            if parser.has_option(CONF_SECTION, 'port'):
+                conf["port"] = parser.get(CONF_SECTION, 'port')
+            if parser.has_option(CONF_SECTION, 'secure'):
+                conf["secure"] = parser.get(CONF_SECTION, 'secure')
+            if parser.has_option(CONF_SECTION, 'subject'):
+                conf["subject"] = parser.get(CONF_SECTION, 'subject')
+    return conf
+
+
+def get_username():
+    return pwd.getpwuid(os.getuid())[0]
+
+
+def parse_command_line(conf):
+    parser = optparse.OptionParser()
+    parser.add_option('-s', '--subject', help='Subject', default=None)
+    parser.add_option('-t', '--to', help='To', dest="send_to", default=None)
+    parser.add_option('-f', '--from', help='From', dest="send_from", default=None)
+    parser.add_option('-c', '--catch-all', help='Catch all address', default=None)
+    parser.add_option('-S', '--server', help='Server', default=None)
+    parser.add_option('-P', '--port', help='Port', default=None)
+    parser.add_option('-u', '--user', help='Username', dest="username", default=None)
+    parser.add_option('-p', '--pass', help='Password', dest="password", default=None)
+    parser.add_option('-T', '--secure', help="Secure ssl/tls", default=None)
+    parser.add_option('-v', '--verbose', help="Verbose", action="store_true", default=False)
+    (options, args) = parser.parse_args()
+
+    # to
+    if options.send_to:
+        conf["to"] = options.send_to
+    else:
+        if len(args) == 1:
+            conf["to"] = args[0]
+
+    # from
+    if options.send_from:
+        conf["from"] = options.send_from
+    else:
+        if not conf["from"]:
+            username = get_username()
+            hostname = os.uname()[1]
+            conf["from"] = username + "@" + hostname
+
+    if options.subject:
+        conf["subject"] = options.subject
+    if options.catch_all:
+        conf["catch-all"] = options.catch_all
+    if options.server:
+        conf["server"] = options.server
+    if options.port:
+        conf["port"] = options.port
+    if options.username:
+        conf["user"] = options.username
+    if options.password:
+        conf["pass"] = options.password
+    if options.secure:
+        conf["secure"] = options.secure
+    if options.verbose:
+        conf["verbose"] = options.verbose
+
+    return conf, parser
+
+
+def validate_conf(conf, parser):
+    failure = None
+
+    # validate to
+    # if not re.match('[a-zA-Z0-9.-_]+@[a-zA-Z0-9.-_]+\.[a-zA-Z0-9.-_]+', conf["to"]):
+    if not conf["to"]:
+        failure = "Missing or invalid 'to' address"
+    if "@" not in conf["to"]:
+        conf["to"] = conf["to"] + "@localhost"
+
+    # if not re.match('[a-zA-Z0-9.-_]+@[a-zA-Z0-9.-_]+\.[a-zA-Z0-9.-_]+', conf["from"]):
+    #    failure = "Missing or invalid 'from' address"
+
+    # if conf["catch-all"] and not re.match('[a-zA-Z0-9.-_]+@[a-zA-Z0-9.-_]+\.[a-zA-Z0-9.-_]+', conf["catch-all"]):
+    #    failure = "Invalid 'catch-all' address"
+
+    if conf["port"]:
+        try:
+            int(conf["port"])
+        except:
+            failure = "Invalid port number"
+
+    if conf["secure"]:
+        conf["secure"] = conf["secure"].lower()
+        if conf["secure"] != 'ssl' and conf["secure"] != 'tls':
+            failure = "Secure must be 'ssl' or 'tls'"
+
+    # report on failure
+    if failure:
+        parser.print_help()
+        print "\nError: %s!" % failure
+        sys.exit(1)
+
+
+def run():
+    global conf
+    conf = parse_config(conf)
+    if "disabled" in conf and conf["disabled"] == "true":
+        print "Error: see /etc/ksmtp.conf configuration file!"
+        sys.exit(1)
+    conf, parser = parse_command_line(conf)
+    validate_conf(conf, parser)
+
+    verbose = conf["verbose"]
+
+    if verbose:
+        print "Configuration:"
+        print_dict(conf)
+        print "-"
+
+    msg_text = ""
+    if not sys.stdin.isatty():
+        msg_text = sys.stdin.read()
+        if verbose:
+            print "Subject: %s" % conf["subject"]
+            print "Body:"
+            print msg_text
+            print "."
+            print "EOT"
+    else:
+        sys.stdout.write("Subject: ")
+        # if not conf["subject"]:
+        #     subject = sys.stdin.readline()
+        subject = sys.stdin.readline()
+        if subject:
+            conf["subject"] = subject.strip()
+        print "Body: (use '.' to end)"
+        while True:
+            line = sys.stdin.readline()
+            if line.strip() == ".":
+                break
+            msg_text += line
+        print "EOT"
+
+    msg = email.mime.text.MIMEText(msg_text)
+
+    if conf["subject"]:
+        msg["Subject"] = conf["subject"]
+    if conf["from"]:
+        msg["From"] = conf["from"]
+    if conf["to"]:
+        msg["To"] = conf["to"]
+        # msg["To"] = ", ".join(to_emails)
+
+    if conf["secure"] == "ssl":
+        if verbose:
+            print "Connecting to %s:%s over SSL ..." % (conf["server"], conf["port"])
+        s = smtplib.SMTP_SSL(conf["server"], conf["port"])
+    else:
+        if verbose:
+            print "Connecting to %s:%s..." % (conf["server"], conf["port"])
+        s = smtplib.SMTP(conf["server"], conf["port"])
+        if conf["secure"] == "tls":
+            s.ehlo()
+            if verbose:
+                print "Starting TLS ..."
+            s.starttls()
+            s.ehlo()
+    if conf["user"] and conf["pass"]:
+        if verbose:
+            print "Logging in as %s ..." % conf["user"]
+        s.login(conf["user"], conf["pass"])
+
+    if conf["catch-all"]:
+        if verbose:
+            print "Sending message to forced %s ..." % conf["catch-all"]
+        s.sendmail(conf["from"], [conf["catch-all"]], msg.as_string())
+    else:
+        if verbose:
+            print "Sending message to %s ..." % conf["to"]
+        s.sendmail(conf["from"], [conf["to"]], msg.as_string())
+    if verbose:
+        print "Message Sent."
+
+    if verbose:
+        print "Quitting ..."
+    s.quit()
+
+
+if __name__ == '__main__':
+    run()
