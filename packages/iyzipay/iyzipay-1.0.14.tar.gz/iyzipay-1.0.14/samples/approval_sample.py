@@ -1,0 +1,25 @@
+import pprint
+import unittest
+import iyzipay
+
+
+class ApprovalSample(unittest.TestCase):
+    def runTest(self):
+        self.should_approve_payment_item()
+
+    def should_approve_payment_item(self):
+
+        options = dict([('base_url', iyzipay.base_url)])
+        options['api_key'] = iyzipay.api_key
+        options['secret_key'] = iyzipay.secret_key
+
+        request = dict([('locale', 'tr')])
+        request['conversationId'] = '123456'
+        request['paymentTransactionId'] = '139'
+
+        # make request
+        approval = iyzipay.Approval()
+        approval_response = approval.create(request, options)
+
+        # print response
+        pprint.pprint(approval_response.read().decode())
