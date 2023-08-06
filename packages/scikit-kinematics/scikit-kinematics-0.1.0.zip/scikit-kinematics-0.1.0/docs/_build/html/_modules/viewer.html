@@ -1,0 +1,709 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>viewer &mdash; skinematics 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="shortcut icon" href="../_static/skinematics.ico"/>
+    <link rel="top" title="skinematics 0.1 documentation" href="../index.html" />
+    <link rel="up" title="Module code" href="index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">skinematics 0.1 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for viewer</h1><div class="highlight"><pre>
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">Interactive viewer for time-series data. Replaces the older &quot;ui.viewer&quot;.</span>
+<span class="sd">Although it is a user interface utility, it is large enough to make up its</span>
+<span class="sd">own module.</span>
+
+<span class="sd">Variable types that can in principle be plotted are:</span>
+<span class="sd">    * np.ndarray</span>
+<span class="sd">    * pd.core.frame.DataFrame</span>
+<span class="sd">    * pd.core.series.Series</span>
+
+<span class="sd">Viewer can be used to inspect a single variable, or to select one from the current workspace.</span>
+
+<span class="sd">Notable aspects:</span>
+<span class="sd">    - Based on Tkinter, to ensure that it runs on all Python installations.</span>
+<span class="sd">    - Resizable window.</span>
+<span class="sd">    - Keyboard-based interaction.</span>
+<span class="sd">    - Logging of marked events.</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">ThH, Oct 2014</span>
+<span class="sd">Ver 1.1</span>
+<span class="sd">&#39;&#39;&#39;</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">major</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+    <span class="c1"># Python 3.x</span>
+    <span class="kn">import</span> <span class="nn">tkinter</span> <span class="kn">as</span> <span class="nn">tk</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="c1"># Python 2.x</span>
+    <span class="kn">import</span> <span class="nn">Tkinter</span> <span class="kn">as</span> <span class="nn">tk</span>
+    
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="kn">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">matplotlib.backends.backend_tkagg</span> <span class="kn">import</span> <span class="n">FigureCanvasTkAgg</span>
+<span class="kn">from</span> <span class="nn">matplotlib.figure</span> <span class="kn">import</span> <span class="n">Figure</span>
+<span class="kn">from</span> <span class="nn">matplotlib.lines</span> <span class="kn">import</span> <span class="n">Line2D</span>
+<span class="kn">from</span> <span class="nn">matplotlib.mlab</span> <span class="kn">import</span> <span class="n">dist</span>
+<span class="kn">from</span> <span class="nn">sys</span> <span class="kn">import</span> <span class="n">_getframe</span>
+<span class="kn">from</span> <span class="nn">os.path</span> <span class="kn">import</span> <span class="n">expanduser</span><span class="p">,</span> <span class="n">join</span>
+
+<span class="c1"># List if plottable datatypes</span>
+<span class="n">plottable</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">series</span><span class="o">.</span><span class="n">Series</span><span class="p">]</span>
+
+<span class="k">class</span> <span class="nc">Display</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">master</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create all frames, buttons and labels&#39;&#39;&#39;</span>
+        
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">plottable</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inDictionary</span> <span class="o">=</span> <span class="n">data</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">None</span>
+            
+        <span class="bp">self</span><span class="o">.</span><span class="n">master</span> <span class="o">=</span> <span class="n">master</span>
+        
+        <span class="c1"># Generate the figure -------------------------------------------</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">Figure</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lines</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        
+        <span class="c1"># Zero line</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">zero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">hlines</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;dotted&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Zoom box</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span> <span class="o">=</span> <span class="mi">5</span>
+        <span class="p">(</span><span class="n">x0</span><span class="p">,</span><span class="n">x1</span><span class="p">,</span><span class="n">y0</span><span class="p">,</span><span class="n">y1</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rect</span> <span class="o">=</span> <span class="n">Line2D</span><span class="p">([</span><span class="n">x0</span><span class="p">,</span><span class="n">x1</span><span class="p">,</span><span class="n">x1</span><span class="p">,</span><span class="n">x0</span><span class="p">,</span><span class="n">x0</span><span class="p">],</span> <span class="p">[</span><span class="n">y0</span><span class="p">,</span><span class="n">y0</span><span class="p">,</span><span class="n">y1</span><span class="p">,</span><span class="n">y1</span><span class="p">,</span><span class="n">y0</span><span class="p">],</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;dotted&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">add_line</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rect</span><span class="p">)</span>
+
+        <span class="c1"># Create the canvas</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span> <span class="o">=</span> <span class="n">FigureCanvasTkAgg</span><span class="p">(</span><span class="n">fig</span><span class="p">,</span><span class="n">master</span><span class="o">=</span><span class="n">master</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">get_tk_widget</span><span class="p">()</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;top&#39;</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="s1">&#39;both&#39;</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="c1"># Keyboard and mouse control</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">marks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">mpl_connect</span><span class="p">(</span><span class="s1">&#39;key_press_event&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">on_key_event</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">mpl_connect</span><span class="p">(</span><span class="s1">&#39;button_press_event&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">onclick</span><span class="p">)</span>        
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">mpl_connect</span><span class="p">(</span><span class="s1">&#39;button_release_event&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">onrelease</span><span class="p">)</span>        
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">mpl_connect</span><span class="p">(</span><span class="s1">&#39;motion_notify_event&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">onmotion</span><span class="p">)</span>        
+        
+        <span class="c1"># Create and pack the widgets</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">createWidgets</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">showAll</span><span class="p">()</span>
+        
+        <span class="k">if</span> <span class="s1">&#39;inDictionary&#39;</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">selectPlotVar</span><span class="p">()</span>
+            
+        
+    <span class="k">def</span> <span class="nf">createWidgets</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create frames, buttons, text, etc.&#39;&#39;&#39;</span>
+        
+        <span class="c1"># Frame for the slider</span>
+        <span class="n">frame_0_top</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">master</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Scale</span><span class="p">(</span><span class="n">frame_0_top</span><span class="p">,</span>
+                                   <span class="n">from_</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">to</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+                                   <span class="n">orient</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">HORIZONTAL</span><span class="p">,</span>
+                                   <span class="n">length</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">sliderlength</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+                                   <span class="n">showvalue</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                                   <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">position</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">fill</span><span class="o">=</span><span class="n">tk</span><span class="o">.</span><span class="n">X</span><span class="p">,</span> <span class="n">ipadx</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+        
+        <span class="n">frame_0_bottom</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">master</span><span class="p">)</span>
+        
+        <span class="c1"># Frame for Load/Exit buttons -----------------------</span>
+        <span class="n">frame_1</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frame_0_bottom</span><span class="p">)</span>
+        <span class="c1"># Create 2 buttons</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_exit</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">frame_1</span><span class="p">,</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;Exit&quot;</span><span class="p">,</span>
+                                           <span class="n">foreground</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span>
+                                        <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">exit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_exit</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_load</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">frame_1</span><span class="p">,</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;Load&quot;</span><span class="p">,</span>
+                                          <span class="n">fore</span><span class="o">=</span><span class="s1">&#39;green&#39;</span><span class="p">,</span>
+                                        <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">selectPlotVar</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_load</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_showAll</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">frame_1</span><span class="p">,</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;ShowAll&quot;</span><span class="p">,</span>
+                                        <span class="n">foreground</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span>
+                                        <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">showAll</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_showAll</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>
+        
+        <span class="c1"># Frame for navigation buttons ----------------------</span>
+        <span class="n">frame_2</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frame_0_bottom</span><span class="p">)</span>
+        <span class="c1"># Add navigation buttons</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_ff</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">frame_2</span><span class="p">,</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;&gt;&gt;&quot;</span><span class="p">,</span>
+                                        <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fforward</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_ff</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_ff</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">frame_2</span><span class="p">,</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;&gt;&quot;</span><span class="p">,</span>
+                                        <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_ff</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_ff</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">frame_2</span><span class="p">,</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;&lt;&quot;</span><span class="p">,</span>
+                                        <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">backward</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_ff</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_ff</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="n">frame_2</span><span class="p">,</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;&lt;&lt;&quot;</span><span class="p">,</span>
+                                        <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fbackward</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">button_ff</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Frame for entering text -----------------------------</span>
+        <span class="n">frame_3</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frame_0_bottom</span><span class="p">)</span>
+        
+        <span class="c1"># Subframe for upper/lower limit</span>
+        <span class="n">frame_3_lim</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frame_3</span><span class="p">)</span>
+        
+        <span class="c1"># Subsubframe for upper limit</span>
+        <span class="n">frame_upper</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frame_3_lim</span><span class="p">)</span>
+        <span class="n">frame_lower</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frame_3_lim</span><span class="p">)</span>
+        
+        <span class="n">label_upper</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frame_upper</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s2">&quot;Upper Limit&quot;</span><span class="p">)</span>
+        <span class="n">label_upper</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+        <span class="n">label_lower</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frame_lower</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s2">&quot;Lower Limit&quot;</span><span class="p">)</span>
+        <span class="n">label_lower</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frame_upper</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frame_lower</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Subframe for rate</span>
+        <span class="n">frame_3_rate</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frame_3</span><span class="p">)</span>
+        
+        <span class="n">label_rate</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frame_3_rate</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Rate&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_rate</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Entry</span><span class="p">(</span><span class="n">frame_3_rate</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_rate</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;1&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Checkbutton for loggin</span>
+        <span class="n">frame_3_log</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">frame_3</span><span class="p">)</span>
+        
+        <span class="n">label_log</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Label</span><span class="p">(</span><span class="n">frame_3_log</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Log&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chkVar</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">IntVar</span><span class="p">()</span>
+        <span class="n">log_check</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Checkbutton</span><span class="p">(</span><span class="n">frame_3_log</span><span class="p">,</span>
+                                        <span class="n">variable</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">chkVar</span><span class="p">,</span>
+                                        <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">log</span><span class="p">)</span>
+        
+        <span class="c1"># Pack the elements, and assign key bindings ---------------------</span>
+        <span class="n">frame_0_top</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span>
+        <span class="n">frame_0_bottom</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span>
+        <span class="n">frame_1</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>
+        <span class="n">frame_2</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frame_3</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        
+        <span class="n">frame_3_lim</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">frame_upper</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span>
+        <span class="n">frame_lower</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span>
+        
+        <span class="n">label_upper</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="s1">&#39;&lt;Return&gt;&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">setUpperLimit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+
+        <span class="n">label_lower</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="s1">&#39;&lt;Return&gt;&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">setLowerLimit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+
+        <span class="n">frame_3_rate</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">label_rate</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_rate</span><span class="o">.</span><span class="n">bind</span><span class="p">(</span><span class="s1">&#39;&lt;Return&gt;&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">setRate</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_rate</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span>
+        <span class="c1">#self.text_rate.event_generate(&#39;&lt;Return&gt;&#39;)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setRate</span><span class="p">(</span><span class="s1">&#39;&lt;Return&gt;&#39;</span><span class="p">)</span>
+        
+        <span class="n">frame_3_log</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="n">padx</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">label_log</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span>
+        <span class="n">log_check</span><span class="o">.</span><span class="n">pack</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">log</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Log right mouse clicks&#39;&#39;&#39;</span>
+        
+        <span class="c1">#print(&#39;logging is {0}&#39;.format(self.chkVar.get()))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">chkVar</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="s1">&#39;logFile&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">home</span> <span class="o">=</span> <span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logFile</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">home</span><span class="p">,</span> <span class="s1">&#39;default.log&#39;</span><span class="p">)</span>
+            <span class="k">print</span><span class="p">(</span><span class="s1">&#39;right-Mouse clicks are logged into {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logFile</span><span class="p">))</span>
+            
+        
+    <span class="k">def</span> <span class="nf">onmotion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Event for mouse dragging&#39;&#39;&#39;</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">button</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stop</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">xdata</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">ydata</span><span class="p">)</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stop</span><span class="p">[</span><span class="mi">2</span><span class="p">]]</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stop</span><span class="p">[</span><span class="mi">3</span><span class="p">]]</span>
+            
+            <span class="bp">self</span><span class="o">.</span><span class="n">rect</span><span class="o">.</span><span class="n">set_xdata</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rect</span><span class="o">.</span><span class="n">set_ydata</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+            <span class="c1">#print(&#39;button=%d, x=%d, y=%d, xdata=%f, ydata=%f&#39;%(</span>
+                <span class="c1">#event.button, event.x, event.y, event.xdata, event.ydata))</span>
+    
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">onclick</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Select the button-down position&#39;&#39;&#39;</span>
+        
+        <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># left mouse click</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_start</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">xdata</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">ydata</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">button</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="c1"># right mouse click</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">chkVar</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="c1"># right mouse click</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">marks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">xdata</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">vlines</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">xdata</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+                
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+    
+    <span class="k">def</span> <span class="nf">onrelease</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Select the button-up position, and zoom in on the selected range&#39;&#39;&#39;</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">button</span> <span class="o">==</span> <span class="bp">True</span><span class="p">:</span> <span class="c1"># only for left mouse clicks</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_stop</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">xdata</span><span class="p">,</span> <span class="n">event</span><span class="o">.</span><span class="n">ydata</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">button</span> <span class="o">=</span> <span class="bp">False</span>
+            
+            <span class="c1"># Only zoom in if a &quot;reasonably&quot; large area has been selected</span>
+            <span class="n">curDist</span> <span class="o">=</span> <span class="n">dist</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">[:</span><span class="mi">2</span><span class="p">]],</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_stop</span><span class="p">[:</span><span class="mi">2</span><span class="p">]])</span>
+            
+            <span class="k">if</span> <span class="n">dist</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">[:</span><span class="mi">2</span><span class="p">]],</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_stop</span><span class="p">[:</span><span class="mi">2</span><span class="p">]])</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">:</span>
+                <span class="c1"># Zoom in</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stop</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stop</span><span class="p">[</span><span class="mi">2</span><span class="p">])])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stop</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_start</span><span class="p">[</span><span class="mi">3</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stop</span><span class="p">[</span><span class="mi">3</span><span class="p">])])</span>
+                
+                <span class="n">xLim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xlim</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">xLim</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sliderMax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">xRange</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">xLim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">sliderMax</span><span class="p">)</span>
+                
+                <span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">)</span> <span class="o">=</span> <span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rect</span><span class="o">.</span><span class="n">set_xdata</span><span class="p">([</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rect</span><span class="o">.</span><span class="n">set_ydata</span><span class="p">([</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]])</span>
+                
+                <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">on_key_event</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Keyboard interaction&#39;&#39;&#39;</span>
+        
+        <span class="c1">#print(&#39;you pressed %s&#39;%event.key)        </span>
+        
+        <span class="n">key</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">key</span>
+        
+        <span class="c1"># In Python 2.x, the key gets indicated as &quot;alt+[key]&quot;</span>
+        <span class="c1"># Bypass this bug:</span>
+        <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;alt&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">key</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;+&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+        
+        <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;f&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">forward</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;n&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fforward</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;b&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;p&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span> <span class="n">fbackward</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;x&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exit</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;a&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">showAll</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;z&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">zoom</span><span class="p">()</span>
+            
+    <span class="k">def</span> <span class="nf">setRate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Set the rate. Also use this to initialize a number of default values, </span>
+<span class="sd">        and the values for the limit-boxes.&#39;&#39;&#39;</span>
+        
+        <span class="n">rate</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text_rate</span><span class="o">.</span><span class="n">get</span><span class="p">())</span>
+        <span class="n">minVal</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">maxVal</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines</span><span class="p">:</span>
+            <span class="n">x</span><span class="p">,</span><span class="n">y</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span>
+            <span class="n">pnts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+            <span class="n">time</span> <span class="o">=</span> <span class="n">pnts</span><span class="o">/</span><span class="n">rate</span>
+            <span class="n">line</span><span class="o">.</span><span class="n">set_xdata</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+            <span class="n">minVal</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">minVal</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">y</span><span class="p">))</span>
+            <span class="n">maxVal</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">maxVal</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">y</span><span class="p">))</span>
+        
+        <span class="c1"># Initially, show all data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">time</span><span class="p">)])</span>
+        
+        <span class="c1"># Make sure small numbers are nicely formatted</span>
+        <span class="k">if</span> <span class="nb">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">([</span><span class="n">minVal</span><span class="p">,</span> <span class="n">maxVal</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="mf">0.01</span><span class="p">:</span>
+            <span class="n">strMin</span> <span class="o">=</span> <span class="s1">&#39;{0:.2e}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">minVal</span><span class="p">)</span>
+            <span class="n">strMax</span> <span class="o">=</span> <span class="s1">&#39;{0:.2e}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">maxVal</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">strMin</span> <span class="o">=</span> <span class="s1">&#39;{0:.2f}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">minVal</span><span class="p">)</span>
+            <span class="n">strMax</span> <span class="o">=</span> <span class="s1">&#39;{0:.2f}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">maxVal</span><span class="p">)</span>
+            
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">tk</span><span class="o">.</span><span class="n">END</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">strMin</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">tk</span><span class="o">.</span><span class="n">END</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">strMax</span><span class="p">)</span>
+        
+        <span class="c1"># Set limit and range parameters</span>
+        <span class="n">curLim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xlim</span><span class="p">()</span>
+        <span class="n">xMin</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">xMax</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span><span class="p">,</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">curLim</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sliderMax</span> <span class="o">=</span> <span class="n">xMax</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">xRange</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">range</span> <span class="o">=</span> <span class="p">[</span><span class="n">xMin</span><span class="p">,</span> <span class="n">xMax</span><span class="p">,</span> <span class="n">minVal</span><span class="p">,</span> <span class="n">maxVal</span><span class="p">]</span>
+        
+        <span class="c1"># Draw canvas</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">_tkcanvas</span><span class="o">.</span><span class="n">focus_set</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">zoom</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Show all the data on the y-axis, and 10% of all on the x-axis. &#39;&#39;&#39;</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.1</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span> <span class="o">=</span> <span class="mf">0.1</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sliderMax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">xRange</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">showAll</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Show all the data &#39;&#39;&#39;</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">setUpperLimit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Set the &quot;Upper Limit&quot; &#39;&#39;&#39;</span>
+        
+        <span class="n">UpperLimit</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">get</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">tk</span><span class="o">.</span><span class="n">END</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="o">-</span><span class="n">UpperLimit</span><span class="p">))</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="o">-</span><span class="n">UpperLimit</span><span class="p">,</span> <span class="n">UpperLimit</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">_tkcanvas</span><span class="o">.</span><span class="n">focus_set</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">setLowerLimit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Set the &quot;Lower Limit&quot; &#39;&#39;&#39;</span>
+        
+        <span class="n">UpperLimit</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">get</span><span class="p">())</span>
+        <span class="n">LowerLimit</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">get</span><span class="p">())</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="n">LowerLimit</span><span class="p">,</span> <span class="n">UpperLimit</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">_tkcanvas</span><span class="o">.</span><span class="n">focus_set</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">update_xPos</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xLim</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Set the x-range, and check that the limits are within the possible range. &#39;&#39;&#39;</span> 
+        
+        <span class="n">xMin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> 
+        <span class="n">xMax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># Check the minimum position</span>
+        <span class="k">if</span> <span class="n">xLim</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">xMin</span><span class="p">:</span>
+            <span class="n">xLim</span> <span class="o">=</span> <span class="p">[</span><span class="n">xMin</span><span class="p">,</span> <span class="n">xMin</span><span class="o">+</span><span class="bp">self</span><span class="o">.</span><span class="n">xRange</span><span class="p">]</span>
+        
+        <span class="c1"># Check the maximum position</span>
+        <span class="k">if</span> <span class="n">xLim</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">xMax</span><span class="p">:</span>
+            <span class="n">xLim</span> <span class="o">=</span> <span class="p">[</span><span class="n">xMax</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">xRange</span><span class="p">,</span> <span class="n">xMax</span><span class="p">]</span>
+        
+        <span class="c1"># Update xlimits, and redraw the screen</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sliderMax</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">xLim</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">sliderMax</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="n">xLim</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">position</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Position window according to slider &#39;&#39;&#39;</span>
+        <span class="n">sliderPos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="n">newLim</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">r_</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span><span class="p">]</span> <span class="o">+</span> <span class="n">sliderPos</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">sliderMax</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_xPos</span><span class="p">(</span><span class="n">newLim</span><span class="p">)</span>
+        
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Move data forward by half the visible distance&#39;&#39;&#39;</span>
+        <span class="n">curLim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xlim</span><span class="p">()</span>
+        <span class="n">newLim</span> <span class="o">=</span> <span class="n">curLim</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span><span class="o">/</span><span class="mi">2</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_xPos</span><span class="p">(</span><span class="n">newLim</span><span class="p">)</span>
+        
+    <span class="k">def</span> <span class="nf">fforward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Move data forward by one visible distance&#39;&#39;&#39;</span>
+        <span class="n">curLim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xlim</span><span class="p">()</span>
+        <span class="n">newLim</span> <span class="o">=</span> <span class="n">curLim</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_xPos</span><span class="p">(</span><span class="n">newLim</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Move data backward by half the visible distance&#39;&#39;&#39;</span>
+        <span class="n">curLim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xlim</span><span class="p">()</span>
+        <span class="n">newLim</span> <span class="o">=</span> <span class="n">curLim</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span><span class="o">/</span><span class="mi">2</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_xPos</span><span class="p">(</span><span class="n">newLim</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">fbackward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Move data back by one visible distance&#39;&#39;&#39;</span>
+        <span class="n">curLim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">get_xlim</span><span class="p">()</span>
+        <span class="n">newLim</span> <span class="o">=</span> <span class="n">curLim</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">xRange</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_xPos</span><span class="p">(</span><span class="n">newLim</span><span class="p">)</span>
+    
+    <span class="k">def</span> <span class="nf">exit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Close the window, and - if necessary - save</span>
+<span class="sd">        the right-clicked marks.&#39;&#39;&#39;</span>
+        
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">chkVar</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logFile</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">marks</span><span class="p">)</span>
+            <span class="k">print</span><span class="p">(</span><span class="s1">&#39;right-Mouse clicks are saved into {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logFile</span><span class="p">))</span>
+            
+        <span class="bp">self</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">destroy</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">updatePlot</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;update the figure&#39;&#39;&#39;</span>
+        
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines</span><span class="p">:</span>
+            <span class="c1"># Remove the old lines</span>
+            <span class="n">line</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">zero</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
+            
+        <span class="c1"># plot the new data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">set_color_cycle</span><span class="p">(</span><span class="bp">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lines</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">varValues</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">zero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ax</span><span class="o">.</span><span class="n">hlines</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">varValues</span><span class="p">),</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;dotted&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">varName</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">range</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">varValues</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">varValues</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">varValues</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">showAll</span><span class="p">()</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">tk</span><span class="o">.</span><span class="n">END</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_upper</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">3</span><span class="p">]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">tk</span><span class="o">.</span><span class="n">END</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_lower</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">range</span><span class="p">[</span><span class="mi">2</span><span class="p">]))</span>
+        
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">draw</span><span class="p">()</span>
+        
+    <span class="k">def</span> <span class="nf">selectPlotVar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Select a plottable variable from those in the workspace. &#39;&#39;&#39;</span>
+        
+        <span class="k">if</span> <span class="s1">&#39;inDictionary&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="k">print</span><span class="p">(</span><span class="s1">&#39;No additional variables available!&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Create a new window</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">loadWindow</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Toplevel</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">master</span><span class="p">)</span>
+            <span class="n">varSelector</span> <span class="o">=</span> <span class="n">VarSelector</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loadWindow</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+            <span class="n">varSelector</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Selection&#39;</span><span class="p">)</span>
+        
+<span class="k">class</span> <span class="nc">VarSelector</span><span class="p">():</span>
+    <span class="sd">&#39;&#39;&#39;Class for the GUI-display of plottable items</span>
+<span class="sd">    </span>
+<span class="sd">        Analyze the current workspace for variables that can be plotted, and let the user select one.</span>
+<span class="sd">        Variable types that can in principle be plotted are:</span>
+<span class="sd">            np.ndarray</span>
+<span class="sd">            pd.core.frame.DataFrame</span>
+<span class="sd">            pd.core.series.Series</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">selectionWindow</span><span class="p">,</span>  <span class="n">mainApp</span><span class="p">):</span>
+        
+        <span class="n">varList</span> <span class="o">=</span> <span class="n">mainApp</span><span class="o">.</span><span class="n">inDictionary</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+        <span class="n">plotList</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">curType</span> <span class="ow">in</span> <span class="n">plottable</span><span class="p">:</span>
+            <span class="n">plotList</span> <span class="o">+=</span> <span class="p">[</span><span class="n">var</span> <span class="k">for</span> <span class="n">var</span> <span class="ow">in</span> <span class="n">varList</span> <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">mainApp</span><span class="o">.</span><span class="n">inDictionary</span><span class="p">[</span><span class="n">var</span><span class="p">])</span><span class="o">==</span><span class="n">curType</span><span class="p">]</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">master</span> <span class="o">=</span> <span class="n">selectionWindow</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="n">selectionWindow</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">grid</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">createWidgets</span><span class="p">(</span><span class="n">plotList</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mainApp</span> <span class="o">=</span> <span class="n">mainApp</span>
+        
+    <span class="k">def</span> <span class="nf">selectAndQuit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Grab the selected item, update the main plot, and close the VarSelector-GUI.&#39;&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">selected</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">listbox</span><span class="o">.</span><span class="n">curselection</span><span class="p">()[</span><span class="mi">0</span><span class="p">])]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mainApp</span><span class="o">.</span><span class="n">varName</span> <span class="o">=</span> <span class="n">selected</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mainApp</span><span class="o">.</span><span class="n">varValues</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mainApp</span><span class="o">.</span><span class="n">inDictionary</span><span class="p">[</span><span class="n">selected</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mainApp</span><span class="o">.</span><span class="n">updatePlot</span><span class="p">()</span>
+            
+            <span class="n">home</span> <span class="o">=</span> <span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">mainApp</span><span class="o">.</span><span class="n">logFile</span> <span class="o">=</span> <span class="n">join</span><span class="p">(</span><span class="n">home</span><span class="p">,</span> <span class="n">selected</span> <span class="o">+</span> <span class="s1">&#39;.log&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mainApp</span><span class="o">.</span><span class="n">chkVar</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">print</span><span class="p">(</span><span class="s1">&#39;right-Mouse clicks are logged into {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mainApp</span><span class="o">.</span><span class="n">logFile</span><span class="p">))</span>
+            
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+            <span class="c1"># No selection made</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">selected</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">destroy</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">quitFun</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Quit VarSelector-GUI with no further action.&#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">selected</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">master</span><span class="o">.</span><span class="n">destroy</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">createWidgets</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Create the List, and the Quit-button for the VarSelector-GUI.&#39;&#39;&#39;</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">listbox</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Listbox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;varSelection&#39;</span><span class="p">,</span> <span class="n">font</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;times&#39;</span><span class="p">,</span><span class="mi">13</span><span class="p">))</span>
+        
+        <span class="c1"># Populate the list with the items provided</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">items</span> <span class="o">=</span> <span class="n">items</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">listbox</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">tk</span><span class="o">.</span><span class="n">END</span><span class="p">,</span><span class="n">item</span><span class="p">)</span>
+            
+        <span class="c1"># Place it on the grid</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">listbox</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">columnspan</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># Create and place the Quit-button</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">quitButton</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Select&#39;</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">selectAndQuit</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">quitButton</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">quitButton</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Button</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s1">&#39;Quit&#39;</span><span class="p">,</span> <span class="n">command</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">quitFun</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">quitButton</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">row</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">column</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                
+<div class="viewcode-block" id="ts"><a class="viewcode-back" href="../viewer.html#viewer.ts">[docs]</a><span class="k">def</span> <span class="nf">ts</span><span class="p">(</span><span class="n">data</span> <span class="o">=</span> <span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+
+<span class="sd">    Show the given time-series data.</span>
+<span class="sd">    In addition to the (obvious) GUI-interactions, the following options are available:</span>
+
+<span class="sd">    Keyboard interaction:</span>
+<span class="sd">        * f ... forward (+ 1/2 frame)</span>
+<span class="sd">        * n ... next (+ 1 frame)</span>
+<span class="sd">        * b ... back ( -1/2 frame)</span>
+<span class="sd">        * p ... previous (-1 frame)</span>
+<span class="sd">        * z ... zoom (x-frame = 10% of total length)</span>
+<span class="sd">        * a ... all (adjust x- and y-limits)</span>
+<span class="sd">        * x ... exit</span>
+<span class="sd">    </span>
+<span class="sd">    Optimized y-scale:</span>
+<span class="sd">        Often one wants to see data symmetrically about the zero-axis. To facilitate this</span>
+<span class="sd">        display, adjusting the &quot;Upper Limit&quot;  automatically sets the lower limit to the</span>
+<span class="sd">        corresponding negative value.</span>
+<span class="sd">    </span>
+<span class="sd">    Logging:</span>
+<span class="sd">        When &quot;Log&quot; is activated, right-mouse clicks are indicated with vertical bars,</span>
+<span class="sd">        and the corresponding x-values are stored into the users home-directory, in the</span>
+<span class="sd">        file &quot;[varName].log&quot;. Since the name of the first value is unknown the</span>
+<span class="sd">        first events are stored into &quot;data.log&quot;.</span>
+<span class="sd">    </span>
+<span class="sd">    Load:</span>
+<span class="sd">        Pushing the &quot;Load&quot;-button shows you all the plottable variables in your namespace.</span>
+<span class="sd">        Plottable variables are:</span>
+
+<span class="sd">        * ndarrays</span>
+<span class="sd">        * Pandas DataFrames</span>
+<span class="sd">        * Pandas Series</span>
+<span class="sd">    </span>
+<span class="sd">    Examples:</span>
+<span class="sd">        To view a single plottable variable:</span>
+
+<span class="sd">    &gt;&gt;&gt; x = np.random.randn(100,3)</span>
+<span class="sd">    &gt;&gt;&gt; viewer.ts(x)</span>
+<span class="sd">    </span>
+<span class="sd">        To select a plottable variable from the workspace</span>
+
+<span class="sd">    &gt;&gt;&gt; x = np.random.randn(100,3)</span>
+<span class="sd">    &gt;&gt;&gt; t = np.arange(0,10,0.1)</span>
+<span class="sd">    &gt;&gt;&gt; y = np.sin(x)</span>
+<span class="sd">    &gt;&gt;&gt; viewer.ts(locals)</span>
+<span class="sd">    </span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">root</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Tk</span><span class="p">()</span>
+    <span class="n">display</span> <span class="o">=</span> <span class="n">Display</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+    <span class="n">root</span><span class="o">.</span><span class="n">mainloop</span><span class="p">()</span>    </div>
+    
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span><span class="mi">3</span><span class="p">)</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span><span class="mf">0.1</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>    
+    
+    <span class="c1"># Show the data</span>
+    <span class="n">ts</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="c1">#ts(locals())</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+            <p class="logo"><a href="../index.html">
+              <img class="logo" src="../_static/skinematics.png" alt="Logo"/>
+            </a></p>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">skinematics 0.1 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2016, thomas haslwanter.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>
