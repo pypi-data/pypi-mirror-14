@@ -1,0 +1,233 @@
+{% extends "remapp/base.html" %}
+
+{% block confnav %}<li class="dropdown active">{% endblock %}
+
+{% block mainblock %}		
+
+{% if admin.admingroup %}
+
+    <div class="row">
+      <div class="col-md-10 col-md-offset-1">
+        <h1>DICOM Network configuration</h1>
+      </div>
+      <div class="col-md-5 col-md-offset-1">
+          <h2>DICOM Store SCP settings</h2>
+          <p>
+              Set up and manage DICOM Store nodes here. Once started, remote systems can send DICOM objects to this
+              server where they will be automatically processed by OpenREM.
+          </p>
+          <p>
+              You need to have a store node configured here in order to use the query retrieve function. If you have
+              another store service running, then set up the details of the other node here, just don't set the
+              server to start.
+          </p>
+          <p>
+              <a class="btn btn-primary" href="/openrem/admin/dicomstore/add/" role="button">Add new Store</a>
+          </p>
+
+
+          {% for scp in store %}
+          <script>
+              $(document).ready(
+                      function statusupdate{{ scp.pk }}( json ){
+                          $.ajax({
+                              url: "/openrem/admin/dicomstore/statusupdate",
+                              data: {
+                                  scp_pk: {{ scp.pk }}
+                              },
+                              type: "POST",
+                              dataType: "json",
+                              success: function( json ){
+                                  $( '#store-status-{{ scp.pk }}' ).html( json.message );
+                                  $( '#store-status-indicator-{{ scp.pk }}' ).html( json.statusindicator );
+                                  $( '#store-delete-{{ scp.pk }}' ).html( json.delbutton );
+                                  $( '#store-start-{{ scp.pk }}' ).html( json.startbutton );
+                                  $( '#store-stop-{{ scp.pk }}' ).html( json.stopbutton );
+                                  setTimeout(function(){
+                                      var data = {
+                                          scp_pk: {{ scp.pk }}
+                                      };
+                                      statusupdate{{ scp.pk }}( data );
+                                  }, 2000);
+                              }
+                          })
+                      }
+              )
+          </script>
+          <div class="panel panel-info">
+              <div class="panel-heading">
+                  <div id="store-status-indicator-{{ scp.pk }}"></div>
+                <h3 class="panel-title">{{ scp.name }}</h3>
+              </div>
+              <div class="panel-body">
+                  <h4>Server details</h4>
+                  <table class="table">
+                      <tr>
+                          <th>AE Title</th>
+                          <td>{{ scp.aetitle }}</td>
+                      </tr>
+                      <tr>
+                          <th>Port</th>
+                          <td>{{ scp.port }}</td>
+                      </tr>
+                      <tr>
+                          <th>Database ID</th>
+                          <td>{{ scp.pk }}</td>
+                      </tr>
+                      <tr>
+                          <th>Auto start and keep-alive?</th>
+                          <td>{{ scp.keep_alive }}</td>
+                      </tr>
+                      <tr>
+                          <th>Status</th>
+                          <td><div id="store-status-{{ scp.pk }}"></div>
+
+                          </td>
+                      </tr>
+                  </table>
+
+
+                  <hr>
+                  <a class="btn btn-primary" href="/openrem/admin/dicomstore/{{ scp.id }}/" role="button">Modify</a>
+                  <span id="store-delete-{{ scp.pk }}"></span>
+                  {% if scp.controlled %}
+                      <span id="store-start-{{ scp.pk }}" class="pull-right"></span>
+                      <span id="store-stop-{{ scp.pk }}" class="pull-right"></span>
+                  {% endif %}
+{#                  <a class="btn btn-danger" href="/openrem/admin/dicomstore/{{ scp.id }}/stop/" role="button">Stop server</a>#}
+              </div>
+          </div>
+          {% endfor %}
+
+      </div>
+      <div class="col-md-5">
+
+          <h2>
+            Remote Query Retrieve nodes
+          </h2>
+          <p>
+              Set up remote query retrieve DICOM nodes here.
+          </p>
+          <p>
+              You can either enter a hostname or an IP address - if you enter both, the hostname will be used.
+          </p>
+          <p>
+              <a class="btn btn-primary" href="/openrem/admin/dicomqr/add/" role="button">Add new QR Node</a>
+              <a class="btn btn-default pull-right" href="/openrem/admin/queryremote" role="button">Query remote server</a>
+          </p>
+
+
+          {% for qr in remoteqr %}
+              <div class="panel panel-info">
+                  <div class="panel-heading">
+                      <h3 class="panel-title">{{ qr.name }}</h3>
+                  </div>
+                  <div class="panel-body">
+                      <table class="table">
+                          <tr>
+                              <th>Remote AE Title</th>
+                              <td>{{ qr.aetitle }}</td>
+                          </tr>
+                          <tr>
+                              <th>Our AE Title</th>
+                              <td>{{ qr.callingaet }}</td>
+                          </tr>
+                          <tr>
+                              <th>Port</th>
+                              <td>{{ qr.port }}</td>
+                          </tr>
+                          <tr>
+                              <th>Hostname</th>
+                              <td>{{ qr.hostname }}</td>
+                          </tr>
+                          <tr>
+                              <th>IP Address</th>
+                              <td>{{ qr.ip }}</td>
+                          </tr>
+                          <tr>
+                              <th>Database ID</th>
+                              <td>{{ qr.pk }}</td>
+                          </tr>
+                      </table>
+
+                      <hr>
+                      <a class="btn btn-primary" href="/openrem/admin/dicomqr/{{ qr.id }}/" role="button">Modify</a>
+                      <a class="btn btn-primary" href="/openrem/admin/dicomqr/{{ qr.id }}/delete/" role="button">Delete</a>
+
+                  </div>
+              </div>
+          {% endfor %}
+          </div>
+      </div>
+      <div class="row">
+          <div class="col-md-6 col-md-offset-3">
+
+              <h2 id="delete">DICOM object delete settings</h2>
+              <p>
+                  You can configure whether objects will be deleted once they have been processed.
+              </p>
+              <p>
+                  The unmatched objects setting only applies to DICOM objects sent to the OpenREM DICOM Store Server.
+                  All the other settings apply to any objects processed by OpenREM - whether through the DICOM Store
+                  Server or by using the command line scripts (eg openrem_rdsr.py).
+              </p>
+              <div class="panel panel-info">
+                  <div class="panel-heading">
+                      <a class="btn btn-primary pull-right btn-sm" href="/openrem/admin/dicomdelsettings/1/" role="button">
+                          Modify DICOM object delete settings
+                      </a>
+                      <h3 class="panel-title">Settings for all Store SCPs</h3>
+                      <div class="clearfix"></div>
+                  </div>
+                  <div class="panel-body">
+                      <h4>After processing incoming objects, delete...</h4>
+                      <table class="table">
+                          <tr>
+                              <th>unmatched objects?</th>
+                              <td>{{ del_settings.del_no_match }}</td>
+                          </tr>
+                          <tr>
+                              <th>Radiation Dose Structured Reports?</th>
+                              <td>{{ del_settings.del_rdsr }}</td>
+                          </tr>
+                          <tr>
+                              <th>Mammography images?</th>
+                              <td>{{ del_settings.del_mg_im }}</td>
+                          </tr>
+                          <tr>
+                              <th>Radiology images?</th>
+                              <td>{{ del_settings.del_dx_im }}</td>
+                          </tr>
+                          <tr>
+                              <th>Philips CT dose info images?</th>
+                              <td>{{ del_settings.del_ct_phil }}</td>
+                          </tr>
+                      </table>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+{% else %}
+
+      <div class="row col-md-offset-2">
+        <h3>DICOM networking configuration </h3>
+      </div>
+
+      <div class="row">
+      <div class="col-md-8 col-md-offset-2">
+      <p>
+        This function can only be accessed if you are logged in to OpenREM with admin
+        permissions.
+      </p>
+      </div>
+      </div>
+      
+{% endif %}
+
+
+
+
+{% endblock %}	
+
+

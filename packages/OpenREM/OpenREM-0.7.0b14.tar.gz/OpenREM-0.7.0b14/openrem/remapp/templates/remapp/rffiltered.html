@@ -1,0 +1,179 @@
+{% extends "remapp/filteredbase.html" %}
+
+{% block navrf %}<li class="active">{% endblock %}
+
+{% block toprow %}
+{% load pagination_tags %}    
+      <p>
+        There are {{ filter.count }} studies in this list.
+      </p>
+
+{% endblock %}
+
+
+
+{% block col2 %}
+  <div class="panel panel-info">
+  <div class="panel-heading">
+      <h3 class="panel-title">Data export</h3>
+  </div>
+  <div class="panel-body">
+    {% if admin.exportgroup %}
+        <p><strong>Note:</strong> Apply the exam filter first to refine what is exported.</p>
+    <p>
+      <a href="/openrem/exportflcsv1/0/0/?{{ request.GET.urlencode }}"
+             class="btn btn-default btn-sm" role="button">Export to CSV&nbsp;</a>
+          {% if admin.pidgroup %}
+              <a href="/openrem/exportflcsv1/1/0/?{{ request.GET.urlencode }}"
+                 class="btn btn-default btn-sm" role="button">With names</a>
+              <a href="/openrem/exportflcsv1/0/1/?{{ request.GET.urlencode }}"
+                 class="btn btn-default btn-sm" role="button">With ID</a>
+              <a href="/openrem/exportflcsv1/1/1/?{{ request.GET.urlencode }}"
+                 class="btn btn-default btn-sm" role="button">With both</a>
+    </p>
+    <p>
+          {% endif %}
+          <a href="/openrem/exportrfxlsx1/0/0/?{{ request.GET.urlencode }}"
+             class="btn btn-default btn-sm" role="button">Export to XLSX</a>
+          {% if admin.pidgroup %}
+              <a href="/openrem/exportrfxlsx1/1/0/?{{ request.GET.urlencode }}"
+                 class="btn btn-default btn-sm" role="button">With names</a>
+              <a href="/openrem/exportrfxlsx1/0/1/?{{ request.GET.urlencode }}"
+                 class="btn btn-default btn-sm" role="button">With ID</a>
+              <a href="/openrem/exportrfxlsx1/1/1/?{{ request.GET.urlencode }}"
+                 class="btn btn-default btn-sm" role="button">With both</a>
+          {% endif %}
+    </p>
+
+  {% else %}
+    <p>
+      No export permissions
+    </p>
+  {% endif %}
+
+
+  </div>
+  </div>
+
+
+    {{ studyfilter }}
+
+          <div class="panel panel-info">
+            <div class="panel-heading">
+              <h3 class="panel-title">Exam filter</h3>
+            </div>
+            <div class="panel-body">
+                <i>Date format yyyy-mm-dd</i>
+                <form action="" method="get" class="form-horizontal" role="form">
+                        {% for field in filter.form %}
+                            <div class="form-group">
+                                <div class="col-xs-4">
+                                    <label>{{ field.label_tag }}</label>
+                                </div>
+                                <div class="col-xs-8">
+                                  {{ field.errors }}
+                                  {{ field }}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </table>
+                    <input class="btn btn-default" type="submit" />
+                </form> 
+            </div>
+          </div>
+          
+<script>
+$('.datepicker').datepicker({
+    format: "yyyy-mm-dd",
+    autoclose: true,
+    todayHighlight: true
+    });
+</script>
+
+    
+{% endblock %}
+
+{% block col1 %}
+
+    {% autopaginate filter.qs 20 as filter_list %}
+    {% paginate %}
+
+    <table class="table table-bordered table-hover row-clickable">
+        <tr>
+            <th>Institution</th><th>Make | Model | Display name</th><th>Date</th><th>Study description | Accession number</th><th>Number of events</th><th>DAP total (cGy.cm<sup>2</sup>)</th><th>Dose at RP total (Gy)</th><th>Physician</th>
+            {% if admin.admingroup %}
+            <th>Delete?</th>
+            {% endif %}
+        </tr>
+        {% for exam in filter_list %}
+        <tr>
+            <td>
+                <a href="/openrem/rf/{{ exam.id }}/">
+                    {{ exam.generalequipmentmoduleattr_set.get.institution_name }}
+                </a>
+            </td>
+            <td>
+                <a href="/openrem/rf/{{ exam.id }}/">
+                    {{ exam.generalequipmentmoduleattr_set.get.manufacturer }} |
+                    {{ exam.generalequipmentmoduleattr_set.get.manufacturer_model_name }} |
+                    {{ exam.generalequipmentmoduleattr_set.get.unique_equipment_name.display_name }}
+                </a>
+            </td>
+            <td>
+                <a href="/openrem/rf/{{ exam.id }}/">
+                    {{ exam.study_date|date:"Y-m-d" }} {{ exam.study_time|date:"H:i" }}
+                </a>
+            </td>
+            <td>
+                <a href="/openrem/rf/{{ exam.id }}/">
+                    {{ exam.study_description }} |
+                  {% if not exam.accession_hashed %}
+                    {{ exam.accession_number }}
+                  {% endif %}
+                </a>
+            </td>
+            <td>
+                <a href="/openrem/rf/{{ exam.id }}/">
+                    {{ exam.projectionxrayradiationdose_set.get.irradeventxraydata_set.count }}
+                </a>
+            </td>
+            <td>
+                <a href="/openrem/rf/{{ exam.id }}/">
+                    {% for record in exam.projectionxrayradiationdose_set.get.accumxraydose_set.all %}
+                        {% if exam.projectionxrayradiationdose_set.get.accumxraydose_set.all.count > 1 %}
+                            {{ record.acquisition_plane }}:
+                        {% endif %}
+                        {{ record.accumintegratedprojradiogdose_set.get.convert_gym2_to_cgycm2|floatformat:1 }}
+                        <br>
+                    {% endfor %}
+                </a>
+            </td>
+            <td>
+                <a href="/openrem/rf/{{ exam.id }}/">
+                    {% for record in exam.projectionxrayradiationdose_set.get.accumxraydose_set.all %}
+                        {% if exam.projectionxrayradiationdose_set.get.accumxraydose_set.all.count > 1 %}
+                            {{ record.acquisition_plane }}:
+                        {% endif %}
+                        {{ record.accumintegratedprojradiogdose_set.get.dose_rp_total|floatformat:6 }}
+                        <br>
+                    {% endfor %}
+                </a>
+            </td>
+            <td>
+                <a href="/openrem/rf/{{ exam.id }}/">
+                    {{ exam.performing_physician_name }}
+                </a>
+            </td>
+            {% if admin.admingroup %}
+            <td>
+              <a href="{% url 'study_delete' exam.id %}">Delete</a>
+            </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </table>
+
+    {% paginate %}
+
+ 
+{% endblock %}
