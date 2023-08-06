@@ -1,0 +1,195 @@
+#!/usr/bin/python
+from __future__ import print_function
+
+import sys
+import argparse
+import os
+import logging
+import json
+import shlex
+import importlib
+import six
+
+sys.path.insert(0, '.')
+
+import okerrclient
+import okerrclient.taskseq 
+import okerrclient.taskproc
+import okerrclient.fs
+import okerrclient.list
+import okerrclient.stdin
+import okerrclient.run
+# import okerrclient.filter
+
+
+
+try:
+    import oclocal
+except ImportError:
+    pass
+
+log = logging.getLogger('Logger')
+log.setLevel(logging.INFO)
+handler = logging.handlers.SysLogHandler(address='/dev/log')
+log.addHandler(handler)
+err = logging.StreamHandler(sys.stderr)
+log.addHandler(err)
+log.setLevel(logging.WARN)
+
+
+cflist = ['./okerr-client.conf','~/.okerr-client.conf','/usr/local/etc/okerr-client.conf','/etc/okerr/okerr-client.conf','/etc/okerr-client.conf']
+
+
+def help(parser,cmd=None):
+    if cmd is None:
+        parser.print_help()
+    else:
+        print("help for sequence command:", cmd)
+        try:
+            print(okerrclient.taskseq.TaskSeq.tp[cmd].fullhelp())
+        except KeyError:
+            print("no such sequence processor '{}', can not print help for it".format(cmd))
+
+def defconf():
+    cfg={}
+    cfg['url']='http://update.okerr.com/okerr'
+    cfg['textid']=None
+    cfg['keyuser']='client'
+    cfg['keypass']=''
+    # cfg['cachepath']='/usr/local/etc/okerr-cache.json'
+    return cfg
+    
+def loadconf(fn):
+    cfg = defconf()
+    with open(fn) as f:
+        for line in f:
+            line = line.strip()            
+            if line and not line.startswith('#'):
+                try:
+                    k,v = line.split('=',1)
+                    k = k.strip()
+                    v = v.strip()
+                    cfg[k]=v
+                except ValueError:
+                    print("ERR: bad conf file line: '{}'".format(line))
+                    return None
+    return cfg
+
+cfg=defconf()
+
+# main
+parser = argparse.ArgumentParser(description='okerr client. update/create indicators over HTTP.', epilog=okerrclient.taskseq.TaskSeq.help(), formatter_class = argparse.RawDescriptionHelpFormatter, add_help=False)
+# from command line only
+# parser.add_argument('-n',dest='name', help='indicator name')
+parser.add_argument('-c',dest='conf', help='conf file name')
+parser.add_argument('-s',dest='sequence', help="sequence of commands. In simple cases, just OK or ERR or 'STR apache is running okay' or 'STR 42'. But could be complex like: CONNECTIONS 'FILTER status==\"LISTEN\"' ", nargs='+')
+# parser.add_argument('-d', metavar='details', dest='details',help='optional details')
+# parser.add_argument('-m', metavar='method', dest='method',default='heartbeat', help='checkmethod: heartbeat (default), numerical, streqs, streqd')
+parser.add_argument('--version', help='print version', action='store_true')
+parser.add_argument('-v', dest='verbose',action='store_true',help='verbose mode')
+parser.add_argument('-q', dest='quiet',action='store_true',help='quiet mode')
+parser.add_argument('-h', '--help', dest='help', help='print version', nargs='?', default=None, const=True)
+
+# from config or command line
+parser.add_argument('-i',metavar='TextID', dest='textid', help='project unique text id (not project name!)')
+parser.add_argument('-S', metavar='secret', dest='secret',help='optional secret')
+parser.add_argument('--url', metavar='url', dest='url', default=None, help='update url')
+# parser.add_argument('--cachepath', help='path to local cache', default=None)
+parser.add_argument('--keyuser', help='username for accessing key', default=None)
+parser.add_argument('--keypass', help='password for accessing key', default=None)
+parser.add_argument('--tpconf', nargs='*', metavar='CODE:key=value', help='change conf for task processors, e.g. RUN:enabled=1', default=None)
+
+
+# parser.add_argument('--prefix', help='prefix')
+
+args = parser.parse_args()
+
+if args.version:
+    print(okerrclient.version)
+    sys.exit(0)
+    
+if args.help:
+    if args.help is True: 
+        help(parser)
+    else:
+        help(parser,args.help)
+    sys.exit(0)    
+    
+if args.verbose:
+    log.setLevel(logging.DEBUG)
+
+if args.quiet:
+    log.setLevel(logging.CRITICAL)
+
+
+# load conf
+if args.conf:
+    cfg = loadconf(os.path.expanduser(args.conf))
+else:
+    for cfname in cflist:
+        cfname = os.path.expanduser(cfname)
+        if os.access(cfname,os.R_OK):
+            # print "load conf from {}".format(cfname)
+            cfg = loadconf(cfname)
+            break
+            
+
+# adjust conf from args
+for argname in ['keyuser','keypass','textid','secret','url','cachepath']:
+    if hasattr(args,argname) and getattr(args,argname) is not None:
+        #print("override",argname)
+        cfg[argname]=getattr(args,argname)
+
+oc = okerrclient.OkerrClient(cfg)
+# load cache
+# oc.load()    
+
+if False:
+    if args.status is not None:
+        if args.name is None:
+            print("must have name")
+            sys.exit(1)
+
+if args.sequence is None:
+    print("must have sequence")
+    sys.exit(1)    
+    
+# configure client object    
+oc.log = log
+okerrclient.taskseq.TaskSeq.oc = oc
+
+
+if args.tpconf:
+    for tpc in args.tpconf:
+        try:
+            (code, kv) = tpc.split(':')
+            (k,v) = kv.split('=')
+            # print("code: {} arg: {} value: {}".format(code,k,v))
+            okerrclient.taskseq.TaskSeq.tp[code].tpconfset(k,v)
+        except:
+            oc.log.error('Can not process argument tpconf: {}'.format(tpc))
+            sys.exit(1)
+
+
+# Run sequence
+
+
+data = None    
+try:
+    ts = okerrclient.taskseq.TaskSeq('noname',args.sequence, None)
+except (okerrclient.taskseq.NoMethodException, ValueError) as e:
+    # dump to console, if no such method
+    oc.log.error(str(e))
+    sys.exit(1)
+
+try:            
+    ts.run()               
+except okerrclient.taskseq.BadInputException as e:
+    print("ERROR:"+str(e))
+    sys.exit(1)
+
+
+oc.save()
+
+
+
