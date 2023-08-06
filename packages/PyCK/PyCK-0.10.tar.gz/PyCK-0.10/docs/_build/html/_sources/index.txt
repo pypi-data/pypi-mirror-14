@@ -1,0 +1,39 @@
+.. PyCK documentation master file, created by
+   sphinx-quickstart on Fri Dec 30 02:25:32 2011.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
+
+Welcome to PyCK's documentation!
+================================
+
+Contents:
+
+.. toctree::
+    :maxdepth: 2
+    
+    README
+    
+    installation
+    start-project
+    pluggable-apps-howto
+    pyck-project-structure
+    form-validation-library-choice
+    pyck-forms
+    pyck-mako-utils
+    pyck-controllers
+    pyck-admin
+    pyck-lib
+    
+    mod_wsgi_virtualenv
+    nginx_uwsgi_virtualenv
+    
+    changes
+
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
+
