@@ -1,0 +1,180 @@
+{% load i18n date_formating %}
+{% load url from future %}
+<div class='dashboard' id="{{unique_id}}-tab">
+  <div>
+    <h4>{% trans "Numbers" %}</h4>
+    {% if form %}
+    <div class='form'>
+    <form method='post' action="{% url 'dashboard-main-detail' item_name %}" id='{{unique_id}}_form'>
+      <table>{% csrf_token %}
+        {{form}}
+      </table>
+      <button id="search_{{unique_id}}" class="submit">{% trans "Change" %}</button>
+    </form>
+    </div>
+    {% endif %}
+    <p><strong>{% trans "Total:" %}</strong> {{dashboard.total_number}}</p>
+    <div class='table'>
+    <div id="chart_{{unique_id}}" style="height:400px; width:700px;"></div>
+    <p class='info-box'>{% trans 'Draw rectangle on the graph to zoom. Double-click to reinitialize.' %}</p>
+    <div class='form chart-img-form'>
+      <button id="chart_img_display_{{unique_id}}" class='submit'>{% trans "Display as an image" %}</button>
+      <div id="chart_img_{{unique_id}}" class='chart-img'>
+        <div id="img_{{unique_id}}"></div>
+        <p class='info-box'>{% trans 'Right-click on this image to save it.' %}</p>
+      </div>
+    </div>
+    </div>
+    <div class='table'>
+    <table class='resume'>
+    {% for idx, lbl, values in dashboard.values %}
+      <tr class='idx {% if forloop.counter0|divisibleby:"2" %}even{%else%}odd{%endif%}'>
+      <th>{{lbl}}</th>
+      {% for value in values reversed %}{% if forloop.parentloop.counter0 %}<td>{% else %}<th>{%endif%}{{value|date_formating }}{% if forloop.parentloop.counter0 %}</td>{% else %}</th>{%endif%}{% endfor%}
+      </tr>
+    {% endfor%}
+    </table>
+    </div>
+    {% if dashboard.periods %}
+    <h4>{% trans "By years" %}</h4>
+    <ul>
+      <li><strong>{% trans "Average:" %}</strong> {{dashboard.average}}</li>
+      <li><strong>{% trans "Variance:" %}</strong> {{dashboard.variance}}</li>
+      <li><strong>{% trans "Standard deviation:" %}</strong> {{dashboard.standard_deviation}}</li>
+      <li><strong>{% trans "Median:" %}</strong> {{dashboard.median}}</li>
+      <li><strong>{% trans "Mode:" %}</strong> {{dashboard.mode}}</li>
+    </ul>
+    {% endif %}
+    {% if dashboard.operation_average %}
+    <h4>{% trans "By operations" %}</h4>
+    <ul>
+      <li><strong>{% trans "Average:" %}</strong> {{dashboard.operation_average}}</li>
+      <li><strong>{% trans "Variance:" %}</strong> {{dashboard.operation_variance}}</li>
+      <li><strong>{% trans "Standard deviation:" %}</strong> {{dashboard.operation_standard_deviation}}</li>
+      <li><strong>{% trans "Median:" %}</strong> {{dashboard.operation_median}}</li>
+      <li><strong>{% trans "Mode:" %}</strong> {{dashboard.operation_mode}}</li>
+    </ul>
+    {% endif %}
+    <h4>{% trans "Created last" %}</h4>
+    <div class='table'>
+    <table class='resume'>
+      <tr><th>{{lbl}}</th><th>{% trans "Created" %}</th><th></th></tr>
+      {% for item in dashboard.lasts %}<tr>
+        <td class='ref'>{{item}}</td>
+        <td>{{item.history_date}}</td>
+        <td>{% if item.get_show_url %}<a href="#" onclick='load_window("{{item.get_show_url}}")'>{%trans "Show"%}</a>{%endif%}</td>
+      </tr>{% endfor %}
+    </table>
+    </div>
+    <h4>{% trans "Recent changes" %}</h4>
+    <div class='table'>
+    <table class='resume'>
+      <tr><th>{{lbl}}</th><th>{% trans "Modified" %}</th><th></th></tr>
+      {% for item in dashboard.recents %}<tr>
+        <td class='ref'>{{item}}</td>
+        <td>{{item.history_date}}</td>
+        <td>{% if item.get_show_url %}<a href="#" onclick='load_window("{{item.get_show_url}}")'>{%trans "Show"%}</a>{%endif%}</td>
+      </tr>{% endfor %}
+    </table>
+    </div>
+  </div>
+<script language="javascript" type="text/javascript">
+$(document).ready(function(){
+
+{% for idx, lbl, values in dashboard.values %} {% if forloop.counter0 > 0 %} var values_{{forloop.counter0}}_{{unique_id}} = []; {% for idx, lbl, values in dashboard.values %} {% for value in values %} {% if forloop.parentloop.counter0 == 0 %} values_{{forloop.parentloop.parentloop.counter0}}_{{unique_id}}.push([{{VALUE_QUOTE|safe}}{{value}}{{VALUE_QUOTE|safe}}, 0]); {% elif forloop.parentloop.parentloop.counter0 == forloop.parentloop.counter0 %} values_{{forloop.parentloop.parentloop.counter0}}_{{unique_id}}[{{forloop.counter0}}][1] = {{value}}; {% endif %} {% endfor%} {% endfor%} {% endif %} {% endfor %}
+
+{% comment %}
+# less compact version
+{% for idx, lbl, values in dashboard.values %}
+  {% if forloop.counter0 > 0 %}
+    {% for idx, lbl, values in dashboard.values %}
+      {% for value in values %}
+        {% if forloop.parentloop.counter0 == 0 %}
+          values_{{forloop.parentloop.counter0}}_{{unique_id}}.push([{{VALUE_QUOTE|safe}}{{value}}{{VALUE_QUOTE|safe}}, 0]);
+        {% elif forloop.parentloop.counter0 == forloop.counter0 %}
+           values_{{forloop.counter0}}_{{unique_id}}[{{forloop.counter0}}][1] = {{value}};
+        {% endif %}
+      {% endfor%}
+    {% endfor%}
+  {% endif %}
+{% endfor %}
+{% endcomment %}
+
+
+if (typeof values_1_{{unique_id}} === 'undefined'
+    || values_1_{{unique_id}}.length == 0){
+
+$('#chart_img_{{unique_id}}').hide();
+$('#chart_{{unique_id}}').html("<p class='alert'>{% trans 'No data for these criteria.' %}</p>");
+
+} else {
+var showmarker = false;
+if (values_1_{{unique_id}}.length < 25){
+    var showmarker = true;
+}
+
+var plot_{{unique_id}} = $.jqplot('chart_{{unique_id}}',
+    [{% for idx, lbl, values in dashboard.values %}{% if forloop.counter0 > 0 %} {% if forloop.counter0 > 1 %}, {% endif%} values_{{forloop.counter0}}_{{unique_id}} {% endif %} {% endfor%}], {
+      axes:{ {%ifequal slicing 'year'%}
+        xaxis:{
+          label:'{% trans "Year" %}',
+          tickOptions: {
+            formatString: "%d"
+          }
+        },{%endifequal%}{%ifequal slicing 'month'%}
+        xaxis:{
+          label:'{% trans "Month" %}',
+          renderer:$.jqplot.DateAxisRenderer,
+          tickRenderer:$.jqplot.CanvasAxisTickRenderer,
+          tickOptions:{
+            formatString:'%b %Y',
+            angle:-25
+          }
+        },{%endifequal%}
+        yaxis:{
+          label:'{% trans "Number"%}',
+          min:0
+        }
+      },
+      highlighter: {
+        show: true,
+        sizeAdjust: 7.5
+      },
+      series:[{% for label in dashboard.serie_labels %}
+        {%if forloop.counter0%}, {% endif %}{label:"{{label}}", showmarker:showmarker}{% endfor %}
+      ],
+      cursor:{
+        show: true,
+        zoom:true,
+        showTooltip:false
+      },
+      legend: { show:true, location: 'nw' }
+  });
+
+  $('#chart_img_display_{{unique_id}}').click(function(){
+    $('#chart_img_{{unique_id}}').hide();
+    $('#img_{{unique_id}}').html(
+      $('<img/>').attr(
+             'src', $('#chart_{{unique_id}}').jqplotToImageStr({})
+      )
+    );
+    $('#chart_img_{{unique_id}}').show('slow');
+  });
+
+}
+
+$('#search_{{unique_id}}').click(function (){
+    $.post("{% url 'dashboard-main-detail' item_name %}",
+            $("#{{unique_id}}_form").serialize(),
+            function(data){
+                $("#{{unique_id}}-tab").parent().html(data);
+            });
+    return false;
+});
+
+{% if item_name == 'files' or item_name == "operations"%}
+load_jquerydate_{{item_name}}_after();
+load_jquerydate_{{item_name}}_before();
+{% endif %}
+});
+</script>

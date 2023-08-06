@@ -1,0 +1,108 @@
+{% extends "ishtar/wizard/default_wizard.html" %}
+{% load i18n range table_form %}
+{% block wizard_form %}
+<form action="." method="post" name='wizard'{% if wizard.form.file_upload %} enctype="multipart/form-data"{% endif %}>{% csrf_token %}
+<div class='form'>
+{{ wizard.form.media }}
+{{ wizard.management_form }}
+<table>
+
+<tr class='required'>
+  <th><label for="id_instruction-{{CURRENT_ACTION}}-in_charge">Dossier suivi par</label></th>
+</tr>
+<tr class='required'>
+  <td>{{wizard.form.in_charge.errors}}{{wizard.form.in_charge|safe}}</td>
+</tr>
+
+<tr>
+  <th><label for="id_instruction-{{CURRENT_ACTION}}-related_file">Dossier lié à</label></th>
+</tr>
+<tr>
+  <td>{{wizard.form.related_file|safe}}</td>
+</tr>
+
+<tr>
+  <th><label for="id_instruction-{{CURRENT_ACTION}}-comment">Commentaire</label></th>
+</tr>
+<tr>
+  <td>{{wizard.form.comment|safe}}</td>
+</tr>
+
+<tr class='required'>
+  <th><label>État du dossier</label></th>
+</tr>
+<tr>
+  <td><input type='radio' name='state' value='open' id='state-open'/> <label for='state-open'>Dossier actif</label></td>
+</tr>
+<tr>
+  <td>{{wizard.form.end_date.errors}}<input type='radio' name='state' value='closed' id='state-closed'/> <label for='state-closed'>Dossier clos / date de clôture</label> : {{wizard.form.end_date|safe}}</td>
+</tr>
+
+<tr class='required'>
+  <th><label for="id_instruction-{{CURRENT_ACTION}}-instruction_deadline">Date limite d'instruction</label></th>
+</tr>
+{% if saisine_type %}<tr>
+  <th><em>{{ saisine_type }}{% if saisine_type_delay %} : délai de {{saisine_type_delay}} jours{% endif %}</em></th>
+</tr>{% endif %}
+<tr class='required'>
+  <td>{{wizard.form.instruction_deadline.errors}}{{wizard.form.instruction_deadline|safe}}</td>
+</tr>
+
+<tr class='required'>
+  <th><label for="id_instruction-{{CURRENT_ACTION}}-year">{{wizard.form.numeric_reference.label}}</label></th>
+</tr>
+<tr>
+  <td>{{wizard.form.numeric_reference.errors}}SRA <span class='small'>{{wizard.form.year|safe}}</span> - <span class='small'>{{wizard.form.numeric_reference|safe}}</span></td>
+</tr>
+</table>
+
+<input type="hidden" name="{{ step_field }}" value="{{ step0 }}" />
+{{ previous_fields|safe }}
+{% block "validation_bar" %}
+{% include 'ishtar/wizard/validation_bar.html' %}
+{% endblock %}
+</div>
+</form>
+<script type='text/javascript'>
+$(function(){
+
+    if ($('#id_instruction-{{CURRENT_ACTION}}-end_date').val()){
+        $("#state-closed").prop('checked', true);
+    } else {
+        $("#state-open").prop('checked', true);
+    }
+
+    check_state = function(){
+        var state = $("input[name=state]:checked").val();
+        if (state == 'closed'){
+            $('#id_instruction-{{CURRENT_ACTION}}-end_date').focus();
+            $('#id_instruction-{{CURRENT_ACTION}}-end_date').prop('disabled', false);
+        } else if (state == 'open'){
+            $('#id_instruction-{{CURRENT_ACTION}}-end_date').val('');
+            $('#id_instruction-{{CURRENT_ACTION}}-end_date').prop('disabled', true);
+        }
+    };
+
+    $('input[name=state]').click(check_state);
+
+    check_state();
+
+    $('#submit_form').click(function(){
+        var state = $("input[name=state]:checked").val();
+        if (state == 'closed'){
+            if (!$('#id_instruction-{{CURRENT_ACTION}}-end_date').val()){
+                alert("Vous devez sélectionner une date de clôture.")
+                return false;
+            }
+            return true;
+        } else if (state == 'open'){
+            return true;
+        } else {
+            alert("Vous devez choisir un état pour ce dossier.")
+            return false;
+        }
+        return true;
+    });
+});
+</script>
+{% endblock %}

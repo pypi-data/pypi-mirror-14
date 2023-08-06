@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load i18n range table_form %}
+{% load url from future %}
+{% block extra_head %}
+{{form.media}}
+{% endblock %}
+{% block content %}
+{% block wizard_head %}
+<h2>{{wizard_label}}</h2>
+<form action="." method="post">{% csrf_token %}
+<ul id='form_path'>
+{% for step in previous_steps %}
+  <li><button class='change_step' name="form_prev_step" value="{{forloop.counter0}}">{{step.form_label}}</button></li>
+{% endfor %}
+  <li class='current'><a href='#'>{{current_step.form_label}}</a></li>
+{% for step in next_steps %}
+  <li><button class='change_step' name="form_prev_step" value="{{forloop.counter|add:previous_step_counter}}">{{step.form_label}}</button></li>
+{% endfor %}
+</ul>
+</form>
+{% endblock %}
+{% block wizard_form %}
+<form action="." method="post" name='wizard'{% if wizard.form.file_upload %} enctype="multipart/form-data"{% endif %}>{% csrf_token %}
+<div class='form'>
+{{ wizard.form.media }}
+{{ wizard.management_form }}
+{% block form_detail %}
+{% if wizard.form.forms %}
+  {{ wizard.form.management_form }}
+<div class='top_button'><input type="submit" id="submit_form" value="{% trans "Validate" %}"/></div>
+<table class='formset'>
+  {%if wizard.form.non_form_errors%}<tr class='error'><th colspan='2'>{{wizard.form.non_form_errors}}</th></tr>{%endif%}
+  {% for formsetform in wizard.form.forms %}
+  {% table_form formsetform %}
+  {% endfor %}
+  <tr class='modify'><td colspan="2"><button name="formset_modify" value="{{wizard.steps.current}}">{% trans "Add/Modify" %}</button></td></tr></li>
+</table>
+{% else %}
+{% if not is_search %}<table>{% endif %}
+{% table_form wizard.form %}
+{% if not is_search %}</table>{% endif %}
+{% endif %}
+{% endblock %}
+<input type="hidden" name="{{ step_field }}" value="{{ step0 }}" />
+{{ previous_fields|safe }}
+{% block "validation_bar" %}
+{% include 'ishtar/wizard/validation_bar.html' %}
+{% endblock %}
+</div>
+</form>
+{% endblock %}
+<script language="javascript" type="text/javascript">
+var form_changed = false;
+$(document).ready(function(){
+    $('form :input').change(function(){form_changed=true;});
+    $('.change_step').click(function(){
+        if(!form_changed ||
+           confirm("{% trans "The form has changed if you don't validate it all your changes will be lost." %}")){
+            return true;
+        }
+        return false;
+    });
+});
+</script>
+{% endblock %}

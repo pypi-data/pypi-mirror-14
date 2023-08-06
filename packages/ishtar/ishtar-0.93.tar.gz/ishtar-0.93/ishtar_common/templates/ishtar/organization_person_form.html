@@ -1,0 +1,131 @@
+{% load i18n %}{% load url from future %}
+<div id='orga-person-form'>
+<form id='dyn-form-person' method='post'>
+{% csrf_token %}
+{% for hidden_field in form.hidden_fields %}{{hidden_field}}{% endfor %}
+<input type='hidden' name='hidden_person_pk' id='hidden_person_pk' value='{{object.pk}}'/>
+<input type='hidden' name='hidden_person_lbl' id='hidden_person_lbl' value="{{object}}"/>
+<table class='organization'>
+<caption>{% trans "Identification" %}</caption>
+<tr>
+    <th>&nbsp;</th>
+    <td>{{form.attached_to}}</td>
+</tr>
+</table>
+
+<table class='person'>
+<caption>{{relative_label}}</caption>
+<tr>
+    <th><label>{{form.title.label}}</label></th>
+    <td>{{form.title}}</td>
+</tr>
+<tr>
+    <th><label>{{form.name.label}}</label></th>
+    <td>{{form.name}}</td>
+</tr>
+<tr>
+    <th><label>{{form.surname.label}}</label></th>
+    <td>{{form.surname}}</td>
+</tr>
+</table>
+<div>
+<input type='submit' id='btn-modify-person' value="{% trans "Modify"%}"/>
+<input type='submit' id='btn-new-person' value="{% trans "New"%}"/>
+<input type='submit' id='btn-save-person' value="{% trans "Save"%}"/>
+<input type='submit' id='btn-cancel-person' value="{% trans "Cancel"%}"/>
+</div>
+</form>
+</div>
+<script type="text/javascript"><!--//
+
+function checkPendingRequest(todo) {
+    window.setTimeout(function () {
+        if ($.active > 0) {
+            window.setTimeout(checkPendingRequest(todo), 250);
+        } else {
+            todo(); 
+        }
+    }, 250);
+};
+
+person_save_callback = function(){
+    var item_id = $('#hidden_person_pk').val();
+
+    var url = edit_url;
+    $('#id_' + parent_id).val(null);
+    if (item_id){
+        url = edit_url+item_id;
+        $('#id_'+parent_id).val(item_id);
+    }
+    $("#id_select_"+parent_id).trigger('autocompletechange');
+    $.get(url , function( data ) {
+        $( "#div-"+parent_id ).html( data );
+        var lbl = $('#hidden_person_lbl').val();
+        $('#id_select_' + parent_id).val(lbl);
+    });
+};
+
+person_new_callback = function(){
+    var url = edit_url;
+    $('#id_'+parent_id).val(null);
+    $('#id_select_'+parent_id).val(null);
+}
+$(function() {
+    disable_person = function(){
+        $("#orga-person-form :input[type='text'], #orga-person-form textarea, #orga-person-form select").prop("disabled", true);
+        $("#btn-save-person").hide();
+        $("#btn-cancel-person").hide();
+        $("#btn-modify-person").show();
+        $("#btn-new-person").show();
+        $("#orga-person-form").removeClass('selected');
+    }
+    enable_person = function(){
+        $("#orga-person-form :input[type='text'], #orga-person-form textarea, #orga-person-form select").prop("disabled", false);
+        $("#btn-save-person").show();
+        $("#btn-cancel-person").show();
+        $("#btn-modify-person").hide();
+        $("#btn-new-person").hide();
+        $("#orga-person-form").addClass('selected');
+    }
+
+    checkPendingRequest(disable_person);
+
+    $("#btn-modify-person").on('click', function(){
+        {% if object %}submit_url = "{% url 'organization_person_edit' object.pk %}";
+        {% else %}submit_url = "{% url 'organization_person_create' %}";{% endif %}
+        enable_person();
+        return false;
+    });
+    $("#btn-new-person").on('click', function(){
+        submit_url = "{% url 'organization_person_create' %}";
+        $("#orga-person-form").find("input[type=text], textarea, input[type=hidden]").val("");
+        enable_person();
+        person_new_callback();
+        return false;
+    });
+    $("#btn-cancel-person").on('click', function(){
+        person_save_callback();
+        disable_person();
+        return false;
+    });
+    $("#btn-save-person").on('click', function(){
+        var form = $("#dyn-form-person");
+        $.ajax({
+            url: submit_url,
+            type: 'post',
+            data: form.serialize(),
+            dataType: 'html',
+            success: function(data) {
+                $("#orga-person-form").parent().html(data);
+                person_save_callback();
+                disable_person();
+                return false;
+            }
+        });
+        return false;
+    });
+
+
+});
+//--></script>
+

@@ -1,0 +1,163 @@
+{% extends "ishtar/sheet.html" %}
+{% load i18n window_tables window_ope_tables window_field from_dict %}
+
+{% block head_sheet %}
+{{block.super}}
+<h1>{% trans "Operation"%}</h1>
+{% endblock %}
+
+{% block content %}
+
+{% if previous or next %}
+<div class='tool'>
+{%if previous%}
+<a href="#" onclick='load_window("{% url show-historized-operation item.pk previous|date:"c"%}");$("#{{window_id}}").hide();return false;'>{%trans "Previous version"%} ({{previous}})</a>
+{% endif %}
+{% if previous and next %} - {% endif %}
+{%if next%}
+<a href="#" onclick='if(confirm("{%trans "Are you sure to rollback to this version?"%}")){load_url("{% url revert-operation item.pk item.history_date|date:"c"%}");closeAllWindows();load_window("{% url show-operation item.pk None %}");}'>Rollback</a> -
+<a href="#" onclick='load_window("{% url show-historized-operation item.pk next|date:"c" %}");$("#{{window_id}}").hide();return false;'>{%trans "Next version"%} ({{next}})</a>
+{% endif %}
+</div>
+{% endif %}
+
+<div class='tool'>{%trans "Export as:"%} <a href='{% url show-operation item.pk "odt" %}'>{%trans "OpenOffice.org file"%}</a>, <a href='{% url show-operation item.pk "pdf" %}'>{%trans "PDF file"%}</a></div>
+
+<div class='tool modify'><a href='{% url operation_modify item.pk %}'>{% trans "Modify" %}</a></div>
+
+{% if item.virtual_operation %}
+<p class='alert'>{% trans "This operation is virtual." %}</p>
+{% endif %}
+
+<h3>{% trans "General"%}</h3>
+{% if item.common_name %}<p><label>{%trans "Name:"%}</label> <span class='value'>{{ item.common_name }}</span></p>{% endif %}
+{% if item.year  %}<p><label>{%trans "Year:"%}</label> <span class='value strong'>{{ item.year }}</span></p>{% endif %}
+{% if item.operation_code %}<p><label>{%trans "Numerical reference:"%}</label> <span class='value strong'>{{ item.operation_code }}</span></p>{% endif %}
+
+{% if item.code_patriarche %}<p><label>{%trans "Patriarche OA code:"%}</label> <span class='value'>OA{{ item.code_patriarche }}</span></p>{%else%}
+<p class='alert'>{%trans "Patriarche OA code not yet recorded!"%}</p>{%endif%}
+
+<p><label>{%trans "Edition date:"%}</label> <span class='value'>{% if item.history_date %}{{ item.history_date }}{% else %}{{ item.history.all.0.history_date }}{% endif %}</span></p> <!-- date = now -->
+<p><label>{%trans "Created by:"%}</label> <span class='value'>{{ item.history_creator.ishtaruser.full_label }}</span></p>
+
+{% if item.start_date %}<p><label>{%trans "Begining date:"%}</label> <span class='value'>{{ item.start_date }}</span></p>
+<p><label>{%trans "Excavation end date:"%}</label> <span class='value'>{{ item.excavation_end_date|default:"-" }}</span></p>
+{%endif%}
+{% if item.scientist %}<p><label>{%trans "Head scientist:"%}</label> <span class='value'>{{ item.scientist.full_label }}</span></p>{%endif%}
+{% if item.in_charge %}<p><label>{%trans "In charge:"%}</label> <span class='value'>{{ item.in_charge.full_label }}</span></p>{%endif%}
+{% if item.operator %}<p><label>{%trans "Operator:"%}</label> <span class='value'>{{ item.operator }}</span></p>{% endif %}
+<p><label>{%trans "State:"%}</label> <span class='value'>{% if item.is_active %}{%trans "Active file"%}</span></p>
+{% else %}{%trans "Closed operation"%}</span></p>
+{% if item.closing.date %}<p><label>{%trans "Closing date:"%}</label> <span class='value'>{{ item.closing.date }} <strong>{%trans "by" %}</strong> {{ item.closing.user }}</span></p>{% endif %}
+{% endif %}
+{% field "Report delivery date" item.report_delivery_date %}
+{% field "Report processing" item.report_processing %}
+<p><label>{%trans "Type:"%}</label> <span class='value'>{{ item.operation_type }}</span></p>
+{% if item.surface  %}<p><label>{%trans "Surface:"%}</label> <span class='value'>{{ item.surface }} m<sup>2</sup> ({{ item.surface_ha }} ha)</span></p>{% endif %}
+{% if item.cost %}<p><label>{%trans "Cost:"%}</label> <span class='value'>{{ item.cost }} &euro;{% if item.cost_by_m2 %}, ({{ item.cost_by_m2 }} &euro;/m<sup>2</sup>){%endif%}</span></p>{%endif%}
+{% if item.duration %}<p><label>{%trans "Duration:"%}</label> <span class='value'>{{ item.duration }} {%trans "Day"%}s</span></p>{%endif%}
+
+{% field_multiple "Remains" item.remains %}
+{% field_multiple "Periods" item.periods %}
+
+{% if item.QUALITY_DICT %}
+{% field "Record quality" item.record_quality|from_dict:item.QUALITY_DICT %}
+{% endif %}
+{% if item.history_object and item.history_object.QUALITY_DICT %}
+{% field "Record quality" item.record_quality|from_dict:item.history_object.QUALITY_DICT %}
+{% endif %}
+
+{% field "Abstract" item.abstract %}
+
+{% if item.associated_file %}
+<p><label>{%trans "Associated file:"%}</label> <span class='value'><a href='#' onclick='load_window("{% url show-file item.associated_file.pk ''%}")'>{{ item.associated_file }}</a></span></p><!-- Displayed as Year/index/Commune/Common_name This should be a link to the file sheet of the related file -->
+{% if item.associated_file.is_preventive %}
+{#{% if item.operator_reference_code %}<p><label>{%trans "Operator's reference code:"%}</label> <span class='value'>{{ item.operator_reference_code }}</span></p>{% endif %}#}
+
+{% field "Responsible for town planning service" item.associated_file.responsible_town_planning_service.full_address %}
+{% if item.associated_file.town_planning_service %}
+  {% field "Town planning service organization" item.associated_file.town_planning_service.full_address %}
+{% else %}
+  {% field "Town planning service organization" item.associated_file.responsible_town_planning_service.attached_to.full_address %}
+{% endif %}
+
+{% if item.associated_file.permit_type %}<p><label>{%trans "Permit type:"%}</label> <span class='value'>{{ item.associated_file.permit_type }}</span></p>{% endif %}
+{% if item.associated_file.permit_reference %}<p><label>{%trans "Permit reference:"%}</label> <span class='value'>{{ item.associated_file.permit_reference }}</span></p>{% endif %}
+
+{% field "General contractor" item.associated_file.general_contractor.full_address %}
+{% if item.associated_file.corporation_general_contractor %}
+  {% field "General contractor organization" item.associated_file.corporation_general_contractor.full_address %}
+{% else%}
+  {% field "General contractor organization" item.associated_file.general_contractor.attached_to.full_address %}
+{% endif %}
+
+{% endif %}
+{% endif %}
+ 
+{% field "Comment" item.comment "<pre>" "</pre>" %}
+
+{% if item.towns.count %}
+<h3>{% trans "Localisation"%}</h3>
+<p><label>{%trans "Towns:"%}</label> <span class='value'>{{ item.towns.all|join:", " }}</span></p>
+{% endif %}
+
+{% if item.associated_file.address %}<p><label>{%trans "Main address:"%}</label> <span class='value'>{{ item.associated_file.address }}</span></p>
+{% if item.associated_file.address_complement %}<p><label>{%trans "Complement:"%}</label> <span class='value'>{{ item.associated_file.address_complement }}</span></p>{%endif%}
+{% if item.associated_file.postal_code %}<p><label>{%trans "Postal code:"%}</label> <span class='value'>{{ item.associated_file.postal_code }}</span></p>{%endif%}
+{%endif%}
+{% comment %}
+<p><label>{%trans "Lambert X:"%}</label> <span class='value'>{{ item.lambert_x }}</span></p>
+<p><label>{%trans "Lambert Y:"%}</label> <span class='value'>{{ item.lambert_y }}</span></p>
+<p><label>{%trans "Altitude (m NGF):"%}</label> <span class='value'>{{ item.altitude }}</span></p>
+{% endcomment %}
+
+{% if item.right_relations.count %}
+<h3>{% trans "Relations"%}</h3>
+{% for rel in item.right_relations.all %}
+{% ifchanged rel.relation_type %}
+{% if forloop.counter0 %}</ul>{% endif %}
+<h4>{{rel.relation_type}}</h4><ul>{% endifchanged %}
+<li><a href="#" onclick="load_window('/show-operation/{{rel.right_record.pk}}/');" class="display_details">{% trans "Details" %}</a> {{rel.right_record}}</li>
+{% if forloop.last %}</ul>{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if item.archaeological_sites.count %}
+{% trans "Archaeological sites" as archaeologicalsites_label %}
+{% table_archaeologicalsites archaeologicalsites_label item.archaeological_sites.all %}
+{% endif %}
+
+{% trans "Associated parcels" as parcels_label %}
+{% include "ishtar/blocks/window_tables/parcels.html" %}
+
+{% if item.administrative_act %}
+{% trans "Administrative acts" as administrativeacts_label %}
+{% table_administrativact administrativeacts_label item.administrative_act.all %}
+{% endif %}
+
+{% trans "Document from this operation" as operation_docs %}
+{% if item.source.count %}
+{% dynamic_table_document operation_docs 'operation_docs' 'operation' item.pk '' output %}
+{% endif %}
+
+{% trans "Context records" as context_records %}
+{% if item.context_record.count %}
+{% dynamic_table_document context_records 'context_records_for_ope' 'operation' item.pk 'TABLE_COLS_FOR_OPE' output %}
+{% endif %}
+
+{% trans "Documents from associated context records" as cr_docs %}
+{% if item.context_record_docs_q.count %}
+{% dynamic_table_document cr_docs 'context_records_docs' 'context_record__operation' item.pk '' output %}
+{% endif %}
+
+{% trans "Finds" as finds %}
+{% if item.finds %}
+{% dynamic_table_document finds 'finds_for_ope' 'base_finds__context_record__operation' item.pk 'TABLE_COLS_FOR_OPE' output %}
+{% endif %}
+
+{% trans "Documents from associated finds" as finds_docs %}
+{% if item.find_docs_q.count %}
+{% dynamic_table_document finds_docs 'finds_docs' 'find__base_finds__context_record__operation' item.pk '' output %}
+{% endif %}
+
+{% endblock %}

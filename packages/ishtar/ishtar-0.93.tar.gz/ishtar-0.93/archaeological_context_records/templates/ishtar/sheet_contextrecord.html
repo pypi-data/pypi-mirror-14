@@ -1,0 +1,141 @@
+{% extends "ishtar/sheet.html" %}
+{% load i18n window_field window_tables %}
+
+{% block head_sheet %}
+{{block.super}}
+<h1>{% trans "Context Record"%}</h1>
+{% endblock %}
+
+{% block content %}
+{% if previous or next %}
+<div class='tool'>
+{%if previous%}
+<a href="#" onclick='load_window("{% url show-historized-contextrecord item.pk previous|date:"c"%}");$("#{{window_id}}").hide();return false;'>{%trans "Previous version"%} ({{previous}})</a>
+{% endif %}
+{% if previous and next %} - {% endif %}
+{%if next%}
+<a href="#" onclick='if(confirm("{%trans "Are you sure to rollback to this version?"%}")){load_url("{% url revert-contextrecord item.pk item.history_date|date:"c"%}");closeAllWindows();load_window("{% url show-contextrecord item.pk None %}");}'>Rollback</a> -
+<a href="#" onclick='load_window("{% url show-historized-contextrecord item.pk next|date:"c" %}");$("#{{window_id}}").hide();return false;'>{%trans "Next version"%} ({{next}})</a>
+{% endif %}
+</div>
+{% endif %}
+<div class='tool'>{%trans "Export as:"%} <a href='{% url show-contextrecord item.pk "odt" %}'>{%trans "OpenOffice.org file"%}</a>, <a href='{% url show-contextrecord item.pk "pdf" %}'>{%trans "PDF file"%}</a></div>
+<div class='tool modify'><a href='{% url record_modify item.pk %}'>{% trans "Modify" %}</a></div>
+
+{% if item.operation.code_patriarche %}
+<p><label>{%trans "Complete ID:"%}</label>
+{% else %}
+<p class='alert'><label>{%trans "Patriarche OA code not yet recorded!"%}</label></p>
+<p><label>{%trans "Temporary ID:"%}</label>
+{%endif%}
+<span class='value'>{{item.full_label}}</span></p>
+<p><label>{%trans "Creation date:"%}</label> <span class='value'>{{ item.creation_date }}</span></p>
+<p><label>{%trans "Created by:"%}</label> <span class='value'>{{ item.history_creator.ishtaruser.full_label }}</span></p>
+{%if item.unit %}
+<p><label>{% trans "Type:" %}</label> <span class='value'>{{ item.unit }}</span></p>
+{%endif%}
+<p><label>{% trans "Chronology:" %}</label> <span class='value'>{{ item.datings.all|join:", " }}</span></p>
+<p><label>{% trans "Place:" %}</label> <span class='value'>{{ item.parcel.town }}</span></p>
+<p><label>{% trans "Parcel:" %}</label> <span class='value'>{{ item.parcel.short_label }}</span></p>
+
+{% if item.description or item.lenght or item.width or item.depth or item.comment %}
+<h3>{% trans "Description"%}</h3>
+
+<p><label>{% trans "Description:" %}</label> <span class='value'>{{ item.description }}</span></p> 
+{% if item.comment %}<p><label>{% trans "Comment:" %}</label> <span class='value'>{{ item.comment }}</span></p>{% endif %}
+{% if item.lenght %}<p><label>{% trans "Length (cm):" %}</label> <span class='value'>{{ item.length }}</span></p>{%endif%}
+{% if item.width %}<p><label>{% trans "Width (cm):" %}</label> <span class='value'>{{ item.width }}</span></p>{%endif%}
+{% if item.depth %}<p><label>{% trans "Depth (cm):" %}</label> <span class='value'>{{ item.depth }}</span></p>{%endif%}
+{% endif %}
+
+{% if item.activity or item.identification or item.interpretation %}
+<h3>{% trans "Interpretation"%}</h3>
+
+{% if item.activity %}<p><label>{% trans "Activity:" %}</label> <span class='value'>{{ item.activity }}</span></p>{%endif%}
+{% if item.identification %}<p><label>{% trans "Identification:" %}</label> <span class='value'>{{ item.identification }}</span></p>{%endif%}
+{% if item.interpretation %}<p><label>{% trans "Interpretation:" %}</label> <span class='value'>{{ item.interpretation }}</span></p>{%endif%}
+{% endif %}
+
+{% if item.taq or item.taq_estimated or item.tpq or item.tpq_estimated %}
+<h3>{% trans "Datations"%}</h3>
+{% if item.taq %}<p><label>{% trans "TAQ:" %}</label> <span class='value'>{{ item.taq }}</span></p>{%endif%}
+{% if item.taq_estimated %}<p><label>{% trans "Estimated TAQ:" %}</label> <span class='value'>{{ item.taq_estimated }}</span></p>{%endif%}
+{% if item.tpq %}<p><label>{% trans "TPQ:" %}</label> <span class='value'>{{ item.tpq }}</span></p>{%endif%}
+{% if item.tpq_estimated %}<p><label>{% trans "Estimated TPQ:" %}</label> <span class='value'>{{ item.tpq_estimated }}</span></p>{%endif%}
+{%endif%}
+
+{% if item.right_relations.count %}
+<h3>{% trans "In relation with"%}</h3>
+<table class='simple'>
+  <tr>
+    <th>{% trans "Relation type" %}</th>
+    <th>{% trans "ID" %}</th>
+    <th>{% trans "Type" %}</th>
+    <th>{% trans "Chronology" %}</th>
+    <th>{% trans "Description" %}</th>
+    <th>{% trans "Parcel" %}</th>
+    <th class='link'>&nbsp;</th>
+  </tr>
+  {% for relation in item.right_relations.all %}
+  <tr>
+    <td class='string'>{{ relation.relation_type }}</td>
+    <td class='string'>{{ relation.right_record.label }}</td>
+    <td class='string'>{{relation.right_record.unit|default:""}}</td>
+    <td class='string'>{{ relation.right_record.datings.all|join:", " }}</td>{# periods ?#}
+    <td class='string'>{{ relation.right_record.description }}</td>
+    <td class='string'>{{ relation.right_record.parcel.section }} - {{relation.right_record.parcel.parcel_number}}</td>
+    <td class='link'><a href="#" class='display_details' onclick='load_window("{%url show-contextrecord relation.right_record.pk ''%}")'>{% trans "Details" %}</a></td>
+  </tr>
+  {% endfor %}
+<table class='simple'>
+
+{% endif %}
+
+{% if item.operation %}
+<h3>{% trans "Operation summary"%}</h3>
+<p><label>{%trans "Year:"%}</label> <span class='value'>{{ item.operation.year }}</span></p>
+{% field "Numerical reference" item.operation.operation_code %}
+{% if item.operation.code_patriarche %}
+<p><label>{%trans "Patriarche OA code:"%}</label>
+<span class='value'>{{ item.operation.code_patriarche }}</span></p>
+{% else %}<p class='alert'><label>{%trans "Patriarche OA code not yet recorded!"%}</label></p>
+{%endif%}
+{#<p><label>{%trans "Operation's name:"%}</label><span class='value'>{{ item.operation.internal_reference }}</span></p>#}
+<p><label>{%trans "Head scientist:"%}</label>
+<span class='value'>{{ item.operation.in_charge.full_label }}</span></p>
+<p><label>{%trans "State:"%}</label>
+{% if item.operation.is_active %}
+<span class='value'>{%trans "Active file"%}</span></p>
+{% else %}
+<span class='value'>{%trans "Closed operation"%}</span></p>
+<p><label>{%trans "Closing date:"%}</label> <span class='value'>{{ item.operation.closing.date }}
+<strong>{%trans "by" %}</strong> {{ item.operation.closing.user }}</span></p>
+{% endif %}
+<p><label>{%trans "Type:"%}</label> <span class='value'>{{ item.operation.operation_type }}</span></p>
+<p><label>{%trans "Remains:"%}</label> <span class='value'>{{ item.operation.remains.all|join:", " }}</span></p>
+<p><label>{%trans "Periods:"%}</label> <span class='value'>{{ item.operation.periods.all|join:", " }}</span></p>
+{% if item.operation.comment %}<p><label>{%trans "Comment:"%}</label> <span class='value'>{{ item.operation.comment }}</span></p>{%endif%}
+<h3>{% trans "Localisation"%}</h3>
+<p><label>{%trans "Towns:"%}</label> <span class='value'>{{ item.operation.towns.all|join:", " }}</span></p>
+<p><label>{%trans "Related operation:"%}</label>
+<span class='value'><a href="#" onclick='load_window("{% url show-operation item.operation.pk ''%}");'>{{ item.operation }}</a></span></p>
+{# TODO: Displayed as Year/index/Commune/Common_name This should be a link to the file sheet of the related operation #}
+{% else %}<p class='alert'><label>{%trans "No operation linked to this context unit!"%}</label></p>
+{% endif %}
+
+{% trans "Document from this context record" as cr_docs %}
+{% if item.source.count %}
+{% dynamic_table_document cr_docs 'context_records_docs' 'context_record' item.pk '' output %}
+{% endif %}
+
+{% trans "Finds" as finds %}
+{% if item.base_finds.count %}
+{% dynamic_table_document finds 'finds_for_ope' 'base_finds__context_record' item.pk 'TABLE_COLS_FOR_OPE' output %}
+{% endif %}
+
+{% trans "Documents from associated finds" as finds_docs %}
+{% if item.find_docs_q.count %}
+{% dynamic_table_document finds_docs 'finds_docs' 'find__base_finds__context_record' item.pk '' output %}
+{% endif %}
+
+{% endblock %}

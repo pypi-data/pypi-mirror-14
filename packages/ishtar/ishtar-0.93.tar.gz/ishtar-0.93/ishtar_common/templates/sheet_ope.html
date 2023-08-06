@@ -1,0 +1,146 @@
+{% extends "sheet.html" %}
+{% load i18n %}
+{% block content %}
+<div class='tool'>{%trans "Export as:"%} <a href='{% url show-file item.pk "odt" %}'>{%trans "OpenOffice.org file"%}</a>, <a href='{% url show-file item.pk "pdf" %}'>{%trans "PDF file"%}</a></div>
+<h3>{% trans "General"%}</h3>
+<p><label>{%trans "Year:"%}</label> <span class='value'>{{ item.year }}</span></p>
+<p><label>{%trans "Numerical reference:"%}</label> <span class='value'>{{ item.numeric_reference }}</span></p>
+
+{% if item.patriarche_code %}<p><label>{%trans "Patriarche OA code:"%}</label> <span class='value'>{{ item.patriarche_code }}</span></p>{%endif%}
+{% if item.patriarche_code_not_recorded %}<p><label>{%trans "Patriarche OA code not yet recorded !"%}</label></p>{%endif%}
+
+<p><label>{%trans "Operation's name:"%}</label> <span class='value'>{{ item.internal_reference }}</span></p>
+
+<p><label>{%trans "Edition date:"%}</label> <span class='value'>{{ item.history.all.0.history_date }}</span></p> <!-- date = now -->
+
+<p><label>{%trans "Begining date:"%}</label> <span class='value'>{{ item.begin_date }}</span></p>
+<p><label>{%trans "Field work end date:"%}</label> <span class='value'>{{ item.end_date }}</span></p>
+
+<p><label>{%trans "Head scientist:"%}</label> <span class='value'>{{ item.head_scientist.full_label }}</span></p>
+<p><label>{%trans "State:"%}</label> <span class='value'>{% if item.is_active %}{%trans "Active file"%}</span></p>
+{% else %}{%trans "Closed operation"%}</span></p>
+<p><label>{%trans "Closing date:"%}</label> <span class='value'>{{ item.closing.date }} <strong>{%trans "by" %}</strong> {{ item.closing.user }}</span></p>
+{% endif %}
+<p><label>{%trans "Type:"%}</label> <span class='value'>{{ item.operation_type }}</span></p>
+<p><label>{%trans "Surface:"%}</label> <span class='value'>{{ item.total_surface }} m<sup>2</sup> ({{ item.total_surface_ha }} ha)</span></p>
+<p><label>{%trans "Cost:"%}</label> <span class='value'>{{ item.cost }} Euros, ({{ item.cost_by_m2 }} Euros/m<sup>2</sup>)</span></p>
+<p><label>{%trans "Duration:"%}</label> <span class='value'>{{ item.duration }} {%trans "Day"%}s</span></p>
+
+<p><label>{%trans "Remains:"%}</label> <span class='value'>{{ item.remains.all|join:", " }}</span></p>
+<p><label>{%trans "Periods:"%}</label> <span class='value'>{{ item.periods.all|join:", " }}</span></p>
+
+{% if item.related_file %}
+<p><label>{%trans "Related file:"%}</label> <span class='value'><a href='{% url show-file item.related_file.pk ''%}'>{{ item.related_file }}</a></span></p><!-- Displayed as Year/index/Commune/Common_name This should be a link to the file sheet of the related file -->
+{% if item.related_file.is_preventive %}
+{% if item.operator_reference_code %}<p><label>{%trans "Operator's reference code:"%}</label> <span class='value'>{{ item.operator_reference_code }}</span></p>{% endif %}
+{% if item.related_file.town_planning_service %}<p><label>{%trans "Town planning service:"%}</label> <span class='value'>{{ item.related_file.town_planning_service }}</span></p>{% endif %}
+{% if item.related_file.permit_type %}<p><label>{%trans "Permit type:"%}</label> <span class='value'>{{ item.related_file.permit_type }}</span></p>{% endif %}
+{% if item.related_file.permit_reference %}<p><label>{%trans "Permit reference:"%}</label> <span class='value'>{{ item.related_file.permit_reference }}</span></p>{% endif %}
+{% if item.related_file.general_contractor.attached_to %}<p><label>{%trans "General contractor organisation:"%}</label> <span class='value'>{{ item.related_file.general_contractor.attached_to }}</span></p>{% endif %} <!-- Contractor's organisation displayed as concat of Name/Adress/postal_code/city -->
+{% if item.related_file.general_contractor %}<p><label>{%trans "General contractor:"%}</label> <span class='value'>{{ item.related_file.general_contractor.full_label }}</span></p>{% endif %}
+{% endif %}
+{% endif %}
+ 
+{% if item.comment %}<p><label>{%trans "Comment:"%}</label> <span class='value'>{{ item.comment }}</span></p>{%endif%}
+
+<h3>{% trans "Localisation"%}</h3>
+<p><label>{%trans "Towns:"%}</label> <span class='value'>{{ item.towns.all|join:", " }}</span></p>
+
+<p><label>{%trans "Main address:"%}</label> <span class='value'>{{ item.address }}</span></p>
+{% if item.address_complement %}<p><label>{%trans "Complement:"%}</label> <span class='value'>{{ item.address_complement }}</span></p>{%endif%}
+{% if item.postal_code %}<p><label>{%trans "Postal code:"%}</label> <span class='value'>{{ item.postal_code }}</span></p>{%endif%}
+
+<p><label>{%trans "Lambert X:"%}</label> <span class='value'>{{ item.lambert_x }}</span></p>
+<p><label>{%trans "Lambert Y:"%}</label> <span class='value'>{{ item.lambert_y }}</span></p>
+<p><label>{%trans "Altitude (m NGF):"%}</label> <span class='value'>{{ item.altitude }}</span></p>
+
+<table>
+  <caption>{%trans "Associated parcels"%}</caption>
+  <tr>
+    <th>{% trans "Commune" %}</th>
+    <th>{% trans "Year" %}</th>
+    <th>{% trans "Section" %}</th>
+    <th>{% trans "Parcel" %}</th>
+    <th>{% trans "Owner" %}</th>
+  </tr>
+  {% for parcels in item.parcel.all %}
+  <tr>
+    <td>{{operation.commune}}</td>
+    <td>{{operation.year}}</td>
+    <td>{{operation.section}}</td>
+    <td>{{operation.parcel}}</td>
+    <td class='string'>{{operation.parcel.owner}}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="5" class='no_items'>{% trans "No parcel associated to this operation" %}</td></tr>
+  {% endfor %}
+</table>
+
+<h3>{% trans "Admninistrative acts"%}</h3>
+<table>
+  <caption>{%trans "Admninistrative acts"%}</caption>
+  <tr>
+    <th>{% trans "Year" %}</th>
+    <th>{% trans "Reference" %}</th>
+    <th>{% trans "Type" %}</th>
+    <th>{% trans "Date" %}</th>
+  </tr>
+  {% for act in item.administrative_act.all %}
+  <tr>
+    <td>{{act.signature_date.year}}</td>
+    <td>{{act.ref_sra}}</td>
+    <td class='string'>{{act.act_type}}</td>
+    <td>{{act.signature_date}}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4" class='no_items'>{% trans "No administrative act associated to this operation" %}</td></tr>
+  {% endfor %}
+</table>
+
+<h3>{% trans "Documentation"%}</h3>
+<table>
+  <caption>{%trans "Documents"%}</caption>
+  <tr>
+    <th>{% trans "Title" %}</th>
+    <th>{% trans "Type" %}</th>
+    <th>{% trans "Authors" %}</th>
+    <th>{% trans "Localisation" %}</th>
+  </tr>
+  {% for doc in item.doc.all %}
+  <tr>
+    <td>{{ doc.title }}</td>
+    <td class='string'>{{doc.type}}</td>
+    <td>{{ doc.author.all|join:", " }}</td>
+    <td>{{ doc.localisation }}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4" class='no_items'>{% trans "No document associated to this operation" %}</td></tr>
+  {% endfor %}
+</table>
+
+<h3>{% trans "Context Records"%}</h3>
+<table>
+  <caption>{%trans "Context Records"%}</caption>
+  <tr>
+    <th>{% trans "ID" %}</th>
+    <th>{% trans "Type" %}</th>
+    <th>{% trans "Chronology" %}</th>
+    <th>{% trans "Description" %}</th>
+    <th>{% trans "Parcel" %}</th>
+    <th class='link'>&nbsp;</th>
+  </tr>
+  {% for record_unit in item.record_unit.all %}
+  <tr>
+    <td>{{ record_unit.label }}</td>
+    <td class='string'>{{record_unit.unit_type}}</td>
+    <td>{{ record_unit.period.all|join:", " }}</td>
+    <td>{{ record_unit.description }}</td>
+    <td>{{ record_unit.section_and_parcel }}</td><!-- Displayed as (Section)-(parcel number). A record unit can be linked to only one parcel. -->
+    <td class='link'><a href="#{#{%url show-record_unit record_unit.pk%}#}">{% trans "Details" %}</a></td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="6" class='no_items'>{% trans "No context record associated to this operation" %}</td></tr>
+  {% endfor %}
+</table>
+
+{% endblock %}

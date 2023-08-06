@@ -1,0 +1,135 @@
+{% load i18n %}{% load url from future %}
+<div id='orga-form'>
+<form id='dyn-form-organization' method='post'>
+{% csrf_token %}
+{% for hidden in form.hidden_fields %}{{hidden}}{% endfor %}
+<input type='hidden' name='hidden_organization_pk' id='hidden_organization_pk' value='{{object.pk}}'/>
+<input type='hidden' name='hidden_organization_lbl' id='hidden_organization_lbl' value="{{object}}"/>
+<table class='organization'>
+<tr>
+    <th><label>{{form.name.label}}</label></th>
+    <td>{{form.name}}</td>
+</tr>
+</table>
+<table class='organization-address'>
+<tr>
+    <th><label>{{form.organization_type.label}}</label></th>
+    <td>{{form.organization_type}}</td>
+</tr>
+<tr>
+    <th><label>{{form.address.label}}</label></th>
+    <td>{{form.address}}</td>
+</tr>
+<tr>
+    <th><label>{{form.address_complement.label}}</label></th>
+    <td>{{form.address_complement}}</td>
+</tr>
+<tr>
+    <th><label>{{form.postal_code.label}}</label></th>
+    <td>{{form.postal_code}}</td>
+</tr>
+<tr>
+    <th><label>{{form.town.label}}</label></th>
+    <td>{{form.town}}</td>
+</tr>
+</table>
+<div>
+<input type='submit' id='btn-modify-organization' value="{% trans "Modify"%}"/>
+<input type='submit' id='btn-new-organization' value="{% trans "New"%}"/>
+<input type='submit' id='btn-save-organization' value="{% trans "Save"%}"/>
+<input type='submit' id='btn-cancel-organization' value="{% trans "Cancel"%}"/>
+</div>
+</form>
+</div>
+<script type="text/javascript"><!--//
+
+function checkPendingRequest(todo) {
+    window.setTimeout(function () {
+        if ($.active > 0) {
+            window.setTimeout(checkPendingRequest(todo), 250);
+        } else {
+            todo();
+        }
+    }, 250);
+};
+
+person_save_callback = function(){
+    var item_id = $('#hidden_organization_pk').val();
+    var url = edit_url;
+    $('#id_' + parent_id).val(null);
+    if (item_id){
+        url = edit_url+item_id;
+        $('#id_'+parent_id).val(item_id);
+    }
+    $("#id_select_"+parent_id).trigger('autocompletechange');
+    $.get(url , function( data ) {
+        $( "#div-"+parent_id ).html( data );
+        var lbl = $('#hidden_organization_lbl').val();
+        $('#id_select_' + parent_id).val(lbl);
+        $('#id_' +parent_id).change();
+    });
+};
+
+person_new_callback = function(){
+    var url = edit_url;
+    $('#id_'+parent_id).val(null);
+    $('#id_select_'+parent_id).val(null);
+}
+$(function() {
+    disable_organization = function(){
+        $("#orga-form :input[type='text'], #orga-form textarea, #orga-form select").prop("disabled", true);
+        $("#btn-save-organization").hide();
+        $("#btn-cancel-organization").hide();
+        $("#btn-modify-organization").show();
+        $("#btn-new-organization").show();
+        $("#orga-form").removeClass('selected');
+    }
+    enable_organization = function(){
+        $("#orga-form :input[type='text'], #orga-form textarea, #orga-form select").prop("disabled", false);
+        $("#btn-save-organization").show();
+        $("#btn-cancel-organization").show();
+        $("#btn-modify-organization").hide();
+        $("#btn-new-organization").hide();
+        $("#orga-form").addClass('selected');
+    }
+
+    checkPendingRequest(disable_organization);
+
+    $("#btn-modify-organization").on('click', function(){
+        {% if object %}submit_url = "{% url 'organization_edit' object.pk %}";
+        {% else %}submit_url = "{% url 'organization_create' %}";{% endif %}
+        enable_organization();
+        return false;
+    });
+    $("#btn-new-organization").on('click', function(){
+        submit_url = "{% url 'organization_create' %}";
+        $("#orga-form").find("input[type=text], textarea, input[type=hidden]").val("");
+        enable_organization();
+        person_new_callback();
+        return false;
+    });
+    $("#btn-cancel-organization").on('click', function(){
+        person_save_callback();
+        disable_organization();
+        return false;
+    });
+    $("#btn-save-organization").on('click', function(){
+        var form = $("#dyn-form-organization");
+        $.ajax({
+            url: submit_url,
+            type: 'post',
+            data: form.serialize(),
+            dataType: 'html',
+            success: function(data) {
+                $("#orga-form").parent().html(data);
+                person_save_callback();
+                disable_organization();
+                return false;
+            }
+        });
+        return false;
+    });
+
+
+});
+//--></script>

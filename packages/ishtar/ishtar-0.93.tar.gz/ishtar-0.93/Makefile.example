@@ -1,0 +1,206 @@
+SHELL := /bin/bash
+
+# if a virtualenv is used put the full python path
+# e.g.: PYTHON=$$HOME/.virtualenvs/ishtar/bin/python
+PYTHON=python
+# put name of your current project
+project=example_project
+# list used apps
+apps="ishtar_common" "archaeological_operations" "archaeological_context_records" "archaeological_files" "archaeological_finds" "archaeological_warehouse" "archaeological_files_pdl"
+default_data='fr'
+url='ishtar.example.com'
+project_name='Test'
+
+clean:
+	-rm -rf *~*
+	-find . -name '*.pyc' -exec rm {} \;
+	-find . -name '.*.swp' -exec rm {} \;
+	-rm -rf dist ishtar.egg-info
+
+update: clean syncdb compilemessages collectstatic
+
+test: clean
+	cd $(project); $(PYTHON) manage.py test $(apps)
+
+pep8:
+	pep8 --filename=*.py --ignore=W --exclude="manage.py,settings.py,migrations" --statistics --repeat .
+
+pylint:
+	for DIR in $(apps); do \
+		pylint "$(CURDIR)/$$DIR" --ignore=.git,migrations --max-public-methods=50 --ignored-classes=Item.Meta --method-rgx='[a-z_][a-z0-9_]{2,40}$$'; \
+	done
+
+fresh_syncdb:
+	cd $(project); $(PYTHON) ./manage.py syncdb --noinput 2> /dev/null > /dev/null
+	cd $(project); $(PYTHON) ./manage.py migrate ishtar_common 2> /dev/null > /dev/null
+	if [[ '$(apps)' == *archaeological_files* ]]; then cd $(project); $(PYTHON) ./manage.py migrate archaeological_files 2> /dev/null > /dev/null; fi
+	$(PYTHON) ./manage.py migrate archaeological_operations 2> /dev/null > /dev/null
+	cd $(project); $(PYTHON) ./manage.py migrate 2> /dev/null > /dev/null
+	echo "* load default data"
+	# data migrations have created some default data - return to a clean state
+	cd $(project); $(PYTHON) ./manage.py flush --noinput 2> /dev/null
+	cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../fixtures/initial_data-auth-'$(default_data)'.json' 2> /dev/null
+	cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../ishtar_common/fixtures/initial_data-'$(default_data)'.json' 2> /dev/null
+	cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../ishtar_common/fixtures/initial_towns-'$(default_data)'.json' 2> /dev/null
+	cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../ishtar_common/fixtures/initial_importtypes-'$(default_data)'.json' 2> /dev/null
+	if [[ '$(apps)' == *archaeological_operations* ]]; then cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../archaeological_operations/fixtures/initial_data-'$(default_data)'.json' 2> /dev/null; fi
+	if [[ '$(apps)' == *archaeological_files* ]]; then cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../archaeological_files/fixtures/initial_data-'$(default_data)'.json' 2> /dev/null; fi
+	if [[ '$(apps)' == *archaeological_context_records* ]]; then cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../archaeological_context_records/fixtures/initial_data-'$(default_data)'.json' 2> /dev/null; fi
+	if [[ '$(apps)' == *archaeological_finds* ]]; then cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../archaeological_finds/fixtures/initial_data-'$(default_data)'.json' 2> /dev/null; fi
+	if [[ '$(apps)' == *archaeological_warehouse* ]]; then cd $(project); $(PYTHON) ./manage.py loaddata \
+    '../archaeological_warehouse/fixtures/initial_data-'$(default_data)'.json' 2> /dev/null; fi
+	echo "* create superuser"
+	cd $(project); $(PYTHON) ./manage.py createsuperuser
+	# "de-flush" migrations
+	$(PYTHON) ./manage.py migrate --fake 2> /dev/null > /dev/null
+	# add a default site
+	echo '[{"pk":null, "model": "sites.site", "fields": {"domain": "'$(URL)'", "name": "'$(PROJECT_NAME)'"}}]' > \
+    /tmp/site.json
+	cd $(project); $(PYTHON) ./manage.py loaddata /tmp/site.json
+	rm /tmp/site.json
+
+syncdb:
+	cd $(project); $(PYTHON) manage.py syncdb --noinput
+	cd $(project); $(PYTHON) manage.py migrate
+
+shell:
+	cd $(project);$(PYTHON) manage.py shell
+
+run:
+	cd $(project); $(PYTHON) manage.py runserver 0.0.0.0:8000
+
+makemessages:
+	for DIR in $(apps); do \
+		cd $(CURDIR)/$$DIR; \
+		$(PYTHON) ../$(project)/manage.py makemessages --all; \
+		msgfilter -i locale/fr/LC_MESSAGES/django.po -o locale/django.pot true; \
+	done
+
+compilemessages:
+	for DIR in $(apps); do \
+		cd $(CURDIR)/$$DIR; \
+		$(PYTHON) ../$(project)/manage.py compilemessages; \
+	done
+
+collectstatic:
+	cd $(project);$(PYTHON) manage.py collectstatic --noinput
+
+schemamigrations:
+	cd $(project);\
+	for APP in $(apps); do \
+		echo "* schemamigration for "$$APP; \
+		$(PYTHON) manage.py schemamigration --auto $$APP; \
+	done
+
+schemamigrations_initial:
+	cd $(project);\
+	for APP in $(apps); do \
+		echo "* schemamigration for "$$APP; \
+		$(PYTHON) manage.py schemamigration --initial $$APP; \
+	done
+
+generate_doc:
+	cd $(project);\
+	$(PYTHON) manage.py graph_models --pydot -I "ImporterType,ImporterDefault,ImporterDefaultValues,ImporterColumn,Regexp,ImportTarget,FormaterType,Import" ishtar_common > /tmp/ishtar.dot ;\
+	dot -Tpng /tmp/ishtar.dot -o ../docs/source/_static/db-imports.png
+	cd $(project);\
+	for APP in $(apps); do \
+		$(PYTHON) manage.py graph_models --pydot $$APP > /tmp/ishtar.dot; \
+		dot -Tpng /tmp/ishtar.dot -o ../docs/source/_static/db-$$APP.png; \
+	done
+	rm /tmp/ishtar.dot
+
+fixtures: fixtures_common fixtures_operations fixtures_archaeological_context_records fixtures_archaeological_finds fixtures_archaeological_warehouse fixtures_archaeological_files
+
+fixtures_common: fixtures_common_importers fixtures_common_towns
+	cd $(project); $(PYTHON) ./manage.py dumpdata --indent 4 \
+							ishtar_common.authortype \
+							ishtar_common.persontype \
+							ishtar_common.organizationtype \
+							ishtar_common.sourcetype \
+							ishtar_common.operationtype \
+	   > '../ishtar_common/fixtures/initial_data-'$(default_data)'.json'
+
+fixtures_common_importers:
+	cd $(project); $(PYTHON) ./manage.py dumpdata --indent 4 \
+							ishtar_common.importertype \
+							ishtar_common.regexp \
+							ishtar_common.importerdefault \
+							ishtar_common.importerdefaultvalues \
+							ishtar_common.importercolumn \
+							ishtar_common.importtarget \
+							ishtar_common.formatertype \
+							ishtar_common.importerduplicatefield \
+	   > '../ishtar_common/fixtures/initial_importtypes-'$(default_data)'.json'
+
+fixtures_common_towns:
+	cd $(project); $(PYTHON) ./manage.py dumpdata --indent 4 \
+							ishtar_common.state \
+							ishtar_common.department \
+							ishtar_common.town \
+	   > '../ishtar_common/fixtures/initial_towns-'$(default_data)'.json'
+
+fixtures_operations:
+	cd $(project); $(PYTHON) ./manage.py dumpdata --indent 4 \
+							archaeological_operations.acttype \
+							archaeological_operations.period \
+							archaeological_operations.remaintype \
+	   > '../archaeological_operations/fixtures/initial_data-'$(default_data)'.json'
+
+fixtures_context_records:
+	cd $(project); $(PYTHON) ./manage.py dumpdata --indent 4 \
+							archaeological_context_records.datingquality \
+							archaeological_context_records.activitytype \
+							archaeological_context_records.identificationtype \
+							archaeological_context_records.unit \
+							archaeological_context_records.datingtype \
+	   > '../archaeological_context_records/fixtures/initial_data-'$(default_data)'.json'
+
+fixtures_finds:
+	cd $(project); $(PYTHON) ./manage.py dumpdata --indent 4 \
+							archaeological_finds.materialtype \
+							archaeological_finds.treatmenttype \
+							archaeological_finds.ConservatoryState \
+							archaeological_finds.PreservationType \
+							archaeological_finds.ObjectType \
+							archaeological_finds.IntegrityType \
+	   > '../archaeological_finds/fixtures/initial_data-'$(default_data)'.json'
+
+fixtures_warehouse:
+	cd $(project); $(PYTHON) ./manage.py dumpdata --indent 4 \
+							archaeological_warehouse.containertype \
+							archaeological_warehouse.warehousetype \
+	   > '../archaeological_warehouse/fixtures/initial_data-'$(default_data)'.json'
+
+fixtures_files:
+	cd $(project); $(PYTHON) ./manage.py dumpdata --indent 4 \
+							archaeological_files.saisinetype \
+							archaeological_files.filetype \
+							archaeological_files.permittype \
+	   > '../archaeological_files/fixtures/initial_data-'$(default_data)'.json'
+
+translations_push: makemessages
+	zanata-cli push
+
+translations_pull:
+	zanata-cli pull
+
+readme_md_to_rst:
+	pandoc --from=markdown --to=rst --output=README.rst README.md
+
+sdist: clean
+	$(PYTHON) setup.py sdist
+
+distribute_test: sdist
+	twine upload -r pypitest dist/*
+
+distribute_main: sdist
+	twine upload -r pypi dist/*

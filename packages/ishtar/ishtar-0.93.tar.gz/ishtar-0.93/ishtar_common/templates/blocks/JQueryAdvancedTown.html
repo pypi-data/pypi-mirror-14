@@ -1,0 +1,99 @@
+{% load i18n %}{% load url from future %}</td></tr>
+<tr>
+  <td>{% trans "State" context "Region" %}</td>
+  <td>
+  <select id='current-state'>
+    <option value=''>--------</option>{% for state in states %}
+    <option value='{{state.number}}'{% if state.number == selected_state %}selected='selected'{% endif %}>{{state}}</option>
+  {% endfor %}</select>
+  </td>
+</tr>
+<tr>
+  <td>{% trans "Department" %}</td>
+  <td>
+  <select id='current-department'>
+  </select>
+  </td>
+</tr>
+<tr class='required'>
+  <th><label>{% trans "Town" %}</label></th>
+  <td><input{{attrs_select}}/>
+<input type="hidden"{{attrs_hidden}}/>
+<script type="text/javascript"><!--//
+    selected_department = "{{selected_department}}";
+    var empty_select = "<option value=''>--------</option>";
+
+    function update_department_field(){
+        var selected_state = $("#current-state").val();
+        if (!selected_state){
+            $("#current-department").html("<option value=''>"+"{% trans 'Choose a state first' %}"+"</option>");
+            $("#current-department").prop('disabled', true);
+            $('#id_select_{{field_id}}').prop('disabled', true);
+            return;
+        }
+        $.ajax({
+            url: "{% url 'department-by-state' %}" + selected_state,
+            type: 'get',
+            dataType: 'json',
+            success: function(data) {
+                var html = "";
+                for (idx in data){
+                    dpt = data[idx];
+                    html += "<option value='" + dpt.number + "'";
+                    if (String(dpt.number) == String(selected_department)){
+                        html += " selected='selected'";
+                    }
+                    html += ">" + dpt.value + "</option>";
+                }
+                $("#current-department").html(html);
+                $("#current-department").prop('disabled', false);
+                update_search_town();
+            }
+        });
+    }
+
+    function update_search_town(){
+        selected_department = $("#current-department").val();
+        if (selected_department){
+            $("#id_select_{{field_id}}").autocomplete( "option", "source", {{source}}+selected_department);
+            $('#id_select_{{field_id}}').prop('disabled', false);
+        } else {
+            $('#id_select_{{field_id}}').prop('disabled', true);
+        }
+    }
+
+    function empty_town(){
+        $('#id_{{field_id}}').val(null);
+        $('#id_select_{{field_id}}').val(null);
+    }
+
+    $(function() {
+        update_department_field();
+
+        $("#current-state").change(function(){
+            empty_town();
+            update_department_field();
+        });
+
+        $("#current-department").change(function(){
+            empty_town();
+            update_search_town();
+        });
+
+        $("#id_select_{{field_id}}").autocomplete({
+            source: {{source}},
+            select: function( event, ui ) {
+                    if(ui.item){
+                        $('#id_{{field_id}}').val(ui.item.id);
+                    } else {
+                        $('#id_{{field_id}}').val(null);
+                    }
+                },
+            minLength: 2{% if options %},
+            {{options}}
+            {% endif %}
+        });
+
+        $(document).on("click", '#id_select_{{field_id}}', empty_town);
+
+});//--></script>

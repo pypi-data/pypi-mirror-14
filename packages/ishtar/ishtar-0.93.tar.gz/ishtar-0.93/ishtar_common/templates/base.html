@@ -1,0 +1,127 @@
+{% load i18n %}
+{% load url from future%}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="{{LANGUAGE_CODE}}" lang="{{LANGUAGE_CODE}}">
+
+<head>
+    <link rel="shortcut icon" href="{{STATIC_URL}}/media/images/favicon.png"/>
+    <title>{% block title %}Ishtar{% if APP_NAME %} - {{APP_NAME}}{%endif%}{% endblock %}
+    </title>
+    <script language="javascript" type="text/javascript">
+        var url_path = "{{URL_PATH}}";
+    </script>
+    <script language="javascript" type="text/javascript" src="{{JQUERY_URL}}"></script>
+    <script language="javascript" type="text/javascript" src="{{JQUERY_UI_URL}}jquery-ui.js"></script>
+    <script language="javascript" type="text/javascript" src="{{JQUERY_UI_URL}}ui/i18n/jquery.ui.datepicker-{{COUNTRY}}.js"></script>
+    <script language="javascript" type="text/javascript" src="{{STATIC_URL}}/js/prettyPhoto/js/jquery.prettyPhoto.js"></script>
+    <script language="javascript" type="text/javascript" src="{{STATIC_URL}}js/i18n/grid.locale-{{COUNTRY}}.js"></script>
+    <script language="javascript" type="text/javascript" src="{{STATIC_URL}}js/jquery.jqGrid.min.js"></script>
+    <script language="javascript" type="text/javascript" src="{{STATIC_URL}}/js/ishtar.js"></script>
+    <link type="text/css" href="{{JQUERY_UI_URL}}jquery-ui.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{{STATIC_URL}}/js/prettyPhoto/css/prettyPhoto.css" />
+    <link rel="stylesheet" href="{{STATIC_URL}}media/ui.jqgrid.css" />
+    <link rel="stylesheet" href="{{STATIC_URL}}/media/style.css" />
+    {% for url_css in JQGRID_CSS %}<link rel="stylesheet" href="{{url_css}}" />{% endfor %}
+    {% include "blocks/extra_head.html" %}
+    {% block extra_head %}
+    {% endblock %}
+</head>
+<body{% if current_theme%} id='{{current_theme}}'{%endif%}>
+    <div id="header">
+        {% block header %}
+        {% if user.is_authenticated %}
+        {% trans "Logged in" %}: {{ user.username }}
+        (<a href="{% url 'auth_logout' %}">{% trans "Log out" %}</a> |
+        <a href="{% url 'auth_password_change' %}">{% trans "Change password" %}</a>)
+        {% else %}
+        <strong><a href="{% url 'auth_login' %}">{% trans "Log in" %}</a></strong>
+        {% endif %}
+        {% if LANGUAGES|length > 1 %}
+        <div id="language_form_div">
+            <form action="/i18n/setlang/" method="post" id='language_form'>
+                {% csrf_token %}
+                <label for='language_selector'>{% trans "Lang" %}{% trans ":"%} </label>
+                <select name="language" id='language_selector'>
+                    <option value="">-------</option>
+                {% for lang in LANGUAGES %}
+                    <option value="{{ lang.0 }}"{% ifequal LANGUAGE_CODE lang.0 %} selected='selected'{% endifequal %}>{{ lang.1 }}</option>
+                {% endfor %}
+                </select>
+            </form>
+        </div>{% endif %}
+        {% endblock %}
+    </div>
+    <div class="nav-button ui-state-default ui-corner-all" id="to_bottom_arrow">
+        <span class="ui-icon ui-icon-circle-arrow-s"></span>
+    </div>
+    <div class="nav-button ui-state-default ui-corner-all" id="to_top_arrow">
+        <span class="ui-icon ui-icon-circle-arrow-n"></span>
+    </div>
+    <div id="window"></div>
+    <div id="logo">
+{% if APP_NAME %}<p id="app_name">{{APP_NAME}}</p>{%endif%}
+    </div>
+    {% if not reminders %}<div id="context_menu">
+        {% block context %}{% if current_menu %}
+        <form method="post" action="{% url 'update-current-item' %}">
+        <fieldset>
+        <legend>{% trans "Default selected items"%}</legend>
+        <table id='current_items'>
+        {% for lbl, model_name, main_cls, items in current_menu %}
+            <tr>
+                <td><label for="current_{{model_name}}">{{lbl}}</label></td>
+                <td>
+                  <select class='{{main_cls}}' id='current_{{model_name}}'>
+                    <option class='normal' value=''>--</option>
+                    {% for val, label, selected, cls in items %}<option class='{{cls}}' value='{{val}}'{%if selected%} selected="selected"{%endif%}>{{label}}</option>
+                  {% endfor %}</select>
+                </td>{% with 'show-'|add:model_name as model_url%}
+                <td><a href='#' onclick='load_current_window("{% url model_url 0 %}", "{{model_name}}");' class='display_details'>{% trans "Details" %}</a></td>
+                {% endwith %}
+            </tr>
+        {% endfor %}
+        </table>
+        </fieldset>
+        </form>
+        {% endif %}{% endblock %}
+    </div>{% endif %}
+{% if reminders %}<fieldset id='reminder'><legend>{% trans "Current items" %}</legend>
+{% for lbl, value in reminders%}
+<p><strong class='lbl'>{{lbl}}{% trans ":"%}</strong> <span class='value'>{{value}}</span></p>
+{% endfor %}
+</fieldset>{%endif%}
+    <div id="main_menu">
+    <ul>
+      {% for section in MENU.childs %}
+      {% if section.available %}<li id='section-{{section.idx}}'>{{section.label}}
+      <ul>
+        {% for menu_item in section.childs %}{%if menu_item.available%}
+        {% if menu_item.childs %}<li id='subsection-{{menu_item.idx}}'>{{menu_item.label}}
+            <ul>
+                {% for menu_subitem in menu_item.childs %}{%if menu_subitem.available%}
+                <li id='{{menu_subitem.idx}}'{%ifequal menu_subitem.idx CURRENT_ACTION%} class='selected'{%endifequal%}><a href='{% url 'action' menu_subitem.idx%}'>{{menu_subitem.label}}</a></li>
+            {%endif%}{% endfor %}</ul></li>
+        {%else%}
+        <li id='{{menu_item.idx}}'{%ifequal menu_item.idx CURRENT_ACTION%} class='selected'{%endifequal%}><a href='{% url 'action' menu_item.idx%}'>{{menu_item.label}}</a></li>
+        {%endif%}{% endif %}{% endfor %}
+      </ul>
+      </li>{%endif%}
+      {% endfor %}
+    </ul>
+    </div>
+    <div id="content">
+        {% block content %}{% endblock %}
+    </div>
+
+    <div id="footer">
+        {% block footer %}
+        {% endblock %}
+    </div>
+    <div id="progress">
+        <div id='progress-content'>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,166 @@
+{% extends "ishtar/sheet.html" %}
+{% load i18n window_ope_tables window_field %}
+
+{% block head_sheet %}
+{{block.super}}
+<h1>{% trans "Archaeological file"%}</h1>
+{% endblock %}
+
+{% block content %}
+{% if previous or next %}
+<div class='tool'>
+{%if previous%}
+<a href="#" onclick='load_window("{% url show-historized-file item.pk previous|date:"c"%}");$("#{{window_id}}").hide();return false;'>{%trans "Previous version"%} ({{previous}})</a>
+{% endif %}
+{% if previous and next %} - {% endif %}
+{%if next%}
+<a href="#" onclick='if(confirm("{%trans "Are you sure to rollback to this version?"%}")){load_url("{% url revert-file item.pk item.history_date|date:"c"%}");closeAllWindows();load_window("{% url show-file item.pk None %}");}'>Rollback</a> -
+<a href="#" onclick='load_window("{% url show-historized-file item.pk next|date:"c" %}");$("#{{window_id}}").hide();return false;'>{%trans "Next version"%} ({{next}})</a>
+{% endif %}
+</div>
+{% endif %}
+<div class='tool'>{%trans "Export as:"%} <a href='{% url show-file item.pk "odt" %}'>{%trans "OpenOffice.org file"%}</a>, <a href='{% url show-file item.pk "pdf" %}'>{%trans "PDF file"%}</a></div>
+<hr/>
+<div class='tool modify'><a href='{% url file_modify item.pk %}'>{% trans "Modify" %}</a></div>
+
+{% if can_add_operation %}
+<div class='tool modify'><a href='{% url operation_add item.pk %}'>{%trans "Add an associated archaeological operation"%}</a></div>
+
+{%endif%}
+
+<h3>{% trans "General"%}</h3>
+
+{% field "Year" item.year "<strong>" "</strong>" %}
+{% field "Numerical reference" item.numeric_reference "<strong>" "</strong>" %}
+{% field "Other reference" item.internal_reference %}
+{% field "Name" item.name %}
+
+<p><label>{%trans "Edition date:"%}</label> <span class='value'>{% if item.history_date %}{{ item.history_date }}{% else %}{{ item.history.all.0.history_date }}{% endif %}</span></p> <!-- date = now -->
+
+{% field "Reception date" item.reception_date %}
+{% field "Creation date" item.creation_date %}
+{% field "Created by" item.history_creator.ishtaruser.full_label %}
+
+{% comment %}
+{% if item.deadline_date and not item.acts %}
+    <p><label>{%trans "Deadline:"%}</label> <span class='value'>{% item.deadline_date %}</span></p> <!-- calculated deadline for some preventive files , see saisine_type, not displayed if an act as been send -->
+{% endif %}
+{% endcomment %}
+
+{% field "In charge" item.in_charge.full_label %}
+
+<p><label>{%trans "State:"%}</label> <span class='value'>{% if item.is_active %}{%trans "Active file"%}</span></p>
+{% else %}{%trans "Closed file"%}</span></p>
+
+{% if item.closing %}<p><label>{%trans "Closing date:"%}</label> <span class='value'>{{ item.closing.date }} <strong>{%trans "by" %}</strong> {{ item.closing.user.full_label }}</span></p>{% endif %}
+{% endif %}
+
+{% field "Type" item.file_type %}
+
+{% if item.related_file %}<p><label>{%trans "Related file:"%}</label> <span class='value'><a href='#' onclick='load_window("{% url show-file item.related_file.pk ''%}")'>{{ item.related_file }}</a></span></p>{% endif %} <!-- Displayed as Year/index/Commune/Common_name This should be a link to the file sheet of the related file -->
+
+{% field "Comment" item.comment "<pre>" "</pre>" %}
+
+<h3>{% trans "Localisation"%}</h3>
+{% if item.towns.count %}<p><label>{%trans "Towns:"%}</label> <span class='value'>{{ item.towns.all|join:", " }}</span></p>{% endif %}
+{% if item.departments.count %}<p><label>{%trans "Departments:"%}</label> <span class='value'>{{ item.departments.all|join:", " }}</span></p>{% endif %}
+{% if item.address %}
+<p><label>{%trans "Main address:"%}</label> <span class='value'>{{ item.address }}</span></p>
+{% if item.address_complement %}<p><label>{%trans "Complement:"%}</label> <span class='value'>{{ item.address_complement }}</span></p>{%endif%}
+{% if item.postal_code %}<p><label>{%trans "Postal code:"%}</label> <span class='value'>{{ item.postal_code }}</span></p>{%endif%}
+{% endif %}
+{% if item.total_surface %}<p><label>{%trans "Surface:"%}</label> <span class='value'>{{ item.total_surface }} m<sup>2</sup> ({{ item.total_surface_ha }} ha)</span></p>{%endif%}
+
+
+{% if item.is_preventive %}
+
+<h3>{% trans "Preventive archaelogical file"%}</h3>
+{% if item.total_developed_surface %}<p><label>{%trans "Developed surface:"%}</label> <span class='value'>{{ item.total_developed_surface }} m<sup>2</sup> ({{ item.total_developed_surface_ha }} ha)</span></p>{% endif %}
+
+{% field "Saisine type" item.saisine_type %}
+
+{% field "Responsible for town planning service" item.responsible_town_planning_service.full_address %}
+{% if item.town_planning_service %}
+  {% field "Town planning service organization" item.town_planning_service.full_address %}
+{% else %}
+  {% field "Town planning service organization" item.responsible_town_planning_service.attached_to.full_address %}
+{% endif %}
+
+{% field "Permit type" item.permit_type %}
+{% field "Permit reference" item.permit_reference %}
+
+{% field "General contractor" item.general_contractor.full_address %}
+{% if item.corporation_general_contractor %}
+  {% field "General contractor organization" item.corporation_general_contractor.full_address %}
+{% else%}
+  {% field "General contractor organization" item.general_contractor.attached_to.full_address %}
+{% endif %}
+
+{% else %}
+
+<h3>{% trans "Research archaeology"%}</h3>
+{% if item.departments.count %}<p><label>{%trans "Departments"%}{%trans ":"%}</label> <span class='value'>{% for department in item.departments.all %}{% if forloop.counter0 %}, {% endif %}{{ department }}{% endfor %}</span></p>{% endif %}
+{% if item.scientist %}<p><label>{%trans "Head scientist"%}{%trans ":"%}</label> <span class='value'>{{ item.scientist }}</span></p>{% endif %}
+{% if item.requested_operation_type %}<p><label>{%trans "Requested operation type"%}{%trans ":"%}</label> <span class='value'>{{ item.requested_operation_type }}</span></p>{% endif %}
+{% if item.organization %}<p><label>{%trans "Organization"%}{%trans ":"%}</label> <span class='value'>{{ item.organization }}</span></p>{% endif %}
+{% if item.cira_advised != None %}<p><label>Passage en CIRA</label> <span class='value'>{{ item.cira_advised|yesno }}</span></p>{% endif %}
+{% if item.mh_register != None %}<p><label>Sur Monument Historique classé</label> <span class='value'>{{ item.mh_register|yesno }}</span></p>{% endif %}
+{% if item.mh_listing != None %}<p><label>Sur Monument Historique inscrit</label> <span class='value'>{{ item.mh_listing|yesno }}</span></p>{% endif %}
+{% if item.classified_area != None %}<p><label>{% trans "Classified area"  %}</label> <span class='value'>{{ item.classified_area|yesno }}</span></p>{% endif %}
+{% if item.protected_area != None %}<p><label>{% trans "Protected area"  %}</label> <span class='value'>{{ item.protected_area|yesno }}</span></p>{% endif %}
+{% if item.research_comment %}<p><label>{%trans "Comment"%}{%trans ":"%}</label> <span class='value'>{{ item.research_comment }}</span></p>{% endif %}
+
+{% endif %}
+
+{% trans "Associated parcels" as parcels_label %}
+{% include "ishtar/blocks/window_tables/parcels.html" %}
+
+{% trans "Administrative acts" as administrativeacts_label %}
+{% table_administrativact administrativeacts_label item.administrative_act.all %}
+
+<table class='simple'>
+  <caption>{%trans "Associated operations"%}</caption>
+  <tr>
+    <th>{% trans "Ref." %}</th>
+    <th>Code Patriarche</th>
+    <th>{% trans "Type" %}</th>
+    <th>{% trans "In charge" %}</th>
+    <th>{% trans "Start date" %}</th>
+    <th>{% trans "Excavation end date" %}</th>
+    <th class='link'>&nbsp;</th>
+  </tr>
+  {% for operation in item.operations.all %}
+  <tr>
+    <td>{{operation.year_index}}</td>
+    <td>{{operation.full_code_patriarche|default:""}}</td>
+    <td class='string'>{{operation.operation_type}}</td>
+    <td class='string'>{{operation.in_charge|default:""}}</td>
+    <td>{{operation.start_date|default:""}}</td>
+    <td>{{operation.excavation_end_date|default:""}}</td>
+    <td class='link'><a href="#" class='display_details' onclick='load_window("{%url show-operation operation.pk ''%}")'>{% trans "Details" %}</a></td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="8" class='no_items'>{% trans "No operation associated to this archaelogical file" %}</td></tr>
+  {% endfor %}
+</table>
+
+<table class='simple'>
+  <caption>{%trans "Admninistrative acts linked to associated operations"%}</caption>
+  <tr>
+    <th>{% trans "Year" %}</th>
+    <th>{% trans "Ref." %}</th>
+    <th>{% trans "Type" %}</th>
+    <th>{% trans "Date" %}</th>
+  </tr>
+  {% for act in item.operation_acts %}
+  <tr>
+    <td>{{act.signature_date.year}}</td>
+    <td>{{act.ref_sra}}</td>
+    <td class='string'>{{act.act_type}}</td>
+    <td>{{act.signature_date}}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4" class='no_items'>{% trans "No administrative act linked to operations" %}</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

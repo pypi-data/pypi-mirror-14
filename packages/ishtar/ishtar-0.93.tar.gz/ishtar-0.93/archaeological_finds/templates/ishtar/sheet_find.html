@@ -1,0 +1,125 @@
+{% extends "ishtar/sheet.html" %}
+{% load i18n window_field from_dict %}
+
+{% block head_sheet %}
+{{block.super}}
+<h1>{% trans "Find"%}</h1>
+{% endblock %}
+
+{% block content %}
+
+{% if previous or next %}
+<div class='tool'>
+{%if previous%}
+<a href="#" onclick='load_window("{% url show-historized-find item.pk previous|date:"c"%}");$("#{{window_id}}").hide();return false;'>{%trans "Previous version"%} ({{previous}})</a>
+{% endif %}
+{% if previous and next %} - {% endif %}
+{%if next%}
+<a href="#" onclick='if(confirm("{%trans "Are you sure to rollback to this version?"%}")){load_url("{% url revert-find item.pk item.history_date|date:"c"%}");closeAllWindows();load_window("{% url show-find item.pk None %}");}'>Rollback</a> -
+<a href="#" onclick='load_window("{% url show-historized-find item.pk next|date:"c" %}");$("#{{window_id}}").hide();return false;'>{%trans "Next version"%} ({{next}})</a>
+{% endif %}
+</div>
+{% endif %}
+
+<div class='tool'>{%trans "Export as:"%} <a href='{% url show-find item.pk "odt" %}'>{%trans "OpenOffice.org file"%}</a>, <a href='{% url show-find item.pk "pdf" %}'>{%trans "PDF file"%}</a></div>
+<div class='tool modify'><a href='{% url find_modify item.pk %}'>{% trans "Modify" %}</a></div>
+
+{% if item.image %}
+<a href='{{item.image.url}}' rel="prettyPhoto" title="{{item.label}}"><img src='{{item.thumbnail.url}}'/></a>
+{% endif%}
+
+{% field "Free-ID" item.label %}
+{% field "Previous ID" item.previous_id %}
+{% field "Description" item.description %}
+{% field "Created by" item.history_creator.ishtaruser.full_label %}
+{% field "Administrative index" item.administrative_index %}
+{% field_multiple "Material types" item.material_types %}
+{% field "Dating" item.dating %}
+{% field "Length (cm)" item.length %}
+{% field "Width (cm)" item.width %}
+{% field "Height (cm)" item.height %}
+{% field "Diameter (cm)" item.diameter %}
+{% field "Volume (l)" item.volume %}
+
+{% if item.weight %}{% with item.weight|add:' '|add:item.weight_unit as weight %}
+{% field "Weight" weight %}
+{% endwith %}{% endif %}
+{% field "Weight" item.weight %}
+
+{% field "Find number" item.find_number %}
+{% field "Conservatory state" item.conservatory_state %}
+{% field_multiple "Type of preservation to consider" item.preservation_to_considers %}
+{% field_multiple "Object types" item.object_types %}
+{% field_multiple "Integrity" item.integrities %}
+{% if item.CHECK_DICT %}
+{% field "Checked" item.checked|from_dict:item.CHECK_DICT %}
+{% endif%}
+{% if item.history_object and item.history_object.CHECK_DICT %}
+{% field "Checked" item.checked|from_dict:item.history_object.CHECK_DICT %}
+{% endif%}
+
+{% if item.upstream_treatment %}<p><label>{%trans "Upstream treatment"%}{% trans ":"%}</label>
+<span class='value'>{{item.upstream_treatment}} ({% for up in item.upstream_treatment.upstream_treatment.all %}{% if forloop.counter0 %}, {%endif %}{{up}}{% endfor %})</span></p>{% endif%}
+{% if item.downstream_treatment %}<p><label>{%trans "Downstream treatment"%}{% trans ":"%}</label>
+<span class='value'>{{item.downstream_treatment}} ({% for dt in item.downstream_treatment.downstream_treatment.all %}{% if forloop.counter0 %}, {%endif %}{{dt}}{% endfor %})</span></p>{% endif%}
+{% if item.container %}<p><label>{%trans "Container"%}{% trans ":"%}</label>
+<span class='value'>{{item.container}}</span></p>{% endif%}
+
+<h3>{% trans "Associated base finds"%}</h3>
+
+{% for base_find in item.base_finds.all %}
+<p><label>{%trans "Complete ID"%}{% trans ":"%}</label>
+<span class='value'>{{base_find.complete_id}}</span></p>
+
+{% field "Short ID" base_find.short_id %}
+{% if base_find.IS_ISOLATED_DICT %}
+{% field "Batch/object" base_find.batch|from_dict:base_find.IS_ISOLATED_DICT %}
+{% endif %}
+{% if base_find.history_object and base_find.history_object.IS_ISOLATED_DICT %}
+{% field "Batch/object" base_find.batch|from_dict:base_find.history_object.IS_ISOLATED_DICT %}
+{% endif %}
+
+{% if base_find.discovery_date %}
+<p><label>{%trans "Discovery date"%}{% trans ":"%}</label>
+<span class='value'>{{base_find.discovery_date}}</span></p>
+{% endif%}
+{% if base_find.description %}
+<p><label>{%trans "Description"%}{% trans ":"%}</label>
+<span class='value'>{{base_find.description}}</span></p>
+{% endif%}
+{% field "Comment" base_find.comment "<pre>" "</pre>" %}
+{% if base_find.special_interest %}
+<p><label>{%trans "Special interest"%}{% trans ":"%}</label>
+<span class='value'>{{base_find.special_interest}}</span></p>
+{% endif%}
+
+<p><label>{%trans "Related context record"%}{% trans ":"%}</label>
+<span class='value'><a href="#" onclick='load_window("{% url show-contextrecord base_find.context_record.pk ''%}");'>{{ base_find.context_record }}</a></span></p>
+<p><label>{%trans "Related parcel"%}{% trans ":"%}</label>
+<span class='value'>{{base_find.context_record.parcel}}</span></p>
+<p><label>{%trans "Related operation"%}{% trans ":"%}</label>
+<span class='value'><a href="#" onclick='load_window("{% url show-operation base_find.context_record.operation.pk ''%}");'>{{ base_find.context_record.operation }}</a></span></p>
+{% if forloop.counter0 %}<hr/>{% endif %}
+{% endfor %}
+
+<table class='simple'>
+  <caption>{%trans "Documents"%}</caption>
+  <tr>
+    <th>{% trans "Title" %}</th>
+    <th>{% trans "Type" %}</th>
+    <th>{% trans "Authors" %}</th>
+    <th>{% trans "Link" %}</th>
+  </tr>
+  {% for doc in item.source.all %}
+  <tr>
+    <td class='string'>{{ doc.title }}</td>
+    <td class='string'>{{doc.source_type}}</td>
+    <td class='string'>{{ doc.authors.all|join:", " }}</td>
+    <td class='string'>{% if doc.associated_url  %}<a href='{{doc.associated_url}}'>{% trans "Link"%}</a>{% endif %}</td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="4" class='no_items'>{% trans "No document associated to this find" %}</td></tr>
+  {% endfor %}
+</table>
+
+{% endblock %}

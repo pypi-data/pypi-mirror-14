@@ -1,0 +1,113 @@
+{% load i18n %}{% load url from future %}
+<div id='person-form'>
+<form id='dyn-form-person' method='post'>
+{% csrf_token %}
+{% for hidden_field in form.hidden_fields %}{{hidden_field}}{% endfor %}
+<input type='hidden' name='hidden_person_pk' id='hidden_person_pk' value='{{object.pk}}'/>
+<input type='hidden' name='hidden_person_lbl' id='hidden_person_lbl' value="{{object}}"/>
+<table class='person'>
+<caption>{% trans "Identification" %}</caption>
+<tr>
+    <th><label>{{form.title.label}}</label></th>
+    <td>{{form.title}}</td>
+</tr>
+<tr>
+    <th><label>{{form.name.label}}</label></th>
+    <td>{{form.name}}</td>
+</tr>
+<tr>
+    <th><label>{{form.surname.label}}</label></th>
+    <td>{{form.surname}}</td>
+</tr>
+</table>
+<table class='person-address'>
+<caption>{% trans "Contact informations" %}</caption>
+<tr>
+    <th><label>{{form.address.label}}</label></th>
+    <td>{{form.address}}</td>
+</tr>
+<tr>
+    <th><label>{{form.address_complement.label}}</label></th>
+    <td>{{form.address_complement}}</td>
+</tr>
+<tr>
+    <th><label>{{form.postal_code.label}}</label></th>
+    <td>{{form.postal_code}}</td>
+</tr>
+<tr>
+    <th><label>{{form.town.label}}</label></th>
+    <td>{{form.town}}</td>
+</tr>
+</table>
+<div>
+<input type='submit' id='btn-modify-person' value="{% trans "Modify"%}"/>
+<input type='submit' id='btn-new-person' value="{% trans "New"%}"/>
+<input type='submit' id='btn-save-person' value="{% trans "Save"%}"/>
+<input type='submit' id='btn-cancel-person' value="{% trans "Cancel"%}"/>
+</div>
+</form>
+</div>
+<script type="text/javascript"><!--//
+$(function() {
+    // person_save_callback and person_new_callback must have been defined
+    disable_person = function(){
+        $("#person-form :input[type='text'], #person-form textarea, #person-form select").prop("disabled", true);
+        $("#btn-save-person").hide();
+        $("#btn-cancel-person").hide();
+        $("#btn-modify-person").show();
+        $("#btn-new-person").show();
+        $("#person-form").removeClass('selected');
+    }
+
+    enable_person = function(){
+        $("#person-form :input[type='text'], #person-form textarea, #person-form select").prop("disabled", false);
+        $("#btn-save-person").show();
+        $("#btn-cancel-person").show();
+        $("#btn-modify-person").hide();
+        $("#btn-new-person").hide();
+        $("#person-form").addClass('selected');
+    }
+
+    disable_person();
+
+    var submit_url;
+    $("#btn-modify-person").on('click', function(){
+        {% if object %}submit_url = "{% url 'person_edit' object.pk %}";
+        {% else %}submit_url = "{% url 'person_create' %}";{% endif %}
+        enable_person();
+        return false;
+    });
+    $("#btn-new-person").on('click', function(){
+        submit_url = "{% url 'person_create' %}";
+        $("#person-form").find("input[type=text], textarea").val("");
+        enable_person();
+        person_new_callback();
+        return false;
+    });
+    $("#btn-cancel-person").on('click', function(){
+        person_save_callback($('#hidden_person_pk').val(),
+                             $('#hidden_person_lbl').val());
+        disable_person();
+        return false;
+    });
+    $("#btn-save-person").on('click', function(){
+        var form = $("#dyn-form-person");
+        $.ajax({
+            url: submit_url,
+            type: 'post',
+            data: form.serialize(),
+            dataType: 'html',
+            success: function(data) {
+                $("#person-form").parent().html(data);
+                person_save_callback($('#hidden_person_pk').val(),
+                                     $('#hidden_person_lbl').val());
+                disable_person();
+                return false;
+            }
+        });
+        return false;
+    });
+
+
+});
+//--></script>

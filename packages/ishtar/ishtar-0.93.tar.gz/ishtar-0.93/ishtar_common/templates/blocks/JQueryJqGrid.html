@@ -1,0 +1,166 @@
+{% load i18n %}
+
+<button id='search_{{name}}' class='submit ui-widget-header'>{% trans "Search" %}</button>
+
+{% if url_new %}
+<p><a href="#" onclick="open_window('{{url_new}}');">{{new_message}}</a></p>
+{% endif %}
+
+<h4>{% trans "Search and select an item" %}</h4>
+
+<table id='grid_{{name}}' class='jqgrid'></table>
+<div id='pager_{{name}}'></div>
+
+<div id='foot_{{name}}' class='gridfooter'>
+{% if source_full %}
+{% trans "Export as CSV" %} ({{encoding}})
+<a class='{{sname}}-csv' href='{{source}}csv' target='_blank'>{% trans "simple" %}</a> - 
+<a class='{{sname}}-csv-full' href='{{source_full}}csv' target='_blank'>{% trans "full" %}</a>
+{% else %}
+<a class='{{sname}}-csv' href="{{source}}csv" target="_blank">{% trans "Export as CSV" %} ({{encoding}})</a>
+{% endif %}
+</div>
+
+{% if multiple %}
+<input type="button" id="add_button_{{name}}" value="{% trans "Add" %}"/>
+<ul id="selectmulti_{{name}}" class="selectmulti"></ul>
+{% endif %}
+
+<input type="hidden" id="hidden_{{name}}" name="{{name}}"/>
+
+<script type="text/javascript" language='javascript'>
+
+var query_vars = new Array({{col_idx|safe}});
+var selItems_{{sname}} = new Array();
+jQuery(document).ready(function(){
+  jQuery("#search_{{name}}").click(function (){
+    if ($("#progress").length > 0){
+        $("#progress").show();
+    }
+    var data = "";
+    for (idx in query_vars)
+    {
+        var key = query_vars[idx];
+        var item = jQuery("#id_"+key);
+        var val = null;
+        if (item.prop('type') == 'checkbox'){
+            if (item.prop('checked')){
+                var val = item.val();
+            }
+        } else {
+            var val = item.val();
+        }
+        if (val){
+            if (data) data += "&";
+            data += key + "=" + val;
+        }
+    }
+    var mygrid = jQuery("#grid_{{name}}");
+    var url = "{{source}}?submited=1&" + data;
+    var csv_url = "{{source}}csv?submited=1&" + data;
+    $(".{{sname}}-csv").attr("href", csv_url);
+    var csv_full_url = "{{source_full}}csv?submited=1&" + data;
+    $(".{{sname}}-csv-full").attr("href", csv_full_url);
+
+    mygrid.setGridParam({url:url, page:1});
+    mygrid.trigger("reloadGrid");
+    if ($("#progress").length > 0){
+        $("#progress").hide();
+    }
+    return false;
+  });
+
+  jQuery("#grid_{{name}}").jqGrid({
+    url:'{{source}}',
+    datatype: "json",
+    mtype: 'GET',
+    colNames:['id', '', {{col_names|safe}}],
+    colModel:[
+      {name:'id', index:'id', hidden:true},
+      {name:'link', index:'link', width:30},
+      {{extra_cols|safe}}
+    ],
+    height: 300,
+    sortname: 'value',
+    viewrecords: true,
+    sortorder: "asc",
+    emptyrecords: "{{no_result}}",
+    loadtext: "{{loading}}",
+    pager: '#pager_{{name}}',
+    width: null,
+    shrinkToFit: false,
+    rowNum:20,
+    jsonReader : {repeatitems: false},
+    loadError: function (jqXHR, textStatus, errorThrown) {
+        alert("{% trans "An error as occured during search. Check your query fields." %}");
+    }
+  });
+{% if multiple %}
+  jQuery("#add_button_{{name}}").click(function (){
+    var mygrid = jQuery("#grid_{{name}}");
+    var idx = mygrid.getGridParam('selrow');
+    var lbl_cols = new Array({{multi_cols|safe}});
+    var label = "";
+    for (var id in lbl_cols){
+        if(id == 1){
+            label += " (";
+        }else if (id > 1){
+            label += " ; ";
+        }
+        label += mygrid.getCell(idx, lbl_cols[id]);
+    }
+    if (id > 0){
+        label += ")";
+    }
+    for (id in selItems_{{sname}}){
+        if(selItems_{{sname}}[id] == idx){
+            return false;
+        }
+    }
+    selItems_{{sname}}.push(idx);
+    jQuery("#selectmulti_{{name}}").append(
+               "<li id='selected_{{name}}_"+idx+"'>\
+<a href='#' class='remove' \
+  onclick=\"multiRemoveItem(selItems_{{sname}}, '{{name}}', "+ idx +");\
+  return false;\" title=\"{{remove}}\">X</a>" + label + "</li>");
+    return true;
+  });
+  jQuery("#submit_form").click(function (){
+    jQuery("#hidden_{{name}}").val(selItems_{{sname}});
+    return true;
+  });
+{% else %}
+  jQuery("#submit_form").click(function (){
+    var mygrid = jQuery("#grid_{{name}}");
+    jQuery("#hidden_{{name}}").val(mygrid.getGridParam('selrow'));
+    return true;
+  });
+{% endif %}
+
+});
+
+  function get_next_table_id(c_id){
+    var mygrid = jQuery("#grid_{{name}}");
+    var has_current_id = false;
+    ids = mygrid.getDataIDs();
+    for (idx in ids){
+        if (has_current_id) return ids[idx];
+        if (ids[idx] == c_id) has_current_id = true;
+    }
+    return false;
+  }
+  function get_previous_table_id(c_id){
+    var mygrid = jQuery("#grid_{{name}}");
+    var previous_id = 0;
+    ids = mygrid.getDataIDs();
+    for (idx in ids){
+        if (ids[idx] == c_id){
+            if (previous_id) return previous_id;
+            return false;
+        }
+        previous_id = ids[idx];
+    }
+    return false;
+  }
+</script>
+
