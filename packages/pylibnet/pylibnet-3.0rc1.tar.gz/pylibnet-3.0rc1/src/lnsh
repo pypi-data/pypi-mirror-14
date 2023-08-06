@@ -1,0 +1,141 @@
+#!/usr/bin/python
+
+# libneterpreter - interactive libnet interpreter
+# Copyright (C) 2011 Nadeem Douba
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Nadeem Douba <ndouba at gmail dot com>
+# 348 Patricia Ave, Ottawa, ON, K1Z 6G6
+# Canada
+
+import sys
+
+from code import InteractiveConsole
+
+import libnet
+from libnet import *
+from libnet.constants import *
+
+import rlcompleter
+import readline
+
+import argparse
+
+def parseargs(argv):
+
+	args = []
+	args_l = [] 
+	args_r = []
+	
+
+	for i in argv:
+		args.extend(i.split(' '))
+	
+	i = 0
+
+	while i < len(args):
+		if args[i] == '-i' or args[i] == '-t':
+			args_l.append(args[i])
+			args_l.append(args[i+1])
+			i+=1
+		else:
+			args_r.append(args[i])
+		i+=1
+	
+	args_l.extend(args_r)
+
+	parent = argparse.ArgumentParser(description='Interactive Libnet Interpretter - Copyright (C) 2011 Nadeem Douba under GNU GPL.', conflict_handler='resolve')
+	parent.add_argument('scriptargv', metavar='argN', type=str, nargs='*', help='libneterpretter script arguments.', default=None)
+	parent.add_argument('-i', metavar='<device>', required=True, help='the packet injection interface (e.g. eth0).', default=None)
+	parent.add_argument('-t', metavar='<injection_type>', help='the injection type. Can be either RAW4, RAW4_ADV, RAW6, RAW6_ADV, LINK, or LINK_ADV', default='RAW4', choices=('RAW4', 'RAW4_ADV', 'RAW6', 'RAW6_ADV', 'LINK', 'LINK_ADV'))
+	args = parent.parse_args(args_l)
+
+	return args.i, args.t, args.scriptargv
+	
+
+def main(argv, locals=None):
+
+	device, injection_type, sys.argv = parseargs(argv)
+	
+	script = None
+
+	if len(sys.argv) > 0:
+		script = sys.argv[0]
+	
+	
+	# evaluate injection type name to integer
+	injection_type = eval(injection_type)
+
+	# Setup readline for easy function reference
+	readline.parse_and_bind("tab: complete")
+
+	# Initialize libnet context
+	try:
+		c = context(device=device, injection_type=injection_type)
+	except error as err:
+		print(err)
+		sys.exit(-1)
+
+	# Create some easy aliases for everything
+	for i in dir(c):
+		if i.startswith('build_'):
+			locals[i.replace('build_','',1)] = eval('c.%s' % i)
+		elif i.startswith('autobuild_'):
+			locals[i.replace('build','',1)] = eval('c.%s' % i)
+		elif i.startswith('get'):
+			locals[i.replace('get','',1)] = eval('c.%s' % i)
+		elif i.startswith('diag_'):
+			locals[i.replace('diag_','',1)] = eval('c.%s' % i)
+		if i.startswith('__') == False:
+			locals[i] = eval('c.%s' % i)
+
+	shell = LibnetShell(locals=locals)
+
+	if script:
+		shell.runsource(file(script).read(), symbol='exec')
+	else:
+		shell.interact(banner='Welcome to the libnet interactive console.\nCopyright (C) 2011 Nadeem Douba under GNU GPL\n')
+
+class LibnetShell(InteractiveConsole):
+
+	def __init__(self, locals=None):
+		InteractiveConsole.__init__(self, locals=locals)
+
+	def raw_input(self, prompt):
+		line = InteractiveConsole.raw_input(self, prompt="libnet> ")
+
+		if line.lower() == 'exit' or line.lower() == 'quit':
+			return 'exit()'
+
+		if line.lower() == 'help':
+			return 'help(libnet)'
+
+		if line.lower() == 'diag':
+			self.push('print "\\nLibnet Context State:\\n------------------------"')
+			self.push('dump_context()')
+			self.push('print "\\nPacket Stats:\\n------------------------"')
+			self.push('stats()')
+			self.push('print "\\nCurrent Packet (decoded):\\n------------------------"')
+			self.push('print packet()')
+			return 'print'
+
+		if self.locals.has_key(line) and hasattr(self.locals[line], '__call__'):
+			return '%s()' % line
+
+		return line
+
+if __name__ == '__main__':
+
+	main(sys.argv[1:], locals())
