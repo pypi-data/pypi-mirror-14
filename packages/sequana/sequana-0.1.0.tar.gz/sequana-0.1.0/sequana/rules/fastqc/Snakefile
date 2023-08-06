@@ -1,0 +1,70 @@
+"""
+
+
+
+"""
+import sequana.snaketools as sm
+import glob
+
+
+configfile: "config.yaml"
+
+
+sm.message("Include sequana.fastqc rule")
+
+
+# identify the files automatically
+data_tags =  [sm.get_tagname(x) for x in glob.glob(config['datadir']+"/*fastq*")]
+
+
+
+# fastq_results must be created for now
+rule fastqc:
+    input:
+        expand("fastq_sampling/{dataset}.fastq.gz", dataset=data_tags),
+        expand("bwa_fix/{dataset}.unmapped.fastq",
+            dataset=['contaminant_R1', 'contaminant_R2']),
+        expand("bwa_fix/{dataset}.mapped.fastq",
+            dataset=['contaminant_R1', 'contaminant_R2']),
+    output:
+        expand("fastqc/{dataset}_fastqc.html", dataset=data_tags),
+        expand("fastqc/{dataset}.unmapped_fastqc.html",
+            dataset=['contaminant_R1', 'contaminant_R2']),
+        expand("fastqc/{dataset}.mapped_fastqc.html",
+            dataset=['contaminant_R1', 'contaminant_R2']),
+        touch("fastqc/fastqc.done")
+    params: dir="fastqc"
+    threads: 6
+    log:
+        "fastqc.log",
+    run:
+        # if the content of the file is empty, this will fail. We need to
+        # touch  a file in such case.
+        from sequana import FastQ
+        newinput = []
+        for i, this in enumerate(input):
+            fastq = FastQ(this)
+            if len(fastq) != 0:
+                newinput.append(this)
+            else:
+                with open(output[i], "w") as fh:
+                    fh.write("No data in %s" % output[i])
+        shell("fastqc -t {threads} --outdir {params.dir} -f fastq {newinput} > {params.dir}/{log}")
+
+
+rule fastqc_output:
+    input: "fastqc.done"
+
+
+rule fastqc_cleanup:
+    """Remove the contents of the fastqc directory"""
+    params:
+        wkdir = "fastqc",
+    run:
+        filenames = glob.glob(params['wkdir']+'/*')
+        for filename in filenames:
+            print('removing %s' % filename)
+            os.remove(filename)
+
+
+
