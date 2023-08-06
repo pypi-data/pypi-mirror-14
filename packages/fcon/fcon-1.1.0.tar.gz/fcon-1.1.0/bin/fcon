@@ -1,0 +1,102 @@
+#!/usr/bin/env python
+#-*- coding:utf-8 -*-
+
+#############################################
+# File Name: fcon.py
+# Author: xiaoh
+# Mail: xiaoh@about.me
+# Created Time:  2015-11-20 02:51:31 PM
+#############################################
+
+import sys, os, re, string
+import click
+try:
+    import fcon
+except:
+    sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
+    import fcon
+
+def output_version(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo("Version: %s" % fcon.__version__)
+    ctx.exit()
+
+@click.command()
+@click.option('-v', '--version', is_flag=True, is_eager=True, callback=output_version, expose_value=False)
+@click.option('-p', '--search_path', default=os.getcwd(), help='Path for searching default:[%s]' % os.getcwd())
+@click.option('-f', '--file_reg', default='', help='Regex string for searching files pattern default:[\'\']')
+@click.option('--output/--no-output', default=False, help='Output logs default:[False]')
+@click.argument('content_match_reg')
+def cli(search_path, file_reg, output, content_match_reg):
+    '''
+        show the files which contains the content you want to search.
+    '''
+    click.echo('search_path:"%s", file_reg:"%s", content_match_reg:"%s", output:%s' % (search_path, file_reg, content_match_reg, output))
+    if not os.path.isdir(search_path):
+        click.echo('\033[1;31;40m[ERROR]\033[0m Path for searching ERROR')
+        return
+    try:
+        fr = re.compile('(?i).*' + file_reg)
+    except:
+        click.echo('\033[1;31;40m[ERROR]\033[0m Regex string for searching files ERROR')
+        return
+
+    try:
+        cr = re.compile('(.*)(%s)(.*)' % content_match_reg.replace('(','').replace(')',''))
+    except:
+        click.echo('\033[1;31;40m[ERROR]\033[0m Regex string for searching content ERROR')
+        return
+
+    files = find_files(search_path, fr)
+
+    for fi in files:
+        if output:
+            click.echo('SEARCHING FILE: "%s"' % fi)
+        if is_text_file(fi):
+            with open(fi) as f:
+                out_flag = False
+                lines = f.readlines()
+                for index in xrange(len(lines)):
+                    line = lines[index]
+                    m = cr.match(line[0:-1])
+                    if m:
+                        if not out_flag:
+                            click.echo('\033[0mRESULT FROM FILE: \033[1;33;40m%s' % fi)
+                            out_flag = True
+                        click.echo("\033[1;31;40m%3s\033[0m, %s\033[0;32;40m%s\033[0m%s" 
+                                % (str(index+1), m.group(1), m.group(2), m.group(3)))
+
+    click.echo('SEARCHING DONE.')
+
+def find_files(dirPath, r):
+    files = []
+    for fd in os.listdir(dirPath):
+        path = os.path.join(dirPath, fd)
+        if os.path.isdir(path):
+            files = files + find_files(path, r)
+        else:
+            if r.match(fd):
+                files.append(path)
+    return files
+
+
+text_char = "".join(map(chr, range(32, 127)) + list("\n\r\t\b"))
+null_trans = string.maketrans("", "")
+def is_text_file(filename, block_size=512):
+    try:
+        with open(filename) as f:
+            s = f.read(block_size)
+            if "\0" in s:       # if exist \0，binary file
+                return False
+            if not s:           # empty, text file
+                return True
+            t = s.translate(null_trans, text_char)
+        return len(t)/len(s) < 0.3  # remove char over, less than 30% then text file
+    except:
+        click.echo('\033[1;31;40m[ERROR]\033[0m Open file %s failed.' % filename)
+        return False
+
+if __name__ == "__main__":
+    cli()
+
