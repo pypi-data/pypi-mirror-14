@@ -1,0 +1,7 @@
+jaraco.stream
+=============
+
+Routines for handling streaming data, including a
+set of generators for loading gzip data on the fly.
+
+
