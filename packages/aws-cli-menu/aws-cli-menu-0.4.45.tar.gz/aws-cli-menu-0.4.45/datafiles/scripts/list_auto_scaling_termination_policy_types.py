@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+
+import boto3.session
+from aws_cli_menu_helper import *
+import sys
+
+try:
+
+    profile_name = get_profile_name()
+    print("\n\n")
+
+    session = boto3.session.Session(profile_name=profile_name)
+    client = session.client('autoscaling')
+
+    response = client.describe_termination_policy_types()
+
+    if 'TerminationPolicyTypes' in response:
+        stacks = response.get('TerminationPolicyTypes')
+
+        if len(stacks) > 0:
+            for s in stacks:
+                print("\n")
+                print('###########################')
+                print('TerminationPolicyTypes')
+                print('###########################')
+                print(pretty(s))
+        else:
+            print("\n")
+            print("#############################")
+            print('No TerminationPolicyTypes')
+            print("#############################")
+    else:
+        print("\n")
+        print("##############################")
+        print('No TerminationPolicyTypes')
+        print("##############################")
+
+
+except (KeyboardInterrupt, SystemExit):
+    sys.exit()
