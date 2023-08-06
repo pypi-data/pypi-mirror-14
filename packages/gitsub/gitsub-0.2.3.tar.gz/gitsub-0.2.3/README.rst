@@ -1,0 +1,59 @@
+gitsub
+======
+
+|version| |unix-build|
+
+Help you keep updated with software development on multiple git
+repositories.
+
+Requirements
+============
+
+-  python 3.5+
+-  pip 6.0+
+-  git 2.7+
+
+Installation
+============
+
+Install ``gitsub`` with ``pip``:
+
+.. code:: bash
+
+    sudo pip install gitsub
+
+Usage
+=====
+
+Read new updates from repositories:
+
+.. code:: bash
+
+    gitsub
+
+List current repository list:
+
+.. code:: bash
+
+    gitsub ls
+
+Add new repositories:
+
+.. code:: bash
+
+    gitsub add path_1 path_2 ...
+
+Synchronize repositories with upstream:
+
+.. code:: bash
+
+    gitsub sync
+
+
+.. |version| image:: https://img.shields.io/pypi/v/gitsub.svg
+    :target: https://pypi.python.org/pypi/gitsub
+    :alt: Latest stable build on pypi
+
+.. |unix-build| image:: https://img.shields.io/travis/aufarg/gitsub/master.svg
+    :target: https://travis-ci.org/aufarg/gitsub
+    :alt: Build status on Linux
