@@ -1,0 +1,54 @@
+sudo: false
+
+language: python
+
+python:
+  - "2.7"
+  - "2.7_with_system_site_packages"
+  - "3.3"
+  - "3.4"
+
+cache:
+  directories:
+    - $HOME/.cache/pip
+
+install:
+  # Install newer version of pip to take advantage of bdist_wheel cache.
+  - pip install pip --upgrade
+  # We install these requirements here rather than through the requirements.txt
+  # file because of issues on readthedocs. First we install Cython so that it 
+  # creates a bdist_wheel and then h5py. This allows Travis to cache the builds.
+  - pip install Cython
+  - pip install h5py 
+  - pip install -r requirements.txt
+  - python setup.py sdist 
+  - pip install dist/msprime*.tar.gz --no-cache-dir
+
+script: 
+  - flake8 setup.py msprime tests
+  - nosetests -v --with-coverage --cover-package msprime
+              --cover-branches --cover-erase
+              --cover-inclusive --cover-min-percentage 90 tests
+  - make -C docs 
+
+env:
+  global:
+  # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+  # via the "travis encrypt" command using the project repo's public key
+  - secure: "XRqUqbcFEmdl5dN7bvBeMRRdMtN1Sfcfqc0iLx8mH1xRRy8lQgaSmWG3zdaY5WSFbCGwoPuv2IXy7bPbwX5DKYsH0OkXLfkgo3yjw5X4341hQjMn0B7scr0lM8QU30YcSgqniFxEwMOytmQsQGSKwlz6tMKs2R758GCR7xJIyi4="
+
+addons:
+  apt:
+    packages:
+      - libgsl0-dev
+      - libhdf5-serial-dev
+      - python-h5py
+
+  coverity_scan:
+    project:
+      name: "jeromekelleher/msprime"
+      description: "Coalescent simulator"
+    notification_email: jk@well.ox.ac.uk
+    build_command_prepend: "cd lib && make avl.o"
+    build_command:   "cd lib && make"
+    branch_pattern: coverity_scan
