@@ -1,0 +1,345 @@
+{
+  "Description" : {"yac-ref": "service-description"},
+
+  "Parameters" : {                 
+    "InstanceType" : {
+      "Description" : "Type of EC2 instance to launch",
+      "Type" : "String",
+      "Default" : {"yac-ref": "instance-type"}
+    },
+    "WebServerPort": {
+      "Description" : "Port web server listens on",
+      "Type" : "String",
+      "Default" : "80"
+    },
+    "DebugPort": {
+      "Description" : "Secondary port web server listens on (e.g. for debug)",
+      "Type" : "String",
+      "Default" : "81"
+    },    
+    "ImageId" : {
+      "Description" : "Image AMI Id",
+      "Type" : "String",
+      "Default" : {"yac-ref": "instance-ami"}
+    },          
+    "DockerVolumeSize" : {
+      "Description" : "The size of the volume used to store docker images (in GB)",
+      "Type" : "String",
+      "Default" : "40"
+    }, 
+    "HomeVolumeSize" : {
+      "Description" : "The size of the volume used to store the home directory (in GB)",
+      "Type" : "String",
+      "Default" : "50"
+    },
+    "HealthCheckPath" : {
+      "Description" : "The ping path to use in ELB health check",
+      "Type" : "String",
+      "Default" : "/"
+    },  
+    "S3Bucket" : {
+      "Description" : "The S3 bucket used for backups.",
+      "Type" :        "String",
+      "Default": {"yac-ref" : "s3-bucket"}
+    }  
+  },
+  "Conditions" : {
+    "AllowProdAccountIngress" : {"Fn::Equals" : [{"yac-ref" : "env"}, "prod"]},
+    "IsDevEnv" : {"Fn::Equals" : [{"yac-ref" : "env"}, "dev"]},
+    "IsLowerEnv" : {"Fn::Not" : [{"Fn::Equals" : [{"yac-ref" : "env"}, "prod"]}]},
+    "HasCorporateIntranet" : {"Fn::Not": [{"Fn::Equals" : [{"yac-ref" : "corporate-cidr" }, ""]}]},
+    "HasOutboundProxy" : {"Fn::Not": [{"Fn::Equals" : [{"yac-ref" : "proxy-port" }, ""]}]},
+    "AllowCorporateDockerAPI": { "Fn::And": [
+        {"Condition": "IsDevEnv"},
+        {"Condition": "HasCorporateIntranet"}]
+    },
+    "AllowPublicDockerAPI": { "Fn::And": [
+        {"Condition": "IsDevEnv"},
+        {"Fn::Not": [{"Condition": "HasCorporateIntranet"}]}]
+    }
+  },
+  "Resources" : {
+    "AppAutoScalingGroup": {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "AvailabilityZones": { "yac-ref" : "availability-zones" },
+        "LoadBalancerNames": { "yac-ref" : "load-balancer-refs" },
+        "DesiredCapacity" : "1",
+        "MaxSize": "1",
+        "MinSize": "1",
+        "HealthCheckGracePeriod": "600",
+        "HealthCheckType": "EC2",
+        "LaunchConfigurationName": { "Ref" : "AppLaunchConfig" },
+        "VPCZoneIdentifier": {"yac-ref" : "dmz-subnet-ids"},
+        "Tags" : [ 
+          { "Key": "Name", "Value" : { "yac-name" : "asg" },"PropagateAtLaunch": true },
+          { "Key": "Owner", "Value": { "yac-ref": "owner" },"PropagateAtLaunch": true  },
+          { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" },"PropagateAtLaunch": true  }
+        ]
+      }
+    },    
+    "AppLaunchConfig" : {
+      "Type" : "AWS::AutoScaling::LaunchConfiguration",
+      "Properties" : {
+        "KeyName" : { "yac-ref" : "ssh-key" },
+        "SecurityGroups": [{"Fn::GetAtt": ["AppSG","GroupId"]}],
+        "ImageId": { "Ref" : "ImageId" },
+        "InstanceType": { "Ref": "InstanceType" },
+        "IamInstanceProfile": {"Ref" : "IAMRole" },
+        "BlockDeviceMappings": [
+          {
+            "DeviceName": "/dev/xvdc",
+            "Ebs": {
+              "VolumeType": "gp2",
+              "DeleteOnTermination": "false",
+              "VolumeSize": {"Ref" : "DockerVolumeSize" }
+            }
+          },
+          {
+            "DeviceName": "/dev/xvdd",
+            "Ebs": {
+              "VolumeType": "gp2",
+              "DeleteOnTermination": "false",
+              "VolumeSize": {"Ref" : "HomeVolumeSize" }
+            }
+          }
+        ],
+        "UserData" : { "Fn::Base64": { "Fn::Join" : ["", {"yac-fxn": "yac/lib/boot.py"} ] } }
+      }
+    },
+    "IAMRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "Path": {"Fn::Join" : [ "/", [ "", 
+                    {"yac-join" : [ "/", [                       
+                      {"yac-ref": "cost-center"},
+                      {"yac-ref": "division"},
+                      {"yac-ref": "team"}]]
+                    }, ""] ] },
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Sid": "",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ec2.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [{
+          "PolicyName": "EC2Access",
+          "PolicyDocument": {
+            "Statement": [
+              {
+                "Resource": [
+                  "arn:aws:s3:::tts-sets-team\/jira\/*",
+                  "arn:aws:s3:::tts-sets-team"
+                ],
+                "Action": [
+                  "s3:DeleteObject*",
+                  "s3:GetObject*",
+                  "s3:ListBucket*",
+                  "s3:PutObject",
+                  "s3:RestoreObject",
+                  "s3:*MultipartUpload*"
+                ],
+                "Effect": "Allow"
+              },
+              {
+                "Resource": "*",
+                "Action": [
+                  "logs:*"
+                ],
+                "Effect": "Allow"
+              },
+              {
+                "Resource": "*",
+                "Action": [
+                  "ecs:*"
+                ],
+                "Effect": "Allow"
+              },
+              {
+                "Resource": "*",
+                "Action": [
+                  "cloudwatch:ListMetrics",
+                  "cloudwatch:GetMetricStatistics",
+                  "cloudwatch:PutMetricData",
+                  "autoscaling:DescribeAutoScalingInstances"
+                ],
+                "Effect": "Allow"
+              }
+            ]
+          }
+        }]
+      }
+    },
+    "IAMRoleProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": {"Fn::Join" : [ "/", [ "", 
+                    {"yac-join" : [ "/", [                       
+                      {"yac-ref": "cost-center"},
+                      {"yac-ref": "division"},
+                      {"yac-ref": "team"}]]
+                    }, ""] ] },
+        "Roles": [{
+          "Ref": "IAMRole"
+        }]
+      }
+    },     
+    "AppSG" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Metadata" : {
+        "Comment" : "Explanation for each non-standard Ingress port in this SG",
+        "Ports" : {
+          "5555_Ingress" : "Docker remote API. Need this to be open only in dev env's",
+          "80_81_Ingress": "Need both 80 and 81 for http. 81 doesn't redirect so is useful when standing up new apps (before they are capable of passing ELB health checks)",
+          "53_Egress": "Need both UDP and TCP. Clients will try TCP if UDP fails (which can/will happen intermittantly if a domain has a big list of servers)",
+          "389_Egress": "Insecure LDAP",
+          "636_Egress": "Secure LDAP",
+          "3128_Egress": "Outbound Proxy",
+          "25_Egress": "SMTP - email"
+        }
+      },
+      "Properties" : {
+        "GroupDescription" : "Enable HTTP access from the ELB and (for now) SSH access from domain.",        
+        "SecurityGroupIngress" : [
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : "80",
+              "ToPort" : "80",
+              "CidrIp" : "172.0.0.0/8"
+            },        
+            {"Fn::If" : [ "HasCorporateIntranet",
+              {
+                "IpProtocol" : "tcp",
+                "FromPort" : "22",
+                "ToPort" : "22",
+                "CidrIp" : {"yac-ref" : "corporate-cidr" }
+              },
+              {}]
+            },
+            {"Fn::If" : [ "HasCorporateIntranet",              
+              {
+                "IpProtocol" : "tcp",
+                "FromPort" : "80",
+                "ToPort" : "81",
+                "CidrIp" : {"yac-ref" : "corporate-cidr" }
+              },
+              {}]
+            },
+            {"Fn::If" : [ "AllowCorporateDockerAPI",
+              {
+                "IpProtocol" : "tcp",
+                "FromPort" : "5555",
+                "ToPort" : "5555",
+                "CidrIp" : {"yac-ref" : "corporate-cidr" }
+              },
+              {}]
+            },
+            {"Fn::If" : [ "AllowPublicDockerAPI",
+              {
+                "IpProtocol" : "tcp",
+                "FromPort" : "5555",
+                "ToPort" : "5555",
+                "CidrIp" : "0.0.0.0/0"
+              },
+              {}]
+            }
+         ],
+         "SecurityGroupEgress" : [
+          {"Fn::If" : [ "HasCorporateIntranet",
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : "389",
+              "ToPort" : "389",
+              "CidrIp" : {"yac-ref" : "corporate-cidr" }
+            },
+            {}]
+          },
+          {"Fn::If" : [ "HasCorporateIntranet",
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : "636",
+              "ToPort" : "636",
+              "CidrIp" : {"yac-ref" : "corporate-cidr" }
+            },
+            {}]
+          },                    
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "80",
+            "ToPort" : "80",
+            "CidrIp" : "0.0.0.0/0"
+          },
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "443",
+            "ToPort" : "443",
+            "CidrIp" : "0.0.0.0/0"
+          },
+          {"Fn::If" : [ "HasCorporateIntranet",
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : "443",
+              "ToPort" : "443",
+              "CidrIp" : {"yac-ref" : "corporate-cidr" }
+            },
+            {}]
+          }, 
+          {"Fn::If" : [ "HasCorporateIntranet",
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : "80",
+              "ToPort" : "80",
+              "CidrIp" : {"yac-ref" : "corporate-cidr" }
+            },
+            {}]
+          },                     
+          {
+            "IpProtocol" : "udp",
+            "FromPort" : "53",
+            "ToPort" : "53",
+            "CidrIp" : {"yac-ref" : "dns-cidr" }
+          },
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "53",
+            "ToPort" : "53",
+            "CidrIp" : {"yac-ref" : "dns-cidr" }
+          },
+          {"Fn::If" : [ "HasOutboundProxy",
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : {"yac-ref" : "proxy-port" },
+              "ToPort" :   {"yac-ref" : "proxy-port" },
+              "CidrIp" :   {"yac-ref" : "proxy-cidr" }
+            },
+            {}]
+          },
+          {"Fn::If" : [ "HasCorporateIntranet",
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : "25",
+              "ToPort" : "25",
+              "CidrIp" : {"yac-ref" : "corporate-cidr" }
+            },
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : "25",
+              "ToPort" : "25",
+              "CidrIp" : "0.0.0.0/0"              
+            }]
+          }
+        ],
+        "VpcId": {"yac-ref" : "vpc-id"},
+        "Tags" : [ {"Key": "Name", "Value" : { "yac-name" : "asg-esg" } },
+                   { "Key": "Owner", "Value": { "yac-ref": "owner" } },
+                   { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" } } ]
+      }
+    }
+  }
+}
