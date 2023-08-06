@@ -1,0 +1,1 @@
+{"": "", "Time zone": "", "Sync time from the Internet": "", "Time set": "", "Date & Time": "", "Change date and time": "", "ntpdate utility is not installed": "", "Time synchronized": "", "Failed": "", "Date & time": "", "Synchronizing...": "", "Set time": ""}
