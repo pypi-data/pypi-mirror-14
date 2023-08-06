@@ -1,0 +1,213 @@
+Metadata-Version: 1.1
+Name: LCDManager
+Version: 0.2.0
+Summary: Lcd window manager for char lcds (HD44780) @ Raspberry Pi.
+Home-page: https://bitbucket.org/kosci/lcdmanager.git
+Author: Bartosz Kościów
+Author-email: kosci1@gmail.com
+License: MIT
+Description: LCD manager - what it is ?
+        ===
+        
+        A simple window manager for char lcd based on HD44780. It uses CharLCD package [CharLCD](https://bitbucket.org/kosci/charlcd)
+        to communicate with lcd. Works with buffered lcd or buffered vlcd. 
+        
+        Imagine that you want to build simple gui, display some information from sensors or any other info. With this package
+        you are just adding widgets, its content and position, forget about manually positioning chars. You want some info on LCD and this
+        package helps you with it.  
+        It makes creating GUI easier. You don't have to focus how to display something just use widgets.
+        
+        Currently available widgets:
+        
+            - label - display text as one line or multi line
+            - pane - conainer for other widgets may be uses as tabs
+            - button - simple button
+            - canvas - allows to draw like on pure CharLCD
+        
+            
+        See more on: [koscis.wordpress.com](https://koscis.wordpress.com)    
+        
+        Each widget has its properties, shared are:
+        
+            - x and y - position on screen or in pane
+            - width and height - it may be automode or manual mode 
+            - visibility
+            
+        ## Demo
+        
+        In demos directory you may find some samples.
+        Good idea is to look at [Piader v2](https://bitbucket.org/kosci/piader) it is simple game based on this package. 
+        It has three tabs, one for menu one for options and one for game. It shows how to use labels, buttons pane and canvas.
+        
+        
+        ## Initialize LCD Manager and flush content to display
+        
+        Initialisation require one parameter, an instance of CharLCD class. Manager reads size from it and prepare buffer.  
+        To display content on screen you have to call two functions. First render - it gather all visible widgets and write chars to buffer. 
+        And call flush - this writes buffer content to display using CharLCD package and its drivers.
+            
+            lcd = buffered.CharLCD(20, 4, gp.Gpio())
+            lcd.init()
+            lcd_manager = manager.Manager(lcd)
+            ...
+            lcd_manager.render()
+            lcd_manager.flush()
+        
+        Each widget may be created with or without name. Name is useful for getting it from manager without keeping any references 
+        in your code.
+         
+            lcd_manager.add_widget(new Label(0, 0, 'name'))
+            lcd_manager.get_widget('name').label = 'hi'
+             
+        
+        By default widget tries to adjust automatically width and height. Auto size is disabled when you specify width or height
+        
+        
+            label1 = Label(0, 0)
+            label1.label = "Hello !"
+            label1.width = 7
+            label1.height = 1
+            
+            
+        or you may disable autosize by
+        
+            label.autowidth = False
+             
+        Widgets
+        ===
+        
+        ## Label widget
+        
+        Simple text display in single line or multiline. 
+        
+        Constructor: **Label(x, y, name, visibility)**
+        
+        Setting content goes by **label** property. May be string or array
+             
+        
+        - single line
+        
+        
+            label1 = Label(0, 0)
+            label1.label = "Hello !"
+            lcd_manager.add_widget(label1)
+            lcd_manager.render()
+            lcd_manager.flush()
+            label1.label = 'one'
+            
+        - multiline
+        
+        
+            label1 = Label(0, 0)
+            label1.label = "Hello !"
+            lcd_manager.add_widget(label1)
+            lcd_manager.render()
+            lcd_manager.flush()
+            label1.label = ['one', 'two', 'three']
+            
+        ## Pane widget 
+        
+        Container for other widgets. It is easy to simulate tabs. Put few panes on each other and use
+        visibility to set active one.
+        
+        **add_widget** - add widget
+        
+        **get_widget** - retrieve widget by name
+        
+        **recalculate_width** - recalculate pane width while in auto-width mode.
+        
+        **recalculate_height** - recalculate pane height while in auto-height mode
+        
+        bug:
+        - won't recalculate width & height when inner widget changes. Recallculation must be called manually
+        
+        
+            label1 = Label(0, 0)
+            label1.label = "1 - Hello !"
+            label2 = Label(1, 2)
+            label2.label = "3 - Meow !"
+            label3 = Label(1, 1)
+            label3.label = "2 - Woof !"
+        
+            pane1 = Pane(1, 0)
+            pane1.add_widget(label1)
+            pane1.add_widget(label2)
+            pane1.add_widget(label3)
+            lcd_manager.add_widget(pane1)
+        
+        ## Button widget
+        
+        This button react to event. Event server is not included into manager but look at Piader.
+        
+        Widget has three events:
+        
+        **focus** - called when we focus on it, it change view by adding markers
+        
+        **blur** - called while losing focus
+        
+        **action** - callback 
+        
+        Functions:
+        
+        **pointer_before** - property to set or get char that is displayed before label
+        
+        **pointer_after** - property to set or get char that is displayed before label
+        
+        **label** - property to set button label. You must leave space for pointers, 
+            setting like this ' click ' change during focus state to '>click<' but
+          'click' change to '>lic<'
+        
+        **event_focus** - call it to set this widget as active
+        
+        **event_blur** - sets as inactive
+        
+        **event_action** - this one calls callback. To callback reference to widget is passed. 
+        
+        
+        Before and after overwrite first and last char
+        
+        
+            btn1 = Button(0, 0)
+            btn1.label = " Start "
+            btn1.pointer_before = "*"
+            btn1.pointer_after = "*"
+        
+        
+        
+        calling focus/blur, set active and inactive state    
+        
+        
+            btn1.event_focus()
+            btn1.event_blur()
+            
+            
+        - callback, to callback current widget is passed
+        
+        
+            def _log(widget):
+                return widget.label
+            btn1.callback = _log     
+            btn1.event_action()
+            
+            
+        ## Canvas widget
+        
+        Simple widget to draw any string on it. 
+        You must declare its size
+        
+        
+            c = new Canvas(0, 0, 13, 2)
+            c.write('Hello')
+            c.write('Hi !', 0, 1)
+            c.clear()
+        
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: Natural Language :: English
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
