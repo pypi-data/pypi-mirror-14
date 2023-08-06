@@ -1,0 +1,11 @@
+__version__ = "0.1.4"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = 'develop'
+__git_remote_tracking_branch__ = 'origin/develop'
+__git_remote_url__ = 'git@git.infinidat.com:host-opensource/infi.execute.git'
+__git_head_hash__ = 'cc41dd6c54bd9fd8c34bd144289a7e1a03b6dcfd'
+__git_head_subject__ = 'Finished Release v0.1.4'
+__git_head_message__ = '* develop:\n  Reverting do_iteration, breaks Python-2'
+__git_dirty_diff__ = ''
+__git_commit_date__ = '2016-04-04 13:10:55'
