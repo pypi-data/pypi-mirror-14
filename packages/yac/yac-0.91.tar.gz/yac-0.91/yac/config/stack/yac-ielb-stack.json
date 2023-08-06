@@ -1,0 +1,77 @@
+{  
+  "Resources" : {
+    "InternalElb" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "SecurityGroups": [ { "Fn::GetAtt": ["InternalElbSG", "GroupId" ]} ],
+        "LoadBalancerName" : { "yac-name" : "i-elb" },
+        "Listeners" : [ 
+          {
+            "LoadBalancerPort" : "443",
+            "InstancePort" : { "Ref" : "WebServerPort" },
+            "InstanceProtocol": "HTTP",
+            "Protocol" : "HTTPS",
+            "SSLCertificateId": {
+              "Fn::Join":["",[
+                "arn:aws:iam::",{"Ref":"AWS::AccountId"},
+                ":server-certificate","/",
+                { "yac-ref": "ssl-cert" }]]
+            }
+          }
+        ],
+        "HealthCheck" : {
+          "Target" : { "Fn::Join" : [ "", ["HTTP:80",{"Ref" : "HealthCheckPath" }]]},
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "20",
+          "Timeout" : "5"
+        },
+        "Scheme": "internal",
+        "Subnets": {"yac-ref" : "private-subnet-ids"},
+        "Tags" : [ 
+          { "Key": "Name", "Value" : { "yac-name" : "i-elb" }},
+          { "Key": "Owner", "Value": { "yac-ref": "owner" } },
+          { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" } }]
+      }
+    }, 
+    "InternalElbSG" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable inbound HTTPS access for web clients, and 5222/3 for mobile clients from domain",
+        "SecurityGroupIngress" : [ 
+          {
+            "IpProtocol" : "tcp",
+            "FromPort" : "443",
+            "ToPort" : "443",
+            "CidrIp" : {"Ref" : "CorporateCidr" }
+          }
+        ],        
+        "VpcId": {"yac-ref" : "vpc-id"},
+        "Tags" : [ 
+          { "Key": "Name", "Value" : { "yac-name" : "i-elb-sg" }},
+          { "Key": "Owner", "Value": { "yac-ref": "owner" }  },
+          { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" } } ]
+      }
+    },    
+    "InternalElbHttpEgress" : {
+      "Type" : "AWS::EC2::SecurityGroupEgress",
+      "Properties" : {
+        "GroupId" : { "Fn::GetAtt": ["InternalElbSG","GroupId"]},
+        "IpProtocol" : "tcp",
+        "FromPort" : { "Ref" : "WebServerPort" },
+        "ToPort" : { "Ref" : "DebugPort" },
+        "DestinationSecurityGroupId" : {"Fn::GetAtt": ["AppSG","GroupId"]}
+      }
+    },     
+    "InternalElbHttpIngress" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : {
+        "GroupId" : { "Fn::GetAtt": ["AppSG","GroupId"]},
+        "IpProtocol" : "tcp",
+        "FromPort" : { "Ref" : "WebServerPort" },
+        "ToPort" : { "Ref" : "DebugPort" },
+        "SourceSecurityGroupId" : { "Fn::GetAtt": ["InternalElbSG","GroupId"] }
+      }
+    }
+  }
+}

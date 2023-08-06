@@ -1,0 +1,87 @@
+
+The YAC VPC primer explained that a typical VPC might look like:
+
+external users <---->  subnet1: public
+                   --> subnet2: dmz
+                   |    		
+                   |
+corp domain <--------> subnet3: private
+
+Each subnet has an unique identifier (e.g. subnet1), and a user-friendly name (e.g. dmz).
+
+The YAC VPC primer explained  that resources should be sited as follows:
+
+[external-elb]  -> subnet1: public
+[asg/ec2]       -> subnet2: dmz
+[internal-elb]  -> subnet3: private
+[rds]           -> subnet3: private
+[efs]           -> subnet3: private
+
+YAC uses keyword searches to determine which subnet is which.
+
+YAC determines the "user-friendly" name of a VPC or subnet via cloud formation tags.
+
+The default tag used by YAC looks like:
+
+"Tags" : [
+  ... 
+  { "Key": "Name", "Value" : "friendly-name"},
+  ...
+]
+
+By default, YAC expects the "friendly" names shown in the diagrams above: [public, dmz, private]
+
+What if your VPC is named differently? What if you want YAC to site resources as follows: 
+
+[external-elb]  -> subnet1: danger-zone
+[asg/ec2]       -> subnet2: kinda-sketch
+[internal-elb]  -> subnet3: safe-n-sound
+[rds]           -> subnet3: safe-n-sound
+[efs]           -> subnet3: safe-n-sound
+
+No sweat. You have two options.
+
+1. provide a naming standard override file, or
+2. provide a full-stack naming override file
+
+With option 1 you provide a file like the following via the cli or via an environment variable.
+
+{
+  ...
+  "vpc_name_tag_comment": "the name of the CF tag used to identify vpcs and subnets",
+  "vpc_name_tag": "FunnyName",
+  "subnets": {
+    "comment": "the name of the subnets where yac resources should be placed",
+    "e-elb": "danger-zone",
+    "asg":   "kinda-sketch",
+    "i-elb": "safe-n-sound",
+    "efs":   "safe-n-sound",
+    "rds":   "safe-n-sound"
+  }
+  ...
+}
+
+With option 2 you provide a .py file that implements custom naming standards for all of your YAC resources, including your VPC subnet resources. The custom file can define a naming standard dictionary like the one shown in option 1. Option 2 is best undertaken with some consulting guidance.
+
+What if you have a subnet stack with only two subnet levels? What if you want YAC to site resources as follows: 
+
+[external-elb]  -> subnet1: danger-zone
+[asg/ec2]       -> subnet2: danger-zone
+[internal-elb]  -> subnet3: safe-n-sound
+[rds]           -> subnet3: safe-n-sound
+[efs]           -> subnet3: safe-n-sound
+
+Same story - provide a slightly different version of the same file (option 1), or hit me up for some help (option 2).
+
+{
+  "vpc_name_tag_comment": "the name of the CF tag used to identify vpcs and subnets",
+  "vpc_name_tag": "FunnyName",
+  "subnets": {
+    "comment": "the name of the subnets where yac resources should be placed",
+    "e-elb": "danger-zone",
+    "asg":   "kinda-sketch",
+    "i-elb": "kinda-sketch",
+    "efs":   "kinda-sketch",
+    "rds":   "kinda-sketch"
+  }
+}

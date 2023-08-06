@@ -1,0 +1,108 @@
+{
+  "Description" : "Cloud formation standard template for YAC db's",
+
+  "Parameters" : {
+    "DBInstanceClass" : {
+      "Description" : "Type of EC2 instance to launch",
+      "Type" : "String",
+      "Default" : "db.m3.large"
+    },
+    "DBPassword": {
+      "Description": "The password for the Ssysadmin DB user",
+      "Type": "String",
+      "NoEcho" : "true"
+    },     
+    "DBPort" : {
+      "Description" : "The port the DB accepts connections on",
+      "Type" : "String",
+      "Default" : "5432"
+    },   
+    "DBSysAdminUser" : {
+      "Description" : "The name of sysadmin user",
+      "Type" : "String",
+      "Default" : "mac_sysadmin"
+    },      
+    "DBSubnetGroup": {
+      "Description": "The DB subnet group to print the DB ito",
+      "Type":        "String"
+    },         
+    "BackupRetentionPeriod": {
+      "Description": "The depth of backups maintained, in days",
+      "Type":        "String",
+      "Default" : "5"
+    },   
+    "DBSnapshotId": {
+      "Description": "Create the DB instance from this snapshot. Defaults to null, which will result in an clean slate.",
+      "Type": "String",
+      "Default" : { "yac-name" : "snapshot-id" }
+    }  
+  },
+  "Resources" : {
+    "AppDB" : {
+      "Type" : "AWS::RDS::DBInstance",
+      "Properties" : {
+        "VPCSecurityGroups": [{"Ref" : "AppDBSG"}],
+        "AllocatedStorage" : {"yac-ref": "rds-size"},
+        "Engine" : {"yac-ref": "rds-engine"},
+        "StorageType": "gp2",
+        "BackupRetentionPeriod": {"Ref": "BackupRetentionPeriod"},
+        "PreferredBackupWindow": "00:00-00:30",
+        "MultiAZ": true,
+        "DBInstanceClass": {"Ref": "DBInstanceClass"},
+        "DBInstanceIdentifier": { "yac-name" : "db-host" },
+        "MasterUsername" :     {"Ref" : "DBSysAdminUser"},
+        "MasterUserPassword" : { "Ref" : "DBPassword" },
+        "DBSnapshotIdentifier": {"Ref": "DBSnapshotId"},
+        "Tags" : [ 
+          {"Key": "Name", "Value" : { "yac-name" : "db-host" } },
+          { "Key": "Owner", "Value": { "yac-ref": "owner" } },
+          { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" } }          
+        ],
+        "DBSubnetGroupName": {"Ref" : "DBSubnetGroup"}
+      }
+    },
+    "AppDBSG" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Enable admin access from domain to DBs",
+        "SecurityGroupIngress" : [
+          {"Fn::If" : [ "HasCorporateIntranet",
+            {
+              "IpProtocol" : "tcp",
+              "FromPort" : {"Ref" : "DBPort"},
+              "ToPort" : {"Ref" : "DBPort"},
+              "CidrIp" : {"yac-ref" : "corporate-cidr" }
+            },
+            {}]
+          }
+        ],
+        "VpcId": {"yac-ref" : "vpc-id"},
+        "Tags" : [ 
+          { "Key": "Name", "Value" : {  "yac-name": "db-sg"}},
+          { "Key": "Owner", "Value": { "yac-ref": "owner" } },
+          { "Key": "CostCenter", "Value": { "yac-ref": "cost-center" } }
+        ]
+      }
+    }, 
+    "App2DBIngress" : {
+      "Type" : "AWS::EC2::SecurityGroupIngress",
+      "Properties" : {
+        "GroupId" : { "Fn::GetAtt": ["AppDBSG","GroupId"]},
+        "IpProtocol" : "tcp",
+        "ToPort" : {"Ref" : "DBPort"},
+        "FromPort" : {"Ref" : "DBPort"},
+        "SourceSecurityGroupId" : {"Fn::GetAtt": ["AppSG","GroupId"]}
+      }
+    },
+    "App2DBEgress" : {
+      "Type" : "AWS::EC2::SecurityGroupEgress",
+      "Properties" : {
+        "GroupId" : { "Fn::GetAtt": ["AppSG","GroupId"]},
+        "IpProtocol" : "tcp",
+        "ToPort" : {"Ref" : "DBPort"},
+        "FromPort" : {"Ref" : "DBPort"},
+        "DestinationSecurityGroupId" : {"Fn::GetAtt": ["AppDBSG","GroupId"]}
+      }
+    }
+  }
+}      
