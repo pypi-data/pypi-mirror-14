@@ -1,0 +1,69 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:five="http://namespaces.zope.org/five"
+    xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+    xmlns:i18n="http://namespaces.zope.org/i18n"
+    xmlns:profilehook="http://namespaces.zope.org/profilehook"
+    xmlns:upgrade-step="http://namespaces.zope.org/ftw.upgrade"
+    xmlns:monkey="http://namespaces.plone.org/monkey"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    i18n_domain="ftw.permissionmanager">
+
+  <include package="collective.monkeypatcher" />
+  <include package="ftw.profilehook" />
+  <include package="ftw.upgrade" file="meta.zcml" />
+
+  <five:registerPackage package="." initialize=".initialize" />
+  <i18n:registerTranslations directory="locales" />
+
+  <include package=".browser" />
+  <include package=".upgrades" />
+
+  <genericsetup:registerProfile
+      name="default"
+      title="ftw.permissionmanager"
+      directory="profiles/default"
+      description="easy to use user management"
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      />
+
+  <profilehook:hook
+      profile="ftw.permissionmanager:default"
+      handler=".hooks.installed"
+      />
+
+  <upgrade-step:directory
+      profile="ftw.permissionmanager:default"
+      directory="./upgrades"
+      />
+
+  <genericsetup:registerProfile
+      name="uninstall"
+      title="ftw.permissionmanager"
+      directory="profiles/uninstall"
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      for="Products.CMFPlone.interfaces.IMigratingPloneSiteRoot"
+      />
+
+  <profilehook:hook
+      profile="ftw.permissionmanager:uninstall"
+      handler=".hooks.uninstalled"
+      />
+
+      <adapter name="get_local_roles" factory=".indexer.global_get_local_roles" />
+      <adapter name="principal_with_local_roles" factory=".indexer.principal_with_local_roles" />
+      <adapter name="isLocalRoleAcquired" factory=".indexer.isLocalRoleAcquired" />
+      <adapter name="workflow_id" factory=".indexer.workflow_id" />
+
+    <!-- Patches, using monkeypatcher -->
+    <!-- Let ftw.solr's reindexObjectSecurity be loaded first -->
+    <include zcml:condition="installed ftw.solr" package="ftw.solr" />
+    <monkey:patch
+        description="Also Update metadata on security reindex"
+        class="Products.Archetypes.CatalogMultiplex.CatalogMultiplex"
+        original="reindexObjectSecurity"
+        replacement=".patches.permissionmanager_reindexObjectSecurity"
+        preserveOriginal="True"
+        />
+
+</configure>
