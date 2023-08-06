@@ -1,0 +1,290 @@
+<div class="header">
+  <div class="title">
+    <div class="submenu">
+      <a ui-sref="motions.motion.list" class="btn btn-sm btn-default">
+        <i class="fa fa-angle-double-left fa-lg"></i>
+        <translate>All motions</translate>
+      </a>
+      <a ui-sref="motions_single_pdf({pk: motion.id})" target="_blank" class="btn btn-default btn-sm">
+        <i class="fa fa-file-pdf-o fa-lg"></i>
+        <translate>PDF</translate>
+      </a>
+      <!-- List of speakers -->
+      <a ui-sref="agenda.item.detail({id: motion.agenda_item_id})" class="btn btn-sm btn-default">
+        <i class="fa fa-microphone fa-lg"></i>
+        <translate>List of speakers</translate>
+      </a>
+      <!-- project -->
+      <a os-perms="core.can_manage_projector" class="btn btn-default btn-sm"
+          ng-class="{ 'btn-primary': motion.isProjected() }"
+          ng-click="motion.project()"
+          title="{{ 'Project motion' | translate }}">
+        <i class="fa fa-video-camera"></i>
+      </a>
+      <!-- edit -->
+      <a ng-if="motion.isAllowed('update')" ng-click="openDialog(motion)"
+          class="btn btn-default btn-sm"
+          title="{{ 'Edit' | translate}}">
+        <i class="fa fa-pencil"></i>
+      </a>
+    </div>
+    <h1>{{ motion.agenda_item.getTitle() || motion.getTitle() }}</h1>
+    <h2>
+        <translate>Motion</translate> {{ motion.identifier }}
+        <span ng-if="motion.versions.length > 1" >| Version {{ motion.getVersion(version).version_number }}</span>
+        <span ng-if="motion.active_version != version" class="label label-warning">
+          <i class="fa fa-exclamation-triangle"></i>
+          <translate>This version is not permitted.</translate>
+        </span>
+    </h2>
+  </div>
+</div>
+
+<div class="meta">
+  <div class="title" ng-click="isMeta = !isMeta">
+    <div class="name">
+      <i class="fa fa-info-circle"></i>
+      <translate>Meta information</translate>
+    </div>
+    <div class="icon">
+      <i class="fa fa-lg" ng-class="isMeta ? 'fa-angle-down' : 'fa-angle-up'"></i>
+    </div>
+  </div>
+  <div class="detail" uib-collapse="isMeta">
+    <div class="row">
+      <div class="col-md-4">
+          <!-- submitters -->
+          <h3 translate>Submitters</h3>
+          <div ng-repeat="submitter in motion.submitters">
+            {{ submitter.get_full_name() }}<br>
+          </div>
+
+          <!-- supporters -->
+          <div ng-if="config('motions_min_supporters') > 0">
+            <h3 translate>Supporters</h3>
+            <ol>
+              <li ng-repeat="supporters in motion.supporters">
+                {{ supporters.get_full_name() }}
+            </ol>
+            <!-- support button -->
+            <button ng-if="motion.isAllowed('support')" ng-click="support()" class="btn btn-default btn-sm">
+              <i class="fa fa-heart"></i>
+              <translate>Support motion</translate>
+            </button>
+            <!-- unsupport button -->
+            <button ng-if="motion.isAllowed('unsupport')" ng-click="unsupport()" class="btn btn-default btn-sm">
+              <i class="fa fa-heart-o"></i>
+              <translate>Unsupport motion</translate>
+            </button>
+          </div>
+      </div>
+      <div class="col-md-4">
+          <!-- Category -->
+          <h3 ng-if="motion.category" translate>Category</h3>
+          {{ motion.category.name }}
+
+          <!-- Tags -->
+          <h3 ng-if="motion.tags.length > 0" translate>Tags</h3>
+          <span ng-repeat="tag in motion.tags">
+            {{ tag.name }}{{$last ? '' : ', '}}
+          </span>
+
+          <!-- State -->
+          <h3 ng-if="!motion.isAllowed('change_state')" class="heading" translate>State</h3>
+          <div ng-if="motion.isAllowed('change_state')" class="heading">
+            <span uib-dropdown>
+              <a href id="state-dropdown" class="drop-down-name" uib-dropdown-toggle>
+                <translate>State</translate>
+                <i class="fa fa-cog"></i>
+              </a>
+              <ul uib-dropdown-menu aria-labelledby="state-dropdown">
+                <li ng-repeat="state in motion.state.getNextStates()">
+                  <a href ng-click="updateState(state.id)">{{ state.action_word | translate }}</a>
+                <li class="divider" ng-if="motion.state.getNextStates().length">
+                <li>
+                  <a href ng-if="motion.isAllowed('reset_state')" ng-click="reset_state()">
+                    <i class="fa fa-exclamation-triangle"></i>
+                    <translate>Reset state</translate>
+                  </a>
+              </ul>
+            </span>
+          </div>
+          <div class="label" ng-class="'label-'+motion.state.css_class">
+            {{ motion.state.name | translate }}
+          </div>
+      </div>
+      <div class="col-md-4">
+          <h3 ng-if="motion.polls.length > 0" translate>Voting result</h3>
+          <ol class="slimlist">
+            <li ng-repeat="poll in motion.polls" class="spacer"
+                ng-if="poll.has_votes || operator.hasPerms('motions.can_manage')">
+              <strong translate-comment='ballot of a motion' translate>Vote</strong>
+              <!-- Edit poll -->
+              <button os-perms="motions.can_manage" ng-click="openPollDialog(poll, $index+1)"
+                  class="btn btn-default btn-xs" title="{{ 'Edit' | translate }}">
+                <i class="fa fa-pencil"></i>
+              </button>
+              <!-- Delete poll -->
+              <button os-perms="motions.can_manage" class="btn btn-default btn-xs"
+                  ng-bootbox-confirm="{{ 'Are you sure you want to delete this poll?' | translate }}"
+                  ng-bootbox-confirm-action="delete_poll(poll)"
+                  title="{{ 'Delete' | translate }}">
+                <i class="fa fa-times"></i>
+              </button>
+              <!-- print poll PDF -->
+              <a ui-sref="motionpoll_pdf({poll_pk: poll.id})" target="_blank"
+                  class="btn btn-default btn-xs"
+                  title="{{ 'Print ballot paper' | translate }}">
+                <i class="fa fa-file-pdf-o"></i>
+              </a>
+
+              <!-- Poll results -->
+              <div ng-show="poll.has_votes" class="pollresults">
+                <table class="table">
+                  <!-- yes -->
+                  <tr>
+                    <td class="icon">
+                      <i class="fa fa-thumbs-up fa-2x"></i>
+                    <td ng-init="voteYes = poll.getVote(poll.yes)">
+                      <span class="result_label"><translate>Yes</translate>:</span>
+                      <span class="result_value">
+                        {{ voteYes.value }} {{ voteYes.percentStr }}
+                      </span>
+                      <div ng-if="voteYes.percentNumber">
+                        <uib-progressbar value="voteYes.percentNumber" type="success"></uib-progressbar>
+                      </div>
+                  <!-- no -->
+                  <tr>
+                    <td class="icon">
+                      <i class="fa fa-thumbs-down fa-2x"></i>
+                    <td ng-init="voteNo = poll.getVote(poll.no)">
+                      <span class="result_label"><translate>No</translate>:</span>
+                      <span class="result_value" >
+                        {{ voteNo.value }} {{ voteNo.percentStr }}
+                      </span>
+                      <div ng-if="voteNo.percentNumber">
+                        <uib-progressbar value="voteNo.percentNumber" type="danger"></uib-progressbar>
+                      </div>
+                  <!-- abstain -->
+                  <tr>
+                    <td class="icon">
+                      <strong style="font-size: 26px">&empty;</strong>
+                    <td ng-init="voteAbstain = poll.getVote(poll.abstain)">
+                      <span class="result_label"><translate>Abstain</translate>:</span>
+                      <span class="result_value">
+                        {{ voteAbstain.value }} {{ voteAbstain.percentStr }}
+                      </span>
+                      <div ng-if="voteAbstain.percentNumber">
+                        <uib-progressbar value="voteAbstain.percentNumber" type="warning"></uib-progressbar>
+                      </div>
+                  <!-- valid votes -->
+                  <tr>
+                    <td class="icon">
+                      <i class="fa fa-check fa-lg"></i>
+                    <td ng-init="votesValid = poll.getVote(poll.votesvalid)">
+                      <span class="result_label"><translate>Valid votes</translate>:</span>
+                      <span class="result_value">
+                        {{ votesValid.value }} {{ votesValid.percentStr }}
+                      </span>
+                  <!-- invalid votes -->
+                  <tr>
+                    <td class="icon">
+                      <i class="fa fa-ban fa-lg"></i>
+                    <td ng-init="votesInvalid = poll.getVote(poll.votesinvalid)">
+                      <span class="result_label"><translate>Invalid votes</translate>:</span>
+                      <span class="result_value">
+                        {{ votesInvalid.value }}
+                        <span ng-if="config('motions_poll_100_percent_base') == 'WITH_INVALID'">
+                          {{ votesInvalid.percentStr }}
+                        </span>
+                      </span>
+                  <!-- votes cast -->
+                  <tr class="total">
+                    <td class="icon">
+                      <strong style="font-size: 16px">&sum;</strong>
+                    <td ng-init="votesCast = poll.getVote(poll.votescast)">
+                      <span class="result_label"><translate>Votes cast</translate>:</span>
+                      <span class="result_value">
+                        {{ votesCast.value }}
+                        <span ng-if="config('motions_poll_100_percent_base') == 'WITH_INVALID'">
+                          {{ votesCast.percentStr }}
+                        </span>
+                      </span>
+                </table>
+          </ol>
+          <button ng-if="motion.isAllowed('create_poll')" ng-click="create_poll()" class="btn btn-default btn-sm">
+            <i class="fa fa-bar-chart fa-lg"></i>
+            <translate>New vote</translate>
+          </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="details">
+  <div class="row">
+    <div class="col-sm-8">
+      <h3 translate>Text</h3>
+      <div ng-bind-html="motion.getText(version) | trusted"></div>
+
+      <!-- reason -->
+      <div ng-if="motion.getReason(version) != ''">
+        <h3 translate>Reason</h3>
+        <div ng-bind-html="motion.getReason() | trusted"></div>
+      </div>
+
+      <!-- attachments -->
+      <h3 ng-if="motion.attachments.length > 0" translate>Attachments</h3>
+      <ul>
+        <li ng-repeat="attachment in motion.attachments">
+          <a href="{{ attachment.mediafileUrl }}" target="_blank">{{ attachment.title_or_filename }}</a>
+      </ul>
+
+      <!-- version history -->
+      <div ng-if="motion.versions.length > 1">
+        <h3 translate>Version history</h3>
+        <ul>
+          <li ng-repeat="version in motion.versions">
+              <span ng-if="$parent.version == version.id">
+                <strong><translate>Version</translate> {{ version.version_number }}</strong>
+              </span>
+              <a ng-if="$parent.version != version.id" ng-click="showVersion(version)">
+                <translate>Version</translate> {{ version.version_number }}
+              </a>
+              <!-- active version -->
+              <i ng-if="motion.active_version == version.id" class="fa fa-star"
+                  title="{{ 'This is the last active version.' | translate }}"></i>
+              <!-- permit version -->
+              <button os-perms="motions.can_manage" ng-show="motion.active_version != version.id"
+                  ng-click="permitVersion(version)"
+                  class="btn btn-default btn-xs" title="{{ 'Permit and activate' | translate }}">
+                <i class="fa fa-check"></i>
+              </button>
+              <!-- delete version -->
+              <button os-perms="motions.can_manage" ng-show="motion.active_version != version.id"
+                  class="btn btn-default btn-xs"
+                  ng-bootbox-confirm="{{ 'Are you sure you want to delete this version?' | translate }}<br>
+                      <strong><translate>Version</translate> {{ version.version_number }}</strong>"
+                  ng-bootbox-confirm-action="deleteVersion(version)"
+                  title="{{ 'Delete' | translate }}">
+                <i class="fa fa-times"></i>
+              </button>
+            <br><translate>Last modified</translate>: {{ version.creation_time | date:'yyyy-MM-dd HH:mm:ss' }}
+        </ul>
+      </div>
+
+      <!-- log -->
+      <button type="button" class="btn btn-default spacer" ng-click="isCollapsed = !isCollapsed" translate>
+        Show history
+      </button>
+      <div uib-collapse="isCollapsed">
+        <div class="well well-sm">
+          <ul class="list-unstyled">
+            <li ng-repeat="message in motion.log_messages">
+              <small>{{ message.message }}</small>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html ng-controller="LanguageCtrl" lang="{{ selectedLanguage[0].code }}" class="no-js">
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<base href="/">
+<title>OpenSlides</title>
+<meta name="description" content="">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0;">
+<link rel="stylesheet" href="static/css/openslides-libs.css">
+<link rel="stylesheet" href="static/css/app.css">
+<link rel="icon" href="/static/img/favicon.png">
+<script src="static/js/openslides-libs.js"></script>
+
+<div id="wrapper" ng-cloak>
+
+<!-- Header -->
+<div id="header">
+  <div ng-hide="connected" class="unconnected"></div>
+  <div class="containerOS">
+    <!-- Logo -->
+    <div class="title">
+      <a ui-sref="home">
+        <img src="/static/img/openslides-logo-dark.png" alt="Logo" height="35">
+      </a>
+    </div>
+
+    <!-- user specific header (chat, user settings / login, language)-->
+    <div class="user" ng-controller="userMenu">
+      <div class="btn-group">
+        <div ng-if="operator.isAuthenticated()">
+
+          <!-- chatbox -->
+          <div ng-controller="ChatMessageCtrl" os-perms="core.can_use_chat" class="inline">
+            <a href ng-click="openChatbox()" class="headerlink"
+                ng-class="{ 'active': !chatboxIsCollapsed }" uib-dropdown-toggle>
+              <i class="fa fa-comment"></i>
+              <translate class="hide-sm">Chat</translate>
+              <span ng-if="unreadMessages > 0 && chatboxIsCollapsed" class="badge">
+                {{ unreadMessages }}
+              </span>
+            </a> |
+            <div id="chatbox" class="well" uib-collapse="chatboxIsCollapsed">
+              <div id="chatbox-text" scroll-glue>
+                <ul class="list-unstyled">
+                  <li ng-repeat="chatmessage in chatmessages">
+                    <small class="grey">{{ chatmessage.timestamp | date:'HH:mm:ss' }}</small>
+                    <small>{{ chatmessage.user.short_name }}:</small>
+                    {{ chatmessage.message }}
+                </ul>
+              </div>
+              <div id="chatbox-form">
+                <form ng-submit="sendMessage()">
+                  <div class="input-group">
+                    <input
+                      ng-model="newMessage"
+                      id="messageInput"
+                      class="form-control"
+                      type="text"
+                      autocomplete="off">
+                    <span class="input-group-btn">
+                      <button type="submit" class="btn btn-default" id="messageSendButton">
+                        <i class="fa fa-comment"></i>
+                      </button>
+                    </span>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- user settings / logout button -->
+          <span uib-dropdown>
+            <a href class="headerlink" uib-dropdown-toggle>
+              <i class="fa fa-user"></i>
+              <span class="hide-sm">{{ operator.user.get_short_name() }}</span>
+            </a>
+            <ul class="uib-dropdown-menu pull-right" role="menu" aria-labelledby="simple-dropdown">
+              <li>
+                <a ui-sref="users.user.detail.profile({ id: operator.user.id })">
+                  <i class="fa fa-cog"></i>
+                  <translate>Edit profile</translate>
+                </a>
+              <li>
+                <a ui-sref="users.user.detail.password({ id: operator.user.id })">
+                  <i class="fa fa-key"></i>
+                  <translate>Change password</translate>
+                </a>
+              <li class="divider">
+              <li>
+                <a ng-click="logout()" href="">
+                  <i class="fa fa-sign-out"></i>
+                  <translate>Logout</translate>
+                </a>
+            </ul>
+          </span>
+        </div>
+        <!-- Login button -->
+        <div ng-if="!operator.isAuthenticated()">
+          <a href ui-sref="login({guest_enabled: true})" class="headerlink" uib-dropdown-toggle>
+            <i class="fa fa-sign-in"></i>
+            <translate>Login</translate>
+          </a>
+        </div>
+      </div>
+
+      <!-- language switcher -->
+      <span uib-dropdown>
+        | <a href class="headerlink" uib-dropdown-toggle>
+          <i class="fa fa-flag"></i>
+          <span class="hide-sm">{{ selectedLanguage[0].name | translate }}</span>
+        </a>
+        <ul class="uib-dropdown-menu pull-right" role="menu" aria-labelledby="simple-dropdown">
+          <li ng-repeat="language in languages">
+            <a href="" ng-click="switchLanguage(language.code)">
+              <i ng-if="language.selected" class="fa fa-check"></i>
+              {{ language.name | translate }}
+            </a>
+      </span>
+
+    </div>
+  </div>
+</div><!--end header-->
+
+<!-- Navbar -->
+<div id="nav" ng-controller="MainMenuCtrl">
+  <div class="containerOS" >
+    <!-- mobile (vertical) main menu -->
+    <button class="navbar-toggle" ng-click="isMenuOpen = !isMenuOpen">
+      <i class="fa fa-bars"></i>
+    </button>
+    <div class="navbar navbar-collapse" ng-class="{collapse: !isMenuOpen}">
+      <!-- Main menu -->
+      <ul>
+        <li ng-repeat="element in elements" ui-sref-active="active" ng-click="closeMenu()">
+          <a ui-sref="{{ element.ui_sref }}">
+            <i class="fa fa-{{ element.img_class }}"></i>
+            {{ element.title | translate }}
+          </a>
+      </ul>
+      <!-- Search bar -->
+      <div class="searchbar pull-right" ng-controller="SearchBarCtrl">
+        <form ng-submit="search(query); closeMenu()">
+          <div class="input-group">
+            <input ng-model="query" class="form-control" type="text" placeholder="{{ 'Search' | translate}}">
+            <span class="input-group-btn">
+              <button type="submit" class="btn btn-default">
+                <i class="fa fa-search"></i>
+              </button>
+            </span>
+          </div>
+        </form>
+      </div>
+    </div>
+
+   </div>
+</div><!--end nav-->
+
+
+<!-- Content -->
+<div id="content" ng-controller="ProjectorSidebarCtrl">
+  <div class="containerOS">
+    <div class="col1" ng-class="isProjectorSidebar ? 'min' : 'max'">
+        <!-- dynamic views -->
+        <route-loading-indicator></route-loading-indicator>
+        <div ui-view ng-if="!isRouteLoading"></div>
+        <!-- footer -->
+        <div id="footer">
+          &copy; Copyright by <a href="http://www.openslides.org" target="_blank">OpenSlides</a> |
+          <a ui-sref="legalnotice" translate>Legal notice</a>
+        </div><!--end footer-->
+    </div>
+    <div class="col2" os-perms="core.can_see_projector"
+        ng-class="isProjectorSidebar ? 'max' : 'min'">
+      <!-- sidebar maximized -->
+      <div class="projector_full" ng-if="isProjectorSidebar">
+        <div class="title" ng-click="showProjectorSidebar(false)">
+          <div class="name">
+            <i class="fa fa-video-camera"></i>
+            <translate>Projector</translate>
+          </div>
+          <div class="icon">
+            <i class="fa fa-angle-right"></i>
+          </div>
+        </div>
+        <div ng-include src="'static/templates/core/projector-controls.html'"></div>
+      </div>
+      <!-- sidebar minimized -->
+      <div class="projector_min" ng-if="!isProjectorSidebar">
+        <div class="icon">
+          <a href="" ng-click="showProjectorSidebar(true)">
+            <i class="fa fa-video-camera"></i>
+          </a>
+        </div>
+      </div>
+    </div><!--end col2-->
+
+  </div><!--end content-container-->
+</div><!--end content-->
+
+</div><!--end wrapper-->
+
+
+<script src="/angular_js/site/"></script>

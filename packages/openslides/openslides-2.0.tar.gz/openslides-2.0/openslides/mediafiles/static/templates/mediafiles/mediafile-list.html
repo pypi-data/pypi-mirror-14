@@ -1,0 +1,191 @@
+<div class="header">
+  <div class="title">
+    <div class="submenu">
+      <a  ng-click="openDialog()" os-perms="mediafiles.can_upload" class="btn btn-primary btn-sm">
+        <i class="fa fa-plus fa-lg"></i>
+        <translate>New</translate>
+      </a>
+    </div>
+    <h1 translate>Files</h1>
+  </div>
+</div>
+
+<div class="meta" os-perms="core.can_manage_projector">
+  <div class="title" ng-click="isMeta = !isMeta">
+    <div class="name">
+      <i class="fa fa-play-circle"></i>
+      <translate>Presentation control elements</translate>
+    </div>
+    <div class="icon">
+      <i class="fa fa-lg" ng-class="isMeta ? 'fa-angle-down' : 'fa-angle-up'"></i>
+    </div>
+  </div>
+  <div class="detail" uib-collapse="isMeta">
+    <!-- mediafile pdf controls -->
+    <div class="row">
+      <div class="col-md-12">
+        <div ng-repeat="presentedMediafile in presentedMediafiles">
+          <h3>{{ getTitle(presentedMediafile) }}</h3>
+          <nav ng-class="getNavStyle(scroll)" class="form-inline">
+            <div class="btn-group">
+              <button class="btn btn-default" ng-click="mediafileGoToPage(presentedMediafile.page - 1)"
+                  ng-class="{ 'disabled': (presentedMediafile.page - 1) < 1 }"
+                  title="{{ 'Previous page' | translate }}">
+                <i class="fa fa-backward"></i>
+              </button>
+              <button class="btn btn-default" ng-click="mediafileGoToPage(presentedMediafile.page + 1)"
+                  ng-class="{ 'disabled': (presentedMediafile.page + 1) > presentedMediafile.numPages }"
+                  title="{{ 'Next page' | translate }}">
+                <i class="fa fa-forward"></i>
+              </button>
+            </div>
+            <div class="input-group">
+              <span class="input-group-addon" translate>Page</span>
+              <input type="number" min=1 ng-model="presentedMediafile.page" class="form-control" style="width: 80px"
+                  ng-change="mediafileGoToPage(presentedMediafile.page)">
+              <span class="input-group-addon"><translate>of</translate> {{presentedMediafile.numPages}}</span>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-default" ng-click="mediafileRotate()" title="{{ 'Rotate clockwise' | translate }}">
+                <i class="fa fa-repeat"></i>
+              </button>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-default" ng-click="mediafileZoomOut()" title="{{ 'Zoom out' | translate }}">
+                <i class="fa fa-search-minus"></i>
+              </button>
+              <button class="btn" ng-click="mediafileFit()" title="{{ 'Reset zoom' | translate }}"
+                  ng-class="presentedMediafile.scale=='page-fit' ? 'btn-primary' : 'btn-default'">
+                100%
+              </button>
+              <button class="btn btn-default" ng-click="mediafileZoomIn()" title="{{ 'Zoom in' | translate }}">
+                <i class="fa fa-search-plus"></i>
+              </button>
+            </div>
+          </nav>
+        </div>
+        <div ng-show="!presentedMediafiles.length" class="spacer">
+          <i translate>No PDF file projected.</i>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="details">
+  <div class="row form-group">
+    <div class="col-sm-6">
+      <form class="form-inline">
+        <!-- delete mode -->
+        <button os-perms="mediafiles.can_manage" class="btn"
+            ng-class="$parent.isDeleteMode ? 'btn-primary' : 'btn-default'"
+            ng-click="$parent.isDeleteMode = !$parent.isDeleteMode; uncheckAll()">
+          <i class="fa fa-check-square-o"></i>
+          <translate>Select ...</translate>
+        </button>
+      </form>
+    </div>
+    <div class="col-sm-6">
+      <div class="form-inline text-right">
+        <div class="form-group">
+          <div class="input-group">
+            <div class="input-group-addon"><i class="fa fa-search"></i></div>
+            <input type="text" ng-model="filter.search" class="form-control"
+               placeholder="{{ 'Search' | translate}}">
+          </div>
+        </div>
+        <button class="btn btn-default" ng-click="isFilterOpen = !isFilterOpen"
+            ng-class="isFilterOpen ? 'btn-primary' : 'btn-default'">
+          <i class="fa fa-filter"></i>
+          <translate>Filter ...</translate>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div uib-collapse="!isFilterOpen" class="row">
+    <div class="col-sm-6 text-right"></div>
+    <div class="col-sm-6 text-right">
+      <!-- pdf filter -->
+      <input type="checkbox" ng-model="filter.showPDFs" ng-true-value="'application/pdf'" ng-false-value=''>
+      <translate> Show PDF files only</translate>
+    </div>
+  </div>
+  <div uib-collapse="!isDeleteMode" class="row spacer">
+    <div class="col-sm-12 text-left">
+      <!-- delete button -->
+      <a ng-show="isDeleteMode"
+          os-perms="mediafiles.can_manage" ng-click="deleteMultiple()"
+          class="btn btn-primary">
+        <i class="fa fa-trash fa-lg"></i>
+        <translate>Delete selected mediafiles</translate>
+      </a>
+    </div>
+  </div>
+
+  <div class="spacer-top-lg italic">
+    {{ mediafilesFiltered.length }} /
+    {{ mediafiles.length }} {{ "files" | translate }}<span ng-if="(mediafiles|filter:{selected:true}).length > 0">,
+    {{(mediafiles|filter:{selected:true}).length}} {{ "selected" | translate }}</span>
+  </div>
+  <table class="table table-striped table-bordered table-hover">
+    <thead>
+      <tr>
+        <!-- projector column -->
+        <th ng-show="!isDeleteMode" os-perms="core.can_manage_projector" class="minimum">
+        <!-- delete selection column -->
+        <th ng-show="isDeleteMode" os-perms="mediafiles.can_manage" class="minimum deleteColumn">
+          <input type="checkbox" ng-model="$parent.selectedAll" ng-change="checkAll()">
+        <!-- title -->
+        <th ng-click="toggleSort('title_or_filename')" class="sortable">
+          <translate>Title</translate>
+          <i class="pull-right fa" ng-show="sortColumn === 'title_or_filename' && header.sortable != false"
+              ng-class="reverse ? 'fa-sort-desc' : 'fa-sort-asc'">
+          </i>
+        <!-- upload time -->
+        <th ng-click="toggleSort('timestamp')" class="sortable optional">
+          <translate>Upload time</translate>
+          <i class="pull-right fa" ng-show="sortColumn === 'timestamp' && header.sortable != false"
+              ng-class="reverse ? 'fa-sort-desc' : 'fa-sort-asc'">
+          </i>
+        <!-- uploaded by -->
+        <th ng-click="toggleSort('uploader')" class="sortable">
+          <translate>Uploaded by</translate>
+          <i class="pull-right fa" ng-show="sortColumn === 'uploader' && header.sortable != false"
+              ng-class="reverse ? 'fa-sort-desc' : 'fa-sort-asc'">
+          </i>
+      </tr>
+    <tbody>
+      <tr ng-repeat="mediafile in mediafilesFiltered = (mediafiles | osFilter: filter.search : getFilterString |
+          filter: {filetype: filter.showPDFs} | orderBy: sortColumn:reverse)"
+          class="animate-item"
+          ng-class="{ 'activeline': mediafile.isProjected(), 'selected': mediafile.selected }">
+        <!-- projector column -->
+        <td ng-show="!isDeleteMode"
+            os-perms="core.can_manage_projector">
+          <a class="btn btn-default btn-sm"
+              ng-if="mediafile.mediafile.type == 'application/pdf'"
+              ng-class="{ 'btn-primary': mediafile.isProjected() }"
+              ng-click="showPdf(mediafile)"
+              title="{{ 'Project mediafile' | translate }}">
+            <i class="fa fa-video-camera"></i>
+          </a>
+        <!-- delete selection column -->
+        <td ng-show="isDeleteMode" os-perms="mediafiles.can_manage" class="deleteColumn">
+          <input type="checkbox" ng-model="mediafile.selected">
+        <!-- mediafile data colums -->
+        <td ng-mouseover="mediafile.hover=true" ng-mouseleave="mediafile.hover=false">
+          <strong><a ng-href="{{ mediafile.mediafileUrl }}" target="_blank">{{ mediafile.title_or_filename }}</a></strong>
+          <br><small><i class="fa fa-file"></i> {{ mediafile.filetype }}</small>
+          <br><small><i class="fa fa-database"></i> {{ mediafile.filesize }}</small>
+          <div os-perms="mediafiles.can_manage" class="hoverActions" ng-class="{'hiddenDiv': !mediafile.hover}">
+            <a href="" ng-click="openDialog(mediafile)" translate>Edit</a> |
+            <a href="" class="text-danger"
+                ng-bootbox-confirm="{{ 'Are you sure you want to delete this file?' | translate }}<br>
+                <b>{{ mediafile.title }} [{{ mediafile.mediafile.name }}]</b>"
+                ng-bootbox-confirm-action="delete(mediafile)" translate>Delete</a>
+          </div>
+        <td class="optional">{{ mediafile.timestamp | date:'yyyy-MM-dd HH:mm:ss' }}
+        <td>{{ mediafile.uploader.get_full_name() }}
+    </tbody>
+  </table>
+</div>
