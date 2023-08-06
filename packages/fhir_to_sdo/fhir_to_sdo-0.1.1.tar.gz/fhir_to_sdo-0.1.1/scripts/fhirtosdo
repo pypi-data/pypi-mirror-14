@@ -1,0 +1,109 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2016, Mayo Clinic
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without modification,
+# are permitted provided that the following conditions are met:
+#
+# Redistributions of source code must retain the above copyright notice, this
+#     list of conditions and the following disclaimer.
+#
+#     Redistributions in binary form must reproduce the above copyright notice,
+#     this list of conditions and the following disclaimer in the documentation
+#     and/or other materials provided with the distribution.
+#
+#     Neither the name of the Mayo Clinic nor the names of its contributors
+#     may be used to endorse or promote products derived from this software
+#     without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+# IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+# LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+# OF THE POSSIBILITY OF SUCH DAMAGE.
+
+import argparse
+import logging
+import os
+import sys
+
+from dirlistproc import DirectoryListProcessor
+
+script_path = os.path.join(os.getcwd(), os.path.dirname(__file__))
+if __name__ == "__main__":
+    sys.path.append(os.path.join(script_path, '..'))
+
+from fhir_to_sdo.fhir_structured_definition import FHIRStructuredDefinition
+from fhir_to_sdo.sdo_template import sdo_template
+
+DEFAULT_LOG_FILE = os.path.join(script_path, os.path.basename(__file__) + ".log")
+DEFAULT_LOGGING_LEVEL = logging.getLevelName(logging.WARNING)
+
+logNames = [logging.getLevelName(l) for l in [logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR]]
+
+
+def addargs(parser: argparse.ArgumentParser) -> None:
+    """ Add local args to the dirlistproc set. Stub
+    :param parser: dirlistproc parser
+    """
+    parser.add_argument("--logfile", help="Logging file. Default is '%s'" % DEFAULT_LOG_FILE, default=DEFAULT_LOG_FILE)
+    parser.add_argument("--loglevel", help="Logging level. Default is %s" % DEFAULT_LOGGING_LEVEL,
+                        default=DEFAULT_LOGGING_LEVEL,
+                        choices=logNames)
+
+
+def procargs(opts: argparse.Namespace) -> None:
+    """ Evaluate the return arguments. Stub
+    :param opts: argument parser output
+    """
+    logging.basicConfig(filename=opts.logfile, level=opts.loglevel, filemode='w',
+                        format='%(asctime)s  %(levelname)s - %(message)s')
+
+
+def inp_filtr(input_fn: str) -> bool:
+    """ Vote on whether the input file should be processed
+    :param input_fn: file name to test
+    :return: True if it should be processed, False if it is to be skipped
+    """
+    reason = None
+    if '-' in input_fn:
+        reason = "name contains a hyphen (-)"
+    elif input_fn.endswith(".xml.profile.json"):
+        reason = "ends with .xml.profile.json"
+    if reason:
+        logging.info("%s skipped %s" % (input_fn, reason))
+    return reason is None
+
+
+def proc_profile(input_fn: str, _: str, opts: argparse.Namespace) -> bool:
+    """ Process a FHIR profile file (json format)
+    :param input_fn: name of the file to process
+    :param _: name of the output file (not used - we always generate one big file)
+    :param opts: process options
+    :return: True if file was processed, false if it was skipped
+    """
+    logging.info("Processing %s" % input_fn)
+    fsd = FHIRStructuredDefinition(input_fn)
+    if fsd.should_process():
+        opts._defs.append(fsd)
+    return True
+
+
+def main():
+    dlp = DirectoryListProcessor(None, "Generate schema.org definitions from FHIR", ".profile.json", None, addargs, procargs)
+    dlp.opts._defs = []
+    nfiles, nsuccess = dlp.run(proc_profile, inp_filtr)
+
+    print(sdo_template(dlp.opts._defs), file=open(dlp.opts.outfile[0], 'w') if dlp.opts.outfile else sys.stdout)
+
+    logging.info("Total files processed=%d Errors=%d" % (nfiles, nfiles - nsuccess))
+
+
+if __name__ == '__main__':
+    main()
