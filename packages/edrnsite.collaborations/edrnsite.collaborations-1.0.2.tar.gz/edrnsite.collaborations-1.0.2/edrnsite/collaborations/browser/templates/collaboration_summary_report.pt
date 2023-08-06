@@ -1,0 +1,164 @@
+<div metal:define-macro='collaborationReports'>
+<style>
+body {
+  font: 10px sans-serif;
+}
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.bar {
+  fill: steelblue;
+}
+
+.x.axis path {
+  display: none;
+}
+
+</style>
+<body>
+<script src="d3.v3.min.js"></script>
+<script>
+
+var margin = {top: 20, right: 100, bottom: 30, left: 40},
+    width = 700 - margin.left - margin.right,
+    height = 200 - margin.top - margin.bottom;
+
+var x0 = d3.scale.ordinal()
+    .rangeRoundBands([0, width], .1);
+
+var x1 = d3.scale.ordinal();
+
+var y = d3.scale.linear()
+    .range([height, 0]);
+
+var color = d3.scale.ordinal()
+    .range(["#e08214","#41ab5d","#807dba","#ba7db7","#218C8D","#6CCECB","#F9E559","#473E3F"]);
+
+var xAxis = d3.svg.axis()
+    .scale(x0)
+    .orient("bottom");
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("left")
+    .tickFormat(d3.format(".2s"));
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+function dashboard(id, data){
+  var ageNames = data.map(function(t){ return t.collaborator;});
+
+  var xkeys = [];
+  for(key in data[0].freq){
+    if(key != "name"){
+      xkeys.push(key);
+    }
+  }
+
+  data.forEach(function(d) {
+    d.freq = xkeys.map(function(name) { return {name: name, value: d.freq[name]}; });
+  });
+
+  x0.domain(data.map(function(d) { return d.collaborator; }));
+  x1.domain(xkeys).rangeRoundBands([0, x0.rangeBand()]);
+  y.domain([0, d3.max(data, function(d) { return d3.max(d.freq, function(d) { return d.value; }); })]);
+
+  svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(0," + height + ")")
+      .call(xAxis);
+
+  svg.append("g")
+      .attr("class", "y axis")
+      .call(yAxis)
+    .append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 6)
+      .attr("dy", ".71em")
+      .style("text-anchor", "end")
+      .text("Contribution Frequencies");
+
+  var state = svg.selectAll(".state")
+      .data(data)
+    .enter().append("g")
+      .attr("class", "state")
+      .attr("transform", function(d) { return "translate(" + x0(d.collaborator) + ",0)"; });
+
+  state.selectAll("rect")
+      .data(function(d) { return d.freq; })
+    .enter().append("rect")
+      .attr("width", x1.rangeBand())
+      .attr("x", function(d) { return x1(d.name); })
+      .attr("y", function(d) { return y(d.value); })
+      .attr("height", function(d) { return height - y(d.value); })
+      .style("fill", function(d) { return color(d.name); });
+
+  var legend = svg.selectAll(".legend")
+      .data(xkeys.slice().reverse())
+    .enter().append("g")
+      .attr("class", "legend")
+      .attr("transform", function(d, i) { return "translate(70," + i * 20 + ")"; });
+
+  legend.append("rect")
+      .attr("x", width - 18)
+      .attr("width", 18)
+      .attr("height", 18)
+      .style("fill", color);
+
+  legend.append("text")
+      .attr("x", width - 24)
+      .attr("y", 9)
+      .attr("dy", ".35em")
+      .style("text-anchor", "end")
+      .text(function(d) { return d; });
+
+}
+
+</script>
+<script type="text/javascript" src="portal_javascripts/EDRN%20Theme/++resource++plone.app.jquery.js"></script>
+<script type="text/javascript" src="portal_javascripts/EDRN%20Theme/jquery-integration.js"></script>
+<script type="text/javascript" src="portal_javascripts/EDRN%20Theme/++resource++plone.app.jquerytools.js"></script>
+<script>
+/*var freqData=[
+{collaborator:'Breast and Gynecologic',freq:{biomarkers:183, datasets:5, protocols: 68, members: 27 }}
+,{collaborator:'G.I. and Other Associated',freq:{biomarkers:0, datasets:2, protocols: 61, members: 27 }}
+,{collaborator:'Lung and Upper Aerodigestive',freq:{biomarkers:45, datasets:35, protocols: 29, members: 20 }}
+,{collaborator:'Prostate and Urologic',freq:{biomarkers:5, datasets:23, protocols: 59, members: 18 }}
+];*/
+    document.addEventListener( 'DOMContentLoaded', function () {
+    $.getJSON( "committees/@@summary", function( data ) {
+        items = [];
+        var garray = {};
+        var types = [];
+        $.each( data, function( type, val ) {
+            $.each( val, function(group, count) {
+                group = group.replace("Cancers Research Group","");
+                if (!(group in garray)){
+                    garray[group] = {};
+                }
+                garray[group][type] = count;
+                types.push(type);
+            });
+        });
+        for (var key in garray){
+            for (var type in types){
+                if(!(types[type] in garray[key])){
+                    garray[key][types[type]] = 0;
+                }
+            }
+            items.push({collaborator: key, freq: garray[key]});
+        }
+        dashboard('#dashboard',items);
+    });
+ });
+//dashboard(freqData);
+</script>
+</div>
