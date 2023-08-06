@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Trust documentation</title>
+        <link rel="stylesheet" href="/css">
+    </head>
+    <body>
+        <div id="content">
+            <h1>
+                <img src="/logo" alt="Trust configuration access">
+            </h1>
+            <div id="abstract">
+                <p>Trust is a <b>hierarchical read-only database engine</b> which can be <b>used locally or remotely through REST</b> to access hierarchies stored in plain text files or in a MongoDB database. While <b>users and groups</b> can be used to limit access to specific parts of the hierarchy, Trust also monitors access to sensitive data in order to provide <b>audit capabilities</b>. Trust is ideally used to <b>store configuration</b> and describe infrastructure.</p>
+                <p>You can use the following form to query the demo data and watch how Trust responds. Make sure you look at <a href="http://source.pelicandd.com/infrastructure/trust/tests/system/data/">the data itself</a>. To get some inspiration, you may also use the templates available below the form.</p>
+            </div>
+            <form id="query-form">
+                <input id="query" name="query" placeholder="Test query">
+                <input type="submit" value="Try">
+                <span class="options">
+                    <label>User</label>
+                    <select id="credentials">
+                        <optgroup label="Correct password">
+                            <option value="Lucy:demo">Lucy</option>
+                            <option value="Emily:demo">Emily</option>
+                            <option value="William:demo">William</option>
+                            <option value="James:demo">James</option>
+                        </optgroup>
+                        <optgroup label="Wrong password">
+                            <option value="James:wrong">James</option>
+                            <option value="William:invalid password">William</option>
+                        </optgroup>
+                        <optgroup label="Special">
+                            <option value="">Guest</option>
+                        </optgroup>
+                    </select>
+                    <label>Format</label>
+                    <select id="mode">
+                        <option value="json">JSON</option>
+                        <option value="complete">Complete</option>
+                        <option value="text">Plain text</option>
+                    </select>
+                </span>
+            </form>
+            <div id="results">
+                <noscript>
+                    JavaScript needs to be enabled for this feature to work.
+                </noscript>
+                <div class="intro">Type a query to see the results or click on one of the examples below</div>
+            </div>
+            <div id="illustrations">
+                {% for name, illustration in illustrations %}
+                <a href="#query-form">
+                    {{ illustration.summary | capitalize }}
+                    <span class="info">
+                        <span class="query">{{ illustration.query }}</span>
+                        {% if not illustration.user and not illustration.password %}
+                        <span class="credentials empty">guest</span>
+                        {% else %}
+                        <span class="credentials">
+                            <span class="user">{{ illustration.user }}</span>:<span class="password">{{ illustration.password }}</span>
+                        </span>
+                        {% endif %}
+                    </span>
+                </a>
+                {% endfor %}
+            </div>
+            <div id="documentation">
+                {{ documentation|safe }}
+            </div>
+        </div>
+        <footer>
+            <p id="copyright">Copyright &copy; 2015 Pelican Design &amp; Development. All rights reserved. The page content and the visual design, with the exception of the logotype, are provided under <a href="http://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution/Share-Alike license</a>. The source code is under the <a href="http://opensource.org/licenses/MIT">MIT license</a>.
+            <div id="logos">
+                <img src="/logo-bottom">
+                <img src="http://s.pelicandd.com/logos/pelican100x41gra.png">
+            </div>
+        </footer>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+        <script>
+var jsonFormatting = {
+    // The code of the following object is issued from http://jsfiddle.net/unLSJ/
+    replacer: function(match, pIndent, pKey, pVal, pEnd) {
+        var
+            key = '<span class=json-key>',
+            val = '<span class=json-value>',
+            str = '<span class=json-string>',
+            r = pIndent || '';
+
+        if (pKey) {
+            r = r + key + pKey.replace(/[": ]/g, '') + '</span>: ';
+        }
+
+        if (pVal) {
+            r = r + (pVal[0] == '"' ? str : val) + pVal + '</span>';
+        }
+
+        return r + (pEnd || '');
+    },
+    prettyPrint: function(obj) {
+        var
+            jsonLine = /^( *)("[\w]+": )?("[^"]*"|[\w.+-]*)?([,[{])?$/mg;
+
+        return JSON.stringify(obj, null, 3)
+            .replace(/&/g, '&amp;').replace(/\\"/g, '&quot;')
+            .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(jsonLine, jsonFormatting.replacer);
+    }
+};
+
+$(document).ready(function () {
+    $('#illustrations a').click(function () {
+        var
+            query = $(this).find('.query').text(),
+            user = $(this).find('.user').text(),
+            password = $(this).find('.password').text(),
+            credentials = user === '' && password === '' ?
+                '' :
+                user + ':' + password;
+
+        $('#query').val($(this).find('.query').text());
+        $('#credentials').val(credentials);
+    });
+
+    $('#query-form').submit(function (e) {
+        var
+            path = $('#query').val(),
+            mode = $('#mode').val(),
+            credentials = $('#credentials').val();
+
+        e.stopPropagation();
+        e.preventDefault();
+
+        $.ajaxSetup({
+            headers: { 'Authorization': 'Basic ' + window.btoa(credentials) }
+        });
+
+        $.ajax({
+            url: '/service' + path + '?response-mode=' + mode,
+            dataType: 'text',
+            cache: false,
+            success: function (data) {
+                var
+                    obj = JSON.parse(data),
+                    json = jsonFormatting.prettyPrint(obj);
+
+                if (mode === 'json') {
+                    $('#results').html(json);
+                } else {
+                    $('#results').text(data);
+                }
+            },
+            error: function (xhr, status, error) {
+                $('#results').text(xhr.responseText);
+            }
+        });
+    });
+});
+        </script>
+    </body>
+</html>

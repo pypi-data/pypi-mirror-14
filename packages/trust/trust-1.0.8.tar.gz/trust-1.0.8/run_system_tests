@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# Retrieves the directory where the current script is located.
+find_script_dir()
+{
+    # From http://stackoverflow.com/a/246128
+    local bashSource="${BASH_SOURCE[0]}"
+    while [ -h "$bashSource" ]; do
+      local dir="$( cd -P "$( dirname "$bashSource" )" && pwd )"
+      bashSource="$(readlink "$bashSource")"
+      [[ $bashSource != /* ]] && bashSource="$dir/$bashSource"
+    done
+    echo "$( cd -P "$( dirname "$bashSource" )" && pwd )"
+}
+
+DIR=$(find_script_dir)
+
+find_trust()
+{
+    query="$1"
+    responseMode="$2"
+    user="$3"
+    password="$4"
+
+    if [ "$responseMode" == "" ]; then
+        responseMode="complete"
+    fi
+
+    if [ "$user" == "" ]; then
+        python3 "./localtrust.py" "$DIR/tests/system/data/" "$1" \
+            --response-mode "$responseMode"
+    else
+        python3 "./localtrust.py" "$DIR/tests/system/data/" "$1" \
+            --response-mode "$responseMode" \
+            --username "$user" \
+            --password "$password"
+    fi
+}
+
+find_text_trust()
+{
+    python3 "./localtrust.py" "$DIR/tests/system/data/" "$1" \
+        --response-mode text \
+        --optional
+}
+
+compare_json()
+{
+    json1="$1"
+    json2="$2"
+
+    python3 - "$json1" "$json2" <<PythonSource
+import argparse
+import json
+
+parser = argparse.ArgumentParser()
+parser.add_argument("json1")
+parser.add_argument("json2")
+args = parser.parse_args()
+
+json1 = json.loads(args.json1)
+json2 = json.loads(args.json2)
+
+print(1 if json1 == json2 else 0)
+PythonSource
+}
+
+python3 website.py &
+server_job_id=$!
+
+trap "kill $server_job_id; exit" SIGHUP SIGINT SIGTERM EXIT
+
+while read -r test; do
+    echo "Testing $test through local client..."
+    query=$(find_text_trust "/data-tests/system-tests/$test/query")
+    mode=$(find_text_trust "/data-tests/system-tests/$test/response-mode")
+    user=$(find_text_trust "/data-tests/system-tests/$test/user")
+    password=$(find_text_trust "/data-tests/system-tests/$test/password")
+    expected=$(find_trust "/data-tests/system-tests/$test/response")
+    actual=$(find_trust "$query" "$mode" "$user" "$password")
+    if [ "$(compare_json "$expected" "$actual")" != "1" ]; then
+        echo "Failed: expected $expected, found $actual instead."
+        echo "The query was: ${query}."
+    fi
+
+    if [ "$(find_text_trust "/data-tests/system-tests/$test/no-web-service")" != "true" ]; then
+        echo "Testing $test through web service..."
+        actualWeb=$(
+            curl "http://127.0.0.1:5000/service$query?response-mode=$mode" \
+                --silent \
+                --user "$user:$password"
+        )
+        if [ "$(compare_json "$expected" "$actualWeb")" != "1" ]; then
+            echo "Failed: expected $expected, found $actualWeb instead."
+            echo "The query was: ${query}."
+        fi
+    fi
+done < <(find_text_trust "/data-tests/system-tests/.keys")
