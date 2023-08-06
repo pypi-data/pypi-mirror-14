@@ -1,0 +1,115 @@
+<h3>
+    Advanced Filtering
+    <button class="btn btn-default btn-sm" type="button" data-toggle="collapse" data-target="#filtering-collapse"><i class="glyphicon glyphicon-chevron-down"></i></button>
+</h3>
+
+<div class="collapse {% if active_filters %}in{% endif %}" id="filtering-collapse">
+
+    <p>
+    The syntax for filtering objects by specific fields is:
+    </p>
+
+    <p>
+        <code>
+        {{ url }}?&lt;field name&gt;=&lt;oper&gt;:&lt;value&gt;[&amp;&lt;field name&gt;=&lt;oper&gt;:&lt;value&gt;]*
+        </code>
+    </p>
+
+    <p>The following fields can be used for filtering:</p>
+    <form onsubmit="advanced_search(); return false;">
+        <table class="table" style="width: auto;" id="advanced_filters">
+            <tbody>
+                {% for field in fields %}
+                    <tr>
+                        <th style="vertical-align: middle;">{{ field.name }}</th>
+                        <td>
+                            <div class="form-inline">
+                                <div class="form-group">
+                                    <select class="form-control" id="filter_{{ field.name }}_op">
+                                        {% for operator in operators %}
+                                            <option value="{{ operator }}">{{ operator }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <input class="form-control" id="filter_{{ field.name }}_val" name="{{ field.name }}">
+                                </div>
+                            </div>
+                        </td>
+                        <td style="vertical-align: middle;">({{ field.datatype}})</td>
+                    </tr>
+                {% endfor %}
+                <tr>
+                    <th>&nbsp;</th>
+                    <td colspan="2">
+                        <button type="submit" class="btn btn-primary">Apply</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </form>
+
+    <p>
+    These are the operators that can be used in filters:
+    </p>
+
+    <table class="table table-bordered">
+        <tbody>
+            <tr>
+                <th>Operator</th>
+                <th>Expects</th>
+                <th>Description</th>
+            </tr>
+            {% for operator in operators %}
+                <tr>
+                    <td>{{ operator }}</td>
+                    <td>{{ operator.get_expected_value_description }}</td>
+                    <td>{{ operator.description }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p>Notes:</p>
+    <ul>
+        <li>When filtering on more than one field, the conditions are ANDed together.</li>
+        <li>String comparisons are case sensitive except for the <tt>like</tt> operator.</li>
+        <li>Datetime values should be specified in ISO-8601 format: <tt>yyyy-mm-dd[Thh:mm[:ss][Z]]</tt>.
+            <br>For example <tt>2014-01-17</tt> or <tt>2014-12-31T23:59:59Z</tt></li>
+        <li>To filter on boolean fields use 1 for true and 0 for false.</li>
+        <li>Lists of values should be comma-separated, and optionally enclosed in parentheses or square brackets.
+            <br>For example <tt>red,blue,green</tt> or <tt>[red,blue,green]</tt></li>
+    </ul>
+
+</div>
+
+<script>
+
+    {% include "django_rest_utils/functions.js" %}
+
+    function advanced_search() {
+        var uri = window.location.toString();
+        $('#advanced_filters input').each(function() {
+            var input = $(this);
+            if (input.val()) {
+                var value = input.prev().val() + ':' + input.val();
+                uri = updateQueryStringParameter(input.attr('name'), value, uri);
+            }
+            else {
+                uri = removeQueryStringParameter(input.attr('name'), uri);
+            }
+        });
+        window.location = uri;
+    }
+
+    {% for filter in active_filters %}
+        var filter_value = "{{ filter.1 }}";
+        var colon_location = filter_value.indexOf(':');
+        var operator = 'eq';
+        if (colon_location != -1) {
+            operator = filter_value.slice(0, colon_location);
+            filter_value = filter_value.slice(colon_location + 1);
+        }
+        document.getElementById('filter_{{ filter.0 }}_op').value = operator;
+        document.getElementById('filter_{{ filter.0 }}_val').value = filter_value;
+    {% endfor %}
+
+</script>
