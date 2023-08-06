@@ -1,0 +1,128 @@
+{% load bootstrap_pagination %}
+{% load static %}
+{% load thumbnail %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>File Uploads</title>
+    <link href="{% static 'uploader/css/all_files.css' %}" type="text/css" rel="stylesheet">
+    <script src="{% static jquery_path %}"></script>
+
+    <script>
+      var image_id = {{ first_file.id|default:"null" }};
+
+      function thumbnail_it(width, height) {
+        $.get("/uploader/thumbnail/" + image_id + "/" + width + "x" + height + "/", function(retval) {
+          top.tinymce.activeEditor.windowManager.getParams().oninsert(retval);
+          top.tinymce.activeEditor.windowManager.close();
+        })
+      }
+
+      $(function() {
+        $("#images li").click(function() {
+          try {
+            image_id = $(this).attr("id").split("-")[1]
+               $("#sizes").show("fast")
+          } catch (ex) {}
+        })
+        {% if first_file %}
+        {% ifequal type "image" %}
+        $("#sizes").show("fast")
+        {% endifequal %}
+        {% endif %}
+      });
+
+      {% if first_file %}
+      {% ifequal type "file" %}
+        top.tinymce.activeEditor.windowManager.getParams().oninsert('{{ first_file.file.url }}');
+        top.tinymce.activeEditor.windowManager.close();
+      {% endifequal %}
+      {% endif %}
+    </script>
+  </head>
+  <body>
+    <form id="form" enctype="multipart/form-data" action="." method="post">
+      {% csrf_token %}
+      <input type="hidden" name="type" value="{{ type|default:'' }}" onchange="$('#form').submit()"/>
+      Upload Zip or Single File: {{ form.file }}
+      <input type="submit" value="Upload">
+    </form>
+
+    <form id="searchform" action="." method="get">
+      {% if type %}<input type="hidden" name="type" value="{{ type }}" onchange="$('#form').submit()"/>{% endif %}
+      {{ search_form.keywords }}
+      <input type="submit" value="Search" /> {% if keywords %}<a href=".?type={{ type|default:'' }}">Show All</a>{% endif %}
+    </form>
+
+    {% if image_paginator %}
+      <div id="sizes">
+        <h4>Choose a size</h4>
+
+        {% if first_file %}
+          {% thumbnail first_file.image "100x100" crop="center" as thumb %}
+          {% if thumb %}
+          <img src="{{ thumb.url }}" alt title="{{ image.name }}">
+          {% endif %}
+        {% endif %}
+
+        <ul>
+          <li><a href="javascript:void(0)" onclick="thumbnail_it(0,0)">Actual Size</a></li>
+          {% for size in sizes %}
+          <li><a href="javascript:void(0)"
+             onclick="thumbnail_it({{ size.width }}, {{ size.height }})">
+          {{ size }}</a></li>
+          {% endfor %}
+          <li>
+            <form action="" onsubmit="return false">{% csrf_token %}
+            <input id="width" type="text" size="2" /> x
+            <input id="height" type="text" size="2" />
+            <input type="button" value="Go" onclick="thumbnail_it($('#width').val(), $('#height').val())" />
+            <a href="javascript:void(0)" onclick="$('#sizes').hide()">Cancel</a>
+            </form>
+          </li>
+        </ul>
+      </div>
+    {% endif %}
+
+    {% if image_paginator %}
+      <div id="images">
+        <ul class="file-list">
+          {% for image in image_page.object_list %}
+          {% thumbnail image.image "100x100" crop='center' as thumb %}
+          {% if thumb %}
+          <li id="i-{{ image.id }}">
+            <div>
+              <img src="{{ thumb.url }}" alt title="{{ image.name }}">
+            </div>
+          </li>
+          {% endif %}
+          {% endfor %}
+        </ul>
+
+        {% if image_paginator.num_pages > 1 %}
+          {% bootstrap_paginate image_page url_param_name="ipage" %}
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if file_paginator %}
+      <div id="files">
+        <ul>
+          {% for file in file_page.object_list %}
+          <li>
+            <a href="javascript:void(0)" onclick="top.tinymce.activeEditor.windowManager.getParams().oninsert('{{ file.file.url }}'); top.tinymce.activeEditor.windowManager.close();">{{ file }}</a>
+            ({{ file.file.name }})</li>
+          {% endfor %}
+        </ul>
+
+        {% if file_paginator.num_pages > 1 %}
+          {% bootstrap_paginate file_page url_param_name="fpage" %}
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if not file_paginator and not image_paginator %}Nothing here yet.{% endif %}
+  </body>
+</html>
