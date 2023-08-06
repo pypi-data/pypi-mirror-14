@@ -1,0 +1,1660 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>fibtracking &mdash; FIBTracking 0.2.1 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="FIBTracking 0.2.1 documentation" href="../index.html"/>
+        <link rel="up" title="Module code" href="index.html"/> 
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> FIBTracking
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.2.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <p class="caption"><span class="caption-text">Table of Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial.html">Tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api_doc.html">API Summary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api_doc.html#module-fibtracking">Full API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../index.html">FIBTracking</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="index.html">Module code</a> &raquo;</li>
+      
+    <li>fibtracking</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for fibtracking</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright 2016 Joshua Taillon</span>
+<span class="c1">#</span>
+<span class="c1"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="c1"># you may not use this file except in compliance with the License.</span>
+<span class="c1"># You may obtain a copy of the License at</span>
+<span class="c1">#</span>
+<span class="c1">#     http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="c1">#</span>
+<span class="c1"># Unless required by applicable law or agreed to in writing, software</span>
+<span class="c1"># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="c1"># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="c1"># See the License for the specific language governing permissions and</span>
+<span class="c1"># limitations under the License.</span>
+
+<span class="n">__version__</span> <span class="o">=</span> <span class="s1">&#39;0.2.1&#39;</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;QT_API&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;pyqt&#39;</span>
+<span class="n">backend</span> <span class="o">=</span> <span class="s2">&quot;qt4agg&quot;</span>
+
+<span class="kn">import</span> <span class="nn">cv2</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="kn">from</span> <span class="nn">skimage</span> <span class="kn">import</span> <span class="n">feature</span>
+
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="kn">import</span> <span class="n">tqdm</span>
+
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+
+<span class="n">matplotlib</span><span class="o">.</span><span class="n">pyplot</span><span class="o">.</span><span class="n">switch_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">PyQt4</span> <span class="kn">import</span> <span class="n">QtCore</span><span class="p">,</span> <span class="n">QtGui</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_filepaths&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;readimages&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;get_fei_pixel_width&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;get_tescan_pixel_width&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;trackfiducials&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;plot_fid_distances&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;fit_fid_distances&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;image_browser&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;export_video&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;slice_thickness&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;plot_thicknesses&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;save_output&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;import_csv_data&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;_convert_units&#39;</span><span class="p">,</span>
+           <span class="p">]</span>
+
+
+<div class="viewcode-block" id="get_filepaths"><a class="viewcode-back" href="../api_doc.html#fibtracking.get_filepaths">[docs]</a><span class="k">def</span> <span class="nf">get_filepaths</span><span class="p">(</span><span class="n">directory</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This function will generate the file names in a directory</span>
+<span class="sd">    tree by walking the tree either top-down or bottom-up. For each</span>
+<span class="sd">    directory in the tree rooted at directory top (including top itself),</span>
+<span class="sd">    it yields a 3-tuple (dirpath, dirnames, filenames).</span>
+<span class="sd">    (From http://stackoverflow.com/a/19308592/1435788)</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    directory: str</span>
+<span class="sd">        directory to walk and find files in</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">file_paths</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># List which will store all of the full filepaths.</span>
+
+    <span class="c1"># Walk the tree.</span>
+    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">directories</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">directory</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">filename</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="c1"># Join the two strings in order to form the full filepath.</span>
+            <span class="n">filepath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">filename</span><span class="p">)</span>
+            <span class="n">file_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>  <span class="c1"># Add it to the list.</span>
+
+    <span class="k">return</span> <span class="n">file_paths</span></div>
+
+
+<div class="viewcode-block" id="readimages"><a class="viewcode-back" href="../api_doc.html#fibtracking.readimages">[docs]</a><span class="k">def</span> <span class="nf">readimages</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Open a Qt dialog to get a directory and read all the .tif images inside of</span>
+<span class="sd">    it with OpenCV</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    ------</span>
+<span class="sd">    im_list: list</span>
+<span class="sd">        List of images read by opencv</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># noinspection PyArgumentList</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">app</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">app</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span>
+
+    <span class="c1"># noinspection PyTypeChecker</span>
+    <span class="n">directory</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QFileDialog</span><span class="o">.</span><span class="n">getExistingDirectory</span><span class="p">(</span>
+        <span class="bp">None</span><span class="p">,</span> <span class="s2">&quot;Select folder containing images&quot;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">curdir</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No directory chosen. Cancelling.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Do this with a loop so we can use a progress bar:</span>
+
+    <span class="c1"># Get all things (directories and files in the directory)</span>
+    <span class="n">file_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">get_filepaths</span><span class="p">(</span><span class="n">directory</span><span class="p">))</span>
+
+    <span class="c1"># Filter out everything but .tif files from this list</span>
+    <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">file_list</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;tif&quot;</span><span class="p">)]</span>
+
+    <span class="c1"># Try .png files if there are no tifs</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">files</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">file_list</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;png&quot;</span><span class="p">)]</span>
+
+    <span class="c1"># Raise exception if no image files found</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No .tif or .png images found in &quot;</span> <span class="o">+</span> <span class="n">directory</span><span class="p">)</span>
+
+    <span class="c1"># Pre-allocate im_list</span>
+    <span class="n">im_list</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">)</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Reading &quot;</span> <span class="o">+</span> <span class="nb">repr</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">files</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot; images from &quot;</span> <span class="o">+</span> <span class="n">directory</span> <span class="o">+</span> <span class="s2">&quot;:&quot;</span><span class="p">)</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># noinspection PyArgumentList</span>
+    <span class="c1"># widgets = [Percentage(), &#39; &#39;, Bar(), &#39; &#39;, ETA()]</span>
+    <span class="c1"># p = ProgressBar(len(im_list), widgets=widgets)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">im_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tqdm</span><span class="p">(</span><span class="n">files</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;Reading images&#39;</span><span class="p">)):</span>
+        <span class="n">im_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">cv2</span><span class="o">.</span><span class="n">imread</span><span class="p">(</span><span class="n">im_name</span><span class="p">),</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_BGR2GRAY</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">im_list</span></div>
+
+
+<div class="viewcode-block" id="get_fei_pixel_width"><a class="viewcode-back" href="../api_doc.html#fibtracking.get_fei_pixel_width">[docs]</a><span class="k">def</span> <span class="nf">get_fei_pixel_width</span><span class="p">(</span><span class="n">fname</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the width of a pixel (in nm) from an FEI tif file. Similar</span>
+<span class="sd">    to how we used to use ``egrep -a`` previously, but this is just Python</span>
+<span class="sd">    so it&#39;s simpler.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fname: string</span>
+<span class="sd">        Filename of image to read from</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pixWidth: float</span>
+<span class="sd">        Width of the pixel (in nm)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">re</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;PixelWidth&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">line</span>
+            <span class="k">break</span>
+
+    <span class="k">if</span> <span class="n">res</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;Pixel width not found in image file&#39;</span><span class="p">)</span>
+
+    <span class="n">pixwidth</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\r</span><span class="s1">&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">pixwidth</span></div>
+
+
+<div class="viewcode-block" id="get_tescan_pixel_width"><a class="viewcode-back" href="../api_doc.html#fibtracking.get_tescan_pixel_width">[docs]</a><span class="k">def</span> <span class="nf">get_tescan_pixel_width</span><span class="p">(</span><span class="n">fname</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the width of a pixel (in nm) from a Tescan .hdr file. Similar</span>
+<span class="sd">    to how we used to use ``egrep -a`` previously, but this is just Python</span>
+<span class="sd">    so it&#39;s simpler.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fname: string</span>
+<span class="sd">        Filename of image to read from</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pixWidth: float</span>
+<span class="sd">        Width of the pixel (in nm)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">re</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">&#39;PixelSizeX&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+            <span class="n">res</span> <span class="o">=</span> <span class="n">line</span>
+            <span class="k">break</span>
+
+    <span class="k">if</span> <span class="n">res</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;Pixel width not found in image file&#39;</span><span class="p">)</span>
+
+    <span class="n">pixwidth</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\r</span><span class="s1">&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">pixwidth</span></div>
+
+
+<div class="viewcode-block" id="trackfiducials"><a class="viewcode-back" href="../api_doc.html#fibtracking.trackfiducials">[docs]</a><span class="k">def</span> <span class="nf">trackfiducials</span><span class="p">(</span><span class="n">pix_width</span><span class="p">,</span>
+                   <span class="n">im_list</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                   <span class="n">im_number</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                   <span class="n">plot_fiducials</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                   <span class="n">fid_num_to_plot</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+                   <span class="n">per_row</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                   <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find distance between fiducial marks in image list</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    pix_width : float</span>
+<span class="sd">        horizontal pixel width (in m)</span>
+<span class="sd">        can be easily obtained by running `egrep -a PixelWidth</span>
+<span class="sd">        &lt;img filename&gt; | tail -n 1` or using</span>
+
+<span class="sd">    im_list : list of cv2 loaded images (for debugging)</span>
+
+<span class="sd">    im_number : int</span>
+<span class="sd">        index of image to use for choosing the fiducial. Useful if the first</span>
+<span class="sd">        few images do not show the fiducial fully</span>
+<span class="sd">    plot_fiducials : bool</span>
+<span class="sd">        Switch to control whether an overview of fiducials will be plotted</span>
+
+<span class="sd">    fid_num_to_plot: int</span>
+<span class="sd">        How many fiducials to plot (will be spread out over all images)</span>
+
+<span class="sd">    per_row : int</span>
+<span class="sd">        How many subplots displayed per row</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    width_m: list</span>
+<span class="sd">        A list containing the horizontal distance (in units of pix_width)</span>
+<span class="sd">        between the two selected fiducial marks on each image.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># noinspection PyArgumentList</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="o">.</span><span class="n">instance</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">app</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">app</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QApplication</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span>
+
+    <span class="c1"># noinspection PyGlobalUndefined</span>
+    <span class="k">global</span> <span class="n">drawing</span><span class="p">,</span> <span class="n">ix</span><span class="p">,</span> <span class="n">iy</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">y1</span><span class="p">,</span> <span class="n">y2</span>
+
+    <span class="c1"># Save interactive state, and set to non-interactive</span>
+    <span class="n">interactive_state</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">isinteractive</span><span class="p">()</span>
+    <span class="n">matplotlib</span><span class="o">.</span><span class="n">interactive</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="c1"># Variables for GUI interaction:</span>
+    <span class="n">drawing</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c1"># true if mouse is pressed</span>
+    <span class="n">ix</span><span class="p">,</span> <span class="n">iy</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">y2</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span>
+
+    <span class="c1"># mouse callback function for drawing rectangle on image</span>
+    <span class="c1"># noinspection PyShadowingNames,PyUnusedLocal,PyIncorrectDocstring</span>
+    <span class="k">def</span> <span class="nf">on_mouse</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">flags</span><span class="p">,</span> <span class="n">param</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Callback function for use with an OpenCV window that draws a rectangle</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        event : OpenCV event</span>
+<span class="sd">            event that is passed by OpenCV window</span>
+<span class="sd">        x :</span>
+<span class="sd">            x position of mouse cursor</span>
+<span class="sd">        y :</span>
+<span class="sd">            y position of mouse cursor</span>
+<span class="sd">        param : list</span>
+<span class="sd">            list of parameters used in the functions</span>
+<span class="sd">            [im1, im2]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">global</span> <span class="n">ix</span><span class="p">,</span> <span class="n">iy</span><span class="p">,</span> <span class="n">drawing</span><span class="p">,</span> <span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">y1</span><span class="p">,</span> <span class="n">y2</span>
+
+        <span class="k">if</span> <span class="n">event</span> <span class="ow">is</span> <span class="n">cv2</span><span class="o">.</span><span class="n">EVENT_LBUTTONDOWN</span><span class="p">:</span>
+            <span class="n">drawing</span> <span class="o">=</span> <span class="bp">True</span>
+
+            <span class="c1"># every time left button is down, clear</span>
+            <span class="c1">#   img1[:] =     img2[:]</span>
+            <span class="n">param</span><span class="p">[</span><span class="mi">0</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">1</span><span class="p">][:]</span>
+            <span class="n">ix</span><span class="p">,</span> <span class="n">iy</span> <span class="o">=</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+            <span class="n">x1</span><span class="p">,</span> <span class="n">y1</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">event</span> <span class="ow">is</span> <span class="n">cv2</span><span class="o">.</span><span class="n">EVENT_MOUSEMOVE</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">drawing</span> <span class="ow">is</span> <span class="bp">True</span><span class="p">:</span>
+                <span class="c1"># img values become img2 values</span>
+                <span class="c1">#   img1[:] =     img2[:]</span>
+                <span class="n">param</span><span class="p">[</span><span class="mi">0</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">param</span><span class="p">[</span><span class="mi">1</span><span class="p">][:]</span>
+                <span class="n">cv2</span><span class="o">.</span><span class="n">rectangle</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="n">ix</span><span class="p">,</span> <span class="n">iy</span><span class="p">),</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">event</span> <span class="ow">is</span> <span class="n">cv2</span><span class="o">.</span><span class="n">EVENT_LBUTTONUP</span><span class="p">:</span>
+            <span class="n">drawing</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="n">x2</span><span class="p">,</span> <span class="n">y2</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">rectangle</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="n">ix</span><span class="p">,</span> <span class="n">iy</span><span class="p">),</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># ##################################</span>
+    <span class="c1"># Reading the images into memory. #</span>
+    <span class="c1">###################################</span>
+    <span class="k">if</span> <span class="n">im_list</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">im_list</span> <span class="o">=</span> <span class="n">readimages</span><span class="p">()</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Pixel width is &quot;</span> <span class="o">+</span> <span class="nb">repr</span><span class="p">(</span><span class="n">pix_width</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;m</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1">#######################################################</span>
+    <span class="c1"># Crop image so we don&#39;t have to process as much data #</span>
+    <span class="c1">#######################################################</span>
+    <span class="c1"># Information popup</span>
+    <span class="n">popup</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="p">()</span>
+    <span class="n">popup</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="s2">&quot;In the following dialog, please select a reduced &quot;</span>
+                  <span class="s2">&quot;area where the fiducials are expected to be found.&quot;</span><span class="p">)</span>
+    <span class="n">popup</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="s2">&quot;Cropping images&quot;</span><span class="p">)</span>
+    <span class="n">popup</span><span class="o">.</span><span class="n">setWindowFlags</span><span class="p">(</span><span class="n">popup</span><span class="o">.</span><span class="n">windowFlags</span><span class="p">()</span> <span class="o">|</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">WindowStaysOnTopHint</span><span class="p">)</span>
+    <span class="n">popup</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+
+    <span class="c1"># Select crop area from first image</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">im_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_GRAY2RGB</span><span class="p">)</span>
+    <span class="n">img2</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">img3</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="n">cropwinname</span> <span class="o">=</span> <span class="s1">&#39;Select rectangle for subregion (enter to submit)&#39;</span>
+    <span class="n">cv2</span><span class="o">.</span><span class="n">namedWindow</span><span class="p">(</span><span class="n">cropwinname</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">WINDOW_FULLSCREEN</span><span class="p">)</span>
+    <span class="n">cv2</span><span class="o">.</span><span class="n">setMouseCallback</span><span class="p">(</span><span class="n">cropwinname</span><span class="p">,</span> <span class="n">on_mouse</span><span class="p">,</span> <span class="n">param</span><span class="o">=</span><span class="p">[</span><span class="n">img</span><span class="p">,</span> <span class="n">img2</span><span class="p">,</span> <span class="n">img3</span><span class="p">])</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="n">cv2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">cropwinname</span><span class="p">,</span> <span class="n">img</span><span class="p">)</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">waitKey</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xFF</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">13</span><span class="p">:</span>  <span class="c1"># enter key</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">destroyAllWindows</span><span class="p">()</span>
+            <span class="k">break</span>
+        <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">27</span><span class="p">:</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">destroyAllWindows</span><span class="p">()</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;No crop area selected, using full region&quot;</span><span class="p">)</span>
+            <span class="k">break</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Box coordinates are(x1, y1), &quot;</span>
+          <span class="s2">&quot;(x2, y2): ({}, {}), ({}, {})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="n">y1</span><span class="p">,</span> <span class="n">x2</span><span class="p">,</span> <span class="n">y2</span><span class="p">))</span>
+
+    <span class="c1"># If there is a selected window, crop images:</span>
+    <span class="k">if</span> <span class="n">x1</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">x2</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># Crop each image (in a loop so we can track progress)</span>
+        <span class="n">im_list_cropped</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">im_list</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tqdm</span><span class="p">(</span><span class="n">im_list</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;Cropping images&#39;</span><span class="p">)):</span>
+            <span class="n">im_list_cropped</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="n">y1</span><span class="p">,</span> <span class="n">y2</span><span class="p">):</span><span class="nb">max</span><span class="p">(</span><span class="n">y1</span><span class="p">,</span> <span class="n">y2</span><span class="p">),</span>
+                                   <span class="nb">min</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">):</span><span class="nb">max</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">)]</span>
+
+    <span class="c1"># otherwise, use whole window:</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">im_list_cropped</span> <span class="o">=</span> <span class="n">im_list</span>
+
+    <span class="c1">####################################</span>
+    <span class="c1"># Select fiducial marks from image #</span>
+    <span class="c1">####################################</span>
+    <span class="c1"># Information popup</span>
+    <span class="n">popup</span> <span class="o">=</span> <span class="n">QtGui</span><span class="o">.</span><span class="n">QMessageBox</span><span class="p">()</span>
+    <span class="n">popup</span><span class="o">.</span><span class="n">setText</span><span class="p">(</span><span class="s2">&quot;In the following two dialogs, please select one rectangle &quot;</span>
+                  <span class="s2">&quot;to be used as a fiducial to track. Press enter after  &quot;</span>
+                  <span class="s2">&quot;each selection.&quot;</span><span class="p">)</span>
+    <span class="n">popup</span><span class="o">.</span><span class="n">setWindowTitle</span><span class="p">(</span><span class="s2">&quot;Selecting fiducials&quot;</span><span class="p">)</span>
+    <span class="n">popup</span><span class="o">.</span><span class="n">setWindowFlags</span><span class="p">(</span><span class="n">popup</span><span class="o">.</span><span class="n">windowFlags</span><span class="p">()</span> <span class="o">|</span> <span class="n">QtCore</span><span class="o">.</span><span class="n">Qt</span><span class="o">.</span><span class="n">WindowStaysOnTopHint</span><span class="p">)</span>
+    <span class="n">popup</span><span class="o">.</span><span class="n">exec_</span><span class="p">()</span>
+
+    <span class="c1"># Set template values from first (cropped) image</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">im_list_cropped</span><span class="p">[</span><span class="n">im_number</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_GRAY2RGB</span><span class="p">)</span>
+    <span class="n">img2</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">img3</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># Getting fiducial locations from image</span>
+    <span class="n">winname1</span> <span class="o">=</span> <span class="s1">&#39;Select rectangle for fiducial 1 (enter to submit)&#39;</span>
+    <span class="n">cv2</span><span class="o">.</span><span class="n">namedWindow</span><span class="p">(</span><span class="n">winname1</span><span class="p">)</span>
+    <span class="n">cv2</span><span class="o">.</span><span class="n">setMouseCallback</span><span class="p">(</span><span class="n">winname1</span><span class="p">,</span> <span class="n">on_mouse</span><span class="p">,</span> <span class="n">param</span><span class="o">=</span><span class="p">[</span><span class="n">img</span><span class="p">,</span> <span class="n">img2</span><span class="p">,</span> <span class="n">img3</span><span class="p">])</span>
+    <span class="c1"># three copies of same image</span>
+    <span class="c1"># Select fiducial 1 from first image</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="n">cv2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">winname1</span><span class="p">,</span> <span class="n">img</span><span class="p">)</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">waitKey</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xFF</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">13</span><span class="p">:</span>  <span class="c1"># enter key</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">destroyAllWindows</span><span class="p">()</span>
+            <span class="k">break</span>
+        <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">27</span><span class="p">:</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">destroyAllWindows</span><span class="p">()</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Selection canceled&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">x1</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No fiducial selected&quot;</span><span class="p">)</span>
+    <span class="n">template_left</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">img</span><span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="n">y1</span><span class="p">,</span> <span class="n">y2</span><span class="p">):</span><span class="nb">max</span><span class="p">(</span><span class="n">y1</span><span class="p">,</span> <span class="n">y2</span><span class="p">),</span>
+                                 <span class="nb">min</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">):</span><span class="nb">max</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">)],</span>
+                                 <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_RGB2GRAY</span><span class="p">)</span>
+
+    <span class="c1"># Select fiducial 2 from second image</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">im_list_cropped</span><span class="p">[</span><span class="n">im_number</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_GRAY2RGB</span><span class="p">)</span>
+    <span class="n">winname2</span> <span class="o">=</span> <span class="s1">&#39;Select rectangle for fiducial 2 (enter to submit)&#39;</span>
+    <span class="n">cv2</span><span class="o">.</span><span class="n">namedWindow</span><span class="p">(</span><span class="n">winname2</span><span class="p">)</span>
+    <span class="n">cv2</span><span class="o">.</span><span class="n">setMouseCallback</span><span class="p">(</span><span class="n">winname2</span><span class="p">,</span> <span class="n">on_mouse</span><span class="p">,</span> <span class="n">param</span><span class="o">=</span><span class="p">[</span><span class="n">img</span><span class="p">,</span> <span class="n">img2</span><span class="p">,</span> <span class="n">img3</span><span class="p">])</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="n">cv2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">winname2</span><span class="p">,</span> <span class="n">img</span><span class="p">)</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">waitKey</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mh">0xFF</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">13</span><span class="p">:</span>  <span class="c1"># enter key</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">destroyAllWindows</span><span class="p">()</span>
+            <span class="k">break</span>
+        <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">27</span><span class="p">:</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">destroyAllWindows</span><span class="p">()</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No fiducial selected&quot;</span><span class="p">)</span>
+    <span class="n">template_right</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">img</span><span class="p">[</span><span class="nb">min</span><span class="p">(</span><span class="n">y1</span><span class="p">,</span> <span class="n">y2</span><span class="p">):</span><span class="nb">max</span><span class="p">(</span><span class="n">y1</span><span class="p">,</span> <span class="n">y2</span><span class="p">),</span>
+                                  <span class="nb">min</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">):</span><span class="nb">max</span><span class="p">(</span><span class="n">x1</span><span class="p">,</span> <span class="n">x2</span><span class="p">)],</span>
+                                  <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_RGB2GRAY</span><span class="p">)</span>
+
+    <span class="n">width_pix</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">im_list</span><span class="p">)</span>
+
+    <span class="n">w_l</span><span class="p">,</span> <span class="n">h_l</span> <span class="o">=</span> <span class="n">template_left</span><span class="o">.</span><span class="n">shape</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">w_r</span><span class="p">,</span> <span class="n">h_r</span> <span class="o">=</span> <span class="n">template_right</span><span class="o">.</span><span class="n">shape</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1">#################################</span>
+    <span class="c1"># Track fiducials in each image #</span>
+    <span class="c1">#################################</span>
+    <span class="c1"># If plotting the fiducials is requested, figure out proper shape</span>
+    <span class="c1"># for subplot array</span>
+    <span class="k">if</span> <span class="n">plot_fiducials</span><span class="p">:</span>
+        <span class="c1"># rows is one larger than the number that we need to plot</span>
+        <span class="c1"># (unless square array)</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">fid_num_to_plot</span><span class="p">)</span> <span class="o">/</span> <span class="n">per_row</span><span class="p">))</span>
+
+        <span class="c1"># create left and right figures/subplot axes</span>
+        <span class="n">left_f</span><span class="p">,</span> <span class="n">left_axarr</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">nrows</span><span class="o">=</span><span class="n">rows</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="n">per_row</span><span class="p">)</span>
+        <span class="n">right_f</span><span class="p">,</span> <span class="n">right_axarr</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">nrows</span><span class="o">=</span><span class="n">rows</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="n">per_row</span><span class="p">)</span>
+
+        <span class="c1"># generate list of images for which to plot by converting an evenly</span>
+        <span class="c1"># spaced range to ints</span>
+        <span class="n">to_plot</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">x</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span>
+                   <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">im_list</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">fid_num_to_plot</span><span class="p">)]</span>
+
+        <span class="c1"># initialize subplot counter j</span>
+        <span class="n">j</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Use TM_CCOEFF_NORMED method for fiducial finding</span>
+    <span class="k">def</span> <span class="nf">get_match_coordinates</span><span class="p">(</span><span class="n">image</span><span class="p">,</span>
+                              <span class="n">template</span><span class="p">,</span>
+                              <span class="n">w</span><span class="p">,</span>
+                              <span class="n">h</span><span class="p">,</span>
+                              <span class="n">match_method</span><span class="o">=</span><span class="s1">&#39;cv2.TM_CCOEFF_NORMED&#39;</span><span class="p">,</span>
+                              <span class="n">check_dup</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                              <span class="n">dup_coord</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                              <span class="n">dup_thresh</span><span class="o">=</span><span class="mi">30</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get coordinates of template within image. If desired, will check if</span>
+<span class="sd">        coordinates found are close to those given, in which case the second</span>
+<span class="sd">        best match will be returned. Helps prevent finding the same fiducial</span>
+<span class="sd">        mark twice.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        image : OpenCV image</span>
+<span class="sd">            image in which to find the fiducial</span>
+<span class="sd">        template : OpenCV image</span>
+<span class="sd">            fiducial (template image) to find</span>
+<span class="sd">        w : int</span>
+<span class="sd">            width of fiducial (in pixels)</span>
+<span class="sd">        h : int</span>
+<span class="sd">            height of fiducial (in pixels)</span>
+<span class="sd">        match_method : string</span>
+<span class="sd">            method to use with OpenCV matchTemplate. The default usually</span>
+<span class="sd">            works well</span>
+<span class="sd">        check_dup : bool</span>
+<span class="sd">            switch controls whether or not to check if this fiducial is the</span>
+<span class="sd">            same as another that has already been found</span>
+<span class="sd">        dup_coord : tuple</span>
+<span class="sd">            coordinates (in numpy order) of a previously found fiducial</span>
+<span class="sd">        dup_thresh : int</span>
+<span class="sd">            the number of pixels required between fiducials</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        y_1, x_1, y_2, x_2 : int</span>
+<span class="sd">            y, x coordinates of top left (1) and bottom right (2) extents of</span>
+<span class="sd">            the area in the image that matches the fiducial, respectively</span>
+
+<span class="sd">        match_center : tuple</span>
+<span class="sd">            coordinates in numpy (y, x) order of the center of the fiducial</span>
+<span class="sd">            match location within the image (used for calculating distance</span>
+<span class="sd">            between the fiducials)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Apply template matching for  fiducial</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">matchTemplate</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">template</span><span class="p">,</span> <span class="nb">eval</span><span class="p">(</span><span class="n">match_method</span><span class="p">))</span>
+
+        <span class="c1"># Find two best matches for the fiducial:</span>
+        <span class="n">coord</span> <span class="o">=</span> <span class="n">feature</span><span class="o">.</span><span class="n">peak_local_max</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">min_distance</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">num_peaks</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># top_l and bot_r are in (y,x) numpy order</span>
+        <span class="n">top_l</span> <span class="o">=</span> <span class="n">coord</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">bot_r</span> <span class="o">=</span> <span class="p">(</span><span class="n">top_l</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">h</span><span class="p">,</span>
+                 <span class="n">top_l</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">w</span><span class="p">)</span>
+
+        <span class="c1"># match_center is center location of the fiducial</span>
+        <span class="n">match_center</span> <span class="o">=</span> <span class="p">(</span><span class="n">top_l</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">h</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+                        <span class="n">top_l</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">w</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># save boundary positions of fiducial</span>
+        <span class="n">y_1</span><span class="p">,</span> <span class="n">x_1</span> <span class="o">=</span> <span class="n">top_l</span>
+        <span class="n">y_2</span><span class="p">,</span> <span class="n">x_2</span> <span class="o">=</span> <span class="n">bot_r</span>
+
+        <span class="c1"># If check_dup is specified, compare the distance between the</span>
+        <span class="c1"># fiducial match and the given coordinates. If they are close,</span>
+        <span class="c1"># return the second-best match, as it is likely the true fiducial</span>
+        <span class="k">if</span> <span class="n">check_dup</span><span class="p">:</span>
+            <span class="c1"># Calculate pixel distance between fiducial marks (x coordinates)</span>
+            <span class="n">w_pix</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">match_center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">dup_coord</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+            <span class="c1"># If fiducials are close</span>
+            <span class="k">if</span> <span class="n">w_pix</span> <span class="o">&lt;</span> <span class="mi">30</span><span class="p">:</span>
+                <span class="c1"># Use second match:</span>
+                <span class="n">top_l</span> <span class="o">=</span> <span class="n">coord</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">bot_r</span> <span class="o">=</span> <span class="p">(</span><span class="n">top_l</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">h</span><span class="p">,</span>
+                         <span class="n">top_l</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">w</span><span class="p">)</span>
+
+                <span class="c1"># match_center is center of fiducial, in numpy order</span>
+                <span class="n">match_center</span> <span class="o">=</span> <span class="p">(</span><span class="n">top_l</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">h</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+                                <span class="n">top_l</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">w</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">y_1</span><span class="p">,</span> <span class="n">x_1</span><span class="p">,</span> <span class="n">y_2</span><span class="p">,</span> <span class="n">x_2</span><span class="p">,</span> <span class="n">match_center</span>
+
+    <span class="c1"># Loop through cropped images to find fiducial locations</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">im</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tqdm</span><span class="p">(</span><span class="n">im_list_cropped</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;Tracking fiducials&#39;</span><span class="p">)):</span>
+
+        <span class="c1"># LEFT FIDUCIAL</span>
+        <span class="c1"># noinspection PyTupleAssignmentBalance</span>
+        <span class="n">ly1</span><span class="p">,</span> <span class="n">lx1</span><span class="p">,</span> <span class="n">ly2</span><span class="p">,</span> <span class="n">lx2</span><span class="p">,</span> <span class="n">match_left_center</span> <span class="o">=</span> \
+            <span class="n">get_match_coordinates</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">template_left</span><span class="p">,</span> <span class="n">w_l</span><span class="p">,</span> <span class="n">h_l</span><span class="p">)</span>
+
+        <span class="c1"># RIGHT FIDUCIAL</span>
+        <span class="c1"># noinspection PyTupleAssignmentBalance</span>
+        <span class="n">ry1</span><span class="p">,</span> <span class="n">rx1</span><span class="p">,</span> <span class="n">ry2</span><span class="p">,</span> <span class="n">rx2</span><span class="p">,</span> <span class="n">match_right_center</span> <span class="o">=</span> \
+            <span class="n">get_match_coordinates</span><span class="p">(</span><span class="n">im</span><span class="p">,</span> <span class="n">template_right</span><span class="p">,</span> <span class="n">w_r</span><span class="p">,</span> <span class="n">h_r</span><span class="p">,</span>
+                                  <span class="n">check_dup</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">dup_coord</span><span class="o">=</span><span class="n">match_left_center</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">plot_fiducials</span><span class="p">:</span>
+            <span class="c1"># Add plots for each fiducial</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">to_plot</span> <span class="ow">and</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="n">fid_num_to_plot</span><span class="p">:</span>
+                <span class="n">left_axarr</span><span class="p">[</span><span class="n">j</span> <span class="o">//</span> <span class="n">per_row</span><span class="p">,</span> <span class="n">j</span> <span class="o">%</span> <span class="n">per_row</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;L &quot;</span> <span class="o">+</span> <span class="nb">repr</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+                <span class="n">left_axarr</span><span class="p">[</span><span class="n">j</span> <span class="o">//</span> <span class="n">per_row</span><span class="p">,</span> <span class="n">j</span> <span class="o">%</span> <span class="n">per_row</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span>
+                    <span class="n">im</span><span class="p">[</span><span class="n">ly1</span><span class="p">:</span><span class="n">ly2</span><span class="p">,</span> <span class="n">lx1</span><span class="p">:</span><span class="n">lx2</span><span class="p">],</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">,</span> <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">)</span>
+                <span class="n">left_axarr</span><span class="p">[</span><span class="n">j</span> <span class="o">//</span> <span class="n">per_row</span><span class="p">,</span> <span class="n">j</span> <span class="o">%</span> <span class="n">per_row</span><span class="p">]</span><span class="o">.</span><span class="n">set_axis_off</span><span class="p">()</span>
+
+                <span class="n">right_axarr</span><span class="p">[</span><span class="n">j</span> <span class="o">//</span> <span class="n">per_row</span><span class="p">,</span> <span class="n">j</span> <span class="o">%</span> <span class="n">per_row</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;R &quot;</span> <span class="o">+</span>
+                                                                 <span class="nb">repr</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+                <span class="n">right_axarr</span><span class="p">[</span><span class="n">j</span> <span class="o">//</span> <span class="n">per_row</span><span class="p">,</span> <span class="n">j</span> <span class="o">%</span> <span class="n">per_row</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span>
+                    <span class="n">im</span><span class="p">[</span><span class="n">ry1</span><span class="p">:</span><span class="n">ry2</span><span class="p">,</span> <span class="n">rx1</span><span class="p">:</span><span class="n">rx2</span><span class="p">],</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">,</span> <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">)</span>
+                <span class="n">right_axarr</span><span class="p">[</span><span class="n">j</span> <span class="o">//</span> <span class="n">per_row</span><span class="p">,</span> <span class="n">j</span> <span class="o">%</span> <span class="n">per_row</span><span class="p">]</span><span class="o">.</span><span class="n">set_axis_off</span><span class="p">()</span>
+
+                <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
+
+            <span class="k">if</span> <span class="n">fid_num_to_plot</span> <span class="o">&lt;=</span> <span class="n">j</span> <span class="o">&lt;</span> <span class="n">per_row</span> <span class="o">*</span> <span class="n">rows</span><span class="p">:</span>
+                <span class="n">left_axarr</span><span class="p">[</span><span class="n">j</span> <span class="o">//</span> <span class="n">per_row</span><span class="p">,</span> <span class="n">j</span> <span class="o">%</span> <span class="n">per_row</span><span class="p">]</span><span class="o">.</span><span class="n">set_axis_off</span><span class="p">()</span>
+                <span class="n">right_axarr</span><span class="p">[</span><span class="n">j</span> <span class="o">//</span> <span class="n">per_row</span><span class="p">,</span> <span class="n">j</span> <span class="o">%</span> <span class="n">per_row</span><span class="p">]</span><span class="o">.</span><span class="n">set_axis_off</span><span class="p">()</span>
+                <span class="n">j</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># Calculate pixel distance between fiducial marks (x coordinates)</span>
+        <span class="n">width_pix</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">match_right_center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">match_left_center</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">plot_fiducials</span><span class="p">:</span>
+        <span class="n">left_f</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s1">&#39;Left fiducial&#39;</span><span class="p">)</span>
+        <span class="n">right_f</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s1">&#39;Right fiducial&#39;</span><span class="p">)</span>
+
+        <span class="n">left_f</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="n">left_f</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">set_window_title</span><span class="p">(</span><span class="s1">&#39;Left fiducials&#39;</span><span class="p">)</span>
+
+        <span class="n">right_f</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="n">right_f</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">set_window_title</span><span class="p">(</span><span class="s1">&#39;Right fiducials&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Convert from pixels to meters:</span>
+    <span class="n">width_m</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="o">*</span> <span class="n">pix_width</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">width_pix</span><span class="p">]</span>
+
+    <span class="n">matplotlib</span><span class="o">.</span><span class="n">interactive</span><span class="p">(</span><span class="n">interactive_state</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">width_m</span></div>
+
+
+<span class="c1"># noinspection PyTypeChecker</span>
+<div class="viewcode-block" id="_convert_units"><a class="viewcode-back" href="../api_doc.html#fibtracking._convert_units">[docs]</a><span class="k">def</span> <span class="nf">_convert_units</span><span class="p">(</span><span class="n">to_convert</span><span class="p">,</span>
+                   <span class="n">input_u</span><span class="p">,</span>
+                   <span class="n">output_u</span><span class="p">,</span>
+                   <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert values in a list from input_u to output_u</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    to_convert: list or numeric</span>
+<span class="sd">        values to convert from one unit to another</span>
+<span class="sd">    input_u: str</span>
+<span class="sd">        [&#39;m&#39;, &#39;cm&#39;, &#39;mm&#39;, &#39;um&#39;, or &#39;nm&#39;]</span>
+<span class="sd">    output_u: str</span>
+<span class="sd">        [&#39;m&#39;, &#39;cm&#39;, &#39;mm&#39;, &#39;um&#39;, or &#39;nm&#39;]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        values in new units</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">factors</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;m&#39;</span><span class="p">:</span> <span class="mf">1e0</span><span class="p">,</span> <span class="s1">&#39;cm&#39;</span><span class="p">:</span> <span class="mf">1e2</span><span class="p">,</span> <span class="s1">&#39;mm&#39;</span><span class="p">:</span> <span class="mf">1e3</span><span class="p">,</span> <span class="s1">&#39;um&#39;</span><span class="p">:</span> <span class="mf">1e6</span><span class="p">,</span> <span class="s1">&#39;nm&#39;</span><span class="p">:</span> <span class="mf">1e9</span><span class="p">}</span>
+
+    <span class="k">if</span> <span class="n">input_u</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Input unit not recognized. Possible values are [</span><span class="se">\&#39;</span><span class="s2">m</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">cm</span><span class="se">\&#39;</span><span class="s2">,&quot;</span>
+            <span class="s2">&quot;</span><span class="se">\&#39;</span><span class="s2">mm</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">um</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">nm</span><span class="se">\&#39;</span><span class="s2">]&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">output_u</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">factors</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;Output unit not recognized. Possible values are [</span><span class="se">\&#39;</span><span class="s2">m</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">cm</span><span class="se">\&#39;</span><span class="s2">,&quot;</span>
+            <span class="s2">&quot;</span><span class="se">\&#39;</span><span class="s2">mm</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">um</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">nm</span><span class="se">\&#39;</span><span class="s2">]&quot;</span><span class="p">)</span>
+
+    <span class="n">factor</span> <span class="o">=</span> <span class="n">factors</span><span class="p">[</span><span class="n">output_u</span><span class="p">]</span> <span class="o">/</span> <span class="n">factors</span><span class="p">[</span><span class="n">input_u</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">to_convert</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="o">*</span> <span class="n">factor</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">to_convert</span><span class="p">]</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">to_convert</span> <span class="o">*</span> <span class="n">factor</span></div>
+
+
+<span class="c1"># noinspection PyTypeChecker</span>
+<div class="viewcode-block" id="plot_fid_distances"><a class="viewcode-back" href="../api_doc.html#fibtracking.plot_fid_distances">[docs]</a><span class="k">def</span> <span class="nf">plot_fid_distances</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">,</span>
+                       <span class="n">input_units</span><span class="o">=</span><span class="s1">&#39;m&#39;</span><span class="p">,</span>
+                       <span class="n">output_units</span><span class="o">=</span><span class="s1">&#39;um&#39;</span><span class="p">,</span>
+                       <span class="n">slice_number_start</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                       <span class="n">plot_diff</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                       <span class="n">sns_style</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">,</span>
+                       <span class="n">sns_context</span><span class="o">=</span><span class="s1">&#39;poster&#39;</span><span class="p">,</span>
+                       <span class="n">sns_cmap</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                       <span class="n">sns_main_color</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                       <span class="n">sns_diff_color</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                       <span class="n">sns_kw</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                       <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a list of values as the distance between two fiducial markers</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fid_distances: list</span>
+<span class="sd">        Values to plot</span>
+<span class="sd">    input_units: str</span>
+<span class="sd">        units of values as provided</span>
+<span class="sd">    output_units: str</span>
+<span class="sd">        desired output units for plot</span>
+<span class="sd">    slice_number_start: int</span>
+<span class="sd">        starting slice number (for display purposes only)</span>
+<span class="sd">    plot_diff: bool</span>
+<span class="sd">        Switch to control whether or not a plot of the difference between</span>
+<span class="sd">        subsequent slices is shown as well (as subplot)</span>
+<span class="sd">    sns_style: str</span>
+<span class="sd">        default style for seaborn (&#39;white&#39;, &#39;dark&#39;, &#39;darkgrid&#39;, etc.)</span>
+<span class="sd">    sns_context: str</span>
+<span class="sd">        context for plotting with seaborn</span>
+<span class="sd">    sns_cmap: list, str, tuple</span>
+<span class="sd">        colormap for use with seaborn</span>
+<span class="sd">        default is [&quot;4C72B1&quot;,&quot;#004040&quot;,&quot;#023FA5&quot;,&quot;#8E063B&quot;,&quot;#098C09&quot;,&quot;#EF9708&quot;]</span>
+<span class="sd">        (light blue, dark teal, blue, red, green, orange)</span>
+<span class="sd">        If str or tuple, then these parameters are passed to the</span>
+<span class="sd">        :py:func:`seaborn.color_palette` function</span>
+<span class="sd">    sns_main_color: int</span>
+<span class="sd">        color (# from cmap) to use for plotting the fiducial distance</span>
+<span class="sd">    sns_diff_color: int</span>
+<span class="sd">        color (# from cmap) to use for plotting the differential distance</span>
+<span class="sd">    sns_kw: dict</span>
+<span class="sd">        additional arguments to be passed to :py:func:`seaborn.set_style`</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    fig: :py:mod:`matplotlib.figure`</span>
+<span class="sd">        Handle to figure that is plotted</span>
+<span class="sd">    ax_arr: :class:`matplotlib.axes.Axes`</span>
+<span class="sd">        Matplotlib axes array if subplots were called for</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Default cmap and kw:</span>
+    <span class="k">if</span> <span class="n">sns_kw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">sns_kw</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">sns_cmap</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">sns_cmap</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;#4C72B1&quot;</span><span class="p">,</span> <span class="s2">&quot;#004040&quot;</span><span class="p">,</span> <span class="s2">&quot;#023FA5&quot;</span><span class="p">,</span> <span class="s2">&quot;#8E063B&quot;</span><span class="p">,</span> <span class="s2">&quot;#098C09&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;#EF9708&quot;</span><span class="p">]</span>
+
+    <span class="c1"># Import and setup seaborn styles</span>
+    <span class="kn">import</span> <span class="nn">seaborn</span> <span class="kn">as</span> <span class="nn">sns</span>
+    <span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;mathtext.fontset&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;stixsans&#39;</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_style</span><span class="p">(</span><span class="n">sns_style</span><span class="p">,</span> <span class="n">sns_kw</span><span class="p">)</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_context</span><span class="p">(</span><span class="n">sns_context</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">sns_cmap</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">tuple</span><span class="p">:</span>
+        <span class="n">palette</span> <span class="o">=</span> <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="o">*</span><span class="n">sns_cmap</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">palette</span> <span class="o">=</span> <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="n">sns_cmap</span><span class="p">)</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="n">palette</span><span class="p">)</span>
+
+    <span class="c1"># convert fid_distances to proper output units (raises ValueError if bogus</span>
+    <span class="c1"># units)</span>
+    <span class="n">fid_distances</span> <span class="o">=</span> <span class="n">_convert_units</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">,</span> <span class="n">input_units</span><span class="p">,</span> <span class="n">output_units</span><span class="p">)</span>
+
+    <span class="c1"># set up list of slice numbers to display</span>
+    <span class="n">slice_numbers</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="n">slice_number_start</span><span class="p">,</span>
+                          <span class="nb">len</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">)</span> <span class="o">+</span> <span class="n">slice_number_start</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">output_units</span> <span class="ow">is</span> <span class="s1">&#39;um&#39;</span><span class="p">:</span>
+        <span class="n">output_units</span> <span class="o">=</span> <span class="s2">&quot;\mu m&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">plot_diff</span><span class="p">:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">slice_numbers</span><span class="p">,</span> <span class="n">fid_distances</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_main_color</span><span class="p">],</span>
+                 <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;:&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Image #&quot;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Distance between fiducials ($&quot;</span> <span class="o">+</span> <span class="n">output_units</span> <span class="o">+</span> <span class="s2">&quot;$)&quot;</span><span class="p">)</span>
+
+        <span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s1">&#39;Distance between fiducials&#39;</span><span class="p">)</span>
+
+        <span class="n">fig</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="n">fig</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">set_window_title</span><span class="p">(</span><span class="s1">&#39;Distance between fiducials&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">fig</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">axarr</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">nrows</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ncols</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">sharex</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">squeeze</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">axarr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">slice_numbers</span><span class="p">,</span> <span class="n">fid_distances</span><span class="p">,</span>
+                      <span class="n">color</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_main_color</span><span class="p">])</span>
+        <span class="n">axarr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">slice_numbers</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">),</span>
+                      <span class="n">color</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_diff_color</span><span class="p">])</span>
+
+        <span class="n">axarr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s2">&quot;Image #&quot;</span><span class="p">)</span>
+        <span class="n">axarr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span>
+            <span class="s2">&quot;Distance between fiducials ($&quot;</span> <span class="o">+</span> <span class="n">output_units</span> <span class="o">+</span> <span class="s2">&quot;$)&quot;</span><span class="p">)</span>
+        <span class="n">axarr</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span>
+            <span class="s2">&quot;Deriv. dist. between fiducials ($&quot;</span> <span class="o">+</span> <span class="n">output_units</span> <span class="o">+</span> <span class="s2">&quot;$)&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fig</span><span class="p">,</span> <span class="n">axarr</span></div>
+
+
+<div class="viewcode-block" id="fit_fid_distances"><a class="viewcode-back" href="../api_doc.html#fibtracking.fit_fid_distances">[docs]</a><span class="k">def</span> <span class="nf">fit_fid_distances</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">,</span>
+                      <span class="n">start_image</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                      <span class="n">end_image</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                      <span class="n">input_units</span><span class="o">=</span><span class="s1">&#39;m&#39;</span><span class="p">,</span>
+                      <span class="n">output_units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                      <span class="n">fid_line_angle</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
+                      <span class="n">plot_results</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                      <span class="n">print_output</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                      <span class="n">reject_m</span><span class="o">=</span><span class="bp">None</span>
+                      <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Perform linear fit on widths between fiducials to get an average global</span>
+<span class="sd">    slice thickness value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fid_distances: list</span>
+<span class="sd">        List of fiducial distances between slices in `input_units`</span>
+<span class="sd">    start_image: int</span>
+<span class="sd">        Which image to start the fit at (can exclude first `start_image`</span>
+<span class="sd">        images if desired)</span>
+<span class="sd">    end_image: int or None</span>
+<span class="sd">        Which image to end the fit at.</span>
+<span class="sd">        If None, all images will be used</span>
+<span class="sd">    input_units: str</span>
+<span class="sd">        Units that `fid_distances` is provided in.</span>
+<span class="sd">    output_units: str</span>
+<span class="sd">        Desired output units for plot</span>
+<span class="sd">    fid_line_angle: numeric</span>
+<span class="sd">        Half-angle (in degrees) of fiducial line triangle (angle a, below)</span>
+
+<span class="sd">        ..  image:: half_angle.png</span>
+<span class="sd">            :width: 200 px</span>
+
+<span class="sd">    plot_results: boolean</span>
+<span class="sd">        Whether or not to plot the results visually</span>
+<span class="sd">    print_output: boolean</span>
+<span class="sd">        Whether or not to print the output to the terminal</span>
+<span class="sd">    reject_m: None or float</span>
+<span class="sd">        &quot;m&quot; value to be used in the helper reject_outliers() function. If</span>
+<span class="sd">        None, no modification of the data will be performed</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    avg_t: float</span>
+<span class="sd">        Average thickness of slices, determined from fit</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">reject_outliers</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="n">reject_m</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Helper function to remove outliers from data</span>
+<span class="sd">        (from: http://stackoverflow.com/questions/11686720/</span>
+<span class="sd">                is-there-a-numpy-builtin-to-reject-outliers-from-a-list)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">data</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">data</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+        <span class="n">mdev</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">d</span> <span class="o">/</span> <span class="n">mdev</span> <span class="k">if</span> <span class="n">mdev</span> <span class="k">else</span> <span class="mf">0.</span>
+
+        <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="n">s</span> <span class="o">&lt;</span> <span class="n">m</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">end_image</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="c1"># noinspection PyTypeChecker</span>
+        <span class="n">end_image</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="n">y_val</span> <span class="o">=</span> <span class="n">reject_outliers</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">[</span><span class="n">start_image</span><span class="p">:</span><span class="n">end_image</span><span class="p">])</span>
+    <span class="n">x_val</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">start_image</span><span class="p">,</span> <span class="n">start_image</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">y_val</span><span class="p">))</span>
+
+    <span class="n">fit</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">polyfit</span><span class="p">(</span><span class="n">x_val</span><span class="p">,</span> <span class="n">y_val</span><span class="p">,</span> <span class="n">deg</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">delta_x</span> <span class="o">=</span> <span class="n">_convert_units</span><span class="p">(</span><span class="n">fit</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">input_units</span><span class="p">,</span> <span class="n">output_units</span><span class="p">)</span>
+    <span class="n">offset</span> <span class="o">=</span> <span class="n">_convert_units</span><span class="p">(</span><span class="n">fit</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">input_units</span><span class="p">,</span> <span class="n">output_units</span><span class="p">)</span>
+    <span class="c1"># noinspection PyTypeChecker</span>
+    <span class="n">delta_t</span> <span class="o">=</span> <span class="n">delta_x</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">fid_line_angle</span><span class="p">)))</span>
+
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Average fiducial delta_x is </span><span class="si">%.2f</span><span class="s1"> nm&#39;</span> <span class="o">%</span> <span class="n">delta_x</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Fiducial delta_x offset is </span><span class="si">%.2f</span><span class="s1"> nm&#39;</span> <span class="o">%</span> <span class="n">offset</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Average slice thickness is </span><span class="si">%.2f</span><span class="s1"> nm&#39;</span> <span class="o">%</span> <span class="o">-</span><span class="n">delta_t</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">plot_results</span><span class="p">:</span>
+        <span class="n">plot_fid_distances</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">[:</span><span class="n">end_image</span><span class="p">])</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">end_image</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">_convert_units</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">output_units</span><span class="p">,</span> <span class="s1">&#39;um&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">_convert_units</span><span class="p">(</span>
+            <span class="n">delta_x</span><span class="p">,</span> <span class="n">output_units</span><span class="p">,</span> <span class="s1">&#39;um&#39;</span><span class="p">)</span> <span class="o">*</span> <span class="n">x</span>
+        <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">gcf</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.54</span><span class="p">,</span> <span class="mf">0.9</span><span class="p">,</span> <span class="s1">&#39;Avg. distance = </span><span class="si">%.2f</span><span class="s1"> nm&#39;</span> <span class="o">%</span> <span class="n">delta_x</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+                 <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">0.458</span><span class="p">,</span> <span class="mf">0.85</span><span class="p">,</span> <span class="s1">&#39;Avg. slice thickness = </span><span class="si">%.2f</span><span class="s1"> nm&#39;</span> <span class="o">%</span> <span class="o">-</span><span class="n">delta_t</span><span class="p">,</span>
+                 <span class="n">fontsize</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="n">ax</span><span class="o">.</span><span class="n">transAxes</span><span class="p">)</span>
+
+        <span class="n">f</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s1">&#39;Fitted fiducial distances&#39;</span><span class="p">)</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">set_window_title</span><span class="p">(</span><span class="s1">&#39;Fitted distance between fiducials&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="image_browser"><a class="viewcode-back" href="../api_doc.html#fibtracking.image_browser">[docs]</a><span class="k">def</span> <span class="nf">image_browser</span><span class="p">(</span><span class="n">im_list</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                  <span class="n">downsize</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                  <span class="n">downsizefactor</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+                  <span class="n">labelimages</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                  <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Open an OpenCV window that can browse through images using simple keyboard</span>
+<span class="sd">    controls</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    im_list: list</span>
+<span class="sd">        List of OpenCV images that will be navigated. If None, a Qt dialogue</span>
+<span class="sd">        is opened to select a directory from which to read .tif files</span>
+<span class="sd">    downsize: bool</span>
+<span class="sd">        Switch to control whether images are downsized when reading into</span>
+<span class="sd">        memory (for easier visualization)</span>
+<span class="sd">    downsizefactor: float</span>
+<span class="sd">        Factor by which to downsize the images (0.5 will make each dimension</span>
+<span class="sd">        half it&#39;s original size)</span>
+<span class="sd">    labelimages: bool</span>
+<span class="sd">        Switch to control whether or not a text label will be written on the</span>
+<span class="sd">        image to show it&#39;s position in the stack. Note, this is</span>
+<span class="sd">        written onto the image itself, and will persist for future</span>
+<span class="sd">        operations on the image list, so this option should not be used if</span>
+<span class="sd">        this image list is to be used otherwise.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The player is controlled with keyboard shortcuts:</span>
+
+<span class="sd">    =========       =========</span>
+<span class="sd">    Shortcut        Action</span>
+<span class="sd">    =========       =========</span>
+<span class="sd">    ``f``           Animate stack forward</span>
+<span class="sd">    ``d``           Animate stack backward</span>
+<span class="sd">    ``s``           Stop animation</span>
+<span class="sd">    ``+``           Double the speed of animation (faster)</span>
+<span class="sd">    ``-``           Half the speed of animation (slower)</span>
+<span class="sd">    ``n``           Step forwards by one image</span>
+<span class="sd">    ``b``           Step backwards by one image</span>
+<span class="sd">    ``Esc``         Exit the image browser</span>
+<span class="sd">    =========       =========</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># If im_list isn&#39;t given, read it from a qt dialogue</span>
+    <span class="k">if</span> <span class="n">im_list</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">im_list</span> <span class="o">=</span> <span class="n">readimages</span><span class="p">()</span>
+
+    <span class="c1"># Downsize the images (if requested)</span>
+    <span class="k">if</span> <span class="n">downsize</span><span class="p">:</span>
+        <span class="n">im_list_small</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">fx</span><span class="o">=</span><span class="n">downsizefactor</span><span class="p">,</span> <span class="n">fy</span><span class="o">=</span><span class="n">downsizefactor</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span>
+            <span class="ow">in</span> <span class="n">im_list</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">im_list_small</span> <span class="o">=</span> <span class="n">im_list</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">speed</span> <span class="o">=</span> <span class="mi">50</span>  <span class="c1"># initial speed for playing the image through</span>
+
+    <span class="n">imgs</span> <span class="o">=</span> <span class="n">im_list_small</span>
+
+    <span class="c1"># create named OpenCV window</span>
+    <span class="n">instructions</span> <span class="o">=</span> <span class="s1">&#39;n: next, b: previous, f: play forward, &#39;</span> \
+                   <span class="s1">&#39;d: play backward, s: stop, esc: exit, &#39;</span> \
+                   <span class="s1">&#39;-: slow down, &#39;</span> \
+                   <span class="s1">&#39;+: speed up&#39;</span>
+    <span class="n">cv2</span><span class="o">.</span><span class="n">namedWindow</span><span class="p">(</span><span class="n">instructions</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">WINDOW_AUTOSIZE</span><span class="p">)</span>
+
+    <span class="c1"># If requested, label each image with a text annotation</span>
+    <span class="k">if</span> <span class="n">labelimages</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">im</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">im_list</span><span class="p">):</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">putText</span><span class="p">(</span><span class="n">imgs</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="nb">repr</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="nb">repr</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">im_list</span><span class="p">)),</span>
+                        <span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">40</span><span class="p">),</span> <span class="n">cv2</span><span class="o">.</span><span class="n">FONT_HERSHEY_DUPLEX</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># infinite loop provides an image browser</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="n">moveon</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c1"># switch that says we should run the loop again</span>
+        <span class="n">playfwd</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c1"># switch that says we&#39;re playing forwards</span>
+        <span class="n">playbkwd</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c1"># switch that says we&#39;re playing backwards</span>
+        <span class="n">noplay</span> <span class="o">=</span> <span class="bp">True</span>  <span class="c1"># switch that says we&#39;re not playing</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">moveon</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">im_list</span><span class="p">):</span>
+                <span class="n">i</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">im_list</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="k">if</span> <span class="n">playfwd</span><span class="p">:</span>
+                <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">im_list</span><span class="p">):</span>
+                    <span class="n">i</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">im_list</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+                    <span class="n">playfwd</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="n">noplay</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">noplay</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="n">cv2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">instructions</span><span class="p">,</span> <span class="n">imgs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="n">k</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">waitKey</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">speed</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">27</span><span class="p">:</span>
+                    <span class="n">cv2</span><span class="o">.</span><span class="n">destroyWindow</span><span class="p">(</span><span class="n">instructions</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="bp">None</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;s&#39;</span><span class="p">):</span>
+                    <span class="n">playfwd</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="n">noplay</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">):</span>
+                    <span class="n">playfwd</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="n">playbkwd</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">45</span><span class="p">:</span>  <span class="c1"># slow down</span>
+                    <span class="n">speed</span> <span class="o">*=</span> <span class="mi">2</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">43</span><span class="p">:</span>  <span class="c1"># speed up</span>
+                    <span class="n">speed</span> <span class="o">//=</span> <span class="mi">2</span>  <span class="c1"># integer division</span>
+                    <span class="k">if</span> <span class="n">speed</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">speed</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="k">if</span> <span class="n">playbkwd</span><span class="p">:</span>
+                <span class="n">i</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">playbkwd</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="n">noplay</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">noplay</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="n">cv2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">instructions</span><span class="p">,</span> <span class="n">imgs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="n">k</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">waitKey</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">speed</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">27</span><span class="p">:</span>
+                    <span class="n">cv2</span><span class="o">.</span><span class="n">destroyWindow</span><span class="p">(</span><span class="n">instructions</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="bp">None</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;s&#39;</span><span class="p">):</span>
+                    <span class="n">playbkwd</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="n">noplay</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;f&#39;</span><span class="p">):</span>
+                    <span class="n">playbkwd</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="n">playfwd</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">45</span><span class="p">:</span>  <span class="c1"># slow down</span>
+                    <span class="n">speed</span> <span class="o">*=</span> <span class="mi">2</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">43</span><span class="p">:</span>  <span class="c1"># speed up</span>
+                    <span class="n">speed</span> <span class="o">//=</span> <span class="mi">2</span>  <span class="c1"># integer division</span>
+                    <span class="k">if</span> <span class="n">speed</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">speed</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="k">if</span> <span class="n">noplay</span><span class="p">:</span>
+                <span class="n">cv2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">instructions</span><span class="p">,</span> <span class="n">imgs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="n">k</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">waitKey</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">27</span><span class="p">:</span>
+                    <span class="n">cv2</span><span class="o">.</span><span class="n">destroyWindow</span><span class="p">(</span><span class="n">instructions</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="bp">None</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;b&#39;</span><span class="p">):</span>
+                    <span class="n">moveon</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="n">i</span> <span class="o">-=</span> <span class="mi">1</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;n&#39;</span><span class="p">):</span>
+                    <span class="n">moveon</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;f&#39;</span><span class="p">):</span>
+                    <span class="n">playfwd</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">):</span>
+                    <span class="n">playbkwd</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">45</span><span class="p">:</span>  <span class="c1"># slow down</span>
+                    <span class="n">speed</span> <span class="o">*=</span> <span class="mi">2</span>
+                <span class="k">elif</span> <span class="n">k</span> <span class="ow">is</span> <span class="mi">43</span><span class="p">:</span>  <span class="c1"># speed up</span>
+                    <span class="n">speed</span> <span class="o">//=</span> <span class="mi">2</span>  <span class="c1"># integer division</span>
+                    <span class="k">if</span> <span class="n">speed</span> <span class="ow">is</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">speed</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="export_video"><a class="viewcode-back" href="../api_doc.html#fibtracking.export_video">[docs]</a><span class="k">def</span> <span class="nf">export_video</span><span class="p">(</span><span class="n">im_list</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">filename</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">fourcc</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">fps</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+                 <span class="n">downsize</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                 <span class="n">downsizefactor</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+                 <span class="n">labelimages</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                 <span class="n">labelsize</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use OpenCV to write a video of all the images</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    im_list: list</span>
+<span class="sd">        List of OpenCV images that will be navigated. If None, a Qt dialogue</span>
+<span class="sd">        is opened to select a directory from which to read images</span>
+<span class="sd">    filename: str</span>
+<span class="sd">        Name of file to save as video</span>
+<span class="sd">    fourcc: None or str</span>
+<span class="sd">        Codec to use for writing video (see</span>
+<span class="sd">        http://www.fourcc.org/codecs.php) supplied as four character string</span>
+<span class="sd">        (such as &#39;DIVX&#39;). If None, dialog will be presented to the user to</span>
+<span class="sd">        choose.</span>
+<span class="sd">    fps: int</span>
+<span class="sd">        frames per second to use in output</span>
+<span class="sd">    downsize: bool</span>
+<span class="sd">        Switch to control whether images are downsized when reading into</span>
+<span class="sd">        memory (for easier visualization)</span>
+<span class="sd">    downsizefactor: float</span>
+<span class="sd">        Factor by which to downsize the images (0.5 will make each dimension</span>
+<span class="sd">        half it&#39;s original size)</span>
+<span class="sd">    labelimages: bool</span>
+<span class="sd">        Switch to control whether or not a text label will be written on the</span>
+<span class="sd">        image to show it&#39;s position in the stack. Note, this is written onto</span>
+<span class="sd">        the image itself, and will persist for future operations on the image</span>
+<span class="sd">        list, so this option should not be used if this image list is to be</span>
+<span class="sd">        used otherwise.</span>
+<span class="sd">    labelsize: int</span>
+<span class="sd">        factor to change how large the labels will be written. If None,</span>
+<span class="sd">        an appropriate default size will be attempted</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">platform</span>
+    <span class="kn">import</span> <span class="nn">logging</span>
+    <span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;Windows&#39;</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;Results of video export are hit-or-miss due &quot;</span>
+                        <span class="s2">&quot;to poor codec support in Windows. Best guess, &quot;</span>
+                        <span class="s2">&quot;try fourcc=&#39;MSVC&#39; or select &#39;Microsoft Video&#39; in &quot;</span>
+                        <span class="s2">&quot;the pop-up window to get a useful result.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># If im_list isn&#39;t given, read it from a qt dialogue</span>
+    <span class="k">if</span> <span class="n">im_list</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">im_list</span> <span class="o">=</span> <span class="n">readimages</span><span class="p">()</span>
+
+    <span class="c1"># Downsize the images (if requested)</span>
+    <span class="k">if</span> <span class="n">downsize</span><span class="p">:</span>
+        <span class="n">im_list_small</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">fx</span><span class="o">=</span><span class="n">downsizefactor</span><span class="p">,</span> <span class="n">fy</span><span class="o">=</span><span class="n">downsizefactor</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span>
+            <span class="ow">in</span> <span class="n">im_list</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">im_list_small</span> <span class="o">=</span> <span class="n">im_list</span>
+
+    <span class="c1"># Get size of image:</span>
+    <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">im_list_small</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="c1"># Get number of digits in image list length:</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">im_list_small</span><span class="p">))))</span>
+
+    <span class="c1"># Try to auto-choose label size and label thickness/position:</span>
+    <span class="k">if</span> <span class="n">labelsize</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">labelsize</span> <span class="o">=</span> <span class="n">width</span> <span class="o">/</span> <span class="mi">500</span>
+    <span class="n">border_thick</span> <span class="o">=</span> <span class="n">labelsize</span> <span class="o">*</span> <span class="mi">3</span>
+    <span class="n">text_thick</span> <span class="o">=</span> <span class="n">labelsize</span>
+    <span class="n">text_y</span> <span class="o">=</span> <span class="n">labelsize</span> <span class="o">*</span> <span class="mi">40</span>
+
+    <span class="c1"># Label images:</span>
+    <span class="k">if</span> <span class="n">labelimages</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">im</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">im_list_small</span><span class="p">):</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">putText</span><span class="p">(</span><span class="n">im_list_small</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                        <span class="nb">str</span><span class="p">(</span><span class="s2">&quot;{:0&quot;</span> <span class="o">+</span> <span class="n">order</span> <span class="o">+</span> <span class="s2">&quot;}&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span>
+                        <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="nb">repr</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">im_list_small</span><span class="p">)),</span> <span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="n">text_y</span><span class="p">),</span>
+                        <span class="n">cv2</span><span class="o">.</span><span class="n">FONT_HERSHEY_DUPLEX</span><span class="p">,</span> <span class="n">labelsize</span><span class="p">,</span> <span class="p">(</span><span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">),</span>
+                        <span class="n">border_thick</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+            <span class="n">cv2</span><span class="o">.</span><span class="n">putText</span><span class="p">(</span><span class="n">im_list_small</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                        <span class="nb">str</span><span class="p">(</span><span class="s2">&quot;{:0&quot;</span> <span class="o">+</span> <span class="n">order</span> <span class="o">+</span> <span class="s2">&quot;}&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span>
+                        <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="nb">repr</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">im_list_small</span><span class="p">)),</span> <span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="n">text_y</span><span class="p">),</span>
+                        <span class="n">cv2</span><span class="o">.</span><span class="n">FONT_HERSHEY_DUPLEX</span><span class="p">,</span> <span class="n">labelsize</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">255</span><span class="p">,</span> <span class="mi">255</span><span class="p">),</span>
+                        <span class="n">text_thick</span><span class="p">,</span> <span class="mi">8</span><span class="p">)</span>
+
+    <span class="c1"># Determine write integer value to use for codec</span>
+    <span class="k">if</span> <span class="n">fourcc</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">fourcc_int</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># noinspection PyArgumentList</span>
+        <span class="n">fourcc_int</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">VideoWriter_fourcc</span><span class="p">(</span><span class="o">*</span><span class="n">fourcc</span><span class="p">)</span>
+
+    <span class="c1"># Create the VideoWriter object</span>
+    <span class="n">video</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">VideoWriter</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span>
+                            <span class="n">fourcc_int</span><span class="p">,</span>
+                            <span class="n">fps</span><span class="p">,</span>
+                            <span class="p">(</span><span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">))</span>
+
+    <span class="c1"># Write the actual video</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">im_list_small</span><span class="p">,</span> <span class="n">desc</span><span class="o">=</span><span class="s1">&#39;Writing video&#39;</span><span class="p">):</span>
+        <span class="n">video</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+    <span class="n">cv2</span><span class="o">.</span><span class="n">destroyAllWindows</span><span class="p">()</span>
+    <span class="n">video</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">To convert to a more suitable file size (and better format), &quot;</span>
+          <span class="s2">&quot;now use ffmpeg on the output. </span><span class="se">\n\n</span><span class="s2">Something like:&quot;</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%%</span><span class="s2">bash</span><span class="se">\n</span><span class="s2">&quot;</span>
+          <span class="s2">&quot;ffmpeg -i {}  -f mp4 -vcodec libx264 -preset slow -crf 29  &quot;</span>
+          <span class="s2">&quot;-y {}.mp4&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">filename</span><span class="p">[:</span><span class="o">-</span><span class="mi">4</span><span class="p">]))</span></div>
+
+
+<span class="c1"># noinspection PyTypeChecker</span>
+<div class="viewcode-block" id="slice_thickness"><a class="viewcode-back" href="../api_doc.html#fibtracking.slice_thickness">[docs]</a><span class="k">def</span> <span class="nf">slice_thickness</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">,</span>
+                    <span class="n">fid_line_angle</span><span class="o">=</span><span class="mi">40</span><span class="p">,</span>
+                    <span class="n">input_units</span><span class="o">=</span><span class="s1">&#39;m&#39;</span><span class="p">,</span>
+                    <span class="n">output_units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                    <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the thickness of a series of slices from the fiducial widths</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    fid_distances: list</span>
+<span class="sd">        list of distance between fiducials (calculated from trackfiducials() )</span>
+<span class="sd">    fid_line_angle: float</span>
+<span class="sd">        half-angle (in degrees) of fiducial line triangle (angle a, below)</span>
+
+<span class="sd">        ..  image:: half_angle.png</span>
+<span class="sd">            :width: 200 px</span>
+
+<span class="sd">    input_units: str</span>
+<span class="sd">        unit of input values (must be one of those supported by _convert_units</span>
+<span class="sd">    output_units: str</span>
+<span class="sd">        desired unit of output (must be one of those supported by</span>
+<span class="sd">        _convert_units</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    thickness: list</span>
+<span class="sd">        list of floats giving the difference of each slice</span>
+<span class="sd">    mean: float</span>
+<span class="sd">        mean thickness value</span>
+<span class="sd">    std: float</span>
+<span class="sd">        std dev of thickness values</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Convert lengths to desired units</span>
+    <span class="n">fid_distances</span> <span class="o">=</span> <span class="n">_convert_units</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">,</span> <span class="n">input_units</span><span class="p">,</span> <span class="n">output_units</span><span class="p">)</span>
+
+    <span class="n">thickness</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">fid_line_angle</span><span class="p">)))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span>
+                 <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">fid_distances</span><span class="p">)]</span>
+
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">thickness</span><span class="p">)</span>
+    <span class="n">std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">thickness</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span> <span class="o">*</span> <span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">thickness</span><span class="p">],</span> <span class="n">mean</span><span class="p">,</span> <span class="n">std</span></div>
+
+
+<div class="viewcode-block" id="plot_thicknesses"><a class="viewcode-back" href="../api_doc.html#fibtracking.plot_thicknesses">[docs]</a><span class="k">def</span> <span class="nf">plot_thicknesses</span><span class="p">(</span><span class="n">thicknesses</span><span class="p">,</span>
+                     <span class="n">lowess_factor</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+                     <span class="n">axes_limits</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span>
+                     <span class="n">units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                     <span class="n">xlabel</span><span class="o">=</span><span class="s1">&#39;Slice #&#39;</span><span class="p">,</span>
+                     <span class="n">ylabel</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span>
+                     <span class="n">plot_data</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                     <span class="n">dataplotkw</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">plot_lowess</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                     <span class="n">lowessplotkw</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">plot_mean</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                     <span class="n">meanplotkw</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">plot_std</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                     <span class="n">stdplotkw</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">plot_legend</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                     <span class="n">legend_loc</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">,</span>
+                     <span class="n">sns_style</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">,</span>
+                     <span class="n">sns_context</span><span class="o">=</span><span class="s1">&#39;poster&#39;</span><span class="p">,</span>
+                     <span class="n">sns_cmap</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">sns_color_data</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                     <span class="n">sns_color_lowess</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                     <span class="n">sns_color_mean</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                     <span class="n">sns_color_std</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                     <span class="n">sns_style_kw</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plots a visualization of slice thickness measurements, as well as</span>
+<span class="sd">    descriptive data</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    thicknesses: list</span>
+<span class="sd">        thickness data to be plotted</span>
+<span class="sd">    lowess_factor: float</span>
+<span class="sd">        factor to be used when smoothing thickness data for plotting (valid</span>
+<span class="sd">        values are [0-1]) the higher the factor used, the more smoothed the</span>
+<span class="sd">        data will be</span>
+<span class="sd">    axes_limits: &#39;auto&#39; or list of int</span>
+<span class="sd">        axes limits to use when displaying the data. If &#39;auto&#39;, the limits</span>
+<span class="sd">        will be determined from the data; otherwise, should be given in the</span>
+<span class="sd">        order [xmin, xmax, ymin, ymax]</span>
+<span class="sd">    units: str</span>
+<span class="sd">        units that values are given in (default of &#39;nm&#39;)</span>
+<span class="sd">    xlabel: str</span>
+<span class="sd">        label to use for the x-axis</span>
+<span class="sd">    ylabel: str</span>
+<span class="sd">        label to use for the y-axis</span>
+<span class="sd">        if &#39;auto&#39;, label will be built including the units</span>
+<span class="sd">    plot_data: bool</span>
+<span class="sd">        Switch to control whether or not raw data is plotted</span>
+<span class="sd">    dataplotkw: dict or None</span>
+<span class="sd">        dictionary containing additional keyword arguments for the data</span>
+<span class="sd">        scatterplot default included parameters are marker, linewidths,</span>
+<span class="sd">        and label, which are set in the code if the value is None</span>
+<span class="sd">    plot_lowess: bool</span>
+<span class="sd">        Switch to control whether or not smoothed data is plotted</span>
+<span class="sd">    lowessplotkw: dict or None</span>
+<span class="sd">        dictionary containing additional keyword arguments for the LOWESS</span>
+<span class="sd">        regression line plot default included parameters are linewidth.</span>
+<span class="sd">        label is defined in the code (if not given here)</span>
+<span class="sd">        defaults are set in the code if the value is None</span>
+<span class="sd">    plot_mean: bool</span>
+<span class="sd">        Switch to control whether or not data mean is plotted</span>
+<span class="sd">    meanplotkw: dict or None</span>
+<span class="sd">        dictionary containing additional keyword arguments for the mean line</span>
+<span class="sd">        plot default included parameters are lw. label is defined in the</span>
+<span class="sd">        code (if not given here) defaults are set in the code if the value</span>
+<span class="sd">        is None</span>
+<span class="sd">    plot_std: bool</span>
+<span class="sd">        Switch to control whether or not data std dev is plotted</span>
+<span class="sd">    meanplotkw: dict or None</span>
+<span class="sd">        dictionary containing additional keyword arguments for the std dev</span>
+<span class="sd">        line plots default included parameters are lw and ls. label is</span>
+<span class="sd">        defined in the code (if not given here) defaults are set in the code</span>
+<span class="sd">        if the value is None</span>
+<span class="sd">    plot_legend: bool</span>
+<span class="sd">        Switch to control whether or not legend is shown on the plot</span>
+<span class="sd">    legend_loc: str or int</span>
+<span class="sd">        see :py:func:`matplotlib.pyplot.legend` for details -</span>
+<span class="sd">        Desired position for the legend</span>
+<span class="sd">    sns_style: str</span>
+<span class="sd">        default style for seaborn (&#39;white&#39;, &#39;dark&#39;, &#39;darkgrid&#39;, &#39;whitegrid&#39;)</span>
+<span class="sd">    sns_context: str</span>
+<span class="sd">        context for plotting with seaborn</span>
+<span class="sd">    sns_cmap: list, str, tuple, or None</span>
+<span class="sd">        colormap for use with seaborn</span>
+<span class="sd">        default is [&quot;4C72B1&quot;,&quot;#004040&quot;,&quot;#023FA5&quot;,&quot;#8E063B&quot;,&quot;#098C09&quot;,&quot;#EF9708&quot;]</span>
+<span class="sd">        (light blue, dark teal, blue, red, green, orange)</span>
+<span class="sd">        If str or tuple, then these parameters are passed to the</span>
+<span class="sd">        seaborn.color_palette() function</span>
+<span class="sd">        default cmap is set in the code if the value is None</span>
+<span class="sd">    sns_color_data: int</span>
+<span class="sd">        color (# from cmap) to use for plotting the thickness data</span>
+<span class="sd">    sns_color_lowess: int</span>
+<span class="sd">        color (# from cmap) to use for plotting the lowess-smoothed data</span>
+<span class="sd">    sns_color_mean: int</span>
+<span class="sd">        color (# from cmap) to use for plotting the data mean</span>
+<span class="sd">    sns_color_std: int</span>
+<span class="sd">        color (# from cmap) to use for plotting the data std</span>
+<span class="sd">    sns_style_kw: dict or None</span>
+<span class="sd">        additional arguments to be passed to :py:func:`seaborn.set_style`.</span>
+<span class="sd">        Defaults are set in the code if the value is None</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    fig: :py:mod:`matplotlib.figure`</span>
+<span class="sd">        Handle to figure that is plotted</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">statsmodels.api</span> <span class="kn">as</span> <span class="nn">sm</span>
+    <span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;mathtext.fontset&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;stixsans&#39;</span>
+
+    <span class="c1"># Checks on axes_limits parameter:</span>
+    <span class="k">if</span> <span class="n">axes_limits</span> <span class="ow">is</span> <span class="s1">&#39;auto&#39;</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">axes_limits</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="mi">4</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Specified axes_limits should be length 4. Resetting to &quot;</span>
+              <span class="s2">&quot;</span><span class="se">\&#39;</span><span class="s2">auto</span><span class="se">\&#39;</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="n">axes_limits</span> <span class="o">=</span> <span class="s1">&#39;auto&#39;</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">axes_limits</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Specified axes_limits should be a list or </span><span class="se">\&#39;</span><span class="s2">auto</span><span class="se">\&#39;</span><span class="s2">. &quot;</span>
+              <span class="s2">&quot;Resetting to </span><span class="se">\&#39;</span><span class="s2">auto</span><span class="se">\&#39;</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="n">axes_limits</span> <span class="o">=</span> <span class="s1">&#39;auto&#39;</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">([</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">axes_limits</span><span class="p">]):</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Specified axes_limits should be a list of numbers of length &quot;</span>
+              <span class="s2">&quot;4. Resetting to </span><span class="se">\&#39;</span><span class="s2">auto</span><span class="se">\&#39;</span><span class="s2">.&quot;</span><span class="p">)</span>
+        <span class="n">axes_limits</span> <span class="o">=</span> <span class="s1">&#39;auto&#39;</span>
+
+    <span class="c1"># Defaults for mutable type arguments</span>
+    <span class="k">if</span> <span class="n">dataplotkw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">dataplotkw</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="mi">40</span><span class="p">,</span> <span class="s1">&#39;marker&#39;</span><span class="p">:</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="s1">&#39;linewidths&#39;</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span>
+                      <span class="s1">&#39;label&#39;</span><span class="p">:</span> <span class="s1">&#39;Measured slice thickness&#39;</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">lowessplotkw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">lowessplotkw</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;linewidth&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">meanplotkw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">meanplotkw</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lw&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">stdplotkw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">stdplotkw</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lw&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;ls&#39;</span><span class="p">:</span> <span class="s1">&#39;dashed&#39;</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">sns_cmap</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">sns_cmap</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;#4C72B1&quot;</span><span class="p">,</span> <span class="s2">&quot;#004040&quot;</span><span class="p">,</span> <span class="s2">&quot;#023FA5&quot;</span><span class="p">,</span> <span class="s2">&quot;#8E063B&quot;</span><span class="p">,</span> <span class="s2">&quot;#098C09&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;#EF9708&quot;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">sns_style_kw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">sns_style_kw</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;legend.frameon&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">}</span>
+
+    <span class="c1"># Import and setup seaborn styles</span>
+    <span class="kn">import</span> <span class="nn">seaborn</span> <span class="kn">as</span> <span class="nn">sns</span>
+    <span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;mathtext.fontset&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;stixsans&#39;</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_style</span><span class="p">(</span><span class="n">sns_style</span><span class="p">,</span> <span class="n">sns_style_kw</span><span class="p">)</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_context</span><span class="p">(</span><span class="n">sns_context</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">sns_cmap</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">tuple</span><span class="p">:</span>
+        <span class="n">palette</span> <span class="o">=</span> <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="o">*</span><span class="n">sns_cmap</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">palette</span> <span class="o">=</span> <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="n">sns_cmap</span><span class="p">)</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="n">palette</span><span class="p">)</span>
+
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">thicknesses</span><span class="p">))</span>  <span class="c1"># range (x values) for the slice numbers</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">thicknesses</span>  <span class="c1"># actual measured thickness data</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="n">lowess_factor</span>  <span class="c1"># factor by which to smooth the data</span>
+
+    <span class="k">if</span> <span class="n">plot_data</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;label&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">dataplotkw</span><span class="p">:</span>
+            <span class="n">dataplotkw</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Measured slice thickness&#39;</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_color_data</span><span class="p">],</span> <span class="o">**</span><span class="n">dataplotkw</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">plot_lowess</span><span class="p">:</span>
+        <span class="n">lowess</span> <span class="o">=</span> <span class="n">sm</span><span class="o">.</span><span class="n">nonparametric</span><span class="o">.</span><span class="n">lowess</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">frac</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;label&#39;</span> <span class="ow">in</span> <span class="n">lowessplotkw</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="n">lowessplotkw</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="s1">&#39;label&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">lowessplotkw</span><span class="p">:</span>
+            <span class="n">lowessplotkw</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;LOWESS regression ($f={0:.2f}$)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">lowess</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">lowess</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_color_lowess</span><span class="p">],</span>
+                 <span class="o">**</span><span class="n">lowessplotkw</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">plot_mean</span> <span class="ow">or</span> <span class="n">plot_std</span><span class="p">:</span>
+        <span class="n">thick_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">thicknesses</span><span class="p">)</span>
+        <span class="n">thick_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">thicknesses</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">plot_mean</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;label&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">meanplotkw</span><span class="p">:</span>
+            <span class="n">meanplotkw</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;$\mu = {0:.2f}$ ({1})&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">thick_mean</span><span class="p">,</span>
+                                                                 <span class="n">units</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">thick_mean</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_color_mean</span><span class="p">],</span> <span class="o">**</span><span class="n">meanplotkw</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">plot_std</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;label&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">stdplotkw</span><span class="p">:</span>
+            <span class="n">stdplotkw</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;$\mu \pm \sigma = ({0:.2f}, {1:.2f})$ ({&#39;</span> \
+                                 <span class="s1">&#39;2})&#39;</span><span class="o">.</span> <span class="n">format</span><span class="p">(</span><span class="n">thick_mean</span> <span class="o">-</span> <span class="n">thick_std</span><span class="p">,</span>
+                                               <span class="n">thick_mean</span> <span class="o">+</span> <span class="n">thick_std</span><span class="p">,</span>
+                                               <span class="n">units</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">thick_mean</span> <span class="o">-</span> <span class="n">thick_std</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_color_std</span><span class="p">],</span>
+                    <span class="o">**</span><span class="n">stdplotkw</span><span class="p">)</span>
+        <span class="k">del</span> <span class="n">stdplotkw</span><span class="p">[</span><span class="s1">&#39;label&#39;</span><span class="p">]</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">thick_mean</span> <span class="o">+</span> <span class="n">thick_std</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_color_std</span><span class="p">],</span>
+                    <span class="o">**</span><span class="n">stdplotkw</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">plot_legend</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="n">legend_loc</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ylabel</span> <span class="ow">is</span> <span class="s1">&#39;auto&#39;</span><span class="p">:</span>
+        <span class="n">ylabel</span> <span class="o">=</span> <span class="s1">&#39;Measured slice thickness (&#39;</span> <span class="o">+</span> <span class="n">units</span> <span class="o">+</span> <span class="s1">&#39;)&#39;</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="n">ylabel</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="n">xlabel</span><span class="p">)</span>
+
+    <span class="c1"># Set limits of axes</span>
+    <span class="k">if</span> <span class="n">axes_limits</span> <span class="ow">is</span> <span class="s1">&#39;auto&#39;</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">axis</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="mf">1.2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">y</span><span class="p">)])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="n">axes_limits</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="save_output"><a class="viewcode-back" href="../api_doc.html#fibtracking.save_output">[docs]</a><span class="k">def</span> <span class="nf">save_output</span><span class="p">(</span><span class="n">data</span><span class="p">,</span>
+                <span class="n">fname</span><span class="o">=</span><span class="s1">&#39;slice_thicknesses_fibtracking.csv&#39;</span><span class="p">,</span>
+                <span class="n">overwrite</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                <span class="n">collabels</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span>
+                <span class="n">units</span><span class="o">=</span><span class="s1">&#39;m&#39;</span><span class="p">,</span>
+                <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">,</span>
+                <span class="n">print_time_stamp</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Write the output contained in a list to a csv file</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data: list</span>
+<span class="sd">        list containing values to save (usually slice thicknesses)</span>
+<span class="sd">    fname: str</span>
+<span class="sd">        string containing name of file to which to write</span>
+<span class="sd">    overwrite: bool</span>
+<span class="sd">        if fname exists, switch to control whether to overwrite</span>
+<span class="sd">    collabels: list, &#39;auto&#39;, or None</span>
+<span class="sd">        labels to write as column headers. If &#39;auto&#39;, default of &quot;Slice,</span>
+<span class="sd">        Thickness (units)&quot; will be used. If a list, use str values</span>
+<span class="sd">        separated by commas.</span>
+<span class="sd">    units: str</span>
+<span class="sd">        units to write in output</span>
+<span class="sd">    delimiter: str</span>
+<span class="sd">        delimiter to use in output</span>
+<span class="sd">    print_time_stamp: bool</span>
+<span class="sd">        switch to control whether a time stamp is printed on the first line</span>
+<span class="sd">        of the file</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">csv</span>
+    <span class="kn">import</span> <span class="nn">time</span>
+    <span class="kn">import</span> <span class="nn">datetime</span>
+    <span class="kn">import</span> <span class="nn">os.path</span>
+
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">overwrite</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span>
+            <span class="s2">&quot;File exists, please choose different name or use &quot;</span>
+            <span class="s2">&quot;</span><span class="se">\&#39;</span><span class="s2">overwrite=True</span><span class="se">\&#39;</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="n">ts</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">())</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span>
+        <span class="s1">&#39;%Y-%m-</span><span class="si">%d</span><span class="s1"> %H:%M:%S&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">collabels</span> <span class="ow">is</span> <span class="s1">&#39;auto&#39;</span><span class="p">:</span>
+        <span class="n">collabels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Slice&#39;</span><span class="p">,</span> <span class="s1">&#39;Thickness (&#39;</span> <span class="o">+</span> <span class="n">units</span> <span class="o">+</span> <span class="s1">&#39;)&#39;</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">type</span><span class="p">(</span><span class="n">collabels</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">elif</span> <span class="n">collabels</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Did not understand column label input. Using default values.&quot;</span><span class="p">)</span>
+        <span class="n">collabels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Slice&#39;</span><span class="p">,</span> <span class="s1">&#39;Thickness (&#39;</span> <span class="o">+</span> <span class="n">units</span> <span class="o">+</span> <span class="s1">&#39;)&#39;</span><span class="p">]</span>
+
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">newline</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">csvfile</span><span class="p">:</span>
+        <span class="n">writer</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">writer</span><span class="p">(</span><span class="n">csvfile</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="n">delimiter</span><span class="p">,</span>
+                            <span class="n">quotechar</span><span class="o">=</span><span class="s1">&#39;|&#39;</span><span class="p">,</span> <span class="n">quoting</span><span class="o">=</span><span class="n">csv</span><span class="o">.</span><span class="n">QUOTE_MINIMAL</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">print_time_stamp</span><span class="p">:</span>
+            <span class="n">csvfile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">ts</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">collabels</span><span class="p">:</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">collabels</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+            <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)])</span>
+
+        <span class="k">print</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Wrote output to &quot;</span> <span class="o">+</span> <span class="n">fname</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="import_csv_data"><a class="viewcode-back" href="../api_doc.html#fibtracking.import_csv_data">[docs]</a><span class="k">def</span> <span class="nf">import_csv_data</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span>
+                    <span class="n">skip_rows</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                    <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read a csv file (saved by `save_output`) and get data back in a format</span>
+<span class="sd">    that can be used by the other methods in this module.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fname: str</span>
+<span class="sd">        Filename to read from</span>
+<span class="sd">    skip_rows: int</span>
+<span class="sd">        Number of rows to skip at the beginning of the file (headers)</span>
+<span class="sd">    delimiter: str</span>
+<span class="sd">        Delimiter for csv file (usually &#39;,&#39;)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    data: numpy.array</span>
+<span class="sd">        data from the requested file in the format expected by the other</span>
+<span class="sd">        methods in this module</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">genfromtxt</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span>
+                         <span class="n">skip_header</span><span class="o">=</span><span class="n">skip_rows</span><span class="p">,</span>
+                         <span class="n">delimiter</span><span class="o">=</span><span class="n">delimiter</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">data</span></div>
+
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">trackfiducials</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Joshua Taillon.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../',
+            VERSION:'0.2.1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../_static/jquery.js"></script>
+      <script type="text/javascript" src="../_static/underscore.js"></script>
+      <script type="text/javascript" src="../_static/doctools.js"></script>
+      <script type="text/javascript" src="../_static/copybutton.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
