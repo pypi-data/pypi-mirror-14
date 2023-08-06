@@ -1,0 +1,232 @@
+#!/usr/bin/python
+#-*- coding:utf-8 -*-
+
+#############################################
+# File Name: hanglish.py
+# Author: xiaoh
+# Mail: xiaoh@about.me
+# Created Time:  2016-04-12 16:52:36
+#############################################
+
+
+import random, os
+import re, sys
+
+HANGLISHPICS = ['''
+
+  +---+
+  |   |
+      |
+      |
+      |
+      |
+=========''', '''
+
+  +---+
+  |   |
+  O   |
+      |
+      |
+      |
+=========''', '''
+
+  +---+
+  |   |
+  O   |
+  |   |
+      |
+      |
+=========''', '''
+
+  +---+
+  |   |
+  O   |
+ /|   |
+      |
+      |
+=========''', '''
+
+  +---+
+  |   |
+  O   |
+ /|\  |
+      |
+      |
+=========''', '''
+
+  +---+
+  |   |
+  O   |
+ /|\  |
+ /    |
+      |
+=========''', '''
+
+  +---+
+  |   |
+  O   |
+ /|\  |
+ / \  |
+      |
+=========''']
+
+def xprint(msg = '', end='\n'):
+    sys.stdout.write("%s%s" % (msg, end))
+
+class Hanglish():
+    def __init__(self):
+        '''
+            init Wordlish object
+        '''
+
+        self.reg = re.compile('^([a-z]+)\s+')
+        self.words = {}
+
+        words_path = os.path.join(sys.path[0], 'words.dict')
+        if not os.path.exists(words_path):
+            xprint('file words.dict not exist')
+            exit(2)
+        with open(words_path) as infile:
+            while True:
+                line = infile.readline()
+                if not line:
+                    break
+                li = line.strip('\n')
+                m = self.reg.match(li)
+                if m:
+                    word = m.group(1)
+                    trans = li[m.end():]
+                    self.words[word] = trans
+
+    def _display_board(self):
+        '''
+            Displays the current status of the game that is being played.
+        '''
+
+        xprint(HANGLISHPICS[len(self._missed_letters)])
+        xprint()
+
+        xprint('Missed letters:', end=' ')
+        for letter in self._missed_letters:
+            xprint(letter, end=' ')
+        xprint()
+
+        blanks = '_' * len(self._secret_word)
+
+        # replace blanks with correctly guessed letters
+        for i in range(len(self._secret_word)):
+            if self._secret_word[i] in self._correct_letters:
+                blanks = blanks[:i] + self._secret_word[i] + blanks[i+1:]
+
+        # show the secret word with spaces in between each letter
+        for letter in blanks:
+            xprint(letter, end=' ')
+        xprint()
+
+    def _get_guess(self, already_guessed):
+        '''
+            Gets the input from the user.
+
+            Makes sure that the input entered is a letter and
+            the letter entered is not already guessed by the user.
+        '''
+
+        while True:
+            xprint('Guess a letter.')
+            guess = raw_input().lower()
+            if len(guess) != 1:
+                xprint('Please enter a single letter.')
+            elif guess in already_guessed:
+                xprint('You have already guessed that letter. Choose again.')
+            elif guess not in 'abcdefghijklmnopqrstuvwxyz':
+                xprint('Please enter a LETTER.')
+            else:
+                return guess
+
+    def _check_win(self):
+        '''
+            Returns True if the user has won, False otherwise.
+
+            Checks if the user has correctly guessed the secret word.
+        '''
+
+        for i in range(len(self._secret_word)):
+            if self._secret_word[i] not in self._correct_letters:
+                return False
+
+        xprint('Yes! The secret word is "{0}"! \n'
+               'Meaning: {1}\n'
+               'You have won!'.format(self._secret_word, self.words[self._secret_word]))
+
+        return True
+
+    def _check_lost(self):
+        '''
+            Returns True if the user has lost, False otherwise.
+
+            Alerts the user if all his chances have been used, without
+            guessing the secret word.
+        '''
+
+        if len(self._missed_letters) == len(HANGLISHPICS) - 1:
+            self._display_board()
+
+            missed = len(self._missed_letters)
+            correct = len(self._correct_letters)
+            word = self._secret_word
+            xprint('You have run out of guesses!')
+            xprint('After {0} missed guesses and {1} correct guesses.\n'
+                   'The word was "{2}"\n'
+                   'Meaning: {3}'.format(missed, correct, word, self.words[word]))
+
+            return True
+
+        return False
+
+    def run(self):
+        '''
+            Initialises the game play and coordinates the game activities.
+        '''
+           
+        self._missed_letters = ''
+        self._correct_letters = ''
+        self._secret_word = random.choice(self.words.keys())
+        self._game_is_done = False
+
+        xprint('H A N G L I S H')
+
+        while not self._game_is_done:
+            self._display_board()
+
+            guessed_letters = self._missed_letters + self._correct_letters
+            guess = self._get_guess(guessed_letters)
+
+            if guess in self._secret_word:
+                self._correct_letters = self._correct_letters + guess
+                self._game_is_done = self._check_win()
+            else:
+                self._missed_letters = self._missed_letters + guess
+                self._game_is_done = self._check_lost()
+
+    def play_again(self):
+        '''
+            Returns True if the player wants to play again, False otherwise.
+        '''
+
+        xprint('Do you want to play again? (yes or no)(default yes)')
+        w = raw_input().lower()
+        return w != "no" 
+
+def main():
+    '''
+        Main application entry point.
+    '''
+
+    wl = Hanglish()
+    while True:
+        wl.run()
+        if not wl.play_again():
+            break
+
+if __name__ == "__main__":
+    main()
