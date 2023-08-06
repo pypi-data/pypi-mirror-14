@@ -1,0 +1,88 @@
+#! /usr/bin/env python
+#
+# Copyright (C) Jens Kasten <jens@kasten-edv.de>. All Rights Reserved.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>
+# 
+
+import argparse
+import logging
+
+logging.basicConfig(format='%(levelname)s:%(name)s:line %(lineno)s: %(message)s')
+log = logging.getLogger(__name__)
+
+import laptop_pm
+
+
+def main():
+    level = ["battery", "ac-adapter", "show"]
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", default=False, action="store_true",
+        help="make script noisily")
+    parser.add_argument("-f", "--force", default=False, action="store_true", 
+        help="do action even its in the same stage")
+    parser.add_argument("action", choices=level,
+        help="action to perform")
+
+    args = parser.parse_args()
+
+    if args.verbose:
+        log.setLevel(logging.DEBUG)
+  
+    if args.action == "show":
+        laptop_pm.show()
+
+    # set the level of system, adapter of battery
+    action = laptop_pm.LEVEL[args.action]
+
+    # e.g. when system on battery and action is battery do nothing
+    if laptop_pm.is_ac_power() != action:
+        if args.force: 
+            log.info("Force to switch to other powerlevel.")
+        else:
+            log.info("Must use of --force to switch to: %s" % args.action)
+            return 
+
+    net = laptop_pm.NetDevices(action)
+    net.set_log_level(args.verbose)
+    net.change_status()
+
+    hd = laptop_pm.HardDevices(action)
+    hd.set_log_level(args.verbose)
+    hd.change_status()
+
+    proc = laptop_pm.Proc(action)
+    proc.set_log_level(args.verbose)
+    proc.change_status() 
+
+    usb = laptop_pm.UsbDevices(action)
+    usb.set_log_level(args.verbose)
+    usb.get_devices()
+    usb.change_status()
+
+    lcd = laptop_pm.LcdDevice(action)
+    lcd.set_log_level(args.verbose)
+    lcd.change_status()
+
+    sound = laptop_pm.SoundDevices(action)
+    sound.set_log_level(args.verbose)
+    sound.change_status()
+
+    general = laptop_pm.General(action)
+    general.set_log_level(args.verbose)
+    general.change_status()
+    
+if __name__ == "__main__":
+    main()
