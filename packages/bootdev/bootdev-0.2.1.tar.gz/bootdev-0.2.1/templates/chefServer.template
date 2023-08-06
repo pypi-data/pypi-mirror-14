@@ -1,0 +1,852 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "chef server on amazon linux,set up chef server and chef workstation registed as ec2-user admin client.a drupal database is installed to rds and configure the source code ",
+  "Parameters": {
+    "KeyName": {
+      "Type": "String",
+      "Default": "drucloud",
+      "Description": "Note: do not input .pem suffix! Name of an existing EC2 KeyPair to enable SSH access to the web server"
+    },
+    "SSHPub": {
+      "Type": "String",
+      "Description": "ssh pub file"
+    },
+    "SSHKey": {
+      "Type": "String",
+      "Description": "ssh key file"
+    },
+    "SSHKnownHosts": {
+      "Type": "String",
+      "Description": "ssh known hosts"
+    },
+    "VpcSecurityGroup": {
+      "Type": "String",
+      "Description": "security group in this vpc"
+    },
+    "GlusterMountUrl": {
+      "Type": "String",
+      "Default": "iptochange",
+      "Description": "the url of gluster server to mount"
+    },
+    "GlusterVolume": {
+      "Type": "String",
+      "Default": "glt0",
+      "Description": "The volume name of gluster volume"
+    },
+    "ServerTagName": {
+      "Type": "String",
+      "Description": "the name you want to apply to chef server"
+    },
+    "ChefSubnet": {
+      "Type": "String",
+      "Description": "a vpc subnet used for chef server and chef clients"
+    },
+    "ChefVpc": {
+      "Type": "String",
+      "Description": "a chef vpc"
+    },
+    "InstanceType": {
+      "Description": "WebServer EC2 instance type",
+      "Type": "String",
+      "Default": "t1.micro",
+      "AllowedValues": [
+        "t1.micro",
+        "t2.nano",
+        "t2.small",
+        "t2.medium",
+        "t2.large",
+        "m1.small",
+        "m3.medium",
+        "m3.large",
+        "m3.xlarge",
+        "m3.2xlarge",
+        "c3.large",
+        "c3.xlarge",
+        "c3.2xlarge",
+        "c3.4xlarge",
+        "c3.8xlarge",
+        "c4.large",
+        "c4.xlarge",
+        "c4.2xlarge",
+        "c4.4xlarge",
+        "c4.8xlarge"     
+      ],
+      "ConstraintDescription": "must be a valid EC2 instance type."
+    },
+    "SSHLocation": {
+      "Description": "The IP address range that can be used to SSH to the EC2 instances",
+      "Type": "String",
+      "MinLength": "9",
+      "MaxLength": "18",
+      "Default": "0.0.0.0/0",
+      "AllowedPattern": "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})",
+      "ConstraintDescription": "must be a valid IP CIDR range of the form x.x.x.x/x."
+    },
+    "BootCloudBranch": {
+      "Description": "Chef Repository branch to be deployed",
+      "Type": "String"
+    }
+  },
+    "Mappings": {
+        "AWSInstanceType2Arch": {
+            "t1.micro": {
+                "Arch": "PVebs"
+            },
+            "t2.nano": {
+                "Arch": "HVMebs"
+            },
+            "t2.small": {
+                "Arch": "HVMebs"
+            },
+            "t2.medium": {
+                "Arch": "HVMebs"
+            },
+            "t2.large": {
+                "Arch": "HVMebs"
+            },
+            "m1.small": {
+                "Arch": "PVinstancestore"
+            },
+            "m3.medium": {
+                "Arch": "PVinstancestore"
+            },
+            "m3.large": {
+                "Arch": "PVinstancestore"
+            },
+            "m3.xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "m3.2xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.large": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.2xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.4xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.8xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c4.large": {
+                "Arch": "HVMebs"
+            },
+            "c4.xlarge": {
+                "Arch": "HVMebs"
+            },
+            "c4.2xlarge": {
+                "Arch": "HVMebs"
+            },
+            "c4.4xlarge": {
+                "Arch": "HVMebs"
+            },
+            "c4.8xlarge": {
+                "Arch": "HVMebs"
+            }
+        },
+        "AWSRegionArch2AMI": {
+            "us-east-1": {
+                "PVinstancestore": "ami-971066f2",
+                "PVebs": "ami-cf1066aa",
+                "HVMebs": "ami-e3106686"
+            },
+            "us-west-2": {
+                "PVinstancestore": "ami-bdf7e88d",
+                "PVebs": "ami-81f7e8b1",
+                "HVMebs": "ami-9ff7e8af"
+            },
+            "us-west-1": {
+                "PVinstancestore": "ami-c93aff8d",
+                "PVebs": "ami-d53aff91",
+                "HVMebs": "ami-cd3aff89"
+            },
+            "eu-west-1": {
+                "PVinstancestore": "ami-8fbe93f8",
+                "PVebs": "ami-a3be93d4",
+                "HVMebs": "ami-69b9941e"
+            },
+            "eu-central-1": {
+                "PVinstancestore": "ami-a0aeaebd",
+                "PVebs": "ami-a6aeaebb",
+                "HVMebs": "ami-daaeaec7"
+            },
+            "ap-southeast-1": {
+                "PVinstancestore": "ami-4c97821e",
+                "PVebs": "ami-50978202",
+                "HVMebs": "ami-52978200"
+            },
+            "ap-northeast-1": {
+                "PVinstancestore": "ami-a42fb8a4",
+                "PVebs": "ami-9c2fb89c",
+                "HVMebs": "ami-9a2fb89a"
+            },
+            "ap-northeast-2": {
+                "PVinstancestore": "ami-4118d72f",
+                "HVMebs": "ami-249b554a"
+            },
+            "ap-southeast-2": {
+                "PVinstancestore": "ami-851856bf",
+                "PVebs": "ami-c71856fd",
+                "HVMebs": "ami-c11856fb"
+            },
+            "sa-east-1": {
+                "PVinstancestore": "ami-010c991c",
+                "PVebs": "ami-370c992a",
+                "HVMebs": "ami-3b0c9926"
+            },
+            "cn-north-1": {
+                "PVinstancestore": "ami-68b22e51",
+                "PVebs": "ami-54b22e6d",
+                "HVMebs": "ami-6cb22e55"
+            }
+        }
+    },
+  "Resources": {
+    "ChefEIP": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc",
+        "InstanceId": {
+          "Ref": "ChefServer"
+        }
+      }
+    },
+    "SecurityGroupRule": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "VpcSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": "22",
+        "ToPort": "22",
+        "CidrIp": "0.0.0.0/0"
+      }
+    },
+    "ChefServer": {
+      "Type": "AWS::EC2::Instance",
+      "Metadata": {
+        "AWS::CloudFormation::Init": {
+          "config": {
+            "files": {
+              "/home/ec2-user/.aws/config": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "[default]\n",
+                      "aws_access_key_id = ",
+                      {
+                        "Ref": "HostKeys"
+                      },
+                      "\n",
+                      "aws_secret_access_key = ",
+                      {
+                        "Fn::GetAtt": [
+                          "HostKeys",
+                          "SecretAccessKey"
+                        ]
+                      },
+                      "\n",
+                      "region  = ",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      "\n"
+                    ]
+                  ]
+                },
+                "mode": "000640",
+                "owner": "ec2-user",
+                "group": "ec2-user"
+              },
+              "/root/.aws/config": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "[default]\n",
+                      "aws_access_key_id = ",
+                      {
+                        "Ref": "HostKeys"
+                      },
+                      "\n",
+                      "aws_secret_access_key = ",
+                      {
+                        "Fn::GetAtt": [
+                          "HostKeys",
+                          "SecretAccessKey"
+                        ]
+                      },
+                      "\n",
+                      "region  = ",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      "\n"
+                    ]
+                  ]
+                },
+                "mode": "000640",
+                "owner": "root",
+                "group": "root"
+              },
+              "/home/ec2-user/knifeconfigure.sh": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "#/bin/sh\n",
+                      "PASSWORD='123456'\n",
+                      "/opt/opscode/embedded/bin/knife configure -d -y -i -c /home/ec2-user/chef11/chef-repo/.chef/knife.rb --server-url https://$( hostname ):443/organizations/admin -u ec2-user --validation-client-name chef-validator --validation-key /etc/chef/chef-validator.pem -r /home/ec2-user/chef11/chef-repo --admin-client-name ec2-user --admin-client-key /etc/chef/ec2-user.pem << END_SCRIPT\n",
+                      "quote PASSWORD $PASSWORD\n",
+                      "quit\n",
+                      "END_SCRIPT\n",
+                      "exit 0"
+                    ]
+                  ]
+                },
+                "mode": "000755",
+                "owner": "root",
+                "group": "root"
+              },
+              "/root/.ssh/config": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "Host bitbucket.org\n",
+                      "   HostName bitbucket.org\n",
+                      "   IdentityFile /root/.ssh/bitbucket\n"
+                    ]
+                  ]
+                },
+                "mode": "000600",
+                "owner": "root",
+                "group": "root"
+              },
+              "/root/.ssh/bitbucket.pub": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "SSHPub"
+                      }
+                    ]
+                  ]
+                },
+                "mode": "000600",
+                "owner": "root",
+                "group": "root"
+              },
+              "/root/.ssh/bitbucket": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "SSHKey"
+                      }
+                    ]
+                  ]
+                },
+                "mode": "000600",
+                "owner": "root",
+                "group": "root"
+              },
+              "/root/.ssh/known_hosts": {
+                "content": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Ref": "SSHKnownHosts"
+                      }
+                    ]
+                  ]
+                },
+                "mode": "000600",
+                "owner": "root",
+                "group": "root"
+              }
+            },
+            "commands": {
+              "000yum": {
+                "command": "n=0;until [ $n -ge 5 ];do yum install git gcc gcc-c++ ruby19 ruby19-devel ruby19-irb uby19-libs ruby-devel rubygems -y; [ $? -eq 0 ] && break;n=$[$n+1];sleep 15;done;",
+                "cwd": "/home/ec2-user"
+              },
+              "002mkdir": {
+                "command": "mkdir -p /home/ec2-user/tools /home/ec2-user/.pem /var/app",
+                "cwd": "/home/ec2-user",
+                "ignoreErrors": "true"
+              },
+              "003oinstallec2metadata": {
+                "command": "n=0;until [ $n -ge 5 ];do wget http://s3.amazonaws.com/ec2metadata/ec2-metadata; [ $? -eq 0 ] && break;n=$[$n+1];sleep 15;done;chmod u+x ./ec2-metadata",
+                "cwd": "/home/ec2-user/tools"
+              },
+              "010downloadrpm": {
+                "command": "n=0;until [ $n -ge 5 ];do wget https://s3-ap-northeast-1.amazonaws.com/bootdev/chef-server-core-12.0.7-1.el6.x86_64.rpm; [ $? -eq 0 ] && break;n=$[$n+1];sleep 15;done;",
+                "cwd": "/home/ec2-user/tools"
+              },
+              "011installchefS": {
+                "command": "rpm -Uvh /home/ec2-user/tools/chef-server-core-12.0.7-1.el6.x86_64.rpm",
+                "cwd": "/home/ec2-user/tools"
+              },
+              "012reosolvehostname": {
+                "command": "echo \"`/home/ec2-user/tools/ec2-metadata -o | cut -d ' ' -f2` `hostname`\" >> /etc/hosts",
+                "cwd": "/home/ec2-user"
+              },
+              "013configurechef": {
+                "command": "chef-server-ctl reconfigure",
+                "cwd": "/home/ec2-user",
+                "waitAfterCompletion": "5"
+              },
+              "014configurechefuser": {
+                "command": "chef-server-ctl user-create ec2-user ec2-user ec2-user jacky.chan@bootdev.com bootdev -f /etc/chef/ec2-user.pem",
+                "cwd": "/home/ec2-user"
+              },
+              "015configurechefgroup": {
+                "command": "chef-server-ctl org-create admin admin --association_user ec2-user -f /etc/chef/chef-validator.pem",
+                "cwd": "/home/ec2-user",
+                "waitAfterCompletion": "5"
+              },
+              "020uploadpem": {
+                "command": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "aws s3 cp /etc/chef/chef-validator.pem s3://",
+                      {
+                        "Ref": "PrivateKeyBucket"
+                      },
+                      "/"
+                    ]
+                  ]
+                },
+                "env": {
+                  "LC_ALL": "en_US.UTF-8",
+                  "LANG": "en_US.UTF-8"
+                },
+                "cwd": "/root"
+              },
+              "021uploadpem2": {
+                "command": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "aws s3 cp /etc/chef/ec2-user.pem s3://",
+                      {
+                        "Ref": "PrivateKeyBucket"
+                      },
+                      "/"
+                    ]
+                  ]
+                },
+                "env": {
+                  "LC_ALL": "en_US.UTF-8",
+                  "LANG": "en_US.UTF-8"
+                },
+                "cwd": "/root"
+              },
+              "030downloadrpm": {
+                "command": "n=0;until [ $n -ge 5 ];do wget https://s3-ap-northeast-1.amazonaws.com/bootdev/chefdk-0.4.0-1.x86_64.rpm; [ $? -eq 0 ] && break;n=$[$n+1];sleep 15;done;",
+                "cwd": "/home/ec2-user/tools"
+              },
+              "031installchefS": {
+                "command": "rpm -Uvh /home/ec2-user/tools/chefdk-0.4.0-1.x86_64.rpm",
+                "cwd": "/home/ec2-user/tools"
+              },
+              "100mkdirforchefworkstaiton": {
+                "command": "mkdir -p /home/ec2-user/chef11",
+                "cwd": "/home/ec2-user"
+              },
+              "110clonechefrepo": {
+                "command": "n=0;until [ $n -ge 5 ];do git clone git://github.com/opscode/chef-repo.git; [ $? -eq 0 ] && break;n=$[$n+1];sleep 15;done;",
+                "cwd": "/home/ec2-user/chef11"
+              },
+              "120mkconfigrepo": {
+                "command": "mkdir -p /home/ec2-user/chef11/chef-repo/.chef;touch /home/ec2-user/chef11/chef-repo/.chef/knife.rb;mv /home/ec2-user/knifeconfigure.sh /home/ec2-user/chef11/chef-repo/",
+                "cwd": "/home/ec2-user"
+              },
+              "121copypem": {
+                "command": "cp /etc/chef/chef-validator.pem /home/ec2-user/chef11/chef-repo/.chef;cp /etc/chef/ec2-user.pem /home/ec2-user/chef11/chef-repo/.chef",
+                "cwd": "/home/ec2-user"
+              },
+              "122fetchSSL": {
+                "command": "knife ssl fetch",
+                "cwd": "/home/ec2-user/chef11/chef-repo"
+              },
+              "130setworkstation": {
+                "command": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "./knifeconfigure.sh  || true"
+                    ]
+                  ]
+                },
+                "cwd": "/home/ec2-user/chef11/chef-repo"
+              },
+              "140gen_databag_key": {
+                "command": "openssl rand -base64 512 > /home/ec2-user/chef11/chef-repo/.chef/secret_key;cp /home/ec2-user/chef11/chef-repo/.chef/secret_key /etc/chef/secret_key",
+                "cwd": "/home/ec2-user"
+              },
+              "150chefvault": {
+                "command": "echo {\"\\\"\"secret_key\"\\\"\":\"\\\"\"`cat /home/ec2-user/chef11/chef-repo/.chef/secret_key`\"\\\"\"} >/home/ec2-user/chef11/chef-repo/.chef/secret_key.json",
+                "cwd": "/home/ec2-user"
+              },
+              "210downloadrecipe": {
+                "command": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "n=0;until [ $n -ge 5 ];do git clone --depth 1 -b ",
+                      {
+                        "Ref": "BootCloudBranch"
+                      },
+                      " git@bitbucket.org:bootdevsys/bootcloud.git; [ $? -eq 0 ] && break;n=$[$n+1];sleep 15;done;"
+                    ]
+                  ]
+                },
+                "cwd": "/home/ec2-user/tools"
+              },
+              "215mvrecipe2workstation": {
+                "command": "cp -rf /home/ec2-user/tools/bootcloud/resources/chef/cookbooks/* /home/ec2-user/chef11/chef-repo/cookbooks/;cp -rf /home/ec2-user/tools/bootcloud/resources/chef/roles/* /home/ec2-user/chef11/chef-repo/roles/;cp -Rf /home/ec2-user/tools/bootcloud/resources/chef/crontab /home/ec2-user/chef11/chef-repo/",
+                "cwd": "/home/ec2-user"
+              },
+              "220write_knife": {
+                "command": "echo \"data_bag_path  '/home/ec2-user/chef11/chef-repo/data_bags'\" >> /home/ec2-user/chef11/chef-repo/.chef/knife.rb;mkdir -p /home/ec2-user/.pem;echo \"knife[:ssh_user] = 'ec2-user'\" >> /home/ec2-user/chef11/chef-repo/.chef/knife.rb;echo \"knife[:identity_file] = '/home/ec2-user/.pem/bootdev.pem'\" >> /home/ec2-user/chef11/chef-repo/.chef/knife.rb;echo \"role_path '/home/ec2-user/chef11/chef-repo/roles'\" >> /home/ec2-user/chef11/chef-repo/.chef/knife.rb;#echo \"node_name 'admin'\" >> /home/ec2-user/chef11/chef-repo/.chef/knife.rb;echo \"ssl_verify_mode :verify_none\" >> /home/ec2-user/chef11/chef-repo/.chef/knife.rb",
+                "cwd": "/home/ec2-user"
+              },
+              "221replacedefaultruby": {
+                "command": "if [ -h /usr/bin/ruby ];then unlink /usr/bin/ruby;fi;ln -sf /usr/bin/ruby1.9 /usr/bin/ruby",
+                "cwd": "/home/ec2-user"
+              },
+              "223copydeploybash": {
+                "command": "mkdir -p /opt/dep;cp /home/ec2-user/tools/bootcloud/resources/scripts/Deploy/* /opt/dep/;chmod +x /opt/dep/*"
+              },
+              "224geminstallvault": {
+                "command": "aws s3 cp s3://bootdev/chef-vault-2.6.1.gem ~/chef-vault-2.6.1.gem;/opt/opscode/embedded/bin/gem install --local ~/chef-vault-2.6.1.gem"
+              },
+              "225replacedefaultknife": {
+                "command": "#ln -s /opt/opscode/embedded/bin/knife /usr/bin/knife"
+              },
+              "226createknifevault": {
+                "command": "/usr/bin/knife vault create secrets secret_key --json .chef/secret_key.json --mode client",
+                "cwd": "/home/ec2-user/chef11/chef-repo"
+              },
+              "227Symboliclink_chef-solr": {
+                "command": "#ln -s /opt/opscode/embedded/bin/chef-solo /usr/bin/chef-solo",
+                "cwd": "/home/ec2-user/chef11/chef-repo"
+              },
+              "228createsoloconfig": {
+                "command": "cp /home/ec2-user/chef11/chef-repo/.chef/knife.rb /etc/chef/solo.rb",
+                "cwd": "/home/ec2-user/chef11/chef-repo"
+              },
+              "229createcrontab": {
+                "command": "/usr/bin/crontab /opt/dep/cron.txt"
+              },
+              "230customconfigchef": {
+                "command": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "sed -i \"s/iptochange/",
+                      {
+                        "Ref": "GlusterMountUrl"
+                      },
+                      "/g\" /home/ec2-user/chef11/chef-repo/cookbooks/diskmount/attributes/default.rb;",
+                      "sed -i \"s/volumename/",
+                      {
+                        "Ref": "GlusterVolume"
+                      },
+                      "/g\" /home/ec2-user/chef11/chef-repo/cookbooks/diskmount/attributes/default.rb"
+                    ]
+                  ]
+                },
+                "cwd": "/home/ec2-user/chef11/chef-repo"
+              },
+              "235uploadcookbook": {
+                "command": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "/usr/bin/knife cookbook upload --all;",
+                      "/usr/bin/knife role from file roles/*.json"
+                    ]
+                  ]
+                },
+                "cwd": "/home/ec2-user/chef11/chef-repo"
+              },
+              "240installchefserver": {
+                "command": "chef-solo -o 'role[chefserver]'"
+              },
+              "250changephpsettings": {
+                "command": "/bin/sed -i 's/memory_limit = .*/memory_limit = 512M/' /etc/php.ini"
+              }
+            }
+          }
+        }
+      },
+      "Properties": {
+        "SecurityGroupIds": [
+          {
+            "Ref": "VpcSecurityGroup"
+          }
+        ],
+        "ImageId": {
+          "Fn::FindInMap": [
+            "AWSRegionArch2AMI",
+            {
+              "Ref": "AWS::Region"
+            },
+            {
+              "Fn::FindInMap": [
+                "AWSInstanceType2Arch",
+                {
+                  "Ref": "InstanceType"
+                },
+                "Arch"
+              ]
+            }
+          ]
+        },
+        "UserData": {
+          "Fn::Base64": {
+            "Fn::Join": [
+              "",
+              [
+                "#!/bin/bash\n",
+                "echo \"Defaults:ec2-user !requiretty\" >> /etc/sudoers\n",
+                "service iptables stop\n",
+                "service ip6tables stop\n",
+                "chkconfig iptables off\n",
+                "chkconfig ip6tables off\n",
+                "export HOME=/root\n",
+                "export RANDFILE=$HOME/chef.rnd\n",
+                "export AWS_CONFIG_FILE=/home/ec2-user/.aws/config\n",
+                "function error_exit\n",
+                "{\n",
+                "  /opt/aws/apitools/cfn-init/bin/cfn-signal -e 1 --region ",
+                {
+                  "Ref": "AWS::Region"
+                },
+                " -r \"$1\" '",
+                {
+                  "Ref": "ChefServerWaitHandle"
+                },
+                "'\n",
+                "  exit 1\n",
+                "}\n",
+                "/opt/aws/apitools/cfn-init/bin/cfn-init -v  --region ",
+                {
+                  "Ref": "AWS::Region"
+                },
+                "    -s ",
+                {
+                  "Ref": "AWS::StackId"
+                },
+                " -r ChefServer ",
+                "         --access-key ",
+                {
+                  "Ref": "HostKeys"
+                },
+                "         --secret-key ",
+                {
+                  "Fn::GetAtt": [
+                    "HostKeys",
+                    "SecretAccessKey"
+                  ]
+                },
+                " || error_exit 'Failed to run cfn-init'\n",
+                "/opt/aws/apitools/cfn-init/bin/cfn-signal -e $? --region ",
+                {  
+                  "Ref": "AWS::Region"
+                },
+                " -r 'Chef Server configuration' '",
+                {
+                  "Ref": "ChefServerWaitHandle"
+                },
+                "'\n"
+              ]
+            ]
+          }
+        },
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "InstanceType": {
+          "Ref": "InstanceType"
+        },
+        "SubnetId": {
+          "Ref": "ChefSubnet"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Ref": "ServerTagName"
+            }
+          },
+          {
+            "Key": "Environment",
+            "Value": "cloudformationChefenv"
+          }
+        ]
+      }
+    },
+    "ChefServerUser": {
+      "Type": "AWS::IAM::User",
+      "Properties": {
+        "Path": "/",
+        "Policies": [
+          {
+            "PolicyName": "root",
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "cloudformation:DescribeStackResource",
+                    "s3:*"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "HostKeys": {
+      "Type": "AWS::IAM::AccessKey",
+      "Properties": {
+        "Status": "Active",
+        "UserName": {
+          "Ref": "ChefServerUser"
+        }
+      }
+    },
+    "PrivateKeyBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "AccessControl": "Private"
+      },
+      "DeletionPolicy": "Retain"
+    },
+    "BucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "PolicyDocument": {
+          "Version": "2008-10-17",
+          "Id": "WritePolicy",
+          "Statement": [
+            {
+              "Sid": "WriteAccess",
+              "Action": [
+                "s3:PutObject"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:aws:s3:::",
+                    {
+                      "Ref": "PrivateKeyBucket"
+                    },
+                    "/*"
+                  ]
+                ]
+              },
+              "Principal": {
+                "AWS": {
+                  "Fn::GetAtt": [
+                    "ChefServerUser",
+                    "Arn"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "Bucket": {
+          "Ref": "PrivateKeyBucket"
+        }
+      }
+    },
+    "ChefServerWaitHandle": {
+      "Type": "AWS::CloudFormation::WaitConditionHandle"
+    },
+    "ChefServerWaitCondition": {
+      "Type": "AWS::CloudFormation::WaitCondition",
+      "DependsOn": "ChefServer",
+      "Properties": {
+        "Handle": {
+          "Ref": "ChefServerWaitHandle"
+        },
+        "Timeout": "2400"
+      }
+    }
+  },
+  "Outputs": {
+    "ServerPublicURL": {
+      "Description": "URL of Opscode chef server WebUI",
+      "Value": {
+        "Fn::GetAtt": [
+          "ChefServer",
+          "PublicDnsName"
+        ]
+      }
+    },
+    "ServerURL": {
+      "Description": "URL of newly created Opscode chef server",
+      "Value": {
+        "Fn::Join": [
+          "",
+          [
+            "https://",
+            {
+              "Fn::GetAtt": [
+                "ChefServer",
+                "PrivateDnsName"
+              ]
+            },
+            ":443"
+          ]
+        ]
+      }
+    },
+    "ServerPrivateIp": {
+      "Description": "private ip of chef server",
+      "Value": {
+        "Fn::GetAtt": [
+          "ChefServer",
+          "PrivateIp"
+        ]
+      }
+    },
+    "ServerPublicIp": {
+      "Description": "pulbic ip of chef server",
+      "Value": {
+        "Fn::GetAtt": [
+          "ChefServer",
+          "PublicIp"
+        ]
+      }
+    },
+    "ValidationKeyBucket": {
+      "Description": "Location of validation key",
+      "Value": {
+        "Ref": "PrivateKeyBucket"
+      }
+    }
+  }
+}
