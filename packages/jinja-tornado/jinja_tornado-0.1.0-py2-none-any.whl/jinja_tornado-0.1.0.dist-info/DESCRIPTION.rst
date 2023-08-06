@@ -1,0 +1,145 @@
+=============
+jinja_tornado
+=============
+| Source: https://github.com/thkang2/jinja_tornado
+| License: MIT License
+
+jinja2 support for tornado applications.
+
+
+.. contents::
+
+
+Install
+===========
+
+.. code:: bash
+
+    $ python setup.py install
+
+
+Usage
+=======
+
+.. code:: python
+
+    from jinja_tornado import JinjaApp, JinjaTemplateMixin
+
+    application = tornado.web.Application( ... )
+
+    environment = JinjaApp.init_app(application) 
+    """init_app returns jinja2 environment that is used by application.
+    takes a dict as second argument which contains your custom jinja 2
+    settings for environment constructor.
+    see http://jinja.pocoo.org/docs/api/#jinja2.Environment """
+
+
+
+    class JinjaEnabledHandler(JinjaTemplateMixin, tornado.web.RequestHandler):
+        """ this Handler supports
+            - `self.session` properties (as flask.session) and `session` in template
+            - `self.render` method
+            - `self.render_string` method """
+
+
+
+
+    # custom filters, tests, globals
+    environment = JinjaApp.init_app(application)
+    @environment.filter()
+    def foo_to_bar(x):
+        return x.replace('foo', 'bar')
+
+
+Template variables
+====================
+::
+
+    request        => tornado.web.RequestHandler.request
+    session        => tornado.web.RequestHandler.get_secure_cookie('session')
+    path_args      => tornado.web.RequestHandler.path_args
+    path_kwargs    => tornado.web.RequestHandler.path_kwargs
+    settings       => tornado.web.RequestHandler.application.settings
+    reverse_url    => tornado.web.RequestHandler.application.reverse_url
+    static_url     => tornado.web.RequestHandler.static_url
+    xsrf_form_html => tornado.web.RequestHandler.xsrf_form_html
+    datetime       => datetime (python module)
+    locale         => tornado.web.RequestHandler.locale
+    _              => tornado.web.RequestHandler.locale.translate
+    handler        => tornado.web.RequestHandler (self)
+    current_user   => tornado.web.requestHandler.current_user
+
+
+Template filters
+====================
+
+::
+
+    tojson       => JSON-encode the given python object
+
+        <script>
+          var obj = {{ obj | tojson | safe }}
+        </script>
+
+    xhtml_escape => tornado.escape.xhtml_escape
+    url_escape   => tornado.escape.url_escape
+    squeeze      => tornado.escape.squeeze
+    linkify      => tornado.escape.linkify
+
+
+Todo
+=====
+
+- write tests
+- no more opinionated `session` implementation
+- implement template preprocessors
+- UIModules, and various 'tornado' template structures
+
+
+Authors
+========
+* thkang2 -- https://github.com/thkang2/jinja_tornado (MIT License)
+* westurner -- https://github.com/westurner/jinja_tornado (MIT License)
+
+  * https://github.com/thkang2/jinja_tornado/pull/2
+
+
+License
+========
+MIT License. See: ``LICENSE``
+
+
+
+History
+========
+
+
+
+
+release/v0.1.0 (2016-04-28 17:13:31 -0500)
+------------------------------------------
+::
+
+   git log --reverse --pretty=format:'* %s [%h]' b8d13ce..release/v0.1.0
+
+* initial commit [2defc31]
+* 2nd commit [c05ab84]
+* now it is a package [0993866]
+* fixed __init__ and readme [2f1171e]
+* Update README.md [f78735d]
+* Update jinja_tornado.py [6df0211]
+* Update README.md [01fa568]
+* REF: README.md -> README.rst [49927dd]
+* BLD,DOC: Makefile, README.rst, requirements.txt, setup.py: v0.1.0 packaging [d96bdf3]
+* DOC,BLD: HISTORY.rst, setup.py: add HISTORY.rst to long_description [4fbcb84]
+* DOC: README.rst: Authors [3f8dd1a]
+* DOC: setup.py: author, author_email, url [10e837a]
+* DOC: LICENSE: amend (MIT) LICENSE copyright [0e6641a]
+* BLD: MANIFEST.in: add MANIFEST.in [746358b]
+* BLD: Makefile: 'python setup.py check -r -s' [d196959]
+* DOC: HISTORY.rst: `git-changelog.py -r release/v0.1.0 --hdr=- | pbcopy` [824a131]
+* BLD: Makefile, requirements[-dev].txt: development requirements [54113b5]
+* BLD: Makefile: twine register because HTTPS [c4d1535]
+
+
+
