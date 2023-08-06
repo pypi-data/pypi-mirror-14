@@ -1,0 +1,259 @@
+[![Build Status](https://travis-ci.org/pgxcentre/genipe.svg?branch=master)](https://travis-ci.org/pgxcentre/genipe)
+[![PyPI version](https://badge.fury.io/py/genipe.svg)](http://badge.fury.io/py/genipe)
+
+
+# genipe - A Python module to perform genome-wide imputation analysis
+
+The `genipe` module (standing for **GEN**ome-wide **I**mputation
+**P**ipelin**E**) includes a script (named `genipe-launcher`) that
+automatically runs a genome-wide imputation pipeline using *Plink*, *shapeit*
+and *impute2*.
+
+
+## Documentation
+
+Full documentation is available at
+[http://pgxcentre.github.io/genipe/](http://pgxcentre.github.io/genipe/).
+
+
+## Installation
+
+We recommend installing the package in a Python 3 virtual environment. There
+are two ways to install: `pip` or `conda`.
+
+```bash
+# Using pip
+pip install genipe
+```
+
+```bash
+# Using conda
+conda install genipe -c http://statgen.org/wp-content/uploads/Softwares/genipe
+```
+
+The installation process should install all required dependencies to run the
+main imputation pipeline. Optional dependencies can also be installed manually
+in order to perform statistical analysis and data management (see below).
+
+The complete installation procedure is available in the
+[documentation](http://pgxcentre.github.io/genipe/installation.html).
+
+
+### Dependencies
+
+The tool requires a standard [Python](http://python.org/) 3 installation with
+the following modules:
+
+* `numpy` version 1.8.2 and latest
+* `Jinja2` version 2.7.3 and latest
+* `pandas` version 0.15.2 and latest
+* `setuptools` version 12.0.5 and latest
+
+The tool requires the binaries for
+[Plink](http://pngu.mgh.harvard.edu/~purcell/plink/download.shtml),
+[shapeit](https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.html#download)
+and [impute2](https://mathgen.stats.ox.ac.uk/impute/impute_v2.html#download).
+
+
+### Optional dependencies
+
+In order to perform data management and statistical analysis (linear, logistic
+and Cox's regressions), `genipe` requires the following Python modules:
+
+* `Matplotlib` version 1.4.2 or latest
+* `scipy` version 0.15.1 or latest
+* `statsmodels` version 0.6.1 or latest
+* `lifelines` version 0.7.0 or latest
+* `Biopython` version 1.65 or latest
+* `pyfaidx` version 0.3.7 or latest
+* `drmaa` version 0.7.6 or latest
+
+Finally, the tool requires a LaTeX installation to compile the automatically
+generated report in PDF format.
+
+
+### Testing
+
+Basic testing was implemented for the script to merge *impute2* files resulting
+from different segments of the same chromosome along with some utility
+functions of the main package. To test the package (once installed), launch
+Python and execute the following command:
+
+```python
+>>> import genipe
+>>> genipe.test()
+```
+
+Some functionalities are difficult to test, since they mostly use external
+tools to perform analysis (*i.e.* *Plink*, *shapeit* and *impute2*) and it
+is assumed that they were properly tested by their author.
+
+We will try to add further tests in the future.
+
+
+## Basic usage
+
+The following options are available when launching a genome-wide imputation
+analysis.
+
+```console
+$ genipe-launcher --help
+usage: genipe-launcher [-h] [-v] [--debug] [--thread THREAD] --bfile PREFIX
+                       [--reference FILE] [--output-dir DIR] [--bgzip]
+                       [--use-drmaa] [--drmaa-config FILE] [--preamble FILE]
+                       [--shapeit-bin BINARY] [--shapeit-thread INT]
+                       [--plink-bin BINARY] [--impute2-bin BINARY]
+                       [--segment-length BP] --hap-template TEMPLATE
+                       --legend-template TEMPLATE --map-template TEMPLATE
+                       --sample-file FILE [--filtering-rules RULE [RULE ...]]
+                       [--probability FLOAT] [--completion FLOAT]
+                       [--info FLOAT] [--report-number NB]
+                       [--report-title TITLE] [--report-author AUTHOR]
+                       [--report-background BACKGROUND]
+
+Execute the genome-wide imputation pipeline. This script is part of the
+'genipe' package, version 1.2.3.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -v, --version         show program's version number and exit
+  --debug               set the logging level to debug
+  --thread THREAD       number of threads [1]
+
+Input Options:
+  --bfile PREFIX        The prefix of the binary pedfiles (input data).
+  --reference FILE      The human reference to perform an initial strand check
+                        (useful for genotyped markers not in the IMPUTE2
+                        reference files) (optional).
+
+Output Options:
+  --output-dir DIR      The name of the output directory. [genipe]
+  --bgzip               Use bgzip to compress the impute2 files.
+
+HPC Options:
+  --use-drmaa           Launch tasks using DRMAA.
+  --drmaa-config FILE   The configuration file for tasks (use this option when
+                        launching tasks using DRMAA). This file should
+                        describe the walltime and the number of
+                        nodes/processors to use for each task.
+  --preamble FILE       This option should be used when using DRMAA on a HPC
+                        to load required module and set environment variables.
+                        The content of the file will be added between the
+                        'shebang' line and the tool command.
+
+SHAPEIT Options:
+  --shapeit-bin BINARY  The SHAPEIT binary if it's not in the path.
+  --shapeit-thread INT  The number of thread for phasing. [1]
+
+Plink Options:
+  --plink-bin BINARY    The Plink binary if it's not in the path.
+
+IMPUTE2 Options:
+  --impute2-bin BINARY  The IMPUTE2 binary if it's not in the path.
+  --segment-length BP   The length of a single segment for imputation. [5e+06]
+  --hap-template TEMPLATE
+                        The template for IMPUTE2's haplotype files (replace
+                        the chromosome number by '{chrom}', e.g.
+                        '1000GP_Phase3_chr{chrom}.hap.gz').
+  --legend-template TEMPLATE
+                        The template for IMPUTE2's legend files (replace the
+                        chromosome number by '{chrom}', e.g.
+                        '1000GP_Phase3_chr{chrom}.legend.gz').
+  --map-template TEMPLATE
+                        The template for IMPUTE2's map files (replace the
+                        chromosome number by '{chrom}', e.g.
+                        'genetic_map_chr{chrom}_combined_b37.txt').
+  --sample-file FILE    The name of IMPUTE2's sample file.
+  --filtering-rules RULE [RULE ...]
+                        IMPUTE2 filtering rules (optional).
+
+IMPUTE2 Merger Options:
+  --probability FLOAT   The probability threshold for no calls. [<0.9]
+  --completion FLOAT    The completion rate threshold for site exclusion.
+                        [<0.98]
+  --info FLOAT          The measure of the observed statistical information
+                        associated with the allele frequency estimate
+                        threshold for site exclusion. [<0.00]
+
+Automatic Report Options:
+  --report-number NB    The report number. [genipe automatic report]
+  --report-title TITLE  The report title. [genipe: Automatic genome-wide
+                        imputation]
+  --report-author AUTHOR
+                        The report author. [Automatically generated by genipe]
+  --report-background BACKGROUND
+                        The report background section (can either be a string
+                        or a file containing the background. [General
+                        background]
+```
+
+
+### Real life example
+
+The documentation provides a quick and easy tutorial for the complete pipeline.
+Refer to [this page](http://pgxcentre.github.io/genipe/tutorials.html)
+
+
+### Automatic report
+
+The pipeline provides a report containing relevant imputation statistics. This
+report is located in the `report` directory. It can be compile into a PDF file
+using the following `make` command:
+
+```console
+$ make && make clean
+...
+```
+
+This report uses LaTeX and the `*.tex` file can be modified to add project
+specific information.
+
+
+### Statistical analysis
+
+Once the genome-wide imputation analysis is performed and that quality metrics
+(provided by the automatic report) has been reviewed, it is possible to
+performed different statistical analysis (e.g. linear or logistic regression,
+or survival analysis using Cox's proportional hazard model) using the provided
+script named `imputed-stats`.
+
+```console
+$ imputed-stats --help
+usage: imputed-stats [-h] [-v] {cox,linear,logistic,mixedlm,skat} ...
+
+Performs statistical analysis on imputed data (either SKAT analysis, or
+linear, logistic or survival regression). This script is part of the 'genipe'
+package, version 1.2.3).
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -v, --version         show program's version number and exit
+
+Statistical Analysis Type:
+  The type of statistical analysis to be performed on the imputed data.
+
+  {cox,linear,logistic,mixedlm,skat}
+    cox                 Cox's proportional hazard model (survival regression).
+    linear              Linear regression (ordinary least squares).
+    logistic            Logistic regression (GLM with binomial distribution).
+    mixedlm             Linear mixed effect model (random intercept).
+    skat                SKAT analysis.
+```
+
+See the tutorials for more information:
+[http://pgxcentre.github.io/genipe/tutorials.html](http://pgxcentre.github.io/genipe/tutorials.html)
+
+
+# About
+
+This project was initiated at the
+[Beaulieu-Saucier Pharmacogenomics Centre](http://www.pharmacogenomics.ca/) of
+the [Montreal Heart Institute](https://www.icm-mhi.org/). The aim was to speed
+up (and automatize) the imputation process for the whole genome.
+
+
+<img src=http://pgxcentre.github.io/genipe/_images/logo_pgx.png width=350 />
+
+<img src=http://pgxcentre.github.io/genipe/_images/logo_statgen.png width=200 />
+
+<img src=http://pgxcentre.github.io/genipe/_images/logo_icm.jpg width=350 />
