@@ -1,0 +1,58 @@
+<i18n:domain i18n:domain="collective.contact.widget"
+             xmlns:tal="http://xml.zope.org/namespaces/tal"
+             xmlns:metal="http://xml.zope.org/namespaces/metal"
+             xmlns:i18n="http://xml.zope.org/namespaces/i18n">
+/* Execute prepOverlay only if it hasn't been done yet, this avoid to have a
+   pbo undefined error when you have recursive overlays. */
+$('#<tal:class replace="view/id"/>-autocomplete').find('.<tal:class replace="options/klass"/>').each(function() {
+    var addlink = $(this);
+    var addmsg =  $(this).parents('.addnew-block').first();
+    var widget = $(this).parents('.field').first();
+    var input = widget.find('input[type="text"]');
+    input.attr('placeholder', '<tal:class replace="view/placeholder" i18n:translate=""/>');
+    update_addmsg = function(){
+      if(input.val().length>=2){
+    	addmsg.show();
+      }
+      if(input.val().length===0){
+    	addmsg.hide();
+      }
+    }
+    input.each(update_addmsg) // do not hide if value is set from request
+    input.focusout(update_addmsg);
+    input.keyup(update_addmsg);
+    prefill_title = function(elt, pbo){
+    	var value = input.val();
+    	if(value){
+        $(elt.target).find("input[id$='-title']").val(value);
+	    	$(elt.target).find('#form-widgets-lastname').each(function(){
+	    		var lastname_input = jQuery(this);
+	    		var firstname_input = $(elt.target).find('#form-widgets-firstname');
+	    		var splitname = value.split(' ');
+	    		if(splitname.length==1){
+	    			lastname_input.val(splitname[0]);
+	    		}
+	    		else if(splitname.length>1){
+	    			firstname_input.val(splitname[0]);
+	    			lastname_input.val(splitname.slice(1,splitname.length).join(' '));
+	    		}
+	    	})
+	    }
+    }
+    if (addlink.data('pbo') === undefined) {
+        addlink.prepOverlay({
+          subtype: 'ajax',
+          filter: common_content_filter+',#viewlet-below-content>*',
+          formselector: '<tal:class replace="options/formselector"/>',
+          cssclass: 'overlay-contact-addnew',
+          closeselector: '<tal:class replace="options/closeselector"/>',
+          noform: function(el, pbo) {return ccw.fill_autocomplete(el, pbo, 'close');},
+          config: {
+              <tal:if condition="not:options/closeOnClick">closeOnClick: <tal:closeOnClick replace="options/closeOnClick"/>,
+              closeOnEsc: <tal:closeOnClick replace="options/closeOnClick"/>,</tal:if>
+              onLoad: prefill_title
+          }
+        });
+    }
+});
+</i18n:domain>
