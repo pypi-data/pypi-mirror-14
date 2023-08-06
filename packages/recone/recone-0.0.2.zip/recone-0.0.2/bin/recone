@@ -1,0 +1,113 @@
+#!/usr/bin/env python
+# coding: utf-8
+#
+# ReCoNe - Framework to remote control a network of clients.
+# Copyright (c) 2016, Tobias Bleiker & Dumeni Manatschal
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>
+#
+# Source on github:
+#   https://github.com/tbleiker/recone
+#
+
+import argparse
+import logging
+import zmq
+
+from recone import Broker
+from recone import cli
+
+
+def main():
+    # setup up parser
+    parser = argparse.ArgumentParser(
+        description='ReCoNe - tool for recone network')
+
+    parser.add_argument('--name', default='recone',
+                        help="name of this instance, defaults to 'recone")
+    parser.add_argument('--log', default=None, help='log file')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='be more verbose')
+
+    group_broker = parser.add_argument_group('broker settings')
+    group_broker.add_argument('--host', default='127.0.0.1',
+                              help="broker hostname or IP address, defaults "
+                                   "to '127.0.0.1'")
+    group_broker.add_argument('--port_in', default=6800,
+                              help="broker port for incoming messages, "
+                                   "defaults to '6800'")
+    group_broker.add_argument('--port_out', default=6801,
+                              help="broker port for outgoing messages, "
+                                   "defaults to '6801'")
+    group_broker.add_argument('--heartbeat-interval', default=5, type=int,
+                              help="interval between heartbeats in seconds, "
+                                   "defaults to 5s")
+
+    group_run = parser.add_argument_group('which service(s) to run')
+    group_run.add_argument('--cli', action='store_true',
+                           help='start command line interface')
+    group_run.add_argument('--broker', action='store_true',
+                           help='start a broker')
+
+    args = parser.parse_args()
+
+    # stop if no service (--broker or --cli) is specified
+    if True not in [args.cli, args.broker]:
+        exit('Nothing to do...')
+
+    # set up logging
+    log = logging.getLogger(__name__)
+    formatter = '%(asctime)s  %(levelname)-8s %(message)s [%(threadName)s]'
+    if args.verbose is True:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+    if args.cli is True and args.log is None:
+        level = logging.CRITICAL
+    logging.basicConfig(filename=args.log, format=formatter, level=level)
+
+    # create common ZeroMQ context for broker and servant
+    zmq_ctx = zmq.Context()
+
+    # define names which are used for identification in the recone network
+    name_broker = '{name}.broker'.format(name=args.name)
+    name_cli = '{name}.cli'.format(name=args.name)
+
+    # start the broker if '--broker' is set
+    if args.broker:
+        try:
+            broker = Broker(name=name_broker, zmq_ctx=zmq_ctx, host=args.host,
+                            port_in=args.port_in, port_out=args.port_out,
+                            heartbeat_interval=args.heartbeat_interval,
+                            log=log)
+        except zmq.ZMQError as e:
+            exit('ZeroMQ Error: {error}'.format(error=e))
+        broker.start()
+
+    # run the cli or join the broker
+    if args.cli:
+        cli.run(name=name_cli, zmq_ctx=zmq_ctx, host=args.host,
+                port_in=args.port_in, port_out=args.port_out)
+    elif args.broker:
+        broker.join()
+    else:
+        pass
+
+    # shut down broker...
+    if args.broker:
+        broker.shutdown()
+
+
+if __name__ == '__main__':
+    main()
