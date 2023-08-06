@@ -1,0 +1,1633 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>fibtortuosity &mdash; FIB Tortuosity 0.2.5 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="FIB Tortuosity 0.2.5 documentation" href="../index.html"/>
+        <link rel="up" title="Module code" href="index.html"/> 
+
+  
+  <script src="../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../index.html" class="icon icon-home"> FIB Tortuosity
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.2.5
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <p class="caption"><span class="caption-text">Table of Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gen_instructions.html">General Instructions (for SOFCs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api_doc.html">Module Method Summary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api_doc.html#module-fibtortuosity">Module API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../index.html">FIB Tortuosity</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="index.html">Module code</a> &raquo;</li>
+      
+    <li>fibtortuosity</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for fibtortuosity</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright 2016 Joshua Taillon</span>
+<span class="c1">#</span>
+<span class="c1"># Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span>
+<span class="c1"># you may not use this file except in compliance with the License.</span>
+<span class="c1"># You may obtain a copy of the License at</span>
+<span class="c1">#</span>
+<span class="c1">#     http://www.apache.org/licenses/LICENSE-2.0</span>
+<span class="c1">#</span>
+<span class="c1"># Unless required by applicable law or agreed to in writing, software</span>
+<span class="c1"># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span>
+<span class="c1"># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span>
+<span class="c1"># See the License for the specific language governing permissions and</span>
+<span class="c1"># limitations under the License.</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">from</span> <span class="nn">libtiff</span> <span class="kn">import</span> <span class="n">TIFFfile</span><span class="p">,</span> <span class="n">TIFFimage</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">skfmm</span>
+<span class="kn">from</span> <span class="nn">matplotlib</span> <span class="kn">import</span> <span class="n">pyplot</span> <span class="k">as</span> <span class="n">plt</span>
+
+<span class="c1"># from memory_profiler import profile</span>
+<span class="kn">import</span> <span class="nn">gc</span>
+
+<span class="n">__version__</span> <span class="o">=</span> <span class="s1">&#39;0.2.5&#39;</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;tortuosity_from_labels_x&#39;</span><span class="p">,</span> <span class="s1">&#39;tortuosity_from_labels_y&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;tortuosity_from_labels_z&#39;</span><span class="p">,</span> <span class="s1">&#39;calculate_geodesic_distance&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;save_results&#39;</span><span class="p">,</span> <span class="s1">&#39;load_results&#39;</span><span class="p">,</span> <span class="s1">&#39;run_full_analysis_lsm_ysz&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;save_as_tiff&#39;</span><span class="p">,</span> <span class="s1">&#39;tortuosity_profile&#39;</span><span class="p">,</span> <span class="s1">&#39;plot_tort_prof&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;save_profile_to_csv&#39;</span><span class="p">,</span> <span class="s1">&#39;load_profile_from_csv&#39;</span><span class="p">,</span> <span class="s1">&#39;_geo_dist&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;_calc_interface&#39;</span><span class="p">,</span> <span class="s1">&#39;_calc_tort&#39;</span><span class="p">,</span> <span class="s1">&#39;_calc_euc_x&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="run_full_analysis_lsm_ysz"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.run_full_analysis_lsm_ysz">[docs]</a><span class="k">def</span> <span class="nf">run_full_analysis_lsm_ysz</span><span class="p">(</span><span class="n">electrolyte_file</span><span class="p">,</span>
+                              <span class="n">electrolyte_and_pore_file</span><span class="p">,</span>
+                              <span class="n">electrolyte_and_lsm_file</span><span class="p">,</span>
+                              <span class="n">electrolyte_and_ysz_file</span><span class="p">,</span>
+                              <span class="n">date</span><span class="p">,</span>
+                              <span class="n">phase</span><span class="p">,</span>
+                              <span class="n">direction</span><span class="p">,</span>
+                              <span class="n">npzfile</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                              <span class="n">units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                              <span class="n">delay</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                              <span class="n">calculate_all</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                              <span class="n">load_from_prev_run</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                              <span class="n">create_hspy_sigs</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                              <span class="n">save_avizo_tiff</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                              <span class="n">tort_profile</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                              <span class="n">save_tort_prof</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                              <span class="n">in_ipython</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                              <span class="n">send_text</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                              <span class="n">text_email</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                              <span class="n">text_number</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                              <span class="n">text_carrier</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run full tortuosity analysis for LSM/YSZ, calling other functions as</span>
+<span class="sd">    necessary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    electrolyte_file: str</span>
+<span class="sd">        Name of bulk electrolyte LabelField</span>
+<span class="sd">    electrolyte_and_pore_file: str</span>
+<span class="sd">        Name of LabelField containing bulk electrolyte and pore</span>
+<span class="sd">    electrolyte_and_lsm_file: str</span>
+<span class="sd">        Name of LabelField containing bulk electrolyte and LSM</span>
+<span class="sd">    electrolyte_and_ysz_file: str</span>
+<span class="sd">        Name of LabelField containing bulk electrolyte and YSZ</span>
+<span class="sd">    date: str</span>
+<span class="sd">        date string to be used in output filenames</span>
+<span class="sd">    phase: str</span>
+<span class="sd">        phase label to be used in output filenames</span>
+<span class="sd">    direction: str</span>
+<span class="sd">        direction of analysis (&#39;x&#39;, &#39;y&#39;, or &#39;z&#39;)</span>
+<span class="sd">    npzfile: str or None</span>
+<span class="sd">        filename of previously saved data to use (if loading from disk)</span>
+<span class="sd">    units: str</span>
+<span class="sd">        units for labeling purpose</span>
+<span class="sd">    delay: int</span>
+<span class="sd">        delay to wait before running analysis (useful if running more than</span>
+<span class="sd">        one at a time)</span>
+<span class="sd">    calculate_all: bool</span>
+<span class="sd">        flag to indicate that geodesic distance etc. should be calculated</span>
+<span class="sd">        from scratch (takes a while)</span>
+<span class="sd">    load_from_prev_run: bool</span>
+<span class="sd">        flag to indicate that data should be loaded from disk, using the</span>
+<span class="sd">        file specified in ``npzfile``</span>
+<span class="sd">    create_hspy_sigs: bool</span>
+<span class="sd">        flag to indicate if hyperspy signals should be created (to help</span>
+<span class="sd">        visualize the results)</span>
+<span class="sd">    save_avizo_tiff: bool</span>
+
+<span class="sd">    tort_profile: bool</span>
+
+<span class="sd">    save_tort_prof: bool</span>
+
+<span class="sd">    in_ipython: bool</span>
+<span class="sd">        flag to control if notifications from ipython will be shown.</span>
+<span class="sd">        Requires the &quot;Notifyme!&quot; `extension &lt;https://gist.github.com/jat255/bde</span>
+<span class="sd">        d66839b424e20eb8bd1dc2336f841&gt;`_</span>
+<span class="sd">    send_text: bool</span>
+<span class="sd">        flag to control if text should be sent (requires |texting|_ and</span>
+<span class="sd">        |keyring|_ packages)</span>
+<span class="sd">    text_email: string</span>
+<span class="sd">        email address to send text from (see |textingTextServer|_)</span>
+<span class="sd">    text_number: string</span>
+<span class="sd">        number to send text to (see |textingTextServer|_)</span>
+<span class="sd">    text_carrier: string</span>
+<span class="sd">        carrier of number to send to (see |textingTextServer|_)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    results: dict</span>
+<span class="sd">        results is a dictionary containing all the various parameters that</span>
+<span class="sd">        were calculated during the analysis</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    To authenticate your email server and store the password in your local</span>
+<span class="sd">    keyring, run the following before trying to send texts:</span>
+
+<span class="sd">    &gt;&gt;&gt; import keyring</span>
+<span class="sd">    ... keyring.set_password(&#39;python_TextServer&#39;, emailaddress, password)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; res = run_full_analysis_lsm_ysz(electrolyte_file=&quot;bulkYSZ.tif&quot;,</span>
+<span class="sd">    ...                                 electrolyte_and_pore_file=&quot;bulkYSZandPRE.tif&quot;,</span>
+<span class="sd">    ...                                 electrolyte_and_lsm_file=&quot;bulkYSZandLSM.tif&quot;,</span>
+<span class="sd">    ...                                 electrolyte_and_ysz_file=&quot;bulkYSZandYSZ.tif&quot;,</span>
+<span class="sd">    ...                                 date=&#39;2015-05-06&#39;,</span>
+<span class="sd">    ...                                 phase=&#39;Pore&#39;,</span>
+<span class="sd">    ...                                 direction=&#39;x&#39;,</span>
+<span class="sd">    ...                                 npzfile=None,</span>
+<span class="sd">    ...                                 units=&#39;nm&#39;,</span>
+<span class="sd">    ...                                 delay=0,</span>
+<span class="sd">    ...                                 calculate_all=True,</span>
+<span class="sd">    ...                                 load_from_prev_run=False,</span>
+<span class="sd">    ...                                 create_hspy_sigs=True,</span>
+<span class="sd">    ...                                 save_avizo_tiff=True,</span>
+<span class="sd">    ...                                 tort_profile=True,</span>
+<span class="sd">    ...                                 save_tort_prof=True,</span>
+<span class="sd">    ...                                 in_ipython=False,</span>
+<span class="sd">    ...                                 send_text=True,</span>
+<span class="sd">    ...                                 text_email=&quot;email@server.com&quot;,</span>
+<span class="sd">    ...                                 text_number=&quot;8008675309&quot;,</span>
+<span class="sd">    ...                                 text_carrier=&quot;verizon&quot;)</span>
+
+<span class="sd">    .. |texting| replace:: ``texting``</span>
+<span class="sd">    .. _texting: https://bitbucket.org/jat255/jat255-python-modules/src/09e8acf65230dd3f84df8b25f84000d2eec02755/texting/?at=master</span>
+<span class="sd">    .. |keyring| replace:: ``keyring``</span>
+<span class="sd">    .. _keyring: https://pypi.python.org/pypi/keyring</span>
+<span class="sd">    .. |textingTextServer| replace:: ``texting.TextServer``</span>
+<span class="sd">    .. _textingTextServer: https://bitbucket.org/jat255/jat255-python-modules/src/09e8acf65230dd3f84df8b25f84000d2eec02755/texting/texting/texting.py?at=master&amp;fileviewer=file-view-default#texting.py-7</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Dictionary for phase -&gt; filename mapping:</span>
+    <span class="n">filedict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Pore&#39;</span><span class="p">:</span><span class="n">electrolyte_and_pore_file</span><span class="p">,</span>
+                <span class="s1">&#39;LSM&#39;</span><span class="p">:</span><span class="n">electrolyte_and_lsm_file</span><span class="p">,</span>
+                <span class="s1">&#39;YSZ&#39;</span><span class="p">:</span><span class="n">electrolyte_and_ysz_file</span><span class="p">}</span>
+
+    <span class="c1"># Check to make sure that both calculate and load options are specified</span>
+    <span class="k">if</span> <span class="n">calculate_all</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">load_from_prev_run</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Both loading and calculating were specified. Calculating &quot;</span>
+                  <span class="s2">&quot;is given preference, so data will not be loaded from disk.&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">load_from_prev_run</span> <span class="o">=</span> <span class="bp">False</span>
+
+    <span class="c1"># Dictionary to hold all the results</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># Imports</span>
+    <span class="k">if</span> <span class="n">in_ipython</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">IPython</span> <span class="kn">import</span> <span class="n">get_ipython</span>
+        <span class="n">ipython</span> <span class="o">=</span> <span class="n">get_ipython</span><span class="p">()</span>
+
+        <span class="n">ipython</span><span class="o">.</span><span class="n">magic</span><span class="p">(</span><span class="s1">&#39;load_ext notifyme&#39;</span><span class="p">)</span>
+        <span class="n">ipython</span><span class="o">.</span><span class="n">magic</span><span class="p">(</span><span class="s1">&#39;notifysound default&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">send_text</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># noinspection PyUnresolvedReferences</span>
+            <span class="kn">from</span> <span class="nn">texting.texting</span> <span class="kn">import</span> <span class="n">TextServer</span>
+            <span class="n">txt_srv</span> <span class="o">=</span> <span class="n">TextServer</span><span class="p">(</span><span class="n">text_email</span><span class="p">,</span> <span class="n">text_number</span><span class="p">,</span> <span class="n">text_carrier</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Could not import texting library. Is it installed?&#39;</span><span class="p">)</span>
+            <span class="n">send_text</span> <span class="o">=</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">get_time</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">done_text_send</span><span class="p">(</span><span class="n">text_start_time</span><span class="p">,</span> <span class="n">text_end_time</span><span class="p">,</span> <span class="n">process</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Send a text message with descriptive information about calculation</span>
+<span class="sd">        times using the ``TextServer`` class</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        text_start_time: datetime.time object</span>
+<span class="sd">            Starting time of interval</span>
+<span class="sd">        text_end_time: datetime.time object</span>
+<span class="sd">            Ending time of interval</span>
+<span class="sd">        process: str</span>
+<span class="sd">            Descriptive string to include in the message (usually what the</span>
+<span class="sd">            name of the process was)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">time_used</span> <span class="o">=</span> <span class="n">text_end_time</span> <span class="o">-</span> <span class="n">text_start_time</span>
+        <span class="n">hours_hold</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_used</span> <span class="o">/</span> <span class="mi">3600</span><span class="p">)</span>
+        <span class="n">minutes_hold</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_used</span> <span class="o">/</span> <span class="mi">60</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">hours_hold</span> <span class="o">*</span> <span class="mi">60</span><span class="p">))</span>
+        <span class="n">seconds_hold</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">time_used</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">minutes_hold</span> <span class="o">*</span> <span class="mi">60</span><span class="p">))</span>
+        <span class="n">formatted_time</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">hours_hold</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span>
+            <span class="n">minutes_hold</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;:&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">seconds_hold</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="c1">#</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">DONE</span><span class="se">\n</span><span class="s1">Process: &#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">process</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">Time required: &#39;</span> <span class="o">+</span>
+               <span class="nb">str</span><span class="p">(</span><span class="n">formatted_time</span><span class="p">))</span>
+
+        <span class="c1"># The actual mail send</span>
+        <span class="n">txt_srv</span><span class="o">.</span><span class="n">send_message</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="c1"># Delay (if requested):</span>
+    <span class="kn">import</span> <span class="nn">time</span>
+    <span class="k">if</span> <span class="n">delay</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Waiting </span><span class="si">%i</span><span class="s2"> seconds before running...&quot;</span> <span class="o">%</span> <span class="n">delay</span><span class="p">)</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">delay</span><span class="p">)</span>
+
+    <span class="c1"># Calculating geodesic, euclidean, and tortuosity</span>
+    <span class="k">if</span> <span class="n">calculate_all</span><span class="p">:</span>
+        <span class="n">fn_string</span> <span class="o">=</span> <span class="s1">&#39;tortuosity_from_labels_&#39;</span> <span class="o">+</span> <span class="n">direction</span>
+        <span class="n">fn</span> <span class="o">=</span> <span class="nb">globals</span><span class="p">()[</span><span class="n">fn_string</span><span class="p">]</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Cathode data file is &quot;</span> <span class="o">+</span> <span class="n">filedict</span><span class="p">[</span><span class="n">phase</span><span class="p">])</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">get_time</span><span class="p">()</span>
+        <span class="n">g</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">fn</span><span class="p">(</span><span class="n">electrolyte_file</span><span class="p">,</span>
+                        <span class="n">filedict</span><span class="p">[</span><span class="n">phase</span><span class="p">],</span>
+                        <span class="n">phase</span><span class="p">,</span>
+                        <span class="n">units</span><span class="o">=</span><span class="n">units</span><span class="p">,</span>
+                        <span class="n">save_output</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                        <span class="n">print_output</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;g&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;e&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;t&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;d&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Data stored in keys </span><span class="se">\&#39;</span><span class="s2">g</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">e</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">t</span><span class="se">\&#39;</span><span class="s2">, and </span><span class="se">\&#39;</span><span class="s2">d</span><span class="se">\&#39;</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">in_ipython</span><span class="p">:</span>
+            <span class="n">ipython</span><span class="o">.</span><span class="n">magic</span><span class="p">(</span><span class="s1">&#39;notifyme $phase - $direction completed&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">send_text</span><span class="p">:</span>
+            <span class="n">done_text_send</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span>
+                           <span class="n">get_time</span><span class="p">(),</span>
+                           <span class="n">phase</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">direction</span> <span class="o">+</span> <span class="s1">&#39; done&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Saving results:</span>
+    <span class="k">if</span> <span class="n">calculate_all</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Saving results to disk...&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">start_time</span> <span class="o">=</span> <span class="n">get_time</span><span class="p">()</span>
+        <span class="n">save_results</span><span class="p">(</span><span class="n">fname</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">geo_d</span><span class="o">=</span><span class="n">g</span><span class="p">,</span>
+                     <span class="n">euc_d</span><span class="o">=</span><span class="n">e</span><span class="p">,</span>
+                     <span class="n">tort</span><span class="o">=</span><span class="n">t</span><span class="p">,</span>
+                     <span class="n">desc</span><span class="o">=</span><span class="n">d</span><span class="p">,</span>
+                     <span class="n">phase</span><span class="o">=</span><span class="n">phase</span><span class="p">,</span>
+                     <span class="n">direction</span><span class="o">=</span><span class="n">direction</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">in_ipython</span><span class="p">:</span>
+            <span class="n">ipython</span><span class="o">.</span><span class="n">magic</span><span class="p">(</span><span class="s1">&#39;notifyme $phase - $direction saved&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">send_text</span><span class="p">:</span>
+            <span class="n">done_text_send</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span>
+                           <span class="n">get_time</span><span class="p">(),</span>
+                           <span class="n">phase</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">direction</span> <span class="o">+</span> <span class="s1">&#39; saved&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Loading data (after, instead of calculating from scratch):</span>
+    <span class="k">if</span> <span class="n">load_from_prev_run</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">npzfile</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;No .npz file was supplied for loading...&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;npzfile not defined&#39;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Loading data from previous run...&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">g</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">load_results</span><span class="p">(</span><span class="n">npzfile</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Old data loaded from &quot;</span> <span class="o">+</span> <span class="n">npzfile</span><span class="p">)</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;g&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">g</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;e&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;t&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">t</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;d&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">d</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Stored in keys </span><span class="se">\&#39;</span><span class="s2">g</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">e</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">t</span><span class="se">\&#39;</span><span class="s2">, and </span><span class="se">\&#39;</span><span class="s2">d</span><span class="se">\&#39;</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Visualizing results (requires hyperspy):</span>
+    <span class="k">if</span> <span class="n">create_hspy_sigs</span><span class="p">:</span>
+        <span class="kn">import</span> <span class="nn">hyperspy.signals</span> <span class="kn">as</span> <span class="nn">signals</span>
+
+        <span class="n">g_s</span> <span class="o">=</span> <span class="n">signals</span><span class="o">.</span><span class="n">Image</span><span class="p">(</span><span class="n">g</span><span class="p">)</span>
+        <span class="n">g_s</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">General</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="n">phase</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="n">direction</span> <span class="o">+</span> <span class="s2">&quot; Geodesic&quot;</span>
+
+        <span class="n">e_s</span> <span class="o">=</span> <span class="n">signals</span><span class="o">.</span><span class="n">Image</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="n">e_s</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">General</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="n">phase</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="n">direction</span> <span class="o">+</span> <span class="s2">&quot; Euclidean&quot;</span>
+
+        <span class="n">t_s</span> <span class="o">=</span> <span class="n">signals</span><span class="o">.</span><span class="n">Image</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">t_s</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">General</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="n">phase</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="n">direction</span> <span class="o">+</span> <span class="s2">&quot; Tortuosity&quot;</span>
+
+        <span class="c1"># for i in [g_s, e_s, t_s]:</span>
+        <span class="c1">#   i.plot()</span>
+
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;g_s&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">g_s</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;e_s&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e_s</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;t_s&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">t_s</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Hyperspy signals are in values </span><span class="se">\&#39;</span><span class="s2">g_s</span><span class="se">\&#39;</span><span class="s2">, </span><span class="se">\&#39;</span><span class="s2">e_s</span><span class="se">\&#39;</span><span class="s2">, and </span><span class="se">\&#39;</span><span class="s2">t_s</span><span class="se">\&#39;</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Saving as tiff for Avizo:</span>
+    <span class="k">if</span> <span class="n">save_avizo_tiff</span><span class="p">:</span>
+        <span class="n">save_as_tiff</span><span class="p">(</span><span class="n">date</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="n">phase</span> <span class="o">+</span> <span class="s2">&quot;_&quot;</span> <span class="o">+</span> <span class="n">direction</span> <span class="o">+</span> <span class="s2">&quot;-tort.tif&quot;</span><span class="p">,</span>
+                     <span class="n">t</span><span class="p">,</span>
+                     <span class="s1">&#39;float32&#39;</span><span class="p">,</span>
+                     <span class="n">d</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Average tortuosity profile:</span>
+    <span class="k">if</span> <span class="n">tort_profile</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Calculating average tortuosity profile&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+        <span class="n">t_avg</span><span class="p">,</span> <span class="n">e_avg</span> <span class="o">=</span> <span class="n">tortuosity_profile</span><span class="p">(</span><span class="n">t</span><span class="p">,</span>
+                                          <span class="n">e</span><span class="p">,</span>
+                                          <span class="n">axis</span><span class="o">=</span><span class="n">direction</span><span class="p">)</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">plot_tort_prof</span><span class="p">(</span><span class="n">t_avg</span><span class="p">,</span>
+                           <span class="n">e_avg</span><span class="p">,</span>
+                           <span class="n">direction</span><span class="p">,</span>
+                           <span class="n">sns_fontscale</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+                           <span class="n">sns_color_num</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">rc</span><span class="p">(</span><span class="s1">&#39;image&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">)</span>
+
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;f&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;t_avg&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">t_avg</span>
+        <span class="n">results</span><span class="p">[</span><span class="s1">&#39;e_avg&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">e_avg</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Average tortuosity plot is in variable </span><span class="se">\&#39;</span><span class="s2">f</span><span class="se">\&#39;</span><span class="s2">, profiles are &quot;</span>
+              <span class="s2">&quot;in </span><span class="se">\&#39;</span><span class="s2">t_avg</span><span class="se">\&#39;</span><span class="s2"> and </span><span class="se">\&#39;</span><span class="s2">e_avg</span><span class="se">\&#39;</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Save profile to disk:</span>
+    <span class="k">if</span> <span class="n">save_tort_prof</span><span class="p">:</span>
+        <span class="n">save_profile_to_csv</span><span class="p">(</span><span class="n">date</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span>
+                            <span class="n">phase</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span>
+                            <span class="n">direction</span> <span class="o">+</span> <span class="s1">&#39;-tort-profile.csv&#39;</span><span class="p">,</span>
+                            <span class="n">e_avg</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">,</span>  <span class="c1"># divide by 1000 to get microns</span>
+                            <span class="n">t_avg</span><span class="p">,</span>
+                            <span class="n">direction</span><span class="p">,</span>
+                            <span class="n">phase</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">results</span></div>
+
+
+<div class="viewcode-block" id="calculate_geodesic_distance"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.calculate_geodesic_distance">[docs]</a><span class="k">def</span> <span class="nf">calculate_geodesic_distance</span><span class="p">(</span><span class="n">electrolyte_fname</span><span class="p">,</span>
+                                <span class="n">phase_fname</span><span class="p">,</span>
+                                <span class="n">units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                                <span class="n">print_output</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                                <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the geodesic distance of an indexed tif file.</span>
+
+<span class="sd">    .. note:: Deprecated. This function will work, but it is better to use</span>
+<span class="sd">              :func:`tortuosity_from_labels_x`,</span>
+<span class="sd">              :func:`tortuosity_from_labels_y`,</span>
+<span class="sd">              and :func:`tortuosity_from_labels_z`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    electrolyte_fname: str</span>
+<span class="sd">        Filename of a 3D tiff file that contains only the bulk electrolyte</span>
+<span class="sd">        labelfield (as 1 values)</span>
+<span class="sd">    phase_fname: str</span>
+<span class="sd">        Filename of a 3D tiff file that contains the bulk electrolyte and the</span>
+<span class="sd">        phase for which the geodesic distance is to be calculated</span>
+<span class="sd">    units: str</span>
+<span class="sd">        units of the given dimensions</span>
+<span class="sd">    print_output: bool</span>
+<span class="sd">        switch to control whether output is printed</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    d: np.array</span>
+<span class="sd">        Numpy array with geodesic distance from supplied surface</span>
+<span class="sd">    desc: str</span>
+<span class="sd">        description string to be used when saving the file (for proper</span>
+<span class="sd">        reading into Avizo)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Load electrolyte data</span>
+    <span class="n">electrolyte_tif</span> <span class="o">=</span> <span class="n">TIFFfile</span><span class="p">(</span><span class="n">electrolyte_fname</span><span class="p">)</span>
+    <span class="n">electrolyte_array</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_tiff_array</span><span class="p">()</span>
+    <span class="n">electrolyte_data</span> <span class="o">=</span> <span class="n">electrolyte_array</span><span class="p">[::]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Loaded electrolyte data.&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Load phase to be calculated data</span>
+    <span class="n">cathode_tif</span> <span class="o">=</span> <span class="n">TIFFfile</span><span class="p">(</span><span class="n">phase_fname</span><span class="p">)</span>
+    <span class="n">cathode_array</span> <span class="o">=</span> <span class="n">cathode_tif</span><span class="o">.</span><span class="n">get_tiff_array</span><span class="p">()</span>
+    <span class="n">cathode_data</span> <span class="o">=</span> <span class="n">cathode_array</span><span class="p">[::]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Loaded cathode data.&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Get information from Avizo-saved tiff file</span>
+    <span class="n">ifd</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_first_ifd</span><span class="p">()</span>
+    <span class="n">size_x</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageWidth&#39;</span><span class="p">)</span>
+    <span class="n">size_y</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageLength&#39;</span><span class="p">)</span>
+    <span class="n">size_z</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_depth</span><span class="p">()</span>
+    <span class="n">image_description</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageDescription&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;</span><span class="se">\0</span><span class="s1">&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;ImageDescription is: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image_description</span><span class="p">))</span>
+
+    <span class="c1"># Calculate some parameters from the image input</span>
+    <span class="n">bb_xmin</span><span class="p">,</span> <span class="n">bb_xmax</span><span class="p">,</span> <span class="n">bb_ymin</span><span class="p">,</span> <span class="n">bb_ymax</span><span class="p">,</span> <span class="n">bb_zmin</span><span class="p">,</span> <span class="n">bb_zmax</span> <span class="o">=</span> \
+        <span class="p">[</span><span class="nb">eval</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">image_description</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]]</span>
+    <span class="n">bound_x</span> <span class="o">=</span> <span class="n">bb_xmax</span> <span class="o">-</span> <span class="n">bb_xmin</span>
+    <span class="n">bound_y</span> <span class="o">=</span> <span class="n">bb_ymax</span> <span class="o">-</span> <span class="n">bb_ymin</span>
+    <span class="n">bound_z</span> <span class="o">=</span> <span class="n">bb_zmax</span> <span class="o">-</span> <span class="n">bb_zmin</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Bounding box dimensions are: ({0:.2f}, {1:.2f}, &quot;</span>
+              <span class="s2">&quot;{2:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bound_x</span><span class="p">,</span> <span class="n">bound_y</span><span class="p">,</span> <span class="n">bound_z</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">units</span><span class="p">)</span>
+
+    <span class="n">vox_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_xmax</span> <span class="o">-</span> <span class="n">bb_xmin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">vox_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_ymax</span> <span class="o">-</span> <span class="n">bb_ymin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_y</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">vox_z</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_zmax</span> <span class="o">-</span> <span class="n">bb_zmin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_z</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Voxel dimensions are: ({0:.2f}, {1:.2f}, &quot;</span>
+              <span class="s2">&quot;{2:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">vox_x</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_z</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">units</span><span class="p">)</span>
+
+    <span class="c1"># Switch electrolyte tag (1) to a negative value to create zero-contour</span>
+    <span class="n">cathode_data</span><span class="p">[</span><span class="n">electrolyte_data</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+
+    <span class="c1"># Mask the voxels where phase is not present:</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">cathode_data</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">cathode_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">(</span><span class="n">cathode_data</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span>
+
+    <span class="c1"># Do geodesic distance calculation</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Starting calculation at: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">start_time</span><span class="p">))</span>
+    <span class="c1"># Calculate geodesic distance:</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">skfmm</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">cathode_data</span><span class="p">,</span> <span class="n">dx</span><span class="o">=</span><span class="p">[</span><span class="n">vox_z</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_x</span><span class="p">])</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Calculation took: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+
+    <span class="c1"># Set distances within the bulk electrolyte to zero:</span>
+    <span class="c1"># d.data[electrolyte_data == 1] = 0</span>
+
+    <span class="k">return</span> <span class="n">d</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">image_description</span></div>
+
+
+<div class="viewcode-block" id="tortuosity_from_labels_x"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.tortuosity_from_labels_x">[docs]</a><span class="k">def</span> <span class="nf">tortuosity_from_labels_x</span><span class="p">(</span><span class="n">electrolyte_fname</span><span class="p">,</span>
+                             <span class="n">phase_fname</span><span class="p">,</span>
+                             <span class="n">phase</span><span class="p">,</span>
+                             <span class="n">units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                             <span class="n">print_output</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                             <span class="n">save_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the tortuosity (normal to electrolyte interface, x-direction)</span>
+<span class="sd">    from supplied label fields</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    electrolyte_fname: str</span>
+<span class="sd">        Filename of a 3D tiff file that contains only the bulk electrolyte</span>
+<span class="sd">        labelfield (as 1 values)</span>
+<span class="sd">    phase_fname: str</span>
+<span class="sd">        Filename of a 3D tiff file that contains the bulk electrolyte and the</span>
+<span class="sd">        phase for which the geodesic distance is to be calculated</span>
+<span class="sd">    phase: str</span>
+<span class="sd">        Phase that is being calculated. i.e. &#39;pore&#39;, &#39;LSM&#39;, &#39;YSZ&#39;, etc.</span>
+<span class="sd">    units: str</span>
+<span class="sd">        units of the given dimensions</span>
+<span class="sd">    print_output: bool</span>
+<span class="sd">        switch to control whether output is printed</span>
+<span class="sd">    save_output: bool</span>
+<span class="sd">        switch to control whether data is saved to .npz files for later recall</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    --------</span>
+<span class="sd">    geo_d: np.array</span>
+<span class="sd">        Numpy array with geodesic distance from supplied surface</span>
+<span class="sd">    euc_d: np.array</span>
+<span class="sd">        Numpy array with euclidean distance from electrolyte</span>
+<span class="sd">    tort: np.array</span>
+<span class="sd">        Numpy array with tortuosity at each point</span>
+<span class="sd">    desc: str</span>
+<span class="sd">        description string to be used when saving the file with</span>
+<span class="sd">        :func:`save_as_tiff` (for proper reading into Avizo)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Starting calculation on &#39;</span> <span class="o">+</span> <span class="n">phase</span> <span class="o">+</span> <span class="s1">&#39; in x direction.&#39;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">global_start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+
+    <span class="c1"># Load electrolyte data</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">electrolyte_tif</span> <span class="o">=</span> <span class="n">TIFFfile</span><span class="p">(</span><span class="n">electrolyte_fname</span><span class="p">)</span>
+    <span class="n">electrolyte_array</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_tiff_array</span><span class="p">()</span>
+    <span class="n">electrolyte_data</span> <span class="o">=</span> <span class="n">electrolyte_array</span><span class="p">[::]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Loaded electrolyte data in {} seconds.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                              <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Load phase to be calculated data</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">cathode_tif</span> <span class="o">=</span> <span class="n">TIFFfile</span><span class="p">(</span><span class="n">phase_fname</span><span class="p">)</span>
+    <span class="n">cathode_array</span> <span class="o">=</span> <span class="n">cathode_tif</span><span class="o">.</span><span class="n">get_tiff_array</span><span class="p">()</span>
+    <span class="n">cathode_data</span> <span class="o">=</span> <span class="n">cathode_array</span><span class="p">[::]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Loaded cathode data in {} seconds.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                          <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Get information from Avizo-saved tiff file</span>
+    <span class="n">ifd</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_first_ifd</span><span class="p">()</span>
+    <span class="n">size_x</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageWidth&#39;</span><span class="p">)</span>
+    <span class="n">size_y</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageLength&#39;</span><span class="p">)</span>
+    <span class="n">size_z</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_depth</span><span class="p">()</span>
+    <span class="n">image_description</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageDescription&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;</span><span class="se">\0</span><span class="s1">&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;ImageDescription is: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image_description</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Calculate some parameters from the image input</span>
+    <span class="n">bb_xmin</span><span class="p">,</span> <span class="n">bb_xmax</span><span class="p">,</span> <span class="n">bb_ymin</span><span class="p">,</span> <span class="n">bb_ymax</span><span class="p">,</span> <span class="n">bb_zmin</span><span class="p">,</span> <span class="n">bb_zmax</span> <span class="o">=</span> \
+        <span class="p">[</span><span class="nb">eval</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">image_description</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]]</span>
+    <span class="n">bound_x</span> <span class="o">=</span> <span class="n">bb_xmax</span> <span class="o">-</span> <span class="n">bb_xmin</span>
+    <span class="n">bound_y</span> <span class="o">=</span> <span class="n">bb_ymax</span> <span class="o">-</span> <span class="n">bb_ymin</span>
+    <span class="n">bound_z</span> <span class="o">=</span> <span class="n">bb_zmax</span> <span class="o">-</span> <span class="n">bb_zmin</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Bounding box dimensions are: ({0:.2f}, {1:.2f}, &quot;</span>
+              <span class="s2">&quot;{2:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bound_x</span><span class="p">,</span> <span class="n">bound_y</span><span class="p">,</span> <span class="n">bound_z</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">units</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">vox_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_xmax</span> <span class="o">-</span> <span class="n">bb_xmin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">vox_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_ymax</span> <span class="o">-</span> <span class="n">bb_ymin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_y</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">vox_z</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_zmax</span> <span class="o">-</span> <span class="n">bb_zmin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_z</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Voxel dimensions are: ({0:.2f}, {1:.2f}, &quot;</span>
+              <span class="s2">&quot;{2:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">vox_x</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_z</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">units</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Switch electrolyte tag (1) to a negative value to create zero-contour</span>
+    <span class="n">cathode_data</span><span class="p">[</span><span class="n">electrolyte_data</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+
+    <span class="c1"># Mask the voxels where phase is not present:</span>
+    <span class="n">cathode_mask</span> <span class="o">=</span> <span class="n">cathode_data</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="n">cathode_ma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">(</span><span class="n">cathode_data</span><span class="p">,</span> <span class="n">cathode_mask</span><span class="p">)</span>
+    <span class="k">del</span> <span class="n">cathode_mask</span>
+    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+
+    <span class="c1"># Do geodesic distance calculation</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Starting geodesic calculation at: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+    <span class="n">geo_d</span> <span class="o">=</span> <span class="n">_geo_dist</span><span class="p">(</span><span class="n">cathode_ma</span><span class="p">,</span> <span class="n">vox_x</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_z</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Geodesic calculation took: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                     <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Calculating zero reference for each [x,y] point for euclidean distance</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">x_interface</span> <span class="o">=</span> <span class="n">_calc_interface</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Calculating zero distance interface took: &quot;</span>
+              <span class="s2">&quot;{}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Calculate euclidean distance</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="c1"># noinspection PyTypeChecker</span>
+    <span class="n">euc_d</span> <span class="o">=</span> <span class="n">_calc_euc_x</span><span class="p">(</span><span class="n">x_interface</span><span class="p">,</span> <span class="n">electrolyte_data</span><span class="p">,</span> <span class="n">vox_x</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Calculating euclidean distance took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                               <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Calculate tortuosity</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">tort</span> <span class="o">=</span> <span class="n">_calc_tort</span><span class="p">(</span><span class="n">geo_d</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">,</span> <span class="n">electrolyte_data</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Calculating tortuosity took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">save_output</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Saving data...&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">save_results</span><span class="p">(</span><span class="n">fname</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">direction</span><span class="o">=</span><span class="s1">&#39;x&#39;</span><span class="p">,</span>
+                     <span class="n">phase</span><span class="o">=</span><span class="n">phase</span><span class="p">,</span>
+                     <span class="n">geo_d</span><span class="o">=</span><span class="n">geo_d</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                     <span class="n">euc_d</span><span class="o">=</span><span class="n">euc_d</span><span class="p">,</span>
+                     <span class="n">tort</span><span class="o">=</span><span class="n">tort</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                     <span class="n">desc</span><span class="o">=</span><span class="n">image_description</span><span class="p">)</span>
+        <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Saving data took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Total execution time was: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                    <span class="n">global_start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">geo_d</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">,</span> <span class="n">tort</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">image_description</span></div>
+
+
+<span class="c1"># @profile</span>
+<div class="viewcode-block" id="tortuosity_from_labels_y"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.tortuosity_from_labels_y">[docs]</a><span class="k">def</span> <span class="nf">tortuosity_from_labels_y</span><span class="p">(</span><span class="n">electrolyte_fname</span><span class="p">,</span>
+                             <span class="n">phase_fname</span><span class="p">,</span>
+                             <span class="n">phase</span><span class="p">,</span>
+                             <span class="n">units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                             <span class="n">print_output</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                             <span class="n">save_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the tortuosity (parallel to electrolyte interface, y-direction)</span>
+<span class="sd">    from supplied label fields</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    electrolyte_fname: str</span>
+<span class="sd">        Filename of a 3D tiff file that contains only the bulk electrolyte</span>
+<span class="sd">        labelfield (as 1 values)</span>
+<span class="sd">    phase_fname: str</span>
+<span class="sd">        Filename of a 3D tiff file that contains the bulk electrolyte and the</span>
+<span class="sd">        phase for which the geodesic distance is to be calculated</span>
+<span class="sd">    phase: str</span>
+<span class="sd">        Phase that is being calculated. i.e. &#39;pore&#39;, &#39;LSM&#39;, &#39;YSZ&#39;, etc.</span>
+<span class="sd">    units: str</span>
+<span class="sd">        units of the given dimensions</span>
+<span class="sd">    print_output: bool</span>
+<span class="sd">        switch to control whether output is printed</span>
+<span class="sd">    save_output: bool</span>
+<span class="sd">        switch to control whether data is saved to .npz files for later recall</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    --------</span>
+<span class="sd">    geo_d: np.array</span>
+<span class="sd">        Numpy array with geodesic distance from supplied surface</span>
+<span class="sd">    euc_d: np.array</span>
+<span class="sd">        Numpy array with euclidean distance from electrolyte</span>
+<span class="sd">    tort: np.array</span>
+<span class="sd">        Numpy array with tortuosity at each point</span>
+<span class="sd">    desc: str</span>
+<span class="sd">        description string to be used when saving the file with</span>
+<span class="sd">        :func:`save_as_tiff` (for proper reading into Avizo)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">global_start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Starting calculation on &#39;</span> <span class="o">+</span> <span class="n">phase</span> <span class="o">+</span> <span class="s1">&#39; in y direction.&#39;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Load electrolyte data</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">electrolyte_tif</span> <span class="o">=</span> <span class="n">TIFFfile</span><span class="p">(</span><span class="n">electrolyte_fname</span><span class="p">)</span>
+    <span class="n">electrolyte_array</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_tiff_array</span><span class="p">()</span>
+    <span class="n">electrolyte_data</span> <span class="o">=</span> <span class="n">electrolyte_array</span><span class="p">[::]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Loaded electrolyte data in {} seconds.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                              <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Load phase to be calculated data</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">cathode_tif</span> <span class="o">=</span> <span class="n">TIFFfile</span><span class="p">(</span><span class="n">phase_fname</span><span class="p">)</span>
+    <span class="n">cathode_array</span> <span class="o">=</span> <span class="n">cathode_tif</span><span class="o">.</span><span class="n">get_tiff_array</span><span class="p">()</span>
+    <span class="n">cathode_data</span> <span class="o">=</span> <span class="n">cathode_array</span><span class="p">[::]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Loaded cathode data in {} seconds.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                          <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Get information from Avizo-saved tiff file</span>
+    <span class="n">ifd</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_first_ifd</span><span class="p">()</span>
+    <span class="n">size_x</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageWidth&#39;</span><span class="p">)</span>
+    <span class="n">size_y</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageLength&#39;</span><span class="p">)</span>
+    <span class="n">size_z</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_depth</span><span class="p">()</span>
+    <span class="n">image_description</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageDescription&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;</span><span class="se">\0</span><span class="s1">&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;ImageDescription is: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image_description</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Calculate some parameters from the image input</span>
+    <span class="n">bb_xmin</span><span class="p">,</span> <span class="n">bb_xmax</span><span class="p">,</span> <span class="n">bb_ymin</span><span class="p">,</span> <span class="n">bb_ymax</span><span class="p">,</span> <span class="n">bb_zmin</span><span class="p">,</span> <span class="n">bb_zmax</span> <span class="o">=</span> \
+        <span class="p">[</span><span class="nb">eval</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">image_description</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]]</span>
+    <span class="n">bound_x</span> <span class="o">=</span> <span class="n">bb_xmax</span> <span class="o">-</span> <span class="n">bb_xmin</span>
+    <span class="n">bound_y</span> <span class="o">=</span> <span class="n">bb_ymax</span> <span class="o">-</span> <span class="n">bb_ymin</span>
+    <span class="n">bound_z</span> <span class="o">=</span> <span class="n">bb_zmax</span> <span class="o">-</span> <span class="n">bb_zmin</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Bounding box dimensions are: ({0:.2f}, {1:.2f}, &quot;</span>
+              <span class="s2">&quot;{2:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bound_x</span><span class="p">,</span> <span class="n">bound_y</span><span class="p">,</span> <span class="n">bound_z</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">units</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">vox_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_xmax</span> <span class="o">-</span> <span class="n">bb_xmin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">vox_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_ymax</span> <span class="o">-</span> <span class="n">bb_ymin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_y</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">vox_z</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_zmax</span> <span class="o">-</span> <span class="n">bb_zmin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_z</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Voxel dimensions are: ({0:.2f}, {1:.2f}, &quot;</span>
+              <span class="s2">&quot;{2:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">vox_x</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_z</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">units</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Set electrolyte area to zero in cathode data</span>
+    <span class="n">cathode_data</span><span class="p">[</span><span class="n">cathode_data</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Mask the voxels where phase is not present:</span>
+    <span class="n">cathode_mask</span> <span class="o">=</span> <span class="n">cathode_data</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="c1"># Switch XZ zero-plane to a negative value to create zero-contour</span>
+    <span class="n">cathode_data</span><span class="p">[:,</span><span class="mi">0</span><span class="p">,:]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+
+    <span class="n">cathode_ma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">(</span><span class="n">cathode_data</span><span class="p">,</span> <span class="n">cathode_mask</span><span class="p">)</span>
+    <span class="k">del</span> <span class="n">cathode_mask</span>
+    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+
+    <span class="c1"># Do geodesic distance calculation</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Starting geodesic calculation at: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+    <span class="n">geo_d</span> <span class="o">=</span> <span class="n">_geo_dist</span><span class="p">(</span><span class="n">cathode_ma</span><span class="p">,</span> <span class="n">vox_x</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_z</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Geodesic calculation took: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                     <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Do not need to calculating zero reference for the y-direction (use</span>
+    <span class="c1"># just plane)</span>
+    <span class="c1"># start_time = datetime.now()</span>
+    <span class="c1"># x_interface = _calc_interface(electrolyte_data)</span>
+    <span class="c1"># end_time = datetime.now()</span>
+    <span class="c1"># if print_output:</span>
+    <span class="c1">#     print(&quot;Calculating zero distance interface took: &quot;</span>
+    <span class="c1">#           &quot;{}&quot;.format(end_time - start_time))</span>
+
+    <span class="c1"># Calculate euclidean distance</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+
+    <span class="n">y_interface</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">[:,</span><span class="mi">0</span><span class="p">,:],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">euc_d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="p">(</span><span class="n">z</span><span class="p">,</span><span class="n">x</span><span class="p">),</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndenumerate</span><span class="p">(</span><span class="n">y_interface</span><span class="p">):</span>
+        <span class="c1"># set the value at each [x,z] point to a numpy array that ranges the</span>
+        <span class="c1"># z dimension times the vox_y size</span>
+        <span class="c1"># so this value can be compared with that calculated geodesically</span>
+        <span class="n">euc_d</span><span class="p">[</span><span class="n">z</span><span class="p">,:,</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">euc_d</span><span class="p">[</span><span class="n">z</span><span class="p">,:,</span><span class="n">x</span><span class="p">]))</span> <span class="o">*</span> <span class="n">vox_y</span>
+
+    <span class="n">euc_d</span><span class="p">[</span><span class="n">euc_d</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>    <span class="c1"># set all negative values to zero,</span>
+    <span class="c1">#                         since they are on the other side of the</span>
+    <span class="c1">#                         electrolyte (probably don&#39;t need this for y-dir)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Calculating euclidean distance took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                               <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Calculate tortuosity</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">tort</span> <span class="o">=</span> <span class="n">_calc_tort</span><span class="p">(</span><span class="n">geo_d</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">,</span> <span class="n">electrolyte_data</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Calculating tortuosity took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">save_output</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Saving data...&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">save_results</span><span class="p">(</span><span class="n">fname</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">direction</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">,</span>
+                     <span class="n">phase</span><span class="o">=</span><span class="n">phase</span><span class="p">,</span>
+                     <span class="n">geo_d</span><span class="o">=</span><span class="n">geo_d</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                     <span class="n">euc_d</span><span class="o">=</span><span class="n">euc_d</span><span class="p">,</span>
+                     <span class="n">tort</span><span class="o">=</span><span class="n">tort</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                     <span class="n">desc</span><span class="o">=</span><span class="n">image_description</span><span class="p">)</span>
+        <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Saving data took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Total execution time was: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                    <span class="n">global_start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">geo_d</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">,</span> <span class="n">tort</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">image_description</span></div>
+
+
+<div class="viewcode-block" id="tortuosity_from_labels_z"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.tortuosity_from_labels_z">[docs]</a><span class="k">def</span> <span class="nf">tortuosity_from_labels_z</span><span class="p">(</span><span class="n">electrolyte_fname</span><span class="p">,</span>
+                             <span class="n">phase_fname</span><span class="p">,</span>
+                             <span class="n">phase</span><span class="p">,</span>
+                             <span class="n">units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                             <span class="n">print_output</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                             <span class="n">save_output</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the tortuosity (parallel to electrolyte interface, z-direction)</span>
+<span class="sd">    from supplied label fields</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    electrolyte_fname: str</span>
+<span class="sd">        Filename of a 3D tiff file that contains only the bulk electrolyte</span>
+<span class="sd">        labelfield (as 1 values)</span>
+<span class="sd">    phase_fname: str</span>
+<span class="sd">        Filename of a 3D tiff file that contains the bulk electrolyte and the</span>
+<span class="sd">        phase for which the geodesic distance is to be calculated</span>
+<span class="sd">    phase: str</span>
+<span class="sd">        Phase that is being calculated. i.e. &#39;pore&#39;, &#39;LSM&#39;, &#39;YSZ&#39;, etc.</span>
+<span class="sd">    units: str</span>
+<span class="sd">        units of the given dimensions</span>
+<span class="sd">    print_output: bool</span>
+<span class="sd">        switch to control whether output is printed</span>
+<span class="sd">    save_output: bool</span>
+<span class="sd">        switch to control whether data is saved to .npz files for later recall</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    --------</span>
+<span class="sd">    geo_d: np.array</span>
+<span class="sd">        Numpy array with geodesic distance from supplied surface</span>
+<span class="sd">    euc_d: np.array</span>
+<span class="sd">        Numpy array with euclidean distance from electrolyte</span>
+<span class="sd">    tort: np.array</span>
+<span class="sd">        Numpy array with tortuosity at each point</span>
+<span class="sd">    desc: str</span>
+<span class="sd">        description string to be used when saving the file with</span>
+<span class="sd">        :func:`save_as_tiff` (for proper reading into Avizo)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">global_start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Starting calculation on &#39;</span> <span class="o">+</span> <span class="n">phase</span> <span class="o">+</span> <span class="s1">&#39; in z direction.&#39;</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Load electrolyte data</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">electrolyte_tif</span> <span class="o">=</span> <span class="n">TIFFfile</span><span class="p">(</span><span class="n">electrolyte_fname</span><span class="p">)</span>
+    <span class="n">electrolyte_array</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_tiff_array</span><span class="p">()</span>
+    <span class="n">electrolyte_data</span> <span class="o">=</span> <span class="n">electrolyte_array</span><span class="p">[::]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Loaded electrolyte data in {} seconds.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                              <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Load phase to be calculated data</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">cathode_tif</span> <span class="o">=</span> <span class="n">TIFFfile</span><span class="p">(</span><span class="n">phase_fname</span><span class="p">)</span>
+    <span class="n">cathode_array</span> <span class="o">=</span> <span class="n">cathode_tif</span><span class="o">.</span><span class="n">get_tiff_array</span><span class="p">()</span>
+    <span class="n">cathode_data</span> <span class="o">=</span> <span class="n">cathode_array</span><span class="p">[::]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;int8&#39;</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Loaded cathode data in {} seconds.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                          <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Get information from Avizo-saved tiff file</span>
+    <span class="n">ifd</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_first_ifd</span><span class="p">()</span>
+    <span class="n">size_x</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageWidth&#39;</span><span class="p">)</span>
+    <span class="n">size_y</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageLength&#39;</span><span class="p">)</span>
+    <span class="n">size_z</span> <span class="o">=</span> <span class="n">electrolyte_tif</span><span class="o">.</span><span class="n">get_depth</span><span class="p">()</span>
+    <span class="n">image_description</span> <span class="o">=</span> <span class="n">ifd</span><span class="o">.</span><span class="n">get_value</span><span class="p">(</span><span class="s1">&#39;ImageDescription&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;</span><span class="se">\0</span><span class="s1">&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;ImageDescription is: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image_description</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Calculate some parameters from the image input</span>
+    <span class="n">bb_xmin</span><span class="p">,</span> <span class="n">bb_xmax</span><span class="p">,</span> <span class="n">bb_ymin</span><span class="p">,</span> <span class="n">bb_ymax</span><span class="p">,</span> <span class="n">bb_zmin</span><span class="p">,</span> <span class="n">bb_zmax</span> <span class="o">=</span> \
+        <span class="p">[</span><span class="nb">eval</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">image_description</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">:]]</span>
+    <span class="n">bound_x</span> <span class="o">=</span> <span class="n">bb_xmax</span> <span class="o">-</span> <span class="n">bb_xmin</span>
+    <span class="n">bound_y</span> <span class="o">=</span> <span class="n">bb_ymax</span> <span class="o">-</span> <span class="n">bb_ymin</span>
+    <span class="n">bound_z</span> <span class="o">=</span> <span class="n">bb_zmax</span> <span class="o">-</span> <span class="n">bb_zmin</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Bounding box dimensions are: ({0:.2f}, {1:.2f}, &quot;</span>
+              <span class="s2">&quot;{2:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">bound_x</span><span class="p">,</span> <span class="n">bound_y</span><span class="p">,</span> <span class="n">bound_z</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">units</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">vox_x</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_xmax</span> <span class="o">-</span> <span class="n">bb_xmin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">vox_y</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_ymax</span> <span class="o">-</span> <span class="n">bb_ymin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_y</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">vox_z</span> <span class="o">=</span> <span class="p">(</span><span class="n">bb_zmax</span> <span class="o">-</span> <span class="n">bb_zmin</span><span class="p">)</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">size_z</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Voxel dimensions are: ({0:.2f}, {1:.2f}, &quot;</span>
+              <span class="s2">&quot;{2:.2f})&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">vox_x</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_z</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">units</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Set electrolyte area to zero in cathode data</span>
+    <span class="n">cathode_data</span><span class="p">[</span><span class="n">cathode_data</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="c1"># Mask the voxels where phase is not present:</span>
+    <span class="n">cathode_mask</span> <span class="o">=</span> <span class="n">cathode_data</span> <span class="o">==</span> <span class="mi">0</span>
+
+    <span class="c1"># Switch XY zero-plane to a negative value to create zero-contour</span>
+    <span class="n">cathode_data</span><span class="p">[</span><span class="mi">0</span><span class="p">,:,:]</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+
+    <span class="n">cathode_ma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">(</span><span class="n">cathode_data</span><span class="p">,</span> <span class="n">cathode_mask</span><span class="p">)</span>
+    <span class="k">del</span> <span class="n">cathode_mask</span>
+    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+    
+    <span class="c1"># Do geodesic distance calculation</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Starting geodesic calculation at: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+    <span class="n">geo_d</span> <span class="o">=</span> <span class="n">_geo_dist</span><span class="p">(</span><span class="n">cathode_ma</span><span class="p">,</span> <span class="n">vox_x</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_z</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Geodesic calculation took: {}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                     <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Do not need to calculating zero reference for the y-direction (use</span>
+    <span class="c1"># just plane)</span>
+    <span class="c1"># start_time = datetime.now()</span>
+    <span class="c1"># x_interface = _calc_interface(electrolyte_data)</span>
+    <span class="c1"># end_time = datetime.now()</span>
+    <span class="c1"># if print_output:</span>
+    <span class="c1">#     print(&quot;Calculating zero distance interface took: &quot;</span>
+    <span class="c1">#           &quot;{}&quot;.format(end_time - start_time))</span>
+
+    <span class="c1"># Calculate euclidean distance</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+
+    <span class="n">z_interface</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">[</span><span class="mi">0</span><span class="p">,:,:],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">euc_d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="p">(</span><span class="n">y</span><span class="p">,</span><span class="n">x</span><span class="p">),</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndenumerate</span><span class="p">(</span><span class="n">z_interface</span><span class="p">):</span>
+        <span class="c1"># set the value at each [x,z] point to a numpy array that ranges the</span>
+        <span class="c1"># z dimension times the vox_z size</span>
+        <span class="c1"># so this value can be compared with that calculated geodesically</span>
+        <span class="n">euc_d</span><span class="p">[:,</span><span class="n">y</span><span class="p">,</span><span class="n">x</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">euc_d</span><span class="p">[:,</span><span class="n">y</span><span class="p">,</span><span class="n">x</span><span class="p">]))</span> <span class="o">*</span> <span class="n">vox_z</span>
+
+    <span class="n">euc_d</span><span class="p">[</span><span class="n">euc_d</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>    <span class="c1"># set all negative values to zero,</span>
+    <span class="c1">#                         since they are on the other side of the</span>
+    <span class="c1">#                         electrolyte (probably don&#39;t need this for y-dir)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Calculating euclidean distance took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                               <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="c1"># Calculate tortuosity</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">tort</span> <span class="o">=</span> <span class="n">_calc_tort</span><span class="p">(</span><span class="n">geo_d</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">,</span> <span class="n">electrolyte_data</span><span class="p">)</span>
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Calculating tortuosity took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">save_output</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Saving data...&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="n">save_results</span><span class="p">(</span><span class="n">fname</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                     <span class="n">direction</span><span class="o">=</span><span class="s1">&#39;z&#39;</span><span class="p">,</span>
+                     <span class="n">phase</span><span class="o">=</span><span class="n">phase</span><span class="p">,</span>
+                     <span class="n">geo_d</span><span class="o">=</span><span class="n">geo_d</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                     <span class="n">euc_d</span><span class="o">=</span><span class="n">euc_d</span><span class="p">,</span>
+                     <span class="n">tort</span><span class="o">=</span><span class="n">tort</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                     <span class="n">desc</span><span class="o">=</span><span class="n">image_description</span><span class="p">)</span>
+        <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Saving data took: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span> <span class="n">start_time</span><span class="p">))</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">print_output</span><span class="p">:</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Total execution time was: {}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">end_time</span> <span class="o">-</span>
+                                                    <span class="n">global_start_time</span><span class="p">))</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">geo_d</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">,</span> <span class="n">tort</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">image_description</span></div>
+
+
+<div class="viewcode-block" id="save_results"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.save_results">[docs]</a><span class="k">def</span> <span class="nf">save_results</span><span class="p">(</span><span class="n">fname</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">phase</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                 <span class="n">direction</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span>
+                 <span class="n">geo_d</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">euc_d</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">tort</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">desc</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Saves all the results into a compressed numpy archive</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    -----------</span>
+<span class="sd">    geo_d: numpy array</span>
+<span class="sd">        Geodesic distance array</span>
+<span class="sd">    euc_d: numpy array</span>
+<span class="sd">        Euclidean distance array</span>
+<span class="sd">    tort: numpy array</span>
+<span class="sd">        Tortuosity array</span>
+<span class="sd">    desc: str</span>
+<span class="sd">        Image description string</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">fname</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">fname</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">&quot;%Y-%m-</span><span class="si">%d</span><span class="s2">_%H.%M.%S_&quot;</span> <span class="o">+</span> <span class="n">phase</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span>
+                                        <span class="n">direction</span> <span class="o">+</span> <span class="s1">&#39;_all-results.npz&#39;</span><span class="p">)</span>
+
+    <span class="n">np</span><span class="o">.</span><span class="n">savez_compressed</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span>
+                        <span class="n">geo_d</span><span class="o">=</span><span class="n">geo_d</span><span class="p">,</span>
+                        <span class="n">euc_d</span><span class="o">=</span><span class="n">euc_d</span><span class="p">,</span>
+                        <span class="n">tort</span><span class="o">=</span><span class="n">tort</span><span class="p">,</span>
+                        <span class="n">image_description</span><span class="o">=</span><span class="n">desc</span>
+                        <span class="p">)</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Saved results to &quot;</span> <span class="o">+</span> <span class="n">fname</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="load_results"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.load_results">[docs]</a><span class="k">def</span> <span class="nf">load_results</span><span class="p">(</span><span class="n">fname</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Loads the results that have been previously saved with :func:`save_results`</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    -----------</span>
+<span class="sd">    fname: str</span>
+<span class="sd">        filename to load</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    --------</span>
+<span class="sd">    geo_d: numpy array</span>
+<span class="sd">        Geodesic distance array</span>
+<span class="sd">    euc_d: numpy array</span>
+<span class="sd">        Euclidean distance array</span>
+<span class="sd">    tort: numpy array</span>
+<span class="sd">        Tortuosity array</span>
+<span class="sd">    desc: str</span>
+<span class="sd">        Image description string</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">npzfile</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span>
+    <span class="n">geo_d</span> <span class="o">=</span> <span class="n">npzfile</span><span class="p">[</span><span class="s1">&#39;geo_d&#39;</span><span class="p">]</span>
+    <span class="n">euc_d</span> <span class="o">=</span> <span class="n">npzfile</span><span class="p">[</span><span class="s1">&#39;euc_d&#39;</span><span class="p">]</span>
+    <span class="n">tort</span> <span class="o">=</span> <span class="n">npzfile</span><span class="p">[</span><span class="s1">&#39;tort&#39;</span><span class="p">]</span>
+    <span class="n">desc</span> <span class="o">=</span> <span class="n">npzfile</span><span class="p">[</span><span class="s1">&#39;image_description&#39;</span><span class="p">]</span>
+
+    <span class="c1"># if description isn&#39;t None, cast it as string</span>
+    <span class="k">if</span> <span class="n">desc</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span>
+        <span class="n">desc</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">desc</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">geo_d</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">,</span> <span class="n">tort</span><span class="p">,</span> <span class="n">desc</span></div>
+
+
+<div class="viewcode-block" id="tortuosity_profile"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.tortuosity_profile">[docs]</a><span class="k">def</span> <span class="nf">tortuosity_profile</span><span class="p">(</span><span class="n">tort</span><span class="p">,</span> <span class="n">euc</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="s1">&#39;x&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the average tortuosity along an axis</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    tort: Numpy array (output of :func:`tortuosity_from_labels_x`...)</span>
+<span class="sd">        Contains the tortuosity data, with 0 values in the masked areas</span>
+<span class="sd">    euc: Numpy array (output of :func:`tortuosity_from_labels_x`...)</span>
+<span class="sd">        Contains the euclidean distance at each point</span>
+<span class="sd">    axis: str</span>
+<span class="sd">        Axis along which to calculate profile. Should be &#39;x&#39;, &#39;y&#39;, or &#39;z&#39;</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tort_prof: 1D Numpy array</span>
+<span class="sd">        1D profile of average tortuosity at each point in the array</span>
+<span class="sd">        (ignoring the masked areas)</span>
+<span class="sd">    euc_prof: 1D Numpy array</span>
+<span class="sd">        1D profile of the average euclidean distance at each point</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Set all 0 tortuosity values to nans so they are ignored when calculating</span>
+    <span class="c1"># the average:</span>
+    <span class="n">tort</span><span class="p">[</span><span class="n">tort</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+    <span class="n">axis_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">:</span><span class="mi">0</span><span class="p">}</span>
+
+    <span class="c1"># Figure out the correct axis:</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span>
+    <span class="n">axes</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">axis_dict</span><span class="p">[</span><span class="n">axis</span><span class="p">])</span>
+    <span class="n">axes</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">axes</span><span class="p">)</span>
+
+    <span class="c1"># Calculate averages along relevant axes (ignoring nans):</span>
+    <span class="n">euc_prof</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">euc</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span>
+    <span class="n">tort_prof</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmean</span><span class="p">(</span><span class="n">tort</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axes</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">tort_prof</span><span class="p">,</span> <span class="n">euc_prof</span></div>
+
+
+<div class="viewcode-block" id="plot_tort_prof"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.plot_tort_prof">[docs]</a><span class="k">def</span> <span class="nf">plot_tort_prof</span><span class="p">(</span><span class="n">tort_prof</span><span class="p">,</span>
+                   <span class="n">euc_prof</span><span class="p">,</span>
+                   <span class="n">direction</span><span class="p">,</span>
+                   <span class="n">units</span><span class="o">=</span><span class="s1">&#39;nm&#39;</span><span class="p">,</span>
+                   <span class="n">figsize</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                   <span class="n">sns_style</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">,</span>
+                   <span class="n">sns_context</span><span class="o">=</span><span class="s1">&#39;paper&#39;</span><span class="p">,</span>
+                   <span class="n">sns_fontscale</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+                   <span class="n">sns_cmap</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                   <span class="n">sns_color_num</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                   <span class="n">sns_kw</span><span class="o">=</span><span class="bp">None</span><span class="p">,):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Plot a profile of the average tortuosity.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    tort_prof: np.array</span>
+<span class="sd">        tortuosity profile (output of :func:`tortuosity_profile`)</span>
+<span class="sd">    euc_prof: np.array</span>
+<span class="sd">        euclidean profile (output of :func:`tortuosity_profile`)</span>
+<span class="sd">    direction: str</span>
+<span class="sd">        direction for labeling</span>
+<span class="sd">    units: str</span>
+<span class="sd">        units of distance for labeling</span>
+<span class="sd">    figsize : tuple of integers, optional, default: None</span>
+<span class="sd">        width, height in inches. If not provided, defaults to rc</span>
+<span class="sd">        figure.figsize.</span>
+<span class="sd">    sns_style: str</span>
+<span class="sd">        default style for seaborn (&#39;white&#39;, &#39;dark&#39;, &#39;darkgrid&#39;, etc.)</span>
+<span class="sd">    sns_context: str</span>
+<span class="sd">        context for plotting with seaborn</span>
+<span class="sd">    sns_fontscale: float</span>
+<span class="sd">        font scale to pass to seaborn</span>
+<span class="sd">    sns_cmap: list, str, tuple</span>
+<span class="sd">        colormap for use with seaborn</span>
+<span class="sd">        default is [light blue, dark teal, blue, red, green, orange]</span>
+<span class="sd">        If str or tuple, then these parameters are passed to the</span>
+<span class="sd">        seaborn.color_palette() function</span>
+<span class="sd">    sns_color_num: int</span>
+<span class="sd">        index of color (in ``sns_cmap``) to use</span>
+<span class="sd">    sns_kw: dict</span>
+<span class="sd">        additional arguments to be passed to seaborn.set_style</span>
+<span class="sd">        (see http://goo.gl/WvLdc6 for details)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    matplotlib figure, &lt;matplotlib axes&gt;</span>
+<span class="sd">        Handle to figure that is plotted (and axes array if subplots)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Import and setup seaborn styles</span>
+    <span class="k">if</span> <span class="n">sns_kw</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">sns_kw</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">sns_cmap</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">sns_cmap</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;#4C72B1&quot;</span><span class="p">,</span> <span class="s2">&quot;#004040&quot;</span><span class="p">,</span> <span class="s2">&quot;#023FA5&quot;</span><span class="p">,</span> <span class="s2">&quot;#8E063B&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;#098C09&quot;</span><span class="p">,</span> <span class="s2">&quot;#EF9708&quot;</span><span class="p">]</span>
+    <span class="kn">import</span> <span class="nn">seaborn</span> <span class="kn">as</span> <span class="nn">sns</span>
+    <span class="n">matplotlib</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;mathtext.fontset&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;stixsans&#39;</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">rc</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;image.cmap&#39;</span><span class="p">:</span> <span class="s1">&#39;Greys_r&#39;</span><span class="p">})</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_style</span><span class="p">(</span><span class="n">sns_style</span><span class="p">,</span> <span class="n">sns_kw</span><span class="p">)</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">set_context</span><span class="p">(</span><span class="n">sns_context</span><span class="p">,</span> <span class="n">font_scale</span><span class="o">=</span><span class="n">sns_fontscale</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">sns_cmap</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">tuple</span><span class="p">:</span>
+        <span class="n">palette</span> <span class="o">=</span> <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="o">*</span><span class="n">sns_cmap</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">palette</span> <span class="o">=</span> <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="n">sns_cmap</span><span class="p">)</span>
+    <span class="n">sns</span><span class="o">.</span><span class="n">color_palette</span><span class="p">(</span><span class="n">palette</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">units</span> <span class="ow">is</span> <span class="s1">&#39;um&#39;</span><span class="p">:</span>
+        <span class="n">units</span> <span class="o">=</span> <span class="s2">&quot;${\mu}m$&quot;</span>
+
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="n">figsize</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">euc_prof</span><span class="p">,</span> <span class="n">tort_prof</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">palette</span><span class="p">[</span><span class="n">sns_color_num</span><span class="p">])</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Euclidean distance (&#39;</span> <span class="o">+</span> <span class="n">direction</span> <span class="o">+</span> <span class="s2">&quot; direction, &quot;</span> <span class="o">+</span>
+               <span class="n">units</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Average tortuosity&quot;</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">fig</span></div>
+
+
+<div class="viewcode-block" id="save_profile_to_csv"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.save_profile_to_csv">[docs]</a><span class="k">def</span> <span class="nf">save_profile_to_csv</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span>
+                        <span class="n">x</span><span class="p">,</span>
+                        <span class="n">y</span><span class="p">,</span>
+                        <span class="n">direction</span><span class="p">,</span>
+                        <span class="n">phase</span><span class="p">,</span>
+                        <span class="n">x_name</span><span class="o">=</span><span class="s1">&#39;Euc_d&#39;</span><span class="p">,</span>
+                        <span class="n">y_name</span><span class="o">=</span><span class="s1">&#39;tort&#39;</span><span class="p">,</span>
+                        <span class="n">fmt</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">%10.5f</span><span class="s1">&#39;</span><span class="p">,</span>
+                        <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">,</span>
+                        <span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Saves two profiles (x and y) into a text file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fname: str</span>
+<span class="sd">        filename to save to (no checks are done before overwriting)</span>
+<span class="sd">    x: 1D np.array</span>
+<span class="sd">        X-profile that will be used as first column</span>
+<span class="sd">        should be a one dimensional numpy row vector</span>
+<span class="sd">    y: np.array or list of np.arrays</span>
+<span class="sd">        can be 1D np.array, or a list of them, with data in rows.</span>
+<span class="sd">        Each row will be transformed to a column in the text files</span>
+<span class="sd">    direction: str</span>
+<span class="sd">        direction for labeling</span>
+<span class="sd">    phase: str</span>
+<span class="sd">        phase for labeling</span>
+<span class="sd">    x_name: str</span>
+<span class="sd">        Name of header in x-column</span>
+<span class="sd">    y_name: str</span>
+<span class="sd">        Name of header in y-column</span>
+<span class="sd">    fmt: str</span>
+<span class="sd">        Format for decimals to use</span>
+<span class="sd">    delimiter: str</span>
+<span class="sd">        Delimiter to use in the csv file</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">savetxt</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">((</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">))</span><span class="o">.</span><span class="n">transpose</span><span class="p">(),</span>
+               <span class="n">header</span><span class="o">=</span><span class="n">phase</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">direction</span> <span class="o">+</span> <span class="s2">&quot;-direction </span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">+</span> <span class="n">x_name</span> <span class="o">+</span>
+                      <span class="n">delimiter</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\t</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="n">y_name</span><span class="p">,</span>
+               <span class="n">fmt</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span>
+               <span class="n">delimiter</span><span class="o">=</span><span class="n">delimiter</span><span class="p">)</span>
+    <span class="k">print</span><span class="p">(</span><span class="s1">&#39;Saved&#39;</span><span class="p">,</span> <span class="n">fname</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="load_profile_from_csv"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.load_profile_from_csv">[docs]</a><span class="k">def</span> <span class="nf">load_profile_from_csv</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span>
+                          <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">,</span>
+                          <span class="n">skiprows</span><span class="o">=</span><span class="mi">2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Loads columns of a text file into 1D numpy arrays.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fname: str</span>
+<span class="sd">        filename to load from</span>
+<span class="sd">    delimiter: str</span>
+<span class="sd">        character to use as delimiter</span>
+<span class="sd">    skiprows: int</span>
+<span class="sd">        number of header rows to skip at beginning of file</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    --------</span>
+<span class="sd">    list of 1D np.array objects, 1 for each column in the data</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span>
+                      <span class="n">delimiter</span><span class="o">=</span><span class="n">delimiter</span><span class="p">,</span>
+                      <span class="n">skiprows</span><span class="o">=</span><span class="n">skiprows</span><span class="p">)</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">vsplit</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">))]</span></div>
+
+
+<div class="viewcode-block" id="save_as_tiff"><a class="viewcode-back" href="../api_doc.html#fibtortuosity.save_as_tiff">[docs]</a><span class="k">def</span> <span class="nf">save_as_tiff</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">desc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Save a numpy array as tiff (useful for transferring data back to Avizo)</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fname: str</span>
+<span class="sd">        Filename to save to</span>
+<span class="sd">    data: np.array</span>
+<span class="sd">        Data array to be written to image file</span>
+<span class="sd">    dtype: str</span>
+<span class="sd">        data type to save as. For some reason, euclidean distance works</span>
+<span class="sd">        best as &#39;uint32&#39;, while the others are fine as &#39;float32&#39;.</span>
+<span class="sd">    desc: str</span>
+<span class="sd">        Image description that includes bounding box info</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tiff</span> <span class="o">=</span> <span class="n">TIFFimage</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">),</span>
+                     <span class="n">description</span><span class="o">=</span><span class="n">desc</span><span class="p">)</span>
+    <span class="n">tiff</span><span class="o">.</span><span class="n">write_file</span><span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">compression</span><span class="o">=</span><span class="s1">&#39;lzw&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="_geo_dist"><a class="viewcode-back" href="../api_doc.html#fibtortuosity._geo_dist">[docs]</a><span class="k">def</span> <span class="nf">_geo_dist</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">vox_x</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_z</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Internal helper method to call scikit-fmm distance method</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data: masked data array to calculate on</span>
+<span class="sd">    vox_x: x voxel size</span>
+<span class="sd">    vox_y: y voxel size</span>
+<span class="sd">    vox_z: z voxel size</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    d: distance transform as calculated by scikit-fmm</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">skfmm</span><span class="o">.</span><span class="n">distance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dx</span><span class="o">=</span><span class="p">[</span><span class="n">vox_z</span><span class="p">,</span> <span class="n">vox_y</span><span class="p">,</span> <span class="n">vox_x</span><span class="p">])</span>
+
+    <span class="c1"># Convert dtype from float64 to float32 to save memory (almost half):</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Set distances within the bulk electrolyte to zero:</span>
+    <span class="n">d</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">data</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="n">d</span></div>
+
+
+<div class="viewcode-block" id="_calc_interface"><a class="viewcode-back" href="../api_doc.html#fibtortuosity._calc_interface">[docs]</a><span class="k">def</span> <span class="nf">_calc_interface</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates interface between bulk electrolyte and the cathode</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    electrolyte_data: label data for bulk electrolyte</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x_interface: 2D numpy array</span>
+<span class="sd">        x values of interface at each y and z locations</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># create a single plane array with same x and y dimensions</span>
+    <span class="n">x_interface</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+    <span class="c1"># visit each point on the array</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndenumerate</span><span class="p">(</span><span class="n">x_interface</span><span class="p">):</span>
+        <span class="c1"># set the value at each point to the first place where the electrolyte</span>
+        <span class="c1"># value is 0 (which is the boundary between electrolyte and cathode)</span>
+        <span class="n">x_interface</span><span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="p">:]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">x_interface</span></div>
+
+
+<div class="viewcode-block" id="_calc_tort"><a class="viewcode-back" href="../api_doc.html#fibtortuosity._calc_tort">[docs]</a><span class="k">def</span> <span class="nf">_calc_tort</span><span class="p">(</span><span class="n">geo_d</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">,</span> <span class="n">electrolyte_data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates tortuosity from geodesic and euclidean distances</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    geo_d: Geodesic distance (Masked Array)</span>
+<span class="sd">    euc_d: Euclidean distance (Numpy array)</span>
+<span class="sd">    electrolyte_data: label data for bulk electrolyte</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    tort: tortuosity numpy array</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">old</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">seterr</span><span class="p">(</span><span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Calculate tortuosity by dividing geo_d by euc_d</span>
+    <span class="n">tort</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="n">geo_d</span><span class="p">,</span> <span class="n">euc_d</span><span class="p">)</span>
+    <span class="c1"># Clean up the data, removing values &lt; 1 and any infinities</span>
+    <span class="n">tort</span><span class="p">[</span><span class="n">electrolyte_data</span> <span class="o">==</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>     <span class="c1"># 0 so it will be ignored in bulk YSZ</span>
+    <span class="n">tort</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">tort</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">,</span> <span class="n">tort</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">tort</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">tort</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">tort</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">tort</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="c1"># tort should never be very large (greater than 2), so we can</span>
+    <span class="c1"># safely represent it with a half precision float</span>
+    <span class="c1"># 53.7MiB before, 44.0MiB after, so saving 18%</span>
+    <span class="c1"># tort = np.ma.asarray(tort, dtype=&#39;float16&#39;)</span>
+
+    <span class="n">np</span><span class="o">.</span><span class="n">seterr</span><span class="p">(</span><span class="o">**</span><span class="n">old</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">tort</span></div>
+
+
+<div class="viewcode-block" id="_calc_euc_x"><a class="viewcode-back" href="../api_doc.html#fibtortuosity._calc_euc_x">[docs]</a><span class="k">def</span> <span class="nf">_calc_euc_x</span><span class="p">(</span><span class="n">x_interface</span><span class="p">,</span> <span class="n">electrolyte_data</span><span class="p">,</span> <span class="n">vox_x</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates euclidean distance from electrolyte interface</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x_interface: Numpy array containing x value of boundary for electrolyte</span>
+<span class="sd">        for all y and z coordinates</span>
+<span class="sd">    electrolyte_data: label data for bulk electrolyte</span>
+<span class="sd">    vox_x: float</span>
+<span class="sd">        voxel x-size</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    euc_d: euclidean distance numpy array</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># create euclidean distance array of the same shape as the others</span>
+    <span class="n">euc_d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">electrolyte_data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="c1"># visit each [x,y] location in this array:</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">),</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">ndenumerate</span><span class="p">(</span><span class="n">x_interface</span><span class="p">):</span>
+        <span class="c1"># set the value at each [x,y] point to a numpy array that ranges the</span>
+        <span class="c1"># x dimension minus the zero reference from before times the vox_x size</span>
+        <span class="c1"># so this value can be compared with that calculated geodesically</span>
+        <span class="n">euc_d</span><span class="p">[</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">euc_d</span><span class="p">[</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">]))</span> <span class="o">-</span> <span class="n">x_interface</span><span class="p">[</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">])</span> <span class="o">*</span> <span class="n">vox_x</span>
+
+    <span class="n">euc_d</span><span class="p">[</span><span class="n">euc_d</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>    <span class="c1"># set all negative values to zero,</span>
+    <span class="c1">#                         since they are on the other side of the</span>
+    <span class="c1">#                         electrolyte</span>
+
+    <span class="k">return</span> <span class="n">euc_d</span></div>
+
+    <span class="c1"># How to create multiple processes for jobs:</span>
+    <span class="c1">############################################</span>
+    <span class="c1">#</span>
+    <span class="c1"># # Setup parallel stuff:</span>
+    <span class="c1"># manager = multiprocessing.Manager()</span>
+    <span class="c1"># return_dict = manager.dict()</span>
+    <span class="c1"># jobs = []</span>
+    <span class="c1">#</span>
+    <span class="c1"># Calculate geodesic distance:</span>
+    <span class="c1"># p = multiprocessing.Process(target=_geo_dist, args=(&#39;geo&#39;,</span>
+    <span class="c1">#                                                     return_dict,</span>
+    <span class="c1">#                                                     cathode_data,</span>
+    <span class="c1">#                                                     vox_x,</span>
+    <span class="c1">#                                                     vox_y,</span>
+    <span class="c1">#                                                     vox_z))</span>
+    <span class="c1"># jobs.append(p)</span>
+    <span class="c1"># p.start()</span>
+    <span class="c1"># if print_output:</span>
+    <span class="c1">#     print(&#39;Started geo calc&#39;)</span>
+    <span class="c1">#</span>
+    <span class="c1"># Calculate euclidean distance:</span>
+    <span class="c1"># p = multiprocessing.Process(target=_geo_dist, args=(&#39;euc&#39;,</span>
+    <span class="c1">#                                                     return_dict,</span>
+    <span class="c1">#                                                     all_data,</span>
+    <span class="c1">#                                                     vox_x,</span>
+    <span class="c1">#                                                     vox_y,</span>
+    <span class="c1">#                                                     vox_z))</span>
+    <span class="c1"># jobs.append(p)</span>
+    <span class="c1"># p.start()</span>
+    <span class="c1"># if print_output:</span>
+    <span class="c1">#     print(&#39;Started euc calc&#39;)</span>
+    <span class="c1">#</span>
+    <span class="c1"># if print_output:</span>
+    <span class="c1">#     print(&#39;Jobs list:&#39; + repr(jobs))</span>
+    <span class="c1">#</span>
+    <span class="c1"># for proc in jobs:</span>
+    <span class="c1">#     proc.join()</span>
+    <span class="c1">#</span>
+    <span class="c1"># geo_d = return_dict[&#39;geo&#39;]</span>
+    <span class="c1"># euc_d = return_dict[&#39;euc&#39;]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Joshua Taillon.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../',
+            VERSION:'0.2.5',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../_static/jquery.js"></script>
+      <script type="text/javascript" src="../_static/underscore.js"></script>
+      <script type="text/javascript" src="../_static/doctools.js"></script>
+      <script type="text/javascript" src="../_static/copybutton.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
