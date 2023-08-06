@@ -1,0 +1,242 @@
+/***************************************************************************
+   Copyright 2015 Ufora Inc.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+****************************************************************************/
+class {
+    member @m;
+    
+    //required because the AttributeError clause in the PyObjectBase mixin masks the
+    //generated version of this attribute.
+    ...(`Member, `@m) { @m };
+
+    __class__: ListType;
+
+    __getitem__: PyBoundMethod(
+        self, 
+        fun
+        (@unnamed_args:(self, Slice(s)), *args) {
+            if (s.step.__class__ is NoneType)
+                return PyList(@m[s.start.@m, s.stop.@m])
+
+            if (s.step == PyInt(0)) 
+                throw ValueError("slice step cannot be zero")
+
+            return PyList(@m[s.start.@m, s.stop.@m, s.step.@m])
+            }
+        (@unnamed_args:(self, PyInt(ix)), *args) {
+            try {
+                @m[ix.@m]
+                }
+            catch ("invalid index") {
+                throw IndexError(PyString("list index out of range"))
+                }
+            }
+        (@unnamed_args:(self, *args), *otherArgs) {
+            throw TypeError(PyString("list indices must be integers or slice objects"))
+            },
+        `__getitem__
+        );
+
+    __pyfora_generator__: PyBoundMethod(
+        self, 
+        fun(@unnamed_args:(self), *args) {
+            let ListGenerator = class {
+                member @m;
+            
+                ...(`Member, `@m) { @m };
+
+                operator iterator() { self.@m`(`Iter) };
+
+                canSplit: PyBoundMethod(
+                    self,
+                    fun(@unnamed_args:(self), *args) {
+                        PyBool(size(self.@m) > 1)
+                        },
+                    `canSplit);
+
+            split: PyBoundMethod(
+                self,
+                fun(@unnamed_args:(self), *args) { 
+                    if (size(self.@m) <= 1) return PyNone(nothing); 
+
+                    PyTuple((ListGenerator(self.@m[,size(self.@m)/2]),
+                             ListGenerator(self.@m[size(self.@m)/2,])))
+                    },
+                `split);
+
+            associativeReduce: fun(initValSoFar, add, merge, empty) {
+                AssociativeReduce.associativeReduceIntegers(
+                    initValSoFar, 
+                    fun(lst, val) { add(lst, @m[val]) }, 
+                    merge, 
+                    empty,
+                    0,
+                    size(@m)
+                    )
+                };
+
+            mixin PyGeneratorBase;
+            };
+
+        return ListGenerator(self.@m)
+        }, `__pyfora_generator__);
+
+    append: 
+        throw InvalidPyforaOperation(
+            PyString(
+                "Appending to a list is a mutating operation, " +
+                    "which pyfora doesn't support."
+                 )
+            );
+
+    index: PyBoundMethod(
+        self,
+        fun(@unnamed_args:(self, value), *args) {
+            for ix in sequence(size(self.@m)) {
+                if (Bool(self.@m[ix] == value))
+                    return PyInt(ix)
+                }
+            throw Exception(PyString("value is not in list"))
+        },
+        `index);
+
+    __mul__: PyBoundMethod(
+        self,
+        fun(@unnamed_args:(self, PyInt(other)), *args) {
+            let toReturn = [];
+            for i in sequence(other.@m) {
+                toReturn = toReturn + self.@m
+                }
+            PyList(toReturn)
+            },
+        `__mul__);
+
+    __eq__: PyBoundMethod(
+        self,
+        fun(@unnamed_args:(self, PyList(other)), *args) {
+            PyBool(self.@m == other.@m)
+            }
+        (@unnamed_args:(self, _), *args) {
+            PyBool(false)
+            },
+        `__eq__
+        );
+
+    __ne__: PyBoundMethod(
+        self, 
+        fun(@unnamed_args:(self, PyList(other)), *args) {
+            PyBool(self.@m != other.@m)
+            }
+        (@unnamed_args:(self, _), *args) {
+            PyBool(true)
+            },
+        `__ne__
+        );
+
+    __gt__: PyBoundMethod(
+        self,
+        fun(@unnamed_args:(self, PyList(other)), *args) {
+            if (size(other.@m) == size(self.@m)) {
+                PyBool(false)
+                }
+            else if (size(self.@m) == 0) {
+                PyBool(false)
+                }
+            else PyBool(true)
+            }
+        (@unnamed_args:(self, PyString(other)), *args) {
+            PyBool(false)
+            }
+        (@unnamed_args:(self, _), *args) {
+            PyBool(true)
+            }, 
+        `__gt__
+        );
+
+    __lt__: PyBoundMethod(
+        self,
+         fun(@unnamed_args:(self, PyList(other)), *args) {
+             if (size(other.@m) == size(self.@m)) {
+                 return PyBool(false)
+                }
+             else if (size(self.@m) == 0) {
+                 return PyBool(true)
+                 }
+             else return PyBool(false)
+             }
+        (@unnamed_args:(self, PyString(other)), *args) {
+            PyBool(true)
+            }
+        (@unnamed_args:(self, _), *args) {
+            PyBool(false)
+            },
+        `__lt__);
+
+    __len__: PyBoundMethod(
+        self,
+        fun(@unnamed_args:(self), *args) {
+        PyInt(Int64(size(self.@m)))
+        }, `__len__);
+
+    __str__: PyBoundMethod(
+        self,
+        fun(@unnamed_args:(self), *args) {
+            let elts = []
+            for e in self.@m
+                elts = elts :: StrType(e).@m
+
+            PyString("[" + ", ".join(elts) + "]")
+            },
+        `__str__);
+
+    __pyfora_concat__: PyBoundMethod(
+        self,
+        fun(@unnamed_args:(self, other), *args) {
+            PyList(self.@m :: other)
+            },
+        `__pyfora_concat__);
+
+    operator match(PyList _) { (self,) };
+
+    operator+(PyList(other)) {
+        PyList(@m + other.@m)
+        };
+
+    __add__: PyBoundMethod(
+        self, fun
+        (@unnamed_args:(self, PyList(...) other), *args) {
+            PyList(@m + other.@m)
+            }
+        (@unnamed_args:(self, other), *args) {
+            throw TypeError(PyString("Can only concatenate list to list"))
+            },
+        `__add__);
+
+    __iter__: PyBoundMethod(
+        self,
+        fun(@unnamed_args:(self), *args) {
+            for val in @m 
+                yield val
+            },
+        `__iter__);
+
+    operator in (elt) {
+        PyBool(elt in @m)
+        };
+
+    convert(Bool _) { size(@m) > 0 };
+
+    mixin PyObjectBase;
+    };
+
