@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+
+# http://inamidst.com/saxo/
+# Created by Sean B. Palmer
+
+import json
+import re
+import subprocess
+import urllib.parse
+
+import saxo
+
+def ajax(arg):
+    if not arg:
+        return "Search for a query on Google (Ajax)"
+    arg = urllib.parse.quote(arg)
+    page = saxo.request("https://ajax.googleapis.com/ajax/services/search/web",
+        query={"v": "1.0", "q": arg}, modern=True)
+    data = json.loads(page["text"])
+    return data["responseData"]["results"][0]["url"]
+
+def bing(arg):
+    return saxo.call("bing", arg)
+
+def duck(arg):
+    return saxo.call("duck", arg)
+
+def tor(arg):
+    return saxo.call("gtor", arg)
+
+def web(arg):
+    if not arg:
+        return "Search for a phrase on Google (Web)"
+
+    page = saxo.request("https://www.google.com/search",
+        query={"q": arg}, modern=True)
+
+    r_url = re.compile(r'(?ims)class="r".*?<a href="(.*?)"')
+    for url in r_url.findall(page["text"]):
+        if url.startswith("/"):
+           continue
+        return urllib.parse.unquote(url)
+    return "No result for %s" % arg
+
+available = {"ajax": ajax, "bing": bing, "duck": duck, "tor": tor, "web": web}
+
+def default(arg):
+    if not arg:
+        return saxo.data("default") or "No default has been set"
+    elif saxo.env("authorised") and not saxo.env("sender").startswith("#"):
+        if arg in available:
+            saxo.data("default", arg)
+            return "Set default to %s" % arg
+        else:
+            av = ", ".join(sorted(available.keys()))
+            return "Sorry, %r is not a valid default action (%s)" % (arg, av)
+    return "Action not authorised, please ask an admin"
+
+def optflag(arg, flag=None):
+    if arg.startswith(":"):
+        if " " in arg:
+            flag, arg = arg.split(" ", 1)
+        else:
+            flag, arg = arg, ""
+        flag = flag[1:]
+    return arg, flag
+
+@saxo.command()
+def g(arg):
+    try: oth = saxo.data("default") or "bing"
+    except: oth = "bing"
+    arg, flag = optflag(arg, oth)
+    if flag == "default":
+        return default(arg)
+    return available[flag](arg)
