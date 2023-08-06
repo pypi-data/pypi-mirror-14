@@ -1,0 +1,241 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Custom rendering &mdash; django-tables2 1.1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="django-tables2 1.1.2 documentation" href="../index.html" />
+    <link rel="next" title="Querystring fields" href="query-string-fields.html" />
+    <link rel="prev" title="Pagination" href="pagination.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="query-string-fields.html" title="Querystring fields"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="pagination.html" title="Pagination"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="custom-rendering">
+<span id="id1"></span><h1>Custom rendering<a class="headerlink" href="#custom-rendering" title="Permalink to this headline">¶</a></h1>
+<p>Various options are available for changing the way the table is <a class="reference internal" href="glossary.html#term-render"><span class="xref std std-term">rendered</span></a>. Each approach has a different balance of ease-of-use and
+flexibility.</p>
+<div class="section" id="table-render-foo-methods">
+<span id="table-render-foo"></span><h2><code class="xref py py-meth docutils literal"><span class="pre">Table.render_FOO()</span></code> methods<a class="headerlink" href="#table-render-foo-methods" title="Permalink to this headline">¶</a></h2>
+<p>To change how a column is rendered, implement a <code class="docutils literal"><span class="pre">render_FOO</span></code> method on the
+table (where <code class="docutils literal"><span class="pre">FOO</span></code> is the <a class="reference internal" href="glossary.html#term-column-name"><span class="xref std std-term">column name</span></a>). This approach is suitable if
+you have a one-off change that you don&#8217;t want to use in multiple tables.</p>
+<p>Supported keyword arguments include:</p>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">record</span></code> &#8211; the entire record for the row from the <a class="reference internal" href="glossary.html#term-table-data"><span class="xref std std-term">table data</span></a></li>
+<li><code class="docutils literal"><span class="pre">value</span></code> &#8211; the value for the cell retrieved from the <a class="reference internal" href="glossary.html#term-table-data"><span class="xref std std-term">table data</span></a></li>
+<li><code class="docutils literal"><span class="pre">column</span></code> &#8211; the <a class="reference internal" href="api-reference.html#django_tables2.columns.Column" title="django_tables2.columns.Column"><code class="xref py py-obj docutils literal"><span class="pre">Column</span></code></a> object</li>
+<li><code class="docutils literal"><span class="pre">bound_column</span></code> &#8211; the <a class="reference internal" href="internal.html#django_tables2.columns.BoundColumn" title="django_tables2.columns.BoundColumn"><code class="xref py py-obj docutils literal"><span class="pre">BoundColumn</span></code></a> object</li>
+<li><code class="docutils literal"><span class="pre">bound_row</span></code> &#8211; the <a class="reference internal" href="internal.html#django_tables2.rows.BoundRow" title="django_tables2.rows.BoundRow"><code class="xref py py-obj docutils literal"><span class="pre">BoundRow</span></code></a> object</li>
+<li><code class="docutils literal"><span class="pre">table</span></code> &#8211; alias for <code class="docutils literal"><span class="pre">self</span></code></li>
+</ul>
+<p>Here&#8217;s an example where the first column displays the current row number:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">django_tables2</span> <span class="kn">as</span> <span class="nn">tables</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">itertools</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">SimpleTable</span><span class="p">(</span><span class="n">tables</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">row_number</span> <span class="o">=</span> <span class="n">tables</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">empty_values</span><span class="o">=</span><span class="p">())</span>
+<span class="gp">... </span>    <span class="nb">id</span> <span class="o">=</span> <span class="n">tables</span><span class="o">.</span><span class="n">Column</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">age</span> <span class="o">=</span> <span class="n">tables</span><span class="o">.</span><span class="n">Column</span><span class="p">()</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="nb">super</span><span class="p">(</span><span class="n">SimpleTable</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+<span class="gp">... </span>        <span class="bp">self</span><span class="o">.</span><span class="n">counter</span> <span class="o">=</span> <span class="n">itertools</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">render_row_number</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="s1">&#39;Row </span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">counter</span><span class="p">)</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">render_id</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="s1">&#39;&lt;</span><span class="si">%s</span><span class="s1">&gt;&#39;</span> <span class="o">%</span> <span class="n">value</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">table</span> <span class="o">=</span> <span class="n">SimpleTable</span><span class="p">([{</span><span class="s1">&#39;age&#39;</span><span class="p">:</span> <span class="mi">31</span><span class="p">,</span> <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="mi">10</span><span class="p">},</span> <span class="p">{</span><span class="s1">&#39;age&#39;</span><span class="p">:</span> <span class="mi">34</span><span class="p">,</span> <span class="s1">&#39;id&#39;</span><span class="p">:</span> <span class="mi">11</span><span class="p">}])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">cell</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+<span class="gp">... </span>    <span class="k">print</span> <span class="n">cell</span>
+<span class="gp">...</span>
+<span class="go">Row 0</span>
+<span class="go">&lt;10&gt;</span>
+<span class="go">31</span>
+</pre></div>
+</div>
+<p>Python&#8217;s <a class="reference external" href="http://docs.python.org/dev/library/inspect.html#inspect.getargspec" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">inspect.getargspec</span></code></a> is used to only pass the arguments declared by the
+function. This means it&#8217;s not necessary to add a catch all (<code class="docutils literal"><span class="pre">**</span></code>) keyword
+argument.</p>
+<div class="admonition important">
+<p class="first admonition-title">Important</p>
+<p class="last"><code class="xref py py-obj docutils literal"><span class="pre">render</span></code> methods are <em>only</em> called if the value for a cell is determined to
+be not an <a class="reference internal" href="glossary.html#term-empty-value"><span class="xref std std-term">empty value</span></a>. When a value is in <code class="xref py py-obj docutils literal"><span class="pre">Column.empty_values</span></code>,
+a default value is rendered instead (both <code class="xref py py-obj docutils literal"><span class="pre">Column.render</span></code> and
+<code class="docutils literal"><span class="pre">Table.render_FOO</span></code> are skipped).</p>
+</div>
+</div>
+<div class="section" id="subclassing-column">
+<span id="id2"></span><h2>Subclassing <a class="reference internal" href="api-reference.html#django_tables2.columns.Column" title="django_tables2.columns.Column"><code class="xref py py-obj docutils literal"><span class="pre">Column</span></code></a><a class="headerlink" href="#subclassing-column" title="Permalink to this headline">¶</a></h2>
+<p>Defining a column subclass allows functionality to be reused across tables.
+Columns have a <code class="xref py py-obj docutils literal"><span class="pre">render</span></code> method that behaves the same as <a class="reference internal" href="#table-render-foo"><span>Table.render_FOO() methods</span></a>
+methods on tables:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">django_tables2</span> <span class="kn">as</span> <span class="nn">tables</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">UpperColumn</span><span class="p">(</span><span class="n">tables</span><span class="o">.</span><span class="n">Column</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">Example</span><span class="p">(</span><span class="n">tables</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="n">normal</span> <span class="o">=</span> <span class="n">tables</span><span class="o">.</span><span class="n">Column</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">upper</span> <span class="o">=</span> <span class="n">UpperColumn</span><span class="p">()</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="p">[{</span><span class="s1">&#39;normal&#39;</span><span class="p">:</span> <span class="s1">&#39;Hi there!&#39;</span><span class="p">,</span>
+<span class="gp">... </span>         <span class="s1">&#39;upper&#39;</span><span class="p">:</span>  <span class="s1">&#39;Hi there!&#39;</span><span class="p">}]</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">table</span> <span class="o">=</span> <span class="n">Example</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">table</span><span class="o">.</span><span class="n">as_html</span><span class="p">()</span>
+<span class="go">u&#39;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Normal&lt;/th&gt;&lt;th&gt;Upper&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Hi there!&lt;/td&gt;&lt;td&gt;HI THERE!&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;&lt;/table&gt;\n&#39;</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="#table-render-foo"><span>Table.render_FOO() methods</span></a> for a list of arguments that can be accepted.</p>
+<p>For complicated columns, you may want to return HTML from the
+<code class="xref py py-meth docutils literal"><span class="pre">render()</span></code> method. This is fine, but be sure to mark the string as
+safe to avoid it being escaped:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">django.utils.safestring</span> <span class="kn">import</span> <span class="n">mark_safe</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">django.utils.html</span> <span class="kn">import</span> <span class="n">escape</span>
+<span class="go">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">ImageColumn</span><span class="p">(</span><span class="n">tables</span><span class="o">.</span><span class="n">Column</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<span class="gp">... </span>        <span class="k">return</span> <span class="n">mark_safe</span><span class="p">(</span><span class="s1">&#39;&lt;img src=&quot;/media/img/</span><span class="si">%s</span><span class="s1">.jpg&quot; /&gt;&#39;</span>
+<span class="gp">... </span>                         <span class="o">%</span> <span class="n">escape</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+<span class="gp">...</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="css">
+<span id="id3"></span><h2>CSS<a class="headerlink" href="#css" title="Permalink to this headline">¶</a></h2>
+<p>In order to use CSS to style a table, you&#8217;ll probably want to add a
+<code class="docutils literal"><span class="pre">class</span></code> or <code class="docutils literal"><span class="pre">id</span></code> attribute to the <code class="docutils literal"><span class="pre">&lt;table&gt;</span></code> element. django-tables2 has
+a hook that allows abitrary attributes to be added to the <code class="docutils literal"><span class="pre">&lt;table&gt;</span></code> tag.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">django_tables2</span> <span class="kn">as</span> <span class="nn">tables</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">class</span> <span class="nc">SimpleTable</span><span class="p">(</span><span class="n">tables</span><span class="o">.</span><span class="n">Table</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="nb">id</span> <span class="o">=</span> <span class="n">tables</span><span class="o">.</span><span class="n">Column</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">age</span> <span class="o">=</span> <span class="n">tables</span><span class="o">.</span><span class="n">Column</span><span class="p">()</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="k">class</span> <span class="nc">Meta</span><span class="p">:</span>
+<span class="gp">... </span>        <span class="n">attrs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;class&#39;</span><span class="p">:</span> <span class="s1">&#39;mytable&#39;</span><span class="p">}</span>
+<span class="gp">...</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">table</span> <span class="o">=</span> <span class="n">SimpleTable</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">table</span><span class="o">.</span><span class="n">as_html</span><span class="p">()</span>
+<span class="go">&#39;&lt;table class=&quot;mytable&quot;&gt;...&#39;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="custom-template">
+<span id="id4"></span><h2>Custom Template<a class="headerlink" href="#custom-template" title="Permalink to this headline">¶</a></h2>
+<p>And of course if you want full control over the way the table is rendered,
+ignore the built-in generation tools, and instead pass an instance of your
+<a class="reference internal" href="api-reference.html#django_tables2.tables.Table" title="django_tables2.tables.Table"><code class="xref py py-obj docutils literal"><span class="pre">Table</span></code></a> subclass into your own template, and render it yourself.</p>
+<p>Have a look at the <code class="docutils literal"><span class="pre">django_tables2/table.html</span></code> template for an example.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="../index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Custom rendering</a><ul>
+<li><a class="reference internal" href="#table-render-foo-methods"><code class="docutils literal"><span class="pre">Table.render_FOO()</span></code> methods</a></li>
+<li><a class="reference internal" href="#subclassing-column">Subclassing <code class="docutils literal"><span class="pre">Column</span></code></a></li>
+<li><a class="reference internal" href="#css">CSS</a></li>
+<li><a class="reference internal" href="#custom-template">Custom Template</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="pagination.html"
+                        title="previous chapter">Pagination</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="query-string-fields.html"
+                        title="next chapter">Querystring fields</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/pages/custom-rendering.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="query-string-fields.html" title="Querystring fields"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="pagination.html" title="Pagination"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>

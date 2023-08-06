@@ -1,0 +1,281 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>django_tables2.rows &mdash; django-tables2 1.1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="django-tables2 1.1.2 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for django_tables2.rows</h1><div class="highlight"><pre>
+<span class="c1"># coding: utf-8</span>
+<span class="kn">from</span> <span class="nn">django.db</span> <span class="kn">import</span> <span class="n">models</span>
+<span class="kn">from</span> <span class="nn">django.db.models.fields</span> <span class="kn">import</span> <span class="n">FieldDoesNotExist</span>
+<span class="kn">from</span> <span class="nn">django.utils</span> <span class="kn">import</span> <span class="n">six</span>
+
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">A</span><span class="p">,</span> <span class="n">getargspec</span>
+
+
+<div class="viewcode-block" id="BoundRow"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.rows.BoundRow">[docs]</a><span class="k">class</span> <span class="nc">BoundRow</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents a *specific* row in a table.</span>
+
+<span class="sd">    `.BoundRow` objects are a container that make it easy to access the</span>
+<span class="sd">    final &#39;rendered&#39; values for cells in a row. You can simply iterate over a</span>
+<span class="sd">    `.BoundRow` object and it will take care to return values rendered</span>
+<span class="sd">    using the correct method (e.g. :ref:`table.render_FOO`)</span>
+
+<span class="sd">    To access the rendered value of each cell in a row, just iterate over it:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        &gt;&gt;&gt; import django_tables2 as tables</span>
+<span class="sd">        &gt;&gt;&gt; class SimpleTable(tables.Table):</span>
+<span class="sd">        ...     a = tables.Column()</span>
+<span class="sd">        ...     b = tables.CheckBoxColumn(attrs={&#39;name&#39;: &#39;my_chkbox&#39;})</span>
+<span class="sd">        ...</span>
+<span class="sd">        &gt;&gt;&gt; table = SimpleTable([{&#39;a&#39;: 1, &#39;b&#39;: 2}])</span>
+<span class="sd">        &gt;&gt;&gt; row = table.rows[0]  # we only have one row, so let&#39;s use it</span>
+<span class="sd">        &gt;&gt;&gt; for cell in row:</span>
+<span class="sd">        ...     print(cell)</span>
+<span class="sd">        ...</span>
+<span class="sd">        1</span>
+<span class="sd">        &lt;input type=&quot;checkbox&quot; name=&quot;my_chkbox&quot; value=&quot;2&quot; /&gt;</span>
+
+<span class="sd">    Alternatively you can treat it like a list and use indexing to retrieve a</span>
+<span class="sd">    specific cell. It should be noted that this will raise an IndexError on</span>
+<span class="sd">    failure.</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        &gt;&gt;&gt; row[0]</span>
+<span class="sd">        1</span>
+<span class="sd">        &gt;&gt;&gt; row[1]</span>
+<span class="sd">        u&#39;&lt;input type=&quot;checkbox&quot; name=&quot;my_chkbox&quot; value=&quot;2&quot; /&gt;&#39;</span>
+<span class="sd">        &gt;&gt;&gt; row[2]</span>
+<span class="sd">        ...</span>
+<span class="sd">        IndexError: list index out of range</span>
+
+<span class="sd">    Finally you can also treat it like a dictionary and use column names as the</span>
+<span class="sd">    keys. This will raise KeyError on failure (unlike the above indexing using</span>
+<span class="sd">    integers).</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        &gt;&gt;&gt; row[&#39;a&#39;]</span>
+<span class="sd">        1</span>
+<span class="sd">        &gt;&gt;&gt; row[&#39;b&#39;]</span>
+<span class="sd">        u&#39;&lt;input type=&quot;checkbox&quot; name=&quot;my_chkbox&quot; value=&quot;2&quot; /&gt;&#39;</span>
+<span class="sd">        &gt;&gt;&gt; row[&#39;c&#39;]</span>
+<span class="sd">        ...</span>
+<span class="sd">        KeyError: &#39;c&#39;</span>
+
+<span class="sd">    :param  table: is the `.Table` in which this row exists.</span>
+<span class="sd">    :param record: a single record from the :term:`table data` that is used to</span>
+<span class="sd">                   populate the row. A record could be a `~django.db.Model`</span>
+<span class="sd">                   object, a `dict`, or something else.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_record</span> <span class="o">=</span> <span class="n">record</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_table</span> <span class="o">=</span> <span class="n">table</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">table</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The associated `.Table` object.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_table</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">record</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The data record from the data source which is used to populate this row</span>
+<span class="sd">        with data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record</span>
+
+<div class="viewcode-block" id="BoundRow.__iter__"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.rows.BoundRow.__iter__">[docs]</a>    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Iterate over the rendered values for cells in the row.</span>
+
+<span class="sd">        Under the hood this method just makes a call to</span>
+<span class="sd">        `.BoundRow.__getitem__` for each cell.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">column</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="c1"># this uses __getitem__, using the name (rather than the accessor)</span>
+            <span class="c1"># is correct – it&#39;s what __getitem__ expects.</span>
+            <span class="k">yield</span> <span class="n">value</span></div>
+
+<div class="viewcode-block" id="BoundRow.__getitem__"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.rows.BoundRow.__getitem__">[docs]</a>    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the final rendered value for a cell in the row, given the name</span>
+<span class="sd">        of a column.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">bound_column</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="c1"># We need to take special care here to allow get_FOO_display()</span>
+        <span class="c1"># methods on a model to be used if available. See issue #30.</span>
+        <span class="n">path</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">remainder</span> <span class="o">=</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">accessor</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+        <span class="n">penultimate</span> <span class="o">=</span> <span class="n">A</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="c1"># If the penultimate is a model and the remainder is a field</span>
+        <span class="c1"># using choices, use get_FOO_display().</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">penultimate</span><span class="p">,</span> <span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">field</span> <span class="o">=</span> <span class="n">penultimate</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">get_field</span><span class="p">(</span><span class="n">remainder</span><span class="p">)</span>
+                <span class="n">display</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">penultimate</span><span class="p">,</span> <span class="s1">&#39;get_</span><span class="si">%s</span><span class="s1">_display&#39;</span> <span class="o">%</span> <span class="n">remainder</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="s2">&quot;choices&quot;</span><span class="p">,</span> <span class="p">())</span> <span class="ow">and</span> <span class="n">display</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">display</span><span class="p">()</span>
+                    <span class="n">remainder</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">except</span> <span class="n">FieldDoesNotExist</span><span class="p">:</span>
+                <span class="k">pass</span>
+        <span class="c1"># Fall back to just using the original accessor (we just need</span>
+        <span class="c1"># to follow the remainder).</span>
+        <span class="k">if</span> <span class="n">remainder</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">A</span><span class="p">(</span><span class="n">remainder</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">penultimate</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">empty_values</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">default</span>
+
+        <span class="n">available</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="n">value</span><span class="p">,</span>
+            <span class="s1">&#39;record&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">,</span>
+            <span class="s1">&#39;column&#39;</span><span class="p">:</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">column</span><span class="p">,</span>
+            <span class="s1">&#39;bound_column&#39;</span><span class="p">:</span> <span class="n">bound_column</span><span class="p">,</span>
+            <span class="s1">&#39;bound_row&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="p">,</span>
+            <span class="s1">&#39;table&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_table</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">expected</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># provide only the arguments expected by `render`</span>
+        <span class="n">argspec</span> <span class="o">=</span> <span class="n">getargspec</span><span class="p">(</span><span class="n">bound_column</span><span class="o">.</span><span class="n">render</span><span class="p">)</span>
+        <span class="n">args</span><span class="p">,</span> <span class="n">varkw</span> <span class="o">=</span> <span class="n">argspec</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">argspec</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">varkw</span><span class="p">:</span>
+            <span class="n">expected</span> <span class="o">=</span> <span class="n">available</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">available</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                    <span class="n">expected</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="k">return</span> <span class="n">bound_column</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="o">**</span><span class="n">expected</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BoundRow.__contains__"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.rows.BoundRow.__contains__">[docs]</a>    <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check by both row object and column name.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span></div>
+
+<div class="viewcode-block" id="BoundRow.items"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.rows.BoundRow.items">[docs]</a>    <span class="k">def</span> <span class="nf">items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns iterator yielding ``(bound_column, cell)`` pairs.</span>
+
+<span class="sd">        *cell* is ``row[name]`` -- the rendered unicode value that should be</span>
+<span class="sd">        ``rendered within ``&lt;td&gt;``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="bp">self</span><span class="p">[</span><span class="n">column</span><span class="o">.</span><span class="n">name</span><span class="p">])</span></div></div>
+
+
+<div class="viewcode-block" id="BoundRows"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.rows.BoundRows">[docs]</a><span class="k">class</span> <span class="nc">BoundRows</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Container for spawning `.BoundRow` objects.</span>
+
+<span class="sd">    :param  data: iterable of records</span>
+<span class="sd">    :param table: the table in which the rows exist</span>
+
+<span class="sd">    This is used for `.Table.rows`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">table</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">BoundRow</span><span class="p">(</span><span class="n">record</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+<div class="viewcode-block" id="BoundRows.__getitem__"><a class="viewcode-back" href="../../pages/internal.html#django_tables2.rows.BoundRows.__getitem__">[docs]</a>    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Slicing returns a new `.BoundRows` instance, indexing returns a single</span>
+<span class="sd">        `.BoundRow` instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">container</span> <span class="o">=</span> <span class="n">BoundRows</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">)</span> <span class="k">else</span> <span class="n">BoundRow</span>
+        <span class="k">return</span> <span class="n">container</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">table</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>
