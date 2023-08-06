@@ -1,0 +1,18 @@
+[![PyPI Python Versions](https://img.shields.io/pypi/pyversions/flowtool-python.svg)](https://pypi.python.org/pypi/flowtool-python)
+[![PyPI Latest Version](https://img.shields.io/pypi/v/flowtool-python.svg)](https://pypi.python.org/pypi/flowtool-python)
+[![PyPI Distribution Format](https://img.shields.io/pypi/format/flowtool-python.svg)](https://pypi.python.org/pypi/flowtool-python)
+
+# flowtool-python
+
+Helpers for python devs.
+
+## Contents
+
+The `flowtool-python` package currently contains one new command for `flowtool`:
+
+* `py-clean` - recursively cleans temporary files (`*.pyc`) and directories (`__pycache__`).
+
+The hooks have been moved to `flowtool-githooks-demo`
+
+
+
