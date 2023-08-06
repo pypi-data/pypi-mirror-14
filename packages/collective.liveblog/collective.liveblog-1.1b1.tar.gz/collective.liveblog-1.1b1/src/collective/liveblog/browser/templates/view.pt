@@ -1,0 +1,105 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+    xmlns:tal="http://xml.zope.org/namespaces/tal"
+    xmlns:metal="http://xml.zope.org/namespaces/metal"
+    metal:use-macro="context/main_template/macros/master"
+    xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+    i18n:domain="collective.liveblog">
+<body>
+  <metal:block fill-slot="main">
+    <div id="spinner" tal:condition="view/automatic_updates_enabled"
+        i18n:translate="">Live updating</div>
+    <article itemscope itemtype="http://schema.org/BlogPosting">
+      <header>
+        <div tal:replace="structure provider:plone.abovecontenttitle" />
+        <h1 class="documentFirstHeading" itemprop="headline"
+            tal:content="context/Title">
+          Title
+        </h1>
+        <div tal:replace="structure provider:plone.belowcontenttitle" />
+        <div class="documentDescription" itemprop="description"
+            tal:content="context/Description">
+          Description
+        </div>
+      </header>
+      <div tal:replace="structure provider:plone.abovecontentbody" />
+      <div id="content-core" itemprop="articleBody">
+    <section id="micro-updates">
+      <article class="microupdate" data-timestamp="" itemprop="comment" itemscope itemtype="http://schema.org/Comment"
+          tal:repeat="update view/updates"
+          tal:attributes="data-timestamp update/timestamp">
+        <h2 class="microupdate-title" itemprop="headline"
+            tal:condition="update/title"
+            tal:content="update/title" />
+        <div class="microupdate-text" itemprop="text"
+            tal:content="structure update/text" />
+        <div class="microupdate-byline">
+          <p tal:condition="view/show_byline" i18n:translate="">
+              By
+            <span itemprop="author"
+                tal:content="update/creator"
+                i18n:name="byline" />
+          </p>
+          <time itemprop="datePublished" title="2014-08-28 14h31" datetime="2014-08-28T14:31:02.402"
+              tal:attributes="datetime update/isoformat;
+                              title update/datetime;
+                              data-date update/date;
+                              data-time update/time">
+            <span class="microupdate-time" tal:content="update/time" />
+          </time>
+        </div>
+      </article>
+      <div class="microupdate" data-timestamp=""
+          tal:condition="not:view/has_updates"
+          tal:attributes="data-timestamp view/now">
+        <p class="microupdate-title">
+          <strong i18n:translate="">No micro-updates yet for this Liveblog.</strong>
+        </p>
+      </div>
+    </section>
+      </div>
+      <div tal:replace="structure provider:plone.belowcontentbody" />
+    </article>
+    <script>
+        /* show dates for micro-updates older than today */
+        var today = new Date().toISOString().substr(0, 10);
+        $("time").each(function () {
+            "use strict";
+            var datetime = $(this).attr("datetime").substr(0, 10),
+                date = $(this).attr("data-date"),
+                time = $(this).attr("data-time");
+            if (today > datetime) {
+                $(this).html("<span class='microupdate-date'>" + date + "</span> " +
+                    "<span class='microupdate-time'>" + time + "</span>");
+            }
+        });
+    </script>
+    <script tal:condition="view/automatic_updates_enabled">
+        /* keep page updated */
+        setInterval(function () {
+            "use strict";
+            $.ajax({
+                url: "recent-updates",
+                success: function (data) {
+                    $("#micro-updates").prepend(data).fadeIn("slow");
+                    /* in some cases a micro-update could be duplicated; remove it */
+                    var seen = {};
+                    $(".microupdate").each(function () {
+                        var timestamp = $(this).attr("data-timestamp");
+                        if (seen[timestamp]) {
+                            $(this).remove();
+                        } else {
+                            seen[timestamp] = true;
+                        }
+                    });
+                },
+                statusCode: {
+                    205: function () {
+                        window.location.reload();
+                    }
+                }
+            });
+        }, 1000 * 60);
+    </script>
+  </metal:block>
+</body>
+</html>
