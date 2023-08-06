@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+{% load compressed djblets_deco djblets_extensions djblets_utils i18n %}
+{% load staticfiles %}
+
+<html>
+ <head>
+  <meta http-equiv="X-UA-Compatible" content="IE=10; IE=9; IE=8; IE=7; IE=EDGE" />
+  <title>{% block title %}{% endblock %} | Review Board</title>
+{% block extrahead %}{% endblock %}
+{% template_hook_point "base-extrahead" %}
+  <script type="text/javascript">
+    var AJAX_SERIAL = "{{AJAX_SERIAL}}",
+        TEMPLATE_SERIAL = "{{settings.TEMPLATE_SERIAL}}",
+        SITE_ROOT = "{{SITE_ROOT}}",
+        MANUAL_URL = '{{RB_MANUAL_URL}}',
+        STATIC_URLS = {
+            'rb/images/favicon_notify.ico': '{% static "rb/images/favicon_notify.ico" %}',
+            'rb/images/resize-grip.png': '{% static "rb/images/resize-grip.png" %}',
+            'rb/images/spinner.gif': '{% static "rb/images/spinner.gif" %}'
+        };
+{% block jsconsts %}{% endblock %}
+  </script>
+  <link rel="shortcut icon" type="image/x-icon" href="{% static "rb/images/favicon.ico" %}" />
+  <link rel="apple-touch-icon-precomposed" type="image/png" href="{% static "rb/images/apple-home-icon.png" %}" />
+{% compressed_css "common" %}
+{% block css %}{% endblock %}
+{% load_extensions_css "reviewboard.extensions" %}
+{% template_hook_point "base-css" %}
+  <!--[if lt IE 7.]>
+  <style type="text/css">
+    body {
+      behavior: url("{% static "lib/js/csshover2.htc" %}");
+    }
+
+    img,
+    table.sidebyside .commentflag,
+    .box.important .box-inner {
+      behavior: url("{% static "lib/js/pngfix.htc" %}");
+    }
+{% block ie6_csshacks %}{% endblock %}
+  </style>
+  <![endif]-->
+  <!--[if lt IE 8.]>
+  <link rel="stylesheet" type="text/css" href="{% static "rb/css/ie_hacks.css" %}"></script>
+  <![endif]-->
+{% include "js/jquery.html" %}
+{% block scripts %}{% endblock %}
+{% include "js/pipeline.html" %}
+{% template_hook_point "base-scripts" %}
+ </head>
+{% block bodytag %}
+ <body>
+{% endblock %}
+  <div id="container">
+
+{% block headerbar %}
+{%  include "base/headerbar.html" %}
+{%  template_hook_point "base-before-navbar" %}
+   <div id="navbar-container">
+{%  block navbar %}
+{%   include "base/navbar.html" %}
+{%  endblock %}
+{%  template_hook_point "base-after-navbar" %}
+{%  block navbar_post %}{% endblock %}
+   </div>
+{% endblock %}
+
+   <div id="page-container">
+    <noscript>
+{%  box "important" %}
+     <h1>{% trans "JavaScript is turned off" %}</h1>
+     <p>{% blocktrans %}Review Board requires JavaScript in order to function.
+     Please turn it on in your browser preferences.{% endblocktrans %}</p>
+     <p>{% blocktrans %}Firefox users: if you prefer to turn on JavaScript only
+     for specific sites, we recommend the
+     <a href="https://addons.mozilla.org/en-US/firefox/addon/722">NoScript
+     extension</a>.{% endblocktrans %}</p>
+{%  endbox %}
+    </noscript>
+    <div id="error"></div>
+	<div id="container">
+     {% block contenttag %}<div id="content">{% endblock %}
+{% template_hook_point "base-before-content" %}
+{% block main_content %}
+{%  block content %}{% endblock %}
+{% endblock %}
+{% template_hook_point "base-after-content" %}
+     </div>
+    </div>
+   </div>
+  </div>
+  <script src="{% url 'js-catalog' %}"></script>
+  {% include "js/jquery-ui.html" %}
+  {% compressed_js "3rdparty" %}
+  {% compressed_js "djblets-gravy" %}
+  {% compressed_js "djblets-extensions" %}
+  {% compressed_js "common" %}
+  <script>
+    RB.UserSession.create({
+{% if request.user.is_authenticated %}
+        authenticated: true,
+{%  if user_profile %}
+        commentsOpenAnIssue: {{user_profile.open_an_issue|yesno:"true,false"}},
+{%  endif %}
+        defaultUseRichText: {{user_profile.should_use_rich_text|yesno:"true,false"}},
+        fullName: "{{request.user|user_displayname|escapejs}}",
+        username: "{{request.user.username|escapejs}}",
+        userPageURL: "{% url 'user' request.user %}",
+        sessionURL: "{% url 'session-resource' %}",
+        timezoneOffset: "{% now 'O' %}",
+        watchedReviewGroupsURL: "{% url 'watched-review-groups-resource' request.user %}",
+        watchedReviewRequestsURL: "{% url 'watched-review-requests-resource' request.user %}"
+{% else %}
+        authenticated: false,
+        loginURL: "{% url 'login' %}"
+{% endif %}
+    });
+  </script>
+{% block scripts-post %}{% endblock %}
+{% block js_extensions %}
+{%  load_extensions_js "reviewboard.extensions" %}
+{%  init_js_extensions "reviewboard.extensions" %}
+{% endblock %}
+{% template_hook_point "base-scripts-post" %}
+ </body>
+</html>

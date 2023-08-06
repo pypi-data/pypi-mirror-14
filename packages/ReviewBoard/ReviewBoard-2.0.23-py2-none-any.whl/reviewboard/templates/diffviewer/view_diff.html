@@ -1,0 +1,94 @@
+{% extends "reviews/reviewable_base.html" %}
+{% load difftags djblets_deco djblets_js djblets_utils i18n rb_extensions reviewtags %}
+{% load staticfiles tz %}
+
+{% block title %}{{review_request_details.summary}} | {% trans "Diff Viewer" %}{% endblock %}
+
+{% block css %}
+{{block.super}}
+
+{%  if siteconfig_settings.diffviewer_show_trailing_whitespace %}
+<style type="text/css">
+  #diffs.ewhl table.sidebyside .ew { background: #ee3434; }
+</style>
+{%  endif %}
+{% endblock css %}
+
+{% block content %}
+{%  if error %}
+{%   errorbox %}
+<h2>{% trans "There was an internal error displaying the diff." %}</h2>
+<p><b>{% blocktrans %}Details:</b> {{error}}{% endblocktrans %}</p>
+{%    if request.user.is_superuser %}
+{%     if trace %}<pre>{{trace|escape}}</pre>{% endif %}
+{%    endif %}
+{%   enderrorbox %}
+{%  else %}{# !error #}
+
+<div id="review_request">
+{%   include "reviews/trophy_box.html" %}
+{%   include "reviews/review_header.html" %}
+
+{%   box "review-request" %}
+<div class="actions-container">
+{%    star review_request %}
+ <ul class="actions">
+{%    include "reviews/review_request_actions_secondary.html" %}
+{%    diffviewer_action_hooks %}
+  <li class="primary" id="download-diff" {% if interdiffset %}style="display: none;"{% endif %}><a href="raw/">{% trans "Download Diff" %}</a></li>
+{%    include "reviews/review_request_actions_primary.html" %}
+  <li class="primary"><a href="{{review_request.get_absolute_url}}">{% trans "View Reviews" %}</a></li>
+ </ul>
+</div>
+
+<div class="main">
+{%    include "reviews/review_request_box.html" %}
+
+<div id="diff-details" class="content loading">
+ <a name="index_header"></a>
+ <div id="diff_revision_label"></div>
+  <div id="diff_revision_selector"></div>
+  <div id="diff_comments_hint"></div>
+  <div id="diff_index"></div>
+  <div id="pagination1"></div>
+ </div>
+</div>
+
+<ul class="controls">
+{%    if collapseall %}
+ <li><a href=".?expand=1"><div class="rb-icon rb-icon-expand"></div> {% trans "Expand changes" %}</a></li>
+{%    else %}
+ <li><a href=".?collapse=1"><div class="rb-icon rb-icon-collapse"></div> {% trans "Collapse changes" %}</a></li>
+{%    endif %}
+{%    if siteconfig_settings.diffviewer_show_trailing_whitespace %}
+ <li class="ew" style="display:none;"><a href="#" class="toggle-show-whitespace"><div class="rb-icon rb-icon-collapse"></div> {% trans "Hide extra whitespace" %}</a></li>
+ <li class="ew"><a href="#" class="toggle-show-whitespace"><div class="rb-icon rb-icon-expand"></div> {% trans "Show extra whitespace" %}</a></li>
+{%    endif %}
+ <li class="ws"><a href="#" class="toggle-whitespace-only-chunks"><div class="rb-icon rb-icon-collapse"></div> {% trans "Hide whitespace changes" %}</a></li>
+ <li  class="ws" style="display:none;"><a href="#" class="toggle-whitespace-only-chunks"><div class="rb-icon rb-icon-expand"></div> {% trans "Show whitespace changes" %}</a></li>
+</ul>
+{%   endbox %}
+
+<div id="diffs"></div>
+<div id="pagination2"></div>
+
+{%  endif %}{# !error #}
+{% endblock content %}
+
+{% block scripts-post %}
+{{block.super}}
+
+{%  if not error %}
+<script>
+    RB.PageManager.setPage(new RB.DiffViewerPageView({
+        model: new RB.DiffViewerPageModel({{diff_context|json_dumps}},
+                                          {parse: true}),
+        checkUpdatesType: 'diff',
+{%  localtime off %}
+        lastActivityTimestamp: {{last_activity_time|json_dumps}},
+{%  endlocaltime %}
+{%  include "reviews/reviewable_page_data.js" %}
+    }));
+</script>
+{%  endif %}{# !error #}
+{% endblock scripts-post %}
