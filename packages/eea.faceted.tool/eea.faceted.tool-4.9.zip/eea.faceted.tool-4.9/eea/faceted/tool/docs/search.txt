@@ -1,0 +1,105 @@
+Search using faceted tool
+=========================
+You can define custom portal types as a pair of object_provides and portal_type
+then you can search catalog for this new custom portal types.
+
+Set up
+------
+
+    >>> self.loginAsPortalOwner()
+    >>> faceted = portal.portal_faceted
+    >>> add = faceted.unrestrictedTraverse('@@add')
+
+    >>> from zope.interface import Interface
+    >>> class IFacetedFoo(Interface):
+    ...     ''' Faceted Foo interface '''
+    >>> IFacetedFoo.__identifier__
+    '__builtin__.IFacetedFoo'
+
+Add some context
+
+    >>> fid = portal.invokeFactory('Folder', 'sandbox', title='Test Faceted Tool search')
+    >>> sandbox = portal._getOb(fid)
+    >>> from zope.interface import directlyProvides, directlyProvidedBy
+    >>> directlyProvides(sandbox, directlyProvidedBy(sandbox), IFacetedFoo)
+    >>> sandbox.reindexObject()
+
+Search
+------
+
+Add some faceted types
+
+    >>> data = {
+    ... 'title': 'Faceted Test type',
+    ... 'search_interface': '__builtin__.IFacetedFoo',
+    ... 'search_type': 'Folder',
+    ... }
+    >>> faceted_type = add.createAndAdd(data)
+    >>> faceted_type
+    <PortalType at Faceted Test type>
+
+Do some search
+
+    >>> brains = faceted.search(portal_type=faceted_type.getId())
+    >>> [brain.getURL() for brain in brains]
+    ['http://nohost/plone/sandbox']
+
+    >>> brains = faceted.search(
+    ...     portal_type=faceted_type.getId(),
+    ...     title='Tool search'
+    ... )
+    >>> [brain.getURL() for brain in brains]
+    ['http://nohost/plone/sandbox']
+
+You can also map only object_provides index to a user friendly label
+
+    >>> data = {
+    ... 'title': 'Foo',
+    ... 'search_interface': '__builtin__.IFacetedFoo',
+    ... }
+    >>> faceted_type = add.createAndAdd(data)
+    >>> faceted_type
+    <PortalType at Foo>
+
+    >>> brains = faceted.search(portal_type=faceted_type.getId())
+    >>> [brain.getURL() for brain in brains]
+    ['http://nohost/plone/sandbox']
+
+... or you can map only portal_type index to something more meaningful
+
+    >>> data = {
+    ... 'title': 'Default plone folder',
+    ... 'search_type': 'Folder',
+    ... }
+    >>> faceted_type = add.createAndAdd(data)
+    >>> faceted_type
+    <PortalType at Default plone folder>
+
+    >>> brains = faceted.search(portal_type=faceted_type.getId())
+    >>> urls = [brain.getURL() for brain in brains]
+    >>> 'http://nohost/plone/sandbox' in urls
+    True
+
+If you want to filter brains using index _apply_index method you can use
+catalog.apply_index
+
+    >>> ctool = portal.portal_catalog
+    >>> index = ctool._catalog.getIndex('portal_type')
+    >>> rset, u = faceted.apply_index(index, 'Foo')
+    >>> [ctool.getpath(rid) for rid in rset]
+    ['/plone/sandbox']
+
+    >>> rset, u = faceted.apply_index(index, 'Faceted Test type')
+    >>> [ctool.getpath(rid) for rid in rset]
+    ['/plone/sandbox']
+
+    >>> rset, u = faceted.apply_index(index, 'Default plone folder')
+    >>> brains = [ctool.getpath(rid) for rid in rset]
+    >>> brains.sort()
+    >>> brains
+    ['/plone/Members', '/plone/Members/test_user_1_', '/plone/events', '/plone/news', '/plone/sandbox']
+
+    >>> rset, u = faceted.apply_index(index, 'Document')
+    >>> brains = [ctool.getpath(rid) for rid in rset]
+    >>> brains
+    ['/plone/front-page']
