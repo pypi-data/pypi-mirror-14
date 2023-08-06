@@ -1,0 +1,134 @@
+#!python
+import os
+import json
+import stat
+
+
+def create_dir():
+    cwd = os.getcwd()
+    # settings file
+    settings = {
+        "DATASETS_LIST": {"process":["Experiment"]},
+        "PURPOSE":{
+            "data":{"folder":"data", "extension":"dat"},
+            "pickle":{"folder":"pickle", "extension":"pickle"},
+            "plots":{"folder":"plots", "extension":"pdf"},
+            "tables":{"folder": "tables", "extension":"tex"},
+        },
+        "COMPUTE":{"name":"compute", "extension":"tex"},
+        "PYTHON_MODULE":"python",
+    }
+
+    folders = [a["folder"] for a in settings["PURPOSE"].itervalues()]
+    folders.append(settings["PYTHON_MODULE"])
+    settings_path = cwd + os.sep + "settings" + os.extsep + "json"
+    if os.path.isfile(settings_path):
+        with open(settings_path, 'rb') as f:
+            settings = json.load(f)
+    else:
+        json.dump(settings, open(settings_path, 'wb'), indent=4)
+
+    for foldername in folders:
+        fullpath = cwd + os.sep + foldername + os.sep
+        if not os.path.exists(fullpath):
+            os.makedirs(fullpath)
+        fullpath += os.extsep + "keep"
+        with open(fullpath, 'a'):
+            os.utime(fullpath, None)
+    init_path = cwd + os.sep + settings["PYTHON_MODULE"] + os.sep
+    init_path += "__init__" + os.extsep + "py"
+    with open(init_path, 'a'):
+        os.utime(init_path, None)
+
+    # manage.py
+    manage_string = """#!/usr/bin/env python2.7
+\"\"\"
+Pass sys.argv to labreporthelper.manage.manage
+\"\"\"
+import sys
+import os
+import json
+import importlib
+
+
+def main():
+    \"\"\"
+    Method that interfaces with user
+    \"\"\"
+    from labreporthelper.manage import manage
+    sys.path.append(os.path.realpath(__file__))
+    settings_path = os.sep.join(os.path.realpath(__file__).split(os.sep)[:-1])
+    settings_path += os.sep + "settings" + os.extsep + "json"
+    with open(settings_path, 'rb') as settings_file:
+        settings = json.load(settings_file)
+    python_folder = settings.get("PYTHON_MODULE", "python")
+    var = importlib.import_module(python_folder + ".variables")
+    manage(settings_path, var.ROOT_DIR, sys.argv)
+
+if __name__ == "__main__":
+    main()
+"""
+    manage_path = cwd + os.sep + "manage" + os.extsep + "py"
+    with open(manage_path, "wb") as f:
+        f.write(manage_string)
+    os.chmod(manage_path, stat.S_IXUSR)
+    os.chmod(manage_path, stat.S_IXGRP)
+    os.chmod(manage_path, stat.S_IXOTH)
+    st = os.stat(manage_path)
+    os.chmod(
+        manage_path, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH |
+        stat.S_IRUSR | stat.S_IWUSR
+    )
+    # constants.py
+    constant_string = """\"\"\"
+Module to store user defined constants
+\"\"\"
+
+
+"""
+    with open(cwd + os.sep + settings["PYTHON_MODULE"] + os.sep + "constant" +
+              os.extsep + "py", 'wb') as f:
+        f.write(constant_string)
+    # process.py
+    process_string_pre = """\"\"\"
+Main Module. All operations are put here
+\"\"\"
+from labreporthelper.dataset import DataSets
+"""
+    process_string_repeat = """
+
+
+class {}(DataSets):
+    \"\"\"
+    Data Processing, Plots, LaTeX Macros, and Tables
+    \"\"\"
+    data = {{}}
+
+    def operations(self):
+        \"\"\"
+        Main operations
+        \"\"\"
+"""
+    for key, val in settings["DATASETS_LIST"].iteritems():
+        with open(cwd + os.sep + settings["PYTHON_MODULE"] + os.sep + key
+                  + os.extsep + "py", 'wb') as f:
+            f.write(process_string_pre)
+            for classname in val:
+                f.write(process_string_repeat.format(classname))
+    # variables.py
+    variables_string = """\"\"\"
+Variables
+\"\"\"
+import os
+
+# NEEDED BY labreporthelper DO NOT DELETE
+ROOT_DIR = os.sep.join(os.path.realpath(__file__).split(os.sep)[:-2])
+
+# USER DEFINED VARIABLES
+import {}.constant as constant
+"""
+    with open(cwd + os.sep + settings["PYTHON_MODULE"] + os.sep + "variables" +
+              os.extsep + "py", 'wb') as f:
+        f.write(variables_string.format(settings["PYTHON_MODULE"]))
+
+create_dir()
