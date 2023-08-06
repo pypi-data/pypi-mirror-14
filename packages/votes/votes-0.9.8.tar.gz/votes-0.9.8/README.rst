@@ -1,0 +1,151 @@
+=============================
+DRF Votes
+=============================
+
+.. image:: https://badge.fury.io/py/votes.png
+    :target: https://badge.fury.io/py/votes
+
+
+DRF Vote is a simple Django Rest Framework app to add ability to like/dislike a model.
+
+Documentation
+-------------
+
+The full documentation is at https://votes.readthedocs.org.
+
+Quickstart
+----------
+
+
+Note
+----------
+    User must be logged-in to user user-specific apis.
+
+1. Install votes::
+
+    pip install votes
+
+
+
+
+2. Add ``'votes'`` to your ``INSTALLED_APPS`` setting like this::
+
+    INSTALLED_APPS = (
+    ...
+    'votes',
+    )
+
+3. Run ``python manage.py syncdb`` to create the vote models.
+
+
+4. Declare vote field to the model you want to vote::
+
+    from votes.managers import VotableManager
+
+    class ArticleReview(models.Model):
+        ...
+        votes = VotableManager()
+
+5. Include votes url to your urls.py file::
+
+    from django.conf.urls import include
+    from django.conf.urls import url
+
+    from votes import urls
+
+    urlpatterns += [
+        url(r'^', include(urls)),
+    ]
+
+=====
+DRF Vote
+=====
+
+This is extended version of repo [django-vote](https://github.com/Beeblio/django-vote).
+
+DRF Vote is a simple Django Rest Framework app to add ability to like/dislike a model.
+
+You can read more about it on my [blog](https://medium.com/@3117Jain/vote-your-model-with-no-pain-9d7670b65bfd#.3zttxekr2).
+
+=====
+How is it different ?
+=====
+
+- Modified to work with django rest framework.
+- A new feature of disliking an object is added in this version.
+
+
+APIs
+-----------
+
+/votes/up/
+==========
+Adds a new like or dislike vote to the object
+
+* param: model, id, vote i.e. model=movies&id=359&vote=true
+* vote=option[true for up-vote, false for down-vote, None for no-vote]
+
+    This api is used for both liking and disliking the object.
+    Send
+    vote=true for like
+    vote=false for dislike
+
+/votes/down/
+==========
+Removes vote to the object
+
+* param: model, id i.e. model=movies&id=359
+
+/votes/exists/
+============
+Check if the user already voted the object
+
+* param: model, id i.e. model=movies&id=359
+
+/votes/all/
+=========
+return all instances voted by user
+
+* param: model, id i.e. model=movies&id=359
+
+/votes/count/
+=======
+Returns the number of votes for the object
+
+* param: model, id i.e. model=movies&id=359
+
+/votes/users/
+=======
+Returns a list of users who voted and their voting date
+
+* param: model, id i.e. model=movies&id=359
+
+/votes/likes/
+=======
+Returns the number of likes and dislikes for the object.
+
+* param: model, id i.e. model=movies&id=359
+
+
+
+Running Tests
+--------------
+
+Does the code actually work?
+
+::
+
+    source <YOURVIRTUALENV>/bin/activate
+    (myenv) $ pip install -r requirements-test.txt
+    (myenv) $ python runtests.py
+
+Credits
+---------
+
+Tools used in rendering this package:
+
+*  Cookiecutter_
+*  `cookiecutter-pypackage`_
+
+.. _Cookiecutter: https://github.com/audreyr/cookiecutter
+.. _`cookiecutter-djangopackage`: https://github.com/pydanny/cookiecutter-djangopackage
