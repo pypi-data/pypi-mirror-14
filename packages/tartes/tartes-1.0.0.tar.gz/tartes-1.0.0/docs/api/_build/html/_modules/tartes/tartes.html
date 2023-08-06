@@ -1,0 +1,1105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>tartes.tartes &mdash; tartes  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="tartes  documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">tartes  documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for tartes.tartes</h1><div class="highlight"><pre>
+<span class="c1"># -*-coding:utf-8 -*</span>
+<span class="c1">#</span>
+<span class="c1"># TARTES, Copyright (c) 2014, Quentin Libois, Picard Ghislain</span>
+<span class="c1"># All rights reserved.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is free software; you can redistribute it and/or</span>
+<span class="c1"># modify it under the terms of the GNU General Public License</span>
+<span class="c1"># as published by the Free Software Foundation; either version 2</span>
+<span class="c1"># of the License, or (at your option) any later version.</span>
+<span class="c1">#</span>
+<span class="c1"># This program is distributed in the hope that it will be useful,</span>
+<span class="c1"># but WITHOUT ANY WARRANTY; without even the implied warranty of</span>
+<span class="c1"># MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the</span>
+<span class="c1"># GNU General Public License for more details.</span>
+<span class="c1">#</span>
+<span class="c1"># You should have received a copy of the GNU General Public License</span>
+<span class="c1"># along with this program; if not, write to the Free Software</span>
+<span class="c1"># Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.</span>
+<span class="c1">#</span>
+
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">scipy.linalg</span> <span class="kn">import</span> <span class="n">solve_banded</span>
+
+
+<span class="kn">from</span> <span class="nn">.impurities</span> <span class="kn">import</span> <span class="n">Soot</span>
+<span class="kn">from</span> <span class="nn">.refractive_index</span> <span class="kn">import</span> <span class="n">refice1995</span><span class="p">,</span> <span class="n">refice2008</span>
+
+
+<div class="viewcode-block" id="ssa"><a class="viewcode-back" href="../../tartes.html#tartes.ssa">[docs]</a><span class="k">def</span> <span class="nf">ssa</span><span class="p">(</span><span class="n">r_opt</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">return the specific surface area (SSA) from optical radius</span>
+
+<span class="sd">:param r_opt: optical radius (m)</span>
+<span class="sd">:type r_opt: scalar or array</span>
+
+<span class="sd">:returns: SSA in m^2/kg</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">3</span><span class="o">/</span><span class="mf">917.0</span><span class="p">)</span><span class="o">/</span><span class="n">r_opt</span></div>
+
+
+<span class="n">default_B0</span> <span class="o">=</span> <span class="mf">1.6</span>  <span class="c1"># Based on Libois et al. 2014</span>
+<span class="n">default_g0</span> <span class="o">=</span> <span class="mf">0.86</span>  <span class="c1"># deduce for the b value derived from Gallet et al. 2009 SSA versus albedo measurements.</span>
+
+<span class="c1"># B0 and g0 are related to b factor in Kokhanosky and Zege 2004 or Picard et al. 2009 by:</span>
+<span class="c1"># b = 4/3*sqrt(B0/(1-g0))</span>
+
+
+<div class="viewcode-block" id="albedo"><a class="viewcode-back" href="../../tartes.html#tartes.albedo">[docs]</a><span class="k">def</span> <span class="nf">albedo</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">thickness</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+           <span class="n">g0</span><span class="o">=</span><span class="n">default_g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">default_B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="mf">0.728</span><span class="p">,</span> <span class="n">W0</span><span class="o">=</span><span class="mf">0.0611</span><span class="p">,</span>
+           <span class="n">impurities</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">Soot</span><span class="p">,</span>
+           <span class="n">soilalbedo</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">theta_inc</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+           <span class="n">refrac_index</span><span class="o">=</span><span class="s2">&quot;w2008&quot;</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">compute the spectral albedo of a snowpack specified by the profiles of SSA and density using TARTES. The underlying interface has an albedo specified by soilalbedo (0.0 by default). For semi-infinite snowpack, use thickness = None (the default value).</span>
+
+<span class="sd">:param wavelength: wavelength (m)</span>
+<span class="sd">:type wavelength: array</span>
+<span class="sd">:param SSA: surface specific area (m^2/kg) for each layer</span>
+<span class="sd">:type SSA: array</span>
+<span class="sd">:param density: density (kg/m^3)</span>
+<span class="sd">:type density: array</span>
+<span class="sd">:param thickness: thickness of each layer (m). By default is None meaning a semi-infinite medium.</span>
+<span class="sd">:type thickness: array</span>
+<span class="sd">:param g0: asymmetry parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 0.86. g0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type g0: array or scalar</span>
+<span class="sd">:param B0: absorption enhancement parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 1.6, taken from Libois et al. 2014. B0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type B0: array or scalar</span>
+<span class="sd">:param y0: Value of y of snow grains at nr=1.3 (no unit).  See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. y0 can be scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type y0: array or scalar</span>
+<span class="sd">:param W0: Value of W of snow grains at nr=1.3 (no unit). See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. W0 can be a scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type W0: array or scalar</span>
+<span class="sd">:param impurities: impurities concentration (kg/kg) in each layer. It is either a constant or an array with size equal to the number of layers. The array is 1-d if only one type of impurities is used and 2-d otherwise.</span>
+<span class="sd">:type impurities: array or scalar</span>
+<span class="sd">:param impurities_type: specify the type of impurities. By defaut it is &quot;soot&quot;. Otherwise it should be a class (or an instance) that defines the density and the imaginary part of the refractive index like the Soot class (see tartes.impurities for possible choices and to add new impurities types). It can also be a list of classes if several types of impurities are present in the snowpack. In this case, the impurities parameter must be a 2-d array.</span>
+<span class="sd">:type impurities_type: object or list of object</span>
+<span class="sd">:param soilalbedo: spectral albedo of the underlying layer (no unit). soilalbedo can be a scalar or an array like wavelength.</span>
+<span class="sd">:type soilalbedo: scalar or array</span>
+<span class="sd">:param dir_frac: fraction of directional flux over the total flux (teh default is dir_frac = 0 meaning 100% diffuse incident flux)</span>
+<span class="sd">:type dir_frac: array</span>
+<span class="sd">:param theta_inc: incident angle of direct light (degree, 0 means nadir)</span>
+<span class="sd">:type theta_inc: scalar</span>
+<span class="sd">:param refrac_index: real and imaginary parts of the refractive index for each wavelength or a string refering to Warren&#39;s paper (&quot;w2008&quot; the default or &quot;w1995&quot;)</span>
+<span class="sd">:type refrac_index: tuple of two arrays</span>
+
+<span class="sd">:returns: spectral albedo for each wavelength</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="n">mudir</span> <span class="o">=</span> <span class="n">cos</span><span class="p">(</span><span class="n">theta_inc</span><span class="o">*</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span><span class="p">)</span>
+
+    <span class="n">albedo</span> <span class="o">=</span> <span class="n">tartes</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span>
+                    <span class="n">g0</span><span class="o">=</span><span class="n">g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="n">y0</span><span class="p">,</span>
+                    <span class="n">impurities</span><span class="o">=</span><span class="n">impurities</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">impurities_type</span><span class="p">,</span>
+                    <span class="n">soilalbedo</span><span class="o">=</span><span class="n">soilalbedo</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="n">dir_frac</span><span class="p">,</span> <span class="n">mudir</span><span class="o">=</span><span class="n">mudir</span><span class="p">,</span>
+                    <span class="n">refrac_index</span><span class="o">=</span><span class="n">refrac_index</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">albedo</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,):</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">albedo</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">albedo</span></div>
+
+
+<div class="viewcode-block" id="absorption_profile"><a class="viewcode-back" href="../../tartes.html#tartes.absorption_profile">[docs]</a><span class="k">def</span> <span class="nf">absorption_profile</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">thickness</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                       <span class="n">g0</span><span class="o">=</span><span class="n">default_g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">default_B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="mf">0.728</span><span class="p">,</span> <span class="n">W0</span><span class="o">=</span><span class="mf">0.0611</span><span class="p">,</span>
+                       <span class="n">impurities</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">Soot</span><span class="p">,</span>
+                       <span class="n">soilalbedo</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">totflux</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">theta_inc</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                       <span class="n">refrac_index</span><span class="o">=</span><span class="s2">&quot;w2008&quot;</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">compute the energy absorbed in every layer and in the soil. The parameters are the same as for the albedo function. If both the albedo and the absorption_profile is needed, a direct call to the tartes function is recommended.</span>
+
+<span class="sd">:param wavelength: wavelength (m)</span>
+<span class="sd">:type wavelength: array</span>
+<span class="sd">:param SSA: surface specific area (m^2/kg) for each layer</span>
+<span class="sd">:type SSA: array</span>
+<span class="sd">:param density: density (kg/m^3)</span>
+<span class="sd">:type density: array</span>
+<span class="sd">:param thickness: thickness of each layer (m). By default is None meaning a semi-infinite medium.</span>
+<span class="sd">:type thickness: array</span>
+<span class="sd">:param g0: asymmetry parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 0.86. g0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type g0: array or scalar</span>
+<span class="sd">:param B0: absorption enhancement parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 1.6, taken from Libois et al. 2014. B0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type B0: array or scalar</span>
+<span class="sd">:param y0: Value of y of snow grains at nr=1.3 (no unit).  See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. y0 can be scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type y0: array or scalar</span>
+<span class="sd">:param W0: Value of W of snow grains at nr=1.3 (no unit). See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. W0 can be a scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type W0: array or scalar</span>
+<span class="sd">:param impurities: impurities concentration (kg/kg) in each layer. It is either a constant or an array with size equal to the number of layers. The array is 1-d if only one type of impurities is used and 2-d otherwise.</span>
+<span class="sd">:type impurities: array or scalar</span>
+<span class="sd">:param impurities_type: specify the type of impurity. By defaut it is &quot;soot&quot;. Otherwise it should be a class (or an instance) defining the density and the imaginary part of the refractive index like the Soot class (see tartes.impurities for possible choices and to add new impurities types). It can also be a list of classes if several impurities type are present in the snowpack. In this case, the impurities parameter must be a 2-d array.</span>
+<span class="sd">:type impurities_type: object or list of object</span>
+<span class="sd">:param soilalbedo: spectral albedo of the underlying (no unit). albedo can be a scalar or an array like wavelength.</span>
+<span class="sd">:type soilalbedo: scalar or array</span>
+<span class="sd">:param dir_frac: fraction of directional flux over the total flux (teh default is dir_frac = 0 meaning 100% diffuse incident flux)</span>
+<span class="sd">:type dir_frac: array</span>
+<span class="sd">:param totflux: total spectral incident flux (direct+diffuse) (W/m^2)</span>
+<span class="sd">:type totflux: array</span>
+<span class="sd">:param theta_inc: incident angle of direct light (degree, 0 means nadir)</span>
+<span class="sd">:type theta_inc: scalar</span>
+<span class="sd">:param refrac_index: real and imaginary parts of the refractive index for each wavelength or a string refering to Warren&#39;s paper (&quot;w2008&quot; the default or &quot;w1995&quot;)</span>
+<span class="sd">:type refrac_index: tuple of two arrays</span>
+
+<span class="sd">:returns: spectral absorption in every layer and in the soil. The return type is an array with the first dimension for the wavelength and the second for the layers + an extra value for the soil. If the wavelength is a scalar, the first dimension is squeezed.    </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mudir</span> <span class="o">=</span> <span class="n">cos</span><span class="p">(</span><span class="n">theta_inc</span><span class="o">*</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span><span class="p">)</span>
+
+    <span class="n">albedo</span><span class="p">,</span> <span class="n">absorption</span> <span class="o">=</span> <span class="n">tartes</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span>
+                                <span class="n">g0</span><span class="o">=</span><span class="n">g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="n">y0</span><span class="p">,</span>
+                                <span class="n">impurities</span><span class="o">=</span><span class="n">impurities</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">impurities_type</span><span class="p">,</span>
+                                <span class="n">soilalbedo</span><span class="o">=</span><span class="n">soilalbedo</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="n">dir_frac</span><span class="p">,</span> <span class="n">totflux</span><span class="o">=</span><span class="n">totflux</span><span class="p">,</span> <span class="n">mudir</span><span class="o">=</span><span class="n">mudir</span><span class="p">,</span>
+                                <span class="n">refrac_index</span><span class="o">=</span><span class="n">refrac_index</span><span class="p">,</span>
+                                <span class="n">compute_absorption</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">insert</span><span class="p">(</span><span class="n">cumsum</span><span class="p">(</span><span class="n">thickness</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">absorption</span></div>
+
+
+<div class="viewcode-block" id="irradiance_profiles"><a class="viewcode-back" href="../../tartes.html#tartes.irradiance_profiles">[docs]</a><span class="k">def</span> <span class="nf">irradiance_profiles</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">thickness</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                        <span class="n">g0</span><span class="o">=</span><span class="n">default_g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">default_B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="mf">0.728</span><span class="p">,</span> <span class="n">W0</span><span class="o">=</span><span class="mf">0.0611</span><span class="p">,</span>
+                        <span class="n">impurities</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">Soot</span><span class="p">,</span>
+                        <span class="n">soilalbedo</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">totflux</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">theta_inc</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                        <span class="n">refrac_index</span><span class="o">=</span><span class="s2">&quot;w2008&quot;</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute the upwelling and downwelling irradiance at every depth z. The parameters are the same as for the absorption_profile function plus the depths z. If both the albedo and the absorption_profile is needed, a direct call to the tartes function is recommended.</span>
+
+<span class="sd">:param wavelength: wavelength (m)</span>
+<span class="sd">:type wavelength: array</span>
+<span class="sd">:param z: depths at which the irradiance are calculated (m)</span>
+<span class="sd">:type z: array</span>
+<span class="sd">:param SSA: surface specific area (m^2/kg) for each layer</span>
+<span class="sd">:type SSA: array</span>
+<span class="sd">:param density: density (kg/m^3)</span>
+<span class="sd">:type density: array</span>
+<span class="sd">:param thickness: thickness of each layer (m). By default is None meaning a semi-infinite medium.</span>
+<span class="sd">:type thickness: array</span>
+<span class="sd">:param g0: asymmetry parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 0.86. g0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type g0: array or scalar</span>
+<span class="sd">:param B0: absorption enhancement parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 1.6, taken from Libois et al. 2014. B0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type B0: array or scalar</span>
+<span class="sd">:param y0: Value of y of snow grains at nr=1.3 (no unit).  See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. y0 can be scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type y0: array or scalar</span>
+<span class="sd">:param W0: Value of W of snow grains at nr=1.3 (no unit). See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. W0 can be a scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type W0: array or scalar</span>
+<span class="sd">:param impurities: impurities concentration (kg/kg) in each layer. It is either a constant or an array with size equal to the number of layers. The array is 1-d if only one type of impurities is used and 2-d otherwise.</span>
+<span class="sd">:type impurities: array or scalar</span>
+<span class="sd">:param impurities_type: specify the type of impurity. By defaut it is &quot;soot&quot;. Otherwise it should be a class (or an instance) defining the density and the imaginary part of the refractive index like the Soot class (see tartes.impurities for possible choices and to add new impurities types). It can also be a list of classes if several impurities type are present in the snowpack. In this case, the impurities parameter must be a 2-d array.</span>
+<span class="sd">:type impurities_type: object or list of object</span>
+<span class="sd">:param soilalbedo: spectral albedo of the underlying (no unit). soilalbedo can be a scalar or an array like wavelength.</span>
+<span class="sd">:type soilalbedo: scalar or array</span>
+<span class="sd">:param dir_frac: fraction of directional flux over the total flux (the default is dir_frac = 0 meaning 100% diffuse incident flux) at every wavelength</span>
+<span class="sd">:type dir_frac: array</span>
+<span class="sd">:param totflux: total spectral incident flux (direct+diffuse) (W/m^2)</span>
+<span class="sd">:type totflux: array</span>
+<span class="sd">:param theta_inc: incident angle of direct light (degree, 0 means nadir)</span>
+<span class="sd">:type theta_inc: scalar</span>
+<span class="sd">:param refrac_index: real and imaginary parts of the refractive index for each wavelength or a string refering to Warren&#39;s paper (&quot;w2008&quot; the default or &quot;w1995&quot;)</span>
+<span class="sd">:type refrac_index: tuple of two arrays</span>
+
+<span class="sd">:returns: a tupple with downwelling and upwelling irradiance profiles. The return type is an array with the first dimension for the wavelength and the second for the layers. If the wavelength argument is a scalar, the first dimension is squeezed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mudir</span> <span class="o">=</span> <span class="n">cos</span><span class="p">(</span><span class="n">theta_inc</span><span class="o">*</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span><span class="p">)</span>
+
+    <span class="n">albedo</span><span class="p">,</span> <span class="n">down</span><span class="p">,</span> <span class="n">up</span> <span class="o">=</span> <span class="n">tartes</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span>
+                              <span class="n">g0</span><span class="o">=</span><span class="n">g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="n">y0</span><span class="p">,</span>
+                              <span class="n">impurities</span><span class="o">=</span><span class="n">impurities</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">impurities_type</span><span class="p">,</span>
+                              <span class="n">soilalbedo</span><span class="o">=</span><span class="n">soilalbedo</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="n">dir_frac</span><span class="p">,</span> <span class="n">totflux</span><span class="o">=</span><span class="n">totflux</span><span class="p">,</span> <span class="n">mudir</span><span class="o">=</span><span class="n">mudir</span><span class="p">,</span>
+                              <span class="n">refrac_index</span><span class="o">=</span><span class="n">refrac_index</span><span class="p">,</span>
+                              <span class="n">compute_irradiance_profiles</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="n">z</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">down</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(),</span> <span class="n">up</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="actinic_profile"><a class="viewcode-back" href="../../tartes.html#tartes.actinic_profile">[docs]</a><span class="k">def</span> <span class="nf">actinic_profile</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">thickness</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                    <span class="n">g0</span><span class="o">=</span><span class="n">default_g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">default_B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="mf">0.728</span><span class="p">,</span> <span class="n">W0</span><span class="o">=</span><span class="mf">0.0611</span><span class="p">,</span>
+                    <span class="n">impurities</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">Soot</span><span class="p">,</span>
+                    <span class="n">soilalbedo</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">totflux</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">theta_inc</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                    <span class="n">refrac_index</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute the actinic flux at every depth z. The parameters are the same as for the irradiance profile.</span>
+
+<span class="sd">:param wavelength: wavelength (m)</span>
+<span class="sd">:type wavelength: array</span>
+<span class="sd">:param z: depths at which the irradiance are calculated (m)</span>
+<span class="sd">:type z: array</span>
+<span class="sd">:param SSA: surface specific area (m^2/kg) for each layer</span>
+<span class="sd">:type SSA: array</span>
+<span class="sd">:param density: density (kg/m^3)</span>
+<span class="sd">:type density: array</span>
+<span class="sd">:param thickness: thickness of each layer (m). By default is None meaning a semi-infinite medium.</span>
+<span class="sd">:type thickness: array</span>
+<span class="sd">:param g0: asymmetry parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 0.86. g0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type g0: array or scalar</span>
+<span class="sd">:param B0: absorption enhancement parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 1.6, taken from Libois et al. 2014. B0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type B0: array or scalar</span>
+<span class="sd">:param y0: Value of y of snow grains at nr=1.3 (no unit).  See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. y0 can be scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type y0: array or scalar</span>
+<span class="sd">:param W0: Value of W of snow grains at nr=1.3 (no unit). See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. W0 can be a scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type W0: array or scalar</span>
+<span class="sd">:param impurities: impurities concentration (kg/kg) in each layer. It is either a constant or an array with size equal to the number of layers. The array is 1-d if only one type of impurities is used and 2-d otherwise.</span>
+<span class="sd">:type impurities: array or scalar</span>
+<span class="sd">:param impurities_type: specify the type of impurity. By defaut it is &quot;soot&quot;. Otherwise it should be a class (or an instance) defining the density and the imaginary part of the refractive index like the Soot class (see tartes.impurities for possible choices and to add new impurities types). It can also be a list of classes if several impurities type are present in the snowpack. In this case, the impurities parameter must be a 2-d array.</span>
+<span class="sd">:type impurities_type: object or list of object</span>
+<span class="sd">:param soilalbedo: spectral albedo of the underlying (no unit). soilalbedo can be a scalar or an array like wavelength.</span>
+<span class="sd">:type soilalbedo: scalar or array</span>
+<span class="sd">:param dir_frac: fraction of directional flux over the total flux (the default is dir_frac = 0 meaning 100% diffuse incident flux) at every wavelength</span>
+<span class="sd">:type dir_frac: array</span>
+<span class="sd">:param totflux: total spectral incident flux (direct+diffuse) (W/m^2)</span>
+<span class="sd">:type totflux: array</span>
+<span class="sd">:param theta_inc: incident angle of direct light (degree, 0 means nadir)</span>
+<span class="sd">:type theta_inc: scalar</span>
+<span class="sd">:param refrac_index: real and imaginary parts of the refractive index for each wavelength or a string refering to Warren&#39;s paper (&quot;w2008&quot; the default or &quot;w1995&quot;)</span>
+<span class="sd">:type refrac_index: tuple of two arrays</span>
+
+<span class="sd">:returns: the actinic flux profile. The return type is an array with the first dimension for the wavelength and the second for the layers. If the wavelength argument is a scalar, the first dimension is squeezed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mudir</span> <span class="o">=</span> <span class="n">cos</span><span class="p">(</span><span class="n">theta_inc</span><span class="o">*</span><span class="n">pi</span><span class="o">/</span><span class="mi">180</span><span class="p">)</span>
+
+    <span class="n">albedo</span><span class="p">,</span> <span class="n">actinic</span> <span class="o">=</span> <span class="n">tartes</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span>
+                             <span class="n">g0</span><span class="o">=</span><span class="n">g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="n">y0</span><span class="p">,</span>
+                             <span class="n">impurities</span><span class="o">=</span><span class="n">impurities</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">impurities_type</span><span class="p">,</span>
+                             <span class="n">soilalbedo</span><span class="o">=</span><span class="n">soilalbedo</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="n">dir_frac</span><span class="p">,</span> <span class="n">totflux</span><span class="o">=</span><span class="n">totflux</span><span class="p">,</span> <span class="n">mudir</span><span class="o">=</span><span class="n">mudir</span><span class="p">,</span>
+                             <span class="n">refrac_index</span><span class="o">=</span><span class="n">refrac_index</span><span class="p">,</span>
+                             <span class="n">compute_actinic_profile</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">z</span><span class="o">=</span><span class="n">z</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">actinic</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span></div>
+
+<span class="c1">#######################################################################################################</span>
+<span class="c1">#</span>
+<span class="c1"># The following functions are the core of TARTES but are as convenient to use as the previous one.</span>
+<span class="c1"># Use it when the previous functions are insufficient or in case of performance issue. Experts only!</span>
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#######################################################################################################</span>
+
+
+<span class="k">def</span> <span class="nf">shape_parameter_variations</span><span class="p">(</span><span class="n">nr</span><span class="p">,</span> <span class="n">g0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">W0</span><span class="p">,</span> <span class="n">B0</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute shape parameter variations as a function of the the refraction index with respect to the value in the visible range. These variation equations were obtained for sphere (Light Scattering Media Optics, Kokhanovsky, A., p.61) but should also apply to other shapes in a first approximation.</span>
+<span class="sd">    see doc Section 2</span>
+
+<span class="sd">    :param nr: refractive index (no unit). It is a constant array recalculated for each spectral resolution</span>
+<span class="sd">    :type nr: array</span>
+<span class="sd">    :param g0: asymmetry parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit)</span>
+<span class="sd">    :type g0: scalar</span>
+<span class="sd">    :param B0: absorption enhancement parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit)</span>
+<span class="sd">    :type B0: scalar</span>
+<span class="sd">    :param W0: Value of W of snow grains at nr=1.3 (no unit)</span>
+<span class="sd">    :type W0: scalar</span>
+<span class="sd">    :param y0: Value of y of snow grains at nr=1.3 (no unit)</span>
+<span class="sd">    :type y0: scalar</span>
+
+<span class="sd">    :returns: spectral parameters necessary to compute the asymmetry parameter and single scattering albedo of snow. For now, those parameters do not evolve with time. They depend on shape only</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="n">ginf</span> <span class="o">=</span> <span class="mf">0.9751</span><span class="o">-</span><span class="mf">0.105</span><span class="o">*</span><span class="p">(</span><span class="n">nr</span><span class="o">-</span><span class="mf">1.3</span><span class="p">)</span>
+    <span class="n">g00</span> <span class="o">=</span> <span class="n">g0</span><span class="o">-</span><span class="mf">0.38</span><span class="o">*</span><span class="p">(</span><span class="n">nr</span><span class="o">-</span><span class="mf">1.3</span><span class="p">)</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="n">B0</span><span class="o">+</span><span class="mf">0.4</span><span class="o">*</span><span class="p">(</span><span class="n">nr</span><span class="o">-</span><span class="mf">1.3</span><span class="p">)</span>
+    <span class="n">W</span> <span class="o">=</span> <span class="n">W0</span><span class="o">+</span><span class="mf">0.17</span><span class="o">*</span><span class="p">(</span><span class="n">nr</span><span class="o">-</span><span class="mf">1.3</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">y0</span><span class="o">+</span><span class="mf">0.752</span><span class="o">*</span><span class="p">(</span><span class="n">nr</span><span class="o">-</span><span class="mf">1.3</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ginf</span><span class="p">,</span> <span class="n">g00</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">y</span>
+
+
+<span class="k">def</span> <span class="nf">impurities_co_single_scattering_albedo</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">impurities_content</span><span class="p">,</span> <span class="n">impurities_type</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;return the spectral absorption of one layer due to the impurities</span>
+<span class="sd">    see doc Section 2.6</span>
+
+<span class="sd">    :param wavelength: all wavelengths of the incident light (m)</span>
+<span class="sd">    :type wavelength: array</span>
+<span class="sd">    :param SSA: snow specific surface area (m^2/kg)</span>
+<span class="sd">    :param impurities: impurities is a dictionnary where keys are impurity type (&quot;soot&quot; or &quot;hulis&quot;) and values are a 2-element array containing density (kg/m^3) and content (g/g)</span>
+<span class="sd">    :type impurities: dict</span>
+
+<span class="sd">    :returns: co single scattering albedo of impurities</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">impurities_content</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">one_species_co_albedo</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">impurities_content</span><span class="p">,</span> <span class="n">impurities_type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;return the co-albedo for on species&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">impurities_content</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">abs_impurities</span> <span class="o">=</span> <span class="o">-</span><span class="n">impurities_type</span><span class="o">.</span><span class="n">refractive_index_imag</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>
+            <span class="n">density_impurities</span> <span class="o">=</span> <span class="n">impurities_type</span><span class="o">.</span><span class="n">density</span>
+
+            <span class="k">return</span> <span class="mi">12</span><span class="o">*</span><span class="n">pi</span><span class="o">/</span><span class="p">(</span><span class="n">wavelength</span><span class="o">*</span><span class="n">SSA</span><span class="p">)</span><span class="o">*</span><span class="n">impurities_content</span><span class="o">/</span><span class="n">density_impurities</span><span class="o">*</span><span class="n">abs_impurities</span>   <span class="c1"># Eq (9)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.0</span>
+
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">impurities_type</span><span class="p">,</span> <span class="s1">&#39;__iter__&#39;</span><span class="p">):</span>
+        <span class="n">cossalb</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">species</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">impurities_type</span><span class="p">):</span>
+            <span class="n">cossalb</span> <span class="o">+=</span> <span class="n">one_species_co_albedo</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">impurities_content</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">species</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">cossalb</span> <span class="o">=</span> <span class="n">one_species_co_albedo</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">impurities_content</span><span class="p">,</span> <span class="n">impurities_type</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cossalb</span>
+
+
+<span class="k">def</span> <span class="nf">single_scattering_optical_parameters</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">refrac_index</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">impurities</span><span class="p">,</span> <span class="n">impurities_type</span><span class="p">,</span> <span class="n">g0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">W0</span><span class="p">,</span> <span class="n">B0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;return single scattering parameters of one layer</span>
+<span class="sd">    see doc Section 2.3, 2.5, 2.6</span>
+
+<span class="sd">    :param wavelength: wavelength (m)</span>
+<span class="sd">    :type wavelength: array</span>
+<span class="sd">    :param refrac_index: real and imag part of the refractive index (no unit)</span>
+<span class="sd">    :type refrac_index: array</span>
+<span class="sd">    :param SSA: snow specific surface area (m^2/kg) of one layer</span>
+<span class="sd">    :type SSA: scalar</span>
+<span class="sd">    :param rho: snow density (kg/m^3) of one layer</span>
+<span class="sd">    :type rho: scalar</span>
+<span class="sd">    :param impurities: impurities is a dictionnary where keys are impurity type (&quot;soot&quot; or &quot;hulis&quot;) and values are a 2-element array containing density (kg/m^3) and content (g/g)</span>
+<span class="sd">    :type impurities: dict</span>
+
+<span class="sd">    :returns: total single scattering albedo and asymmetry factor</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="n">n</span><span class="p">,</span> <span class="n">abs_ice</span> <span class="o">=</span> <span class="n">refrac_index</span>            <span class="c1"># determination of ice refractive index</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="mi">24</span><span class="o">*</span><span class="n">pi</span><span class="o">*</span><span class="n">abs_ice</span><span class="o">/</span><span class="p">(</span><span class="mf">917.</span><span class="o">*</span><span class="n">wavelength</span><span class="p">)</span><span class="o">/</span><span class="n">SSA</span>    <span class="c1"># 917 is ice density</span>
+
+    <span class="c1"># calculation of the spectral asymmetry parameter of snow</span>
+    <span class="n">ginf</span><span class="p">,</span> <span class="n">g00</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">shape_parameter_variations</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">g0</span><span class="p">,</span> <span class="n">y0</span><span class="p">,</span> <span class="n">W0</span><span class="p">,</span> <span class="n">B0</span><span class="p">)</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">ginf</span><span class="o">-</span><span class="p">(</span><span class="n">ginf</span><span class="o">-</span><span class="n">g00</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">y</span><span class="o">*</span><span class="n">c</span><span class="p">)</span>
+
+    <span class="c1"># co- single scattering albedo of pure snow</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="mf">2.</span><span class="o">/</span><span class="mi">3</span><span class="o">*</span><span class="n">B</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">W</span><span class="p">)</span>
+    <span class="n">cossalb</span> <span class="o">=</span> <span class="mf">0.5</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">W</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">c</span><span class="o">*</span><span class="n">phi</span><span class="p">))</span>
+
+    <span class="c1"># adding co- single scattering albedo for impureties</span>
+    <span class="n">cossalb</span> <span class="o">+=</span> <span class="n">impurities_co_single_scattering_albedo</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">impurities</span><span class="p">,</span> <span class="n">impurities_type</span><span class="p">)</span>
+
+    <span class="n">ssalb</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">cossalb</span>
+
+    <span class="k">return</span> <span class="n">ssalb</span><span class="p">,</span> <span class="n">g</span>
+
+
+<span class="k">def</span> <span class="nf">infinite_medium_optical_parameters</span><span class="p">(</span><span class="n">ssalb</span><span class="p">,</span> <span class="n">g</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;return albedo and kestar using Delta-Eddington Approximation (The Delta-Eddington Approximation of Radiative Flux Transfer, Jospeh et al (1976)).</span>
+<span class="sd">    The fluxes in the snowpack depend on these 2 quantities</span>
+<span class="sd">    see doc section 1.4</span>
+
+<span class="sd">    :param ssalb: single scattering albedo (no unit)</span>
+<span class="sd">    :type ssalb: array</span>
+<span class="sd">    :param g: asymmetry factor (no unit)</span>
+<span class="sd">    :type g: array</span>
+
+<span class="sd">    :returns: albedo and normalised AFEC</span>
+<span class="sd"> &quot;&quot;&quot;</span>
+
+    <span class="n">g_star</span> <span class="o">=</span> <span class="n">g</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">g</span><span class="p">)</span>
+    <span class="n">ssalb_star</span> <span class="o">=</span> <span class="n">ssalb</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">g</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">g</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">ssalb</span><span class="p">)</span>
+
+    <span class="c1"># Jimenez-Aquino, J. and Varela, J. R., (2005)</span>
+    <span class="n">gamma1</span> <span class="o">=</span> <span class="mf">0.25</span><span class="o">*</span><span class="p">(</span><span class="mi">7</span><span class="o">-</span><span class="n">ssalb_star</span><span class="o">*</span><span class="p">(</span><span class="mi">4</span><span class="o">+</span><span class="mi">3</span><span class="o">*</span><span class="n">g_star</span><span class="p">))</span>
+    <span class="n">gamma2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.25</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">ssalb_star</span><span class="o">*</span><span class="p">(</span><span class="mi">4</span><span class="o">-</span><span class="mi">3</span><span class="o">*</span><span class="n">g_star</span><span class="p">))</span>
+    <span class="n">kestar</span> <span class="o">=</span> <span class="n">sqrt</span><span class="p">(</span><span class="n">gamma1</span><span class="o">**</span><span class="mi">2</span><span class="o">-</span><span class="n">gamma2</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">albedo</span> <span class="o">=</span> <span class="p">(</span><span class="n">gamma1</span><span class="o">-</span><span class="n">kestar</span><span class="p">)</span><span class="o">/</span><span class="n">gamma2</span>
+
+    <span class="k">return</span> <span class="n">albedo</span><span class="p">,</span> <span class="n">kestar</span>
+
+
+<span class="k">def</span> <span class="nf">taustar_vector</span><span class="p">(</span><span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">ssalb</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">kestar</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute the taustar and dtaustar of the snowpack, the optical depth of each layer and cumulated optical depth</span>
+<span class="sd">    see doc Section 1.2, 1.8, 2.4</span>
+
+<span class="sd">    :param SSA: snow specific surface area (m^2/kg) of one layer</span>
+<span class="sd">    :type SSA: array</span>
+<span class="sd">    :param density: vertical profile of density (kg/m^3)</span>
+<span class="sd">    :type density: array</span>
+<span class="sd">    :param thickness: thickness of each layers (m)</span>
+<span class="sd">    :type thickness: array</span>
+<span class="sd">    :param ssalb: single scattering albedo (no unit)</span>
+<span class="sd">    :type ssalb: array</span>
+<span class="sd">    :param g: asymmetry factor (no unit)</span>
+<span class="sd">    :type g: array</span>
+<span class="sd">    :param kestar: delta Eddington asymptotic flux extinction coefficient (no unit)</span>
+<span class="sd">    :type kestar: array</span>
+
+<span class="sd">    :returns: optical depth of each layer (unbounded + bounded) and cumulated optical depth (no unit)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    <span class="n">sigext</span> <span class="o">=</span> <span class="n">density</span><span class="o">*</span><span class="n">SSA</span><span class="o">/</span><span class="mi">2</span>
+    <span class="n">dtaustar_ub</span> <span class="o">=</span> <span class="n">sigext</span><span class="o">*</span><span class="n">thickness</span><span class="p">[</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">ssalb</span><span class="o">*</span><span class="n">g</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>    <span class="c1"># delta-Eddington variable change</span>
+
+    <span class="n">maximum_optical_depth_per_layer</span> <span class="o">=</span> <span class="mi">200</span>
+    <span class="n">dtaustar</span> <span class="o">=</span> <span class="n">minimum</span><span class="p">(</span><span class="n">dtaustar_ub</span><span class="p">,</span> <span class="n">maximum_optical_depth_per_layer</span><span class="o">/</span><span class="n">kestar</span><span class="p">)</span>
+    <span class="c1"># this is a dirty hack and causes problem with the irradiance profile calculation. This is reason why we need to return the unbunded and the bunded dtaustar. In practice, it is safe (but dirty) as a layer with optical &gt;200 has a null transmittance</span>
+
+    <span class="n">taustar</span> <span class="o">=</span> <span class="n">cumsum</span><span class="p">(</span><span class="n">dtaustar</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">dtaustar_ub</span><span class="p">,</span> <span class="n">dtaustar</span><span class="p">,</span> <span class="n">taustar</span>
+
+
+<span class="k">def</span> <span class="nf">two_stream_matrix</span><span class="p">(</span><span class="n">layeralbedo</span><span class="p">,</span> <span class="n">soilalbedo</span><span class="p">,</span> <span class="n">kestar</span><span class="p">,</span> <span class="n">dtaustar</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute the matrix describing the boundary conditions at one wavelength.</span>
+<span class="sd">    see doc Section 1.5</span>
+<span class="sd">    </span>
+<span class="sd">    :param layeralbedo: infinite albedo of each layers (no unit)</span>
+<span class="sd">    :type layeralbedo: array</span>
+<span class="sd">    :param soilalbedo: albedo of the bottom layer (no unit)</span>
+<span class="sd">    :type soilalbedo: scalar</span>
+<span class="sd">    :param kestar: delta-eddington AFEC (no unit)</span>
+<span class="sd">    :type kestar: array</span>
+<span class="sd">    :param dtaustar: optical depth (no unit)</span>
+<span class="sd">    :type dtaustar: array</span>
+
+<span class="sd">    :returns: tri-diagonal of the boundary matrix</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="n">nlyr</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dtaustar</span><span class="p">)</span>
+
+    <span class="n">f_diag</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">kestar</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">)</span>
+
+    <span class="n">Dm</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">nlyr</span><span class="p">)</span>
+    <span class="n">Dm</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span><span class="o">*</span><span class="n">f_diag</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">Dm</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">/</span><span class="n">f_diag</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">D</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">nlyr</span><span class="p">)</span>
+    <span class="n">D</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">/</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">/</span><span class="n">f_diag</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">D</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+    <span class="n">Dp</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">nlyr</span><span class="p">)</span>
+    <span class="n">Dp</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">Dp</span><span class="p">[</span><span class="mi">3</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+    <span class="c1">#Bottom and top layer</span>
+    <span class="n">Dp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">D</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">Dm</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">layeralbedo</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">soilalbedo</span><span class="p">)</span><span class="o">*</span><span class="n">f_diag</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">D</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span><span class="o">/</span><span class="n">layeralbedo</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">-</span><span class="n">soilalbedo</span><span class="p">)</span><span class="o">/</span><span class="n">f_diag</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">d</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">([</span><span class="n">Dp</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">Dm</span><span class="p">])</span>
+    
+    <span class="k">return</span> <span class="n">d</span>
+    
+
+<span class="k">def</span> <span class="nf">Gp_Gm_vectors</span><span class="p">(</span><span class="n">ssalb</span><span class="p">,</span> <span class="n">kestar</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">mu</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;return Gp and Gm vectors at one wavelength</span>
+<span class="sd">    </span>
+
+<span class="sd">    :param ssalb: single scattering albedo of each layer (no unit)</span>
+<span class="sd">    :type ssalb: array</span>
+<span class="sd">    :param kestar: delta-eddington AFEC (no unit)</span>
+<span class="sd">    :type kestar: array</span>
+<span class="sd">    :param g: asymmetry factor  of each layer (no unit)</span>
+<span class="sd">    :type g: array</span>
+<span class="sd">    :param mu: cosine of the incident angle</span>
+
+<span class="sd">    :returns: Gp and Gm</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    <span class="n">g_star</span> <span class="o">=</span> <span class="n">g</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">+</span><span class="n">g</span><span class="p">)</span>
+    <span class="n">ssalb_star</span> <span class="o">=</span> <span class="n">ssalb</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">g</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">g</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">ssalb</span><span class="p">)</span>
+
+    <span class="n">gamma1</span> <span class="o">=</span> <span class="mf">0.25</span><span class="o">*</span><span class="p">(</span><span class="mi">7</span><span class="o">-</span><span class="n">ssalb_star</span><span class="o">*</span><span class="p">(</span><span class="mi">4</span><span class="o">+</span><span class="mi">3</span><span class="o">*</span><span class="n">g_star</span><span class="p">))</span>
+    <span class="n">gamma2</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.25</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">ssalb_star</span><span class="o">*</span><span class="p">(</span><span class="mi">4</span><span class="o">-</span><span class="mi">3</span><span class="o">*</span><span class="n">g_star</span><span class="p">))</span>
+
+    <span class="n">gamma3</span> <span class="o">=</span> <span class="mf">0.25</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">-</span><span class="mi">3</span><span class="o">*</span><span class="n">g_star</span><span class="o">*</span><span class="n">mu</span><span class="p">)</span>
+    <span class="n">gamma4</span> <span class="o">=</span> <span class="mf">0.25</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">+</span><span class="mi">3</span><span class="o">*</span><span class="n">g_star</span><span class="o">*</span><span class="n">mu</span><span class="p">)</span>
+    
+    <span class="n">G</span> <span class="o">=</span> <span class="n">mu</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="n">ssalb_star</span><span class="o">/</span><span class="p">((</span><span class="n">kestar</span><span class="o">*</span><span class="n">mu</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">Gp</span> <span class="o">=</span> <span class="n">G</span><span class="o">*</span><span class="p">((</span><span class="n">gamma1</span><span class="o">-</span><span class="mi">1</span><span class="o">/</span><span class="n">mu</span><span class="p">)</span><span class="o">*</span><span class="n">gamma3</span><span class="o">+</span><span class="n">gamma2</span><span class="o">*</span><span class="n">gamma4</span><span class="p">)</span>
+    <span class="n">Gm</span> <span class="o">=</span> <span class="n">G</span><span class="o">*</span><span class="p">((</span><span class="n">gamma1</span><span class="o">+</span><span class="mi">1</span><span class="o">/</span><span class="n">mu</span><span class="p">)</span><span class="o">*</span><span class="n">gamma4</span><span class="o">+</span><span class="n">gamma2</span><span class="o">*</span><span class="n">gamma3</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">Gp</span><span class="p">,</span> <span class="n">Gm</span>
+    
+
+<span class="k">def</span> <span class="nf">two_stream_vector</span><span class="p">(</span><span class="n">layeralbedo</span><span class="p">,</span> <span class="n">soilalbedo</span><span class="p">,</span> <span class="n">dtaustar</span><span class="p">,</span> <span class="n">taustar</span><span class="p">,</span> <span class="n">Gm</span><span class="p">,</span> <span class="n">Gp</span><span class="p">,</span> <span class="n">mu</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute the vector for the boundary conditions</span>
+<span class="sd">    see doc Section 1.5</span>
+
+<span class="sd">    :param layeralbedo: albedo of the layer if it was infinite</span>
+<span class="sd">    :type layeralbedo: array</span>
+<span class="sd">    :param soilalbedo: albedo of the bottom layer</span>
+<span class="sd">    :type soilalbedo: scalar</span>
+<span class="sd">    :param dtaustar: optical depth</span>
+<span class="sd">    :type dtaustar: array</span>
+<span class="sd">    :param taustar: optical depth</span>
+<span class="sd">    :type taustar: array</span>
+<span class="sd">    :param Gm: coefficients Gm calculated for each layer</span>
+<span class="sd">    :type Gm: array</span>
+<span class="sd">    :param Gp: coefficients Gm calculated for each layer</span>
+<span class="sd">    :type Gp: array</span>
+<span class="sd">    :param mu: cosine of the incidence angle</span>
+<span class="sd">    :type mu: array</span>
+
+<span class="sd">    :returns: vector V</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="n">nlyr</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">taustar</span><span class="p">)</span>
+    <span class="n">vect</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">nlyr</span><span class="p">)</span>
+
+    <span class="n">vect</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span><span class="n">Gm</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">dGp</span> <span class="o">=</span> <span class="n">diff</span><span class="p">(</span><span class="n">Gp</span><span class="p">)</span>
+    <span class="n">dGm</span> <span class="o">=</span> <span class="n">diff</span><span class="p">(</span><span class="n">Gm</span><span class="p">)</span>
+
+    <span class="n">vect</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">dGm</span><span class="o">-</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="n">dGp</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">mu</span><span class="p">)</span>
+
+    <span class="n">vect</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">dGp</span><span class="o">-</span><span class="n">layeralbedo</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">dGm</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">mu</span><span class="p">)</span>
+
+    <span class="n">vect</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">soilalbedo</span><span class="o">*</span><span class="p">(</span><span class="n">Gm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">mu</span><span class="p">)</span><span class="o">-</span><span class="n">Gp</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">mu</span><span class="p">)</span>
+
+    <span class="n">vect</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">([</span><span class="n">vect</span><span class="p">])</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">vect</span>
+
+
+<span class="k">def</span> <span class="nf">solves_two_stream</span><span class="p">(</span><span class="n">dmatrix</span><span class="p">,</span> <span class="n">vect</span><span class="p">,</span> <span class="n">layeralbedo</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;solve the two stream linear system for vect.</span>
+<span class="sd">    see doc Section 1.5</span>
+
+<span class="sd">    :param dmatrix: two-stream matrix  M</span>
+<span class="sd">    :type dmatrix: matrix</span>
+<span class="sd">    :param vect: two-stream vector V</span>
+<span class="sd">    :type vect: array or None</span>
+<span class="sd">    :param layeralbedo: albedo of the layers if it was infinite</span>
+<span class="sd">    :type layeralbedo: array</span>
+
+<span class="sd">    :returns: vector X, unpacked solution vectors for coefficients A and B</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    <span class="c1">#solve the two stream linear system</span>
+
+    <span class="n">solution0</span> <span class="o">=</span> <span class="n">solve_banded</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dmatrix</span><span class="p">,</span> <span class="n">vect</span><span class="p">)</span>
+    
+    <span class="n">solution0</span> <span class="o">=</span> <span class="n">solution0</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    
+    <span class="n">solution_A</span> <span class="o">=</span> <span class="n">solution0</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">solution_B</span> <span class="o">=</span> <span class="n">solution0</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">solution_C</span> <span class="o">=</span> <span class="n">solution_A</span> <span class="o">*</span> <span class="n">layeralbedo</span>
+    <span class="n">solution_D</span> <span class="o">=</span> <span class="n">solution_B</span> <span class="o">/</span> <span class="n">layeralbedo</span>
+
+    <span class="c1"># TODO: use an object &quot;Solution&quot;</span>
+    <span class="k">return</span> <span class="n">solution_A</span><span class="p">,</span> <span class="n">solution_B</span><span class="p">,</span> <span class="n">solution_C</span><span class="p">,</span> <span class="n">solution_D</span>
+
+
+<span class="k">def</span> <span class="nf">solves_two_stream2</span><span class="p">(</span><span class="n">dmatrix</span><span class="p">,</span> <span class="n">vect1</span><span class="p">,</span> <span class="n">vect2</span><span class="p">,</span> <span class="n">layeralbedo</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;solve the two stream linear system for vect1 and vect2.</span>
+
+<span class="sd">    :param dmatrix: two-stream matrix  M</span>
+<span class="sd">    :type dmatrix: matrix</span>
+<span class="sd">    :param vect1: two-stream vector V</span>
+<span class="sd">    :type vect1: array or None</span>
+<span class="sd">    :param vect2: two-stream vector V (2 vectors are used when ther is diffuse AND direct incident light)</span>
+<span class="sd">    :type vect2: array or None</span>
+<span class="sd">    </span>
+
+<span class="sd">    :param layeralbedo: semi-infinite albedo of each layer</span>
+<span class="sd">    :returns: vectors X, unpacked solution vectors</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">unpack_solution</span><span class="p">(</span><span class="n">solution0</span><span class="p">):</span>
+
+        <span class="n">solution0</span> <span class="o">=</span> <span class="n">solution0</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+
+        <span class="n">solution_A</span> <span class="o">=</span> <span class="n">solution0</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">solution_B</span> <span class="o">=</span> <span class="n">solution0</span><span class="p">[</span><span class="mi">1</span><span class="p">::</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">solution_C</span> <span class="o">=</span> <span class="n">solution_A</span> <span class="o">*</span> <span class="n">layeralbedo</span>
+        <span class="n">solution_D</span> <span class="o">=</span> <span class="n">solution_B</span> <span class="o">/</span> <span class="n">layeralbedo</span>
+
+        <span class="n">solution</span> <span class="o">=</span> <span class="n">solution_A</span><span class="p">,</span> <span class="n">solution_B</span><span class="p">,</span> <span class="n">solution_C</span><span class="p">,</span> <span class="n">solution_D</span>
+        <span class="k">return</span> <span class="n">solution</span>
+
+    <span class="k">if</span> <span class="n">vect1</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">solution0</span> <span class="o">=</span> <span class="n">solve_banded</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dmatrix</span><span class="p">,</span> <span class="n">vect2</span><span class="p">)</span>
+        
+        <span class="k">return</span> <span class="bp">None</span><span class="p">,</span> <span class="n">unpack_solution</span><span class="p">(</span><span class="n">solution0</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">vect2</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">solution0</span> <span class="o">=</span> <span class="n">solve_banded</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dmatrix</span><span class="p">,</span> <span class="n">vect1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">unpack_solution</span><span class="p">(</span><span class="n">solution0</span><span class="p">),</span> <span class="bp">None</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">vect</span> <span class="o">=</span> <span class="n">hstack</span><span class="p">((</span><span class="n">vect1</span><span class="p">,</span> <span class="n">vect2</span><span class="p">))</span>
+        <span class="n">solution0</span> <span class="o">=</span> <span class="n">solve_banded</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">dmatrix</span><span class="p">,</span> <span class="n">vect</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">unpack_solution</span><span class="p">(</span><span class="n">solution0</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]),</span> <span class="n">unpack_solution</span><span class="p">(</span><span class="n">solution0</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">snowpack_albedo</span><span class="p">(</span><span class="n">solutions</span><span class="p">,</span> <span class="n">Gp</span><span class="p">,</span> <span class="n">mu</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute the albedo of the snowpack at one wavelength</span>
+
+<span class="sd">    :param solutions: coefficients A et B pour chaque couche qui permttent calcul analytique des flux dans tous le manteau</span>
+<span class="sd">    :type solutions: array</span>
+<span class="sd">    :param Gp: coefficients Gm calculated for each layer</span>
+<span class="sd">    :type Gp: array</span>
+<span class="sd">    :param mu: cosine of the incident angle of intensity</span>
+<span class="sd">    :type mu: scalar</span>
+<span class="sd">    </span>
+<span class="sd">    :returns: albedo at one wavelength (W/m^2)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">solutions</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+    
+    <span class="n">solution_C</span> <span class="o">=</span> <span class="n">solutions</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">solution_D</span> <span class="o">=</span> <span class="n">solutions</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+
+    <span class="n">albedo</span> <span class="o">=</span> <span class="p">(</span><span class="n">solution_C</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">solution_D</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">Gp</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">/</span><span class="n">mu</span>
+    
+    <span class="k">return</span> <span class="n">albedo</span>
+
+
+<span class="k">def</span> <span class="nf">energy_profile</span><span class="p">(</span><span class="n">solutions</span><span class="p">,</span> <span class="n">kestar</span><span class="p">,</span> <span class="n">dtaustar</span><span class="p">,</span> <span class="n">taustar</span><span class="p">,</span> <span class="n">Gm</span><span class="p">,</span> <span class="n">Gp</span><span class="p">,</span> <span class="n">mu</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute energy absorption for each layer at one wavelength</span>
+
+<span class="sd">    :param solutions: coefficients A et B pour chaque couche qui permttent calcul analytique des flux dans tous le manteau</span>
+<span class="sd">    :type solutions: array</span>
+<span class="sd">    :param kestar: delta-eddington AFEC de chaque couche (no unit)</span>
+<span class="sd">    :type kestar: array</span>
+<span class="sd">    :param dtaustar: optical depth of each layer</span>
+<span class="sd">    :type dtaustar: array</span>
+<span class="sd">    :param taustar: cumulated optical depth at each interface</span>
+<span class="sd">    :type taustar: array</span>
+<span class="sd">    :param Gm: coefficients Gm calculated for each layer</span>
+<span class="sd">    :type Gm: array</span>
+<span class="sd">    :param Gp: coefficients Gm calculated for each layer</span>
+<span class="sd">    :type Gp: array</span>
+<span class="sd">    :param mu: cosine of the incident angle of intensity</span>
+<span class="sd">    :type mu: scalar</span>
+<span class="sd">    </span>
+<span class="sd">    :returns: energy absorbed by each layer (W/m^2)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    
+    <span class="c1">#compute energy absoprtion profile</span>
+
+    <span class="k">if</span> <span class="n">solutions</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+    <span class="n">solution_A</span><span class="p">,</span> <span class="n">solution_B</span><span class="p">,</span> <span class="n">solution_C</span><span class="p">,</span> <span class="n">solution_D</span> <span class="o">=</span> <span class="n">solutions</span>
+
+    <span class="n">eprofile</span> <span class="o">=</span> <span class="n">zeros_like</span><span class="p">(</span><span class="n">taustar</span><span class="p">)</span>
+    <span class="c1">#nlyr = len(taustar)</span>
+
+    <span class="c1">#surface Layer</span>
+    <span class="n">eprofile</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">mu</span> <span class="o">-</span> <span class="p">(</span><span class="n">solution_C</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">solution_D</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">Gp</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> <span class="o">+</span> \
+                  <span class="p">((</span><span class="n">solution_C</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">kestar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span>
+                    <span class="n">solution_D</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">exp</span><span class="p">(</span><span class="n">kestar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span>
+                    <span class="n">Gp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">mu</span><span class="p">))</span> <span class="o">-</span>
+                   <span class="p">(</span><span class="n">solution_A</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">kestar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span>
+                    <span class="n">solution_B</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">exp</span><span class="p">(</span><span class="n">kestar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">+</span>
+                    <span class="n">Gm</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">mu</span><span class="p">)</span> <span class="o">+</span> <span class="n">mu</span> <span class="o">*</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">mu</span><span class="p">)))</span>
+
+    <span class="n">dexp</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">/</span><span class="n">mu</span><span class="p">)</span><span class="o">-</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">mu</span><span class="p">)</span>
+    
+    <span class="n">expp</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="n">kestar</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="n">expm</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">kestar</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="n">fdu</span> <span class="o">=</span> <span class="n">solution_C</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="p">(</span><span class="n">expm</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">solution_D</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="p">(</span><span class="n">expp</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">Gp</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="n">dexp</span>
+    <span class="n">fdd</span> <span class="o">=</span> <span class="n">solution_A</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="p">(</span><span class="n">expm</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">solution_B</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">*</span><span class="p">(</span><span class="n">expp</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">Gm</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">+</span><span class="n">mu</span><span class="p">)</span><span class="o">*</span><span class="n">dexp</span>
+
+    <span class="n">eprofile</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="n">fdu</span><span class="o">-</span><span class="n">fdd</span>
+
+    <span class="k">return</span> <span class="n">eprofile</span>
+
+
+<span class="k">def</span> <span class="nf">soil_absorption</span><span class="p">(</span><span class="n">solutions</span><span class="p">,</span> <span class="n">kestar</span><span class="p">,</span> <span class="n">dtaustar</span><span class="p">,</span> <span class="n">taustar</span><span class="p">,</span> <span class="n">Gm</span><span class="p">,</span> <span class="n">mu</span><span class="p">,</span> <span class="n">soilalbedo</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute the energy absorbed by the soil at one wavelength</span>
+
+<span class="sd">    :param solutions: coefficients A et B pour chaque couche qui permttent calcul analytique des flux dans tous le manteau</span>
+<span class="sd">    :type solutions: array</span>
+<span class="sd">    :param kestar: delta-eddington AFEC de chaque couche (no unit)</span>
+<span class="sd">    :type kestar: array</span>
+<span class="sd">    :param dtaustar: optical depth of each layer</span>
+<span class="sd">    :type dtaustar: array</span>
+<span class="sd">    :param taustar: cumulated optical depth at each interface</span>
+<span class="sd">    :type taustar: array</span>
+<span class="sd">    :param Gm: coefficients Gm calculated for each layer</span>
+<span class="sd">    :type Gm: array</span>
+<span class="sd">    :param mu: cosine of the incident angle of intensity</span>
+<span class="sd">    :type mu: scalar</span>
+<span class="sd">    :param soilalbedo: soil albedo at that wavelength (no unit)</span>
+<span class="sd">    :type soilalbedo: scalar</span>
+<span class="sd">    </span>
+<span class="sd">    :returns: energy absorbed by the soil at one wavelength (W/m^2)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">solutions</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+    <span class="n">solution_A</span> <span class="o">=</span> <span class="n">solutions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">solution_B</span> <span class="o">=</span> <span class="n">solutions</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1">#Soil absorption</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">soilalbedo</span><span class="p">)</span><span class="o">*</span><span class="p">(</span><span class="n">solution_A</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">kestar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span>
+                           <span class="n">solution_B</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="n">kestar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span>
+                           <span class="p">(</span><span class="n">Gm</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">mu</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">/</span><span class="n">mu</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">estimate_effective_layer_number</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">kestar</span><span class="p">,</span> <span class="n">dtaustar</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;estimate the number of layers to take into account at each wavelength</span>
+
+<span class="sd">    :param wavelength: wavelength in m</span>
+<span class="sd">    :type wavelength: array</span>
+<span class="sd">    :param kestar: delta-eddington AFEC</span>
+<span class="sd">    :type kestar: array</span>
+<span class="sd">    :param dtaustar: optical depth of each layer</span>
+<span class="sd">    :type dtaustar: array</span>
+
+<span class="sd">    :returns: number of layers to consider for each wavelength</span>
+<span class="sd">&quot;&quot;&quot;</span>
+    <span class="n">tau</span> <span class="o">=</span> <span class="n">cumsum</span><span class="p">(</span><span class="n">kestar</span><span class="o">*</span><span class="n">dtaustar</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">taumax</span> <span class="o">=</span> <span class="mf">30.0</span>  <span class="c1"># optical depth from which the absorbed energy is negligible</span>
+
+    <span class="n">nlyrmax</span> <span class="o">=</span> <span class="n">empty_like</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nlyrmax</span><span class="p">)):</span>
+        <span class="n">nlyrmax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">searchsorted</span><span class="p">(</span><span class="n">tau</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">taumax</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>  <span class="c1"># +1 added compared with Quentin&#39;s code</span>
+
+    <span class="k">return</span> <span class="n">nlyrmax</span>
+
+
+<span class="k">def</span> <span class="nf">soa</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+    <span class="c1"># allow scalar or array/list</span>
+    
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s2">&quot;__iter__&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">x</span>
+
+
+<div class="viewcode-block" id="tartes"><a class="viewcode-back" href="../../tartes.html#tartes.tartes">[docs]</a><span class="k">def</span> <span class="nf">tartes</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thickness</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+           <span class="n">g0</span><span class="o">=</span><span class="n">default_g0</span><span class="p">,</span> <span class="n">B0</span><span class="o">=</span><span class="n">default_B0</span><span class="p">,</span> <span class="n">y0</span><span class="o">=</span><span class="mf">0.728</span><span class="p">,</span> <span class="n">W0</span><span class="o">=</span><span class="mf">0.0611</span><span class="p">,</span>
+           <span class="n">impurities</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">impurities_type</span><span class="o">=</span><span class="n">Soot</span><span class="p">,</span>
+           <span class="n">soilalbedo</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">dir_frac</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">totflux</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">mudir</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+           <span class="n">compute_absorption</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">compute_irradiance_profiles</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">compute_actinic_profile</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+           <span class="n">z</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">refrac_index</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;compute spectral albedo, and optionally the absorption in each layer and in the soil, the downwelling and upwelling irradiance profiles and the actinic flux from the physical properties of the snowpack and the incidence flux conditions.</span>
+
+<span class="sd">:param wavelength: wavelength (m)</span>
+<span class="sd">:type wavelength: array or scalar</span>
+<span class="sd">:param SSA: snow specific surface area (m^2/kg)</span>
+<span class="sd">:type SSA: array or scalar</span>
+<span class="sd">:param density: snow density (kg/m^3)</span>
+<span class="sd">:type density: array or scalar</span>
+<span class="sd">:param thickness: thickness of the layers (m)</span>
+<span class="sd">:type thickness: array or scalar</span>
+<span class="sd">:param g0: asymmetry parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 0.86. g0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type g0: array or scalar</span>
+<span class="sd">:param B0: absorption enhancement parameter of snow grains at nr=1.3 and at non absorbing wavelengths (no unit). The default value is 1.6, taken from Libois et al. 2014. B0 can be scalar (constant in the snowpack) or an array like the SSA.</span>
+<span class="sd">:type B0: array or scalar</span>
+<span class="sd">:param y0: Value of y of snow grains at nr=1.3 (no unit).  See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. y0 can be scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type y0: array or scalar</span>
+<span class="sd">:param W0: Value of W of snow grains at nr=1.3 (no unit). See Eqs 72 and 75 in the &quot;science&quot; doc for the default value. W0 can be a scalar (same for all layers) or an array like the SSA.</span>
+<span class="sd">:type W0: array or scalar</span>
+<span class="sd">:param impurities: impurities concentration (g/g/) in each layer. It is either a constant or an array with size equal to the number of layers. The array is 1-d if only one type of impurities is used and 2-d otherwise.</span>
+<span class="sd">:type impurities: array or scalar</span>
+<span class="sd">:param impurities_type: specify the type of impurity. By defaut it is &quot;soot&quot;. Otherwise it should be a class (or an instance) defining the density and the imaginary part of the refractive index like the Soot class (see tartes.impurities for possible choices and to add new impurities types). It can also be a list of classes if several impurities type are present in the snowpack. In this case, the impurities parameter must be a 2-d array.</span>
+<span class="sd">:type impurities_type: object or list of object</span>
+<span class="sd">:param soilalbedo: albedo of the bottom layer (no unit). soilalbedo can be a scalar or an array like wavelength.</span>
+<span class="sd">:type soilalbedo: scalar or array</span>
+<span class="sd">:param dir_frac: fraction of directional flux over the total flux (the default is dir_frac = 0 meaning 100% diffuse incident flux) at every wavelength</span>
+<span class="sd">:type dir_frac: array</span>
+<span class="sd">:param totflux: total spectral incident flux (direct+diffuse) (W/m^2)</span>
+<span class="sd">:type totflux: array</span>
+<span class="sd">:param mudir: cosine of the incident angle of direct light</span>
+<span class="sd">:type mudir: scalar</span>
+<span class="sd">:param compute_absorption: if True compute the absorption profile and the absorption in the soil</span>
+<span class="sd">:type compute_absorption: boolean</span>
+<span class="sd">:param compute_irradiance_profiles: if True compute the profiles of up- and down-welling irradiance at depths z</span>
+<span class="sd">:type compute_actinic_profile: boolean</span>
+<span class="sd">:param compute_actinic_profile: if True compute the profile of actinic flux at depths z</span>
+<span class="sd">:type compute_irradiance_profiles: boolean</span>
+<span class="sd">:param z: depth at which the irradiance is calculed. It is used only if compute_irradiance_profile is activated.</span>
+<span class="sd">:type z: array</span>
+<span class="sd">:param refrac_index: real and imaginary parts of the refractive index for each wavelength</span>
+<span class="sd">:type refrac_index: tuple of two arrays</span>
+
+<span class="sd">:returns: spectral albedo, and optionaly absorption by layer (note the bottom layer correspond to the absorption by the soil) and optionnaly the profile of irradiance: downwelling, upwelling</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+    <span class="c1">#the diffuse incident flux is treated as direct flux at incident angle 53°</span>
+    <span class="n">mudiff</span> <span class="o">=</span> <span class="n">cos</span><span class="p">(</span><span class="mf">53.</span><span class="o">/</span><span class="mi">180</span><span class="o">*</span><span class="n">pi</span><span class="p">)</span>
+    
+    <span class="c1"># convert SSA, density and thickness to array if necessary</span>
+    <span class="n">SSA</span> <span class="o">=</span> <span class="n">atleast_1d</span><span class="p">(</span><span class="n">SSA</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">density</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">thickness</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;no density argument is only allowed for semi-infinite snowpacks (thickness=None)&quot;</span><span class="p">)</span>
+        <span class="n">density</span> <span class="o">=</span> <span class="mi">300</span>  <span class="c1"># any value is good</span>
+
+    <span class="n">density</span> <span class="o">=</span> <span class="n">atleast_1d</span><span class="p">(</span><span class="n">density</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">thickness</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">thickness</span> <span class="o">=</span> <span class="mf">1e9</span>  <span class="c1"># chosing a value should never been a problem...</span>
+    <span class="n">thickness</span> <span class="o">=</span> <span class="n">atleast_1d</span><span class="p">(</span><span class="n">thickness</span><span class="p">)</span>
+
+    <span class="n">wavelength</span> <span class="o">=</span> <span class="n">atleast_1d</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>
+    <span class="n">nlyr</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">SSA</span><span class="p">)</span>
+
+    <span class="n">albedo</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">compute_absorption</span><span class="p">:</span>
+        <span class="n">energyprofile</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">nlyr</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">compute_irradiance_profiles</span> <span class="ow">or</span> <span class="n">compute_actinic_profile</span><span class="p">:</span>
+        <span class="n">nz</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">z</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">compute_irradiance_profiles</span><span class="p">:</span>
+            <span class="n">down_irr_profile</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">nz</span><span class="p">))</span>
+            <span class="n">up_irr_profile</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">nz</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">compute_actinic_profile</span><span class="p">:</span>
+            <span class="n">actinic_profile</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">nz</span><span class="p">))</span>
+        
+        <span class="n">thickness_total</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">(</span><span class="n">nlyr</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">thickness_total</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="n">cumsum</span><span class="p">(</span><span class="n">thickness</span><span class="p">)</span>
+        <span class="n">nearest_layer</span> <span class="o">=</span> <span class="n">searchsorted</span><span class="p">(</span><span class="n">thickness_total</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">)</span>  <span class="c1"># number of the layer (1,2...)</span>
+
+    <span class="c1"># intermediate variables</span>
+    <span class="n">ssalb</span> <span class="o">=</span> <span class="n">zeros</span><span class="p">((</span><span class="n">N</span><span class="p">,</span> <span class="n">nlyr</span><span class="p">))</span>
+    <span class="n">g</span> <span class="o">=</span> <span class="n">zeros_like</span><span class="p">(</span><span class="n">ssalb</span><span class="p">)</span>
+    <span class="n">alb</span> <span class="o">=</span> <span class="n">zeros_like</span><span class="p">(</span><span class="n">ssalb</span><span class="p">)</span>
+    <span class="n">kestar</span> <span class="o">=</span> <span class="n">zeros_like</span><span class="p">(</span><span class="n">alb</span><span class="p">)</span>
+
+    <span class="c1">#1 compute optical properties for an array of wavelength</span>
+    <span class="k">if</span> <span class="n">refrac_index</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">refrac_index</span> <span class="o">==</span> <span class="s2">&quot;w2008&quot;</span><span class="p">:</span>
+        <span class="n">refrac_index</span> <span class="o">=</span> <span class="n">refice2008</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>  <span class="c1"># should be cached when the same wavelengths are used</span>
+    <span class="k">elif</span> <span class="n">refrac_index</span> <span class="o">==</span> <span class="s2">&quot;w1995&quot;</span><span class="p">:</span>
+        <span class="n">refrac_index</span> <span class="o">=</span> <span class="n">refice1995</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>  <span class="c1"># should be cached when the same wavelengths are used</span>
+
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nlyr</span><span class="p">):</span>
+        <span class="n">ssalb</span><span class="p">[:,</span> <span class="n">n</span><span class="p">],</span> <span class="n">g</span><span class="p">[:,</span> <span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">single_scattering_optical_parameters</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span>
+                                                                    <span class="n">refrac_index</span><span class="p">,</span>
+                                                                    <span class="n">SSA</span><span class="p">[</span><span class="n">n</span><span class="p">],</span> <span class="n">density</span><span class="p">[</span><span class="n">n</span><span class="p">],</span>
+                                                                    <span class="n">soa</span><span class="p">(</span><span class="n">impurities</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span>
+                                                                    <span class="n">impurities_type</span><span class="p">,</span>
+                                                                    <span class="n">soa</span><span class="p">(</span><span class="n">g0</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span> <span class="n">soa</span><span class="p">(</span><span class="n">y0</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span> <span class="n">soa</span><span class="p">(</span><span class="n">W0</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span> <span class="n">soa</span><span class="p">(</span><span class="n">B0</span><span class="p">,</span> <span class="n">n</span><span class="p">))</span>
+        <span class="n">alb</span><span class="p">[:,</span> <span class="n">n</span><span class="p">],</span> <span class="n">kestar</span><span class="p">[:,</span> <span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">infinite_medium_optical_parameters</span><span class="p">(</span><span class="n">ssalb</span><span class="p">[:,</span> <span class="n">n</span><span class="p">],</span> <span class="n">g</span><span class="p">[:,</span> <span class="n">n</span><span class="p">])</span>
+
+    <span class="c1"># 2 computation on every wavelength and layer of the optical depth</span>
+    <span class="n">dtaustar_ub</span><span class="p">,</span> <span class="n">dtaustar</span><span class="p">,</span> <span class="n">taustar</span> <span class="o">=</span> <span class="n">taustar_vector</span><span class="p">(</span><span class="n">SSA</span><span class="p">,</span> <span class="n">density</span><span class="p">,</span> <span class="n">thickness</span><span class="p">,</span> <span class="n">ssalb</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">kestar</span><span class="p">)</span>
+
+    <span class="c1"># use to limit the computation at depth for highly absorbing wavelength. Seems to be inefficient in Python for a normal ~40 layers snowpack and 10nm resolution.</span>
+    <span class="n">nlyrmax</span> <span class="o">=</span> <span class="n">estimate_effective_layer_number</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">kestar</span><span class="p">,</span> <span class="n">dtaustar</span><span class="p">)</span>
+
+    <span class="c1">#3 solve the radiative transfer for each wavelength successively</span>
+    <span class="c1"># TODO: convert this loop to parallal multi-core computing with joblib</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">N</span><span class="p">):</span>
+
+        <span class="c1">#Number of layer required for the computation</span>
+        <span class="n">neff</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">nlyrmax</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">nlyr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">compute_irradiance_profiles</span><span class="p">:</span>
+            <span class="n">neff</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">neff</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">nearest_layer</span><span class="p">))</span>
+
+        <span class="n">layeralbedo_i</span> <span class="o">=</span> <span class="n">alb</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">]</span>
+        <span class="n">kestar_i</span> <span class="o">=</span> <span class="n">kestar</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">]</span>
+        <span class="n">soilalbedo_i</span> <span class="o">=</span> <span class="n">soa</span><span class="p">(</span><span class="n">soilalbedo</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">dir_frac_i</span> <span class="o">=</span> <span class="n">soa</span><span class="p">(</span><span class="n">dir_frac</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">totflux_i</span> <span class="o">=</span> <span class="n">soa</span><span class="p">(</span><span class="n">totflux</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">mudiff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">diffrad_i</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.0</span><span class="o">-</span><span class="n">dir_frac_i</span><span class="p">)</span><span class="o">*</span><span class="n">totflux_i</span> <span class="o">/</span> <span class="n">mudiff</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">diffrad_i</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">mudir</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">dirrad_i</span> <span class="o">=</span> <span class="n">dir_frac_i</span><span class="o">*</span><span class="n">totflux_i</span> <span class="o">/</span> <span class="n">mudir</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dirrad_i</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">dirrad_i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">Gpdir_i</span><span class="p">,</span> <span class="n">Gmdir_i</span> <span class="o">=</span> <span class="n">Gp_Gm_vectors</span><span class="p">(</span><span class="n">ssalb</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">],</span> <span class="n">kestar_i</span><span class="p">,</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">],</span> <span class="n">mudir</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">Gpdir_i</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">Gmdir_i</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">diffrad_i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">Gpdiff_i</span><span class="p">,</span> <span class="n">Gmdiff_i</span> <span class="o">=</span> <span class="n">Gp_Gm_vectors</span><span class="p">(</span><span class="n">ssalb</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">],</span> <span class="n">kestar_i</span><span class="p">,</span> <span class="n">g</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">],</span> <span class="n">mudiff</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">Gpdiff_i</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">Gmdiff_i</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># If the snowpack was truncated, the last layer thickness is increased and a high albedo is used for the soil</span>
+        <span class="k">if</span> <span class="n">neff</span> <span class="o">&lt;</span> <span class="n">nlyr</span><span class="p">:</span>
+            <span class="n">dtaustar</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">neff</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mf">30.</span><span class="o">/</span><span class="n">kestar</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">neff</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Il y avait un bug ici!</span>
+            <span class="n">soilalbedo_i</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="n">taustar_i</span> <span class="o">=</span> <span class="n">taustar</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">]</span>
+        <span class="n">dtaustar_i</span> <span class="o">=</span> <span class="n">dtaustar</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">]</span>
+
+        <span class="c1"># compute the two-stream matrix</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">two_stream_matrix</span><span class="p">(</span><span class="n">layeralbedo_i</span><span class="p">,</span> <span class="n">soilalbedo_i</span><span class="p">,</span> <span class="n">kestar_i</span><span class="p">,</span> <span class="n">dtaustar_i</span><span class="p">)</span>
+
+        <span class="c1"># compute the vector for direct and diffuse intensities</span>
+        <span class="k">if</span> <span class="n">dirrad_i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">vect_dir</span> <span class="o">=</span> <span class="n">two_stream_vector</span><span class="p">(</span><span class="n">layeralbedo_i</span><span class="p">,</span> <span class="n">soilalbedo_i</span><span class="p">,</span> <span class="n">dtaustar_i</span><span class="p">,</span> <span class="n">taustar_i</span><span class="p">,</span> <span class="n">Gmdir_i</span><span class="p">,</span> <span class="n">Gpdir_i</span><span class="p">,</span> <span class="n">mudir</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">vect_dir</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="k">if</span> <span class="n">diffrad_i</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">vect_diff</span> <span class="o">=</span> <span class="n">two_stream_vector</span><span class="p">(</span><span class="n">layeralbedo_i</span><span class="p">,</span> <span class="n">soilalbedo_i</span><span class="p">,</span> <span class="n">dtaustar_i</span><span class="p">,</span> <span class="n">taustar_i</span><span class="p">,</span> <span class="n">Gmdiff_i</span><span class="p">,</span> <span class="n">Gpdiff_i</span><span class="p">,</span> <span class="n">mudiff</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">vect_diff</span> <span class="o">=</span> <span class="bp">None</span>
+
+        <span class="n">solutions_dir</span><span class="p">,</span> <span class="n">solutions_diff</span> <span class="o">=</span> <span class="n">solves_two_stream2</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">vect_dir</span><span class="p">,</span> <span class="n">vect_diff</span><span class="p">,</span> <span class="n">layeralbedo_i</span><span class="p">)</span>
+
+        <span class="c1"># compute the albedo</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">dirrad_i</span> <span class="o">+</span> <span class="n">diffrad_i</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># avoid infinite albedo</span>
+            <span class="n">albedo</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">snowpack_albedo</span><span class="p">(</span><span class="n">solutions_dir</span><span class="p">,</span> <span class="n">Gpdir_i</span><span class="p">,</span> <span class="n">mudir</span><span class="p">)</span><span class="o">*</span><span class="n">dirrad_i</span><span class="o">*</span><span class="n">mudir</span> <span class="o">+</span>
+                         <span class="n">snowpack_albedo</span><span class="p">(</span><span class="n">solutions_diff</span><span class="p">,</span> <span class="n">Gpdiff_i</span><span class="p">,</span> <span class="n">mudiff</span><span class="p">)</span><span class="o">*</span><span class="n">diffrad_i</span><span class="o">*</span><span class="n">mudiff</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">dirrad_i</span><span class="o">*</span><span class="n">mudir</span> <span class="o">+</span> <span class="n">diffrad_i</span><span class="o">*</span><span class="n">mudiff</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">albedo</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">compute_absorption</span><span class="p">:</span>
+               <span class="c1"># compute the profile of absorbed energy</span>
+
+            <span class="n">energyprofile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:</span><span class="n">neff</span><span class="p">]</span> <span class="o">=</span> <span class="n">dirrad_i</span><span class="o">*</span><span class="n">energy_profile</span><span class="p">(</span><span class="n">solutions_dir</span><span class="p">,</span> <span class="n">kestar_i</span><span class="p">,</span> <span class="n">dtaustar_i</span><span class="p">,</span> <span class="n">taustar_i</span><span class="p">,</span> <span class="n">Gmdir_i</span><span class="p">,</span> <span class="n">Gpdir_i</span><span class="p">,</span> <span class="n">mudir</span><span class="p">)</span> <span class="o">+</span> \
+                <span class="n">diffrad_i</span><span class="o">*</span><span class="n">energy_profile</span><span class="p">(</span><span class="n">solutions_diff</span><span class="p">,</span> <span class="n">kestar_i</span><span class="p">,</span> <span class="n">dtaustar_i</span><span class="p">,</span> <span class="n">taustar_i</span><span class="p">,</span> <span class="n">Gmdiff_i</span><span class="p">,</span> <span class="n">Gpdiff_i</span><span class="p">,</span> <span class="n">mudiff</span><span class="p">)</span>
+
+            <span class="c1"># compute the energy absorbed by the soil</span>
+
+            <span class="n">energyprofile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">dirrad_i</span><span class="o">*</span><span class="n">soil_absorption</span><span class="p">(</span><span class="n">solutions_dir</span><span class="p">,</span> <span class="n">kestar_i</span><span class="p">,</span> <span class="n">dtaustar_i</span><span class="p">,</span> <span class="n">taustar_i</span><span class="p">,</span> <span class="n">Gmdir_i</span><span class="p">,</span> <span class="n">mudir</span><span class="p">,</span> <span class="n">soilalbedo_i</span><span class="p">)</span> <span class="o">+</span> \
+                                   <span class="n">diffrad_i</span><span class="o">*</span><span class="n">soil_absorption</span><span class="p">(</span><span class="n">solutions_diff</span><span class="p">,</span> <span class="n">kestar_i</span><span class="p">,</span> <span class="n">dtaustar_i</span><span class="p">,</span> <span class="n">taustar_i</span><span class="p">,</span> <span class="n">Gmdiff_i</span><span class="p">,</span> <span class="n">mudiff</span><span class="p">,</span> <span class="n">soilalbedo_i</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">compute_irradiance_profiles</span> <span class="ow">or</span> <span class="n">compute_actinic_profile</span><span class="p">:</span>
+            <span class="c1"># compute the profile of downward intensity</span>
+            <span class="k">if</span> <span class="n">solutions_dir</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">A_dir</span><span class="p">,</span> <span class="n">B_dir</span><span class="p">,</span> <span class="n">C_dir</span><span class="p">,</span> <span class="n">D_dir</span> <span class="o">=</span> <span class="n">solutions_dir</span>
+            <span class="k">if</span> <span class="n">solutions_diff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">A_diff</span><span class="p">,</span> <span class="n">B_diff</span><span class="p">,</span> <span class="n">C_diff</span><span class="p">,</span> <span class="n">D_diff</span> <span class="o">=</span> <span class="n">solutions_diff</span>
+                    
+            <span class="k">for</span> <span class="n">nz0</span><span class="p">,</span> <span class="n">z0</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">z</span><span class="p">):</span>  <span class="c1"># it is probably possible to optimize this loop (-&gt; array calculation)</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="n">nearest_layer</span><span class="p">[</span><span class="n">nz0</span><span class="p">]</span>
+                <span class="n">dtaustar_z</span> <span class="o">=</span> <span class="p">(</span><span class="n">z0</span><span class="o">-</span><span class="n">thickness_total</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">/</span><span class="p">(</span><span class="n">thickness_total</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">-</span> <span class="n">thickness_total</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="n">dtaustar_ub</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">taustar_z</span> <span class="o">=</span> <span class="n">dtaustar_z</span>
+                <span class="k">if</span> <span class="n">m</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">taustar_z</span> <span class="o">+=</span> <span class="n">taustar_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+
+                <span class="n">expm</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">kestar_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">dtaustar_z</span><span class="p">)</span>
+                <span class="n">expp</span> <span class="o">=</span> <span class="n">exp</span><span class="p">(</span><span class="n">kestar_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">dtaustar_z</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">compute_irradiance_profiles</span><span class="p">:</span>
+                    <span class="n">down_irr_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                    <span class="n">up_irr_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+                    <span class="k">if</span> <span class="n">dirrad_i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">mudir</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">down_irr_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">=</span> <span class="n">dirrad_i</span><span class="o">*</span><span class="p">(</span><span class="n">A_dir</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">expm</span> <span class="o">+</span> <span class="n">B_dir</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">expp</span> <span class="o">+</span>
+                                                             <span class="p">(</span><span class="n">Gmdir_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">mudir</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar_z</span><span class="o">/</span><span class="n">mudir</span><span class="p">))</span>
+                        <span class="n">up_irr_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">=</span> <span class="n">dirrad_i</span><span class="o">*</span><span class="p">(</span><span class="n">C_dir</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">expm</span> <span class="o">+</span> <span class="n">D_dir</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">expp</span> <span class="o">+</span>
+                                                           <span class="n">Gpdir_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar_z</span><span class="o">/</span><span class="n">mudir</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">diffrad_i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">mudiff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">down_irr_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">diffrad_i</span><span class="o">*</span><span class="p">(</span><span class="n">A_diff</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">expm</span> <span class="o">+</span> <span class="n">B_diff</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">expp</span> <span class="o">+</span>
+                                                               <span class="p">(</span><span class="n">Gmdiff_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="n">mudiff</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar_z</span><span class="o">/</span><span class="n">mudiff</span><span class="p">))</span>
+                        <span class="n">up_irr_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">diffrad_i</span><span class="o">*</span><span class="p">(</span><span class="n">C_diff</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">expm</span> <span class="o">+</span> <span class="n">D_diff</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">expp</span> <span class="o">+</span>
+                                                             <span class="n">Gpdiff_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar_z</span><span class="o">/</span><span class="n">mudiff</span><span class="p">))</span>
+
+                <span class="k">if</span> <span class="n">compute_actinic_profile</span><span class="p">:</span>
+
+                    <span class="n">actinic_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+                    <span class="k">if</span> <span class="n">dirrad_i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">mudir</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">actinic_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">=</span> <span class="n">dirrad_i</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">A_dir</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">C_dir</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="n">expm</span> <span class="o">+</span>
+                                                            <span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">B_dir</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">D_dir</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="n">expp</span> <span class="o">+</span>
+                                                            <span class="p">(</span><span class="n">Gmdir_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">mudir</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar_z</span><span class="o">/</span><span class="n">mudir</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">diffrad_i</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">mudiff</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">actinic_profile</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">nz0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">diffrad_i</span><span class="o">*</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">A_diff</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">C_diff</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="n">expm</span> <span class="o">+</span>
+                                                              <span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">B_diff</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">D_diff</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="o">*</span><span class="n">expp</span> <span class="o">+</span>
+                                                              <span class="p">(</span><span class="n">Gmdiff_i</span><span class="p">[</span><span class="n">m</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">mudiff</span><span class="p">)</span><span class="o">*</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">taustar_z</span><span class="o">/</span><span class="n">mudiff</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">compute_absorption</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">compute_irradiance_profiles</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">compute_actinic_profile</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">albedo</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="p">[</span><span class="n">albedo</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()]</span>
+        <span class="k">if</span> <span class="n">compute_absorption</span><span class="p">:</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">energyprofile</span><span class="o">.</span><span class="n">squeeze</span><span class="p">())</span>
+        <span class="k">if</span> <span class="n">compute_irradiance_profiles</span><span class="p">:</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">down_irr_profile</span><span class="p">)</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">up_irr_profile</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">compute_actinic_profile</span><span class="p">:</span>
+            <span class="n">ret</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">actinic_profile</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ret</span><span class="p">)</span></div>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">tartes  documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2014, Q. Libois, G. Picard.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>
