@@ -1,0 +1,163 @@
+Metadata-Version: 1.1
+Name: redis-py-cluster
+Version: 1.2.0
+Summary: Cluster library for redis 3.0.0 built on top of redis-py lib
+Home-page: http://github.com/grokzen/redis-py-cluster
+Author: Johan Andersson
+Author-email: Grokzen@gmail.com
+License: MIT
+Description: # redis-py-cluster
+        
+        This client provides a client for redis cluster that was added in redis 3.0.
+        
+        This project is a port of `redis-rb-cluster` by antirez, with alot of added functionality. The original source can be found at https://github.com/antirez/redis-rb-cluster
+        
+        [![Build Status](https://travis-ci.org/Grokzen/redis-py-cluster.svg?branch=master)](https://travis-ci.org/Grokzen/redis-py-cluster) [![Coverage Status](https://coveralls.io/repos/Grokzen/redis-py-cluster/badge.png)](https://coveralls.io/r/Grokzen/redis-py-cluster) [![PyPI version](https://badge.fury.io/py/redis-py-cluster.svg)](http://badge.fury.io/py/redis-py-cluster) [![Code Health](https://landscape.io/github/Grokzen/redis-py-cluster/unstable/landscape.svg)](https://landscape.io/github/Grokzen/redis-py-cluster/unstable)
+        
+        
+        
+        # Documentation
+        
+        All documentation can be found at http://redis-py-cluster.readthedocs.org/en/master
+        
+        This Readme contains a reduced version of the full documentation.
+        
+        Upgrading instructions between each released version can be found [docs/upgrading.rst](Here)
+        
+        
+        
+        ## Installation
+        
+        Latest stable release from pypi
+        
+        ```
+        $ pip install redis-py-cluster
+        ```
+        
+        
+        
+        ## Usage example
+        
+        Small sample script that shows how to get started with RedisCluster. It can also be found in [examples/basic.py](examples/basic.py)
+        
+        ```python
+        >>> from rediscluster import StrictRedisCluster
+        
+        >>> # Requires at least one node for cluster discovery. Multiple nodes is recommended.
+        >>> startup_nodes = [{"host": "127.0.0.1", "port": "7000"}]
+        
+        >>> # Note: decode_responses must be set to True when used with python3
+        >>> rc = StrictRedisCluster(startup_nodes=startup_nodes, decode_responses=True)
+        
+        >>> rc.set("foo", "bar")
+        True
+        >>> print(rc.get("foo"))
+        'bar'
+        ```
+        
+        
+        
+        ## License & Authors
+        
+        Copyright (c) 2013-2016 Johan Andersson
+        
+        MIT (See docs/License.txt file)
+        
+        The license should be the same as redis-py (https://github.com/andymccurdy/redis-py)
+        
+        Release Notes
+        =============
+        
+        
+        1.2.0 (Apr 09, 2016)
+        --------------------
+        
+            * Drop maintained support for python 3.2.
+            * Remove Vagrant file in favor for repo maintained by 72squared
+            * Add Support for password protected cluster (etng)
+            * Removed assertion from code (gmolight)
+            * Fixed a bug where a regular connection pool was allocated with each StrictRedisCluster instance.
+            * Rework pfcount to now work as expected when all arguments points to same hashslot
+            * New code and important changes from redis-py 2.10.5 have been added to the codebase.
+            * Removed the need for threads inside of pipeline. We write the packed commands all nodes before reading the responses which gives us even better performance than threads, especially as we add more nodes to the cluster.
+            * Allow passing in a custom connection pool
+            * Provide default max_connections value for ClusterConnectionPool *(2**31)*
+            * Travis now tests both redis 3.0.x and 3.2.x
+            * Add simple ptpdb debug script to make it easier to test the client
+            * Fix a bug in sdiffstore (mt3925)
+            * Fix a bug with scan_iter where duplicate keys would be returned during itteration
+            * Implement all "CLUSTER ..." commands as methods in the client class
+            * Client now follows the service side setting 'cluster-require-full-coverage=yes/no' (baranbartu)
+            * Change the pubsub implementation (PUBLISH/SUBSCRIBE commands) from using one single node to now determine the hashslot for the channel name and use that to connect to
+              a node in the cluster. Other clients that do not use this pattern will not be fully compatible with this client. Known limitations is pattern 
+              subscription that do not work properly because a pattern can't know all the possible channel names in advance.
+            * Convert all docs to ReadTheDocs
+            * Rework connection pool logic to be more similar to redis-py. This also fixes an issue with pubsub and that connections
+              was never release back to the pool of available connections.
+        
+        1.1.0 (Oct 27, 2015)
+        -------------------
+        
+            * Refactored exception handling and exception classes.
+            * Added READONLY mode support, scales reads using slave nodes.
+            * Fix __repr__ for ClusterConnectionPool and ClusterReadOnlyConnectionPool
+            * Add max_connections_per_node parameter to ClusterConnectionPool so that max_connections parameter is calculated per-node rather than across the whole cluster.
+            * Improve thread safty of get_connection_by_slot and get_connection_by_node methods (iandyh)
+            * Improved error handling when sending commands to all nodes, e.g. info. Now the connection takes retry_on_timeout as an option and retry once when there is a timeout. (iandyh)
+            * Added support for SCRIPT LOAD, SCRIPT FLUSH, SCRIPT EXISTS and EVALSHA commands. (alisaifee)
+            * Improve thread safety to avoid exceptions when running one client object inside multiple threads and doing resharding of the
+              cluster at the same time.
+            * Fix ASKING error handling so now it really sends ASKING to next node during a reshard operation. This improvement was also made to pipelined commands.
+            * Improved thread safety in pipelined commands, along better explanation of the logic inside pipelining with code comments.
+        
+        1.0.0 (Jun 10, 2015)
+        -------------------
+        
+            * No change to anything just a bump to 1.0.0 because the lib is now considered stable/production ready.
+        
+        0.3.0 (Jun 9, 2015)
+        -------------------
+        
+            * simple benchmark now uses docopt for cli parsing
+            * New make target to run some benchmarks 'make benchmark'
+            * simple benchmark now support pipelines tests
+            * Renamed RedisCluster --> StrictRedisCluster
+            * Implement backwards compatible redis.Redis class in cluster mode. It was named RedisCluster and everyone updating from 0.2.0 to 0.3.0 should consult docs/Upgrading.md for instructions how to change your code.
+            * Added comprehensive documentation regarding pipelines
+            * Meta retrieval commands(slots, nodes, info) for Redis Cluster. (iandyh)
+        
+        0.2.0 (Dec 26, 2014)
+        -------------------
+        
+            * Moved pipeline code into new file.
+            * Code now uses a proper cluster connection pool class that handles
+              all nodes and connections similar to how redis-py do.
+            * Better support for pubsub. All clients will now talk to the same server because
+              pubsub commands do not work reliably if it talks to a random server in the cluster.
+            * Better result callbacks and node routing support. No more ugly decorators.
+            * Fix keyslot command when using non ascii characters.
+            * Add bitpos support, redis-py 2.10.2 or higher required.
+            * Fixed a bug where vagrant users could not build the package via shared folder.
+            * Better support for CLUSTERDOWN error. (Neuront)
+            * Parallel pipeline execution using threads. (72squared)
+            * Added vagrant support for testing and development. (72squared)
+            * Improve stability of client during resharding operations (72squared)
+        
+        0.1.0 (Sep 29, 2014)
+        -------------------
+        
+            * Initial release
+            * First release uploaded to pypi
+        
+Keywords: redis,redis cluster
+Platform: UNKNOWN
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Environment :: Web Environment
+Classifier: Operating System :: POSIX
