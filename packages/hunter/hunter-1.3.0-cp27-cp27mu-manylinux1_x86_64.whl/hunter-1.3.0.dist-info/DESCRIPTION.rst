@@ -1,0 +1,485 @@
+========
+Overview
+========
+
+
+
+Hunter is a flexible code tracing toolkit, not for measuring coverage, but for debugging, logging, inspection and other
+nefarious purposes. It has a simple Python API and a convenient terminal API (see `Environment variable activation
+<env-var-activation_>`_).
+
+* Free software: BSD license
+
+Installation
+============
+
+::
+
+    pip install hunter
+
+Documentation
+=============
+
+https://python-hunter.readthedocs.org/
+
+
+Overview
+========
+
+The default action is to just print the code being executed. Example:
+
+.. sourcecode:: python
+
+    import hunter
+    hunter.trace(module='posixpath')
+
+    import os
+    os.path.join('a', 'b')
+
+Would result in:
+
+.. sourcecode:: pycon
+
+    >>> os.path.join('a', 'b')
+             /usr/lib/python3.5/posixpath.py:71    call      def join(a, *p):
+             /usr/lib/python3.5/posixpath.py:76    line          sep = _get_sep(a)
+             /usr/lib/python3.5/posixpath.py:39    call      def _get_sep(path):
+             /usr/lib/python3.5/posixpath.py:40    line          if isinstance(path, bytes):
+             /usr/lib/python3.5/posixpath.py:43    line              return '/'
+             /usr/lib/python3.5/posixpath.py:43    return            return '/'
+                                                   ...       return value: '/'
+             /usr/lib/python3.5/posixpath.py:77    line          path = a
+             /usr/lib/python3.5/posixpath.py:78    line          try:
+             /usr/lib/python3.5/posixpath.py:79    line              if not p:
+             /usr/lib/python3.5/posixpath.py:81    line              for b in p:
+             /usr/lib/python3.5/posixpath.py:82    line                  if b.startswith(sep):
+             /usr/lib/python3.5/posixpath.py:84    line                  elif not path or path.endswith(sep):
+             /usr/lib/python3.5/posixpath.py:87    line                      path += sep + b
+             /usr/lib/python3.5/posixpath.py:81    line              for b in p:
+             /usr/lib/python3.5/posixpath.py:91    line          return path
+             /usr/lib/python3.5/posixpath.py:91    return        return path
+                                                   ...       return value: 'a/b'
+    'a/b'
+
+- or in a terminal:
+
+.. image:: https://raw.githubusercontent.com/ionelmc/python-hunter/master/docs/simple-trace.png
+
+Custom actions
+--------------
+
+The tracer allow custom actions like ``CallPrinter`` or ``VarsPrinter``.
+
+With ``CallPrinter`` (added in `hunter 1.2.0`, will be the default action in `2.0.0`):
+
+.. sourcecode:: python
+
+    import hunter
+    hunter.trace(module='posixpath', action=hunter.CallPrinter)
+
+    import os
+    os.path.join('a', 'b')
+
+Would result in:
+
+.. sourcecode:: pycon
+
+    >>> os.path.join('a', 'b')
+             /usr/lib/python3.5/posixpath.py:71    call      => join(a='a')
+             /usr/lib/python3.5/posixpath.py:76    line         sep = _get_sep(a)
+             /usr/lib/python3.5/posixpath.py:39    call         => _get_sep(path='a')
+             /usr/lib/python3.5/posixpath.py:40    line            if isinstance(path, bytes):
+             /usr/lib/python3.5/posixpath.py:43    line            return '/'
+             /usr/lib/python3.5/posixpath.py:43    return       <= _get_sep: '/'
+             /usr/lib/python3.5/posixpath.py:77    line         path = a
+             /usr/lib/python3.5/posixpath.py:78    line         try:
+             /usr/lib/python3.5/posixpath.py:79    line         if not p:
+             /usr/lib/python3.5/posixpath.py:81    line         for b in p:
+             /usr/lib/python3.5/posixpath.py:82    line         if b.startswith(sep):
+             /usr/lib/python3.5/posixpath.py:84    line         elif not path or path.endswith(sep):
+             /usr/lib/python3.5/posixpath.py:87    line         path += sep + b
+             /usr/lib/python3.5/posixpath.py:81    line         for b in p:
+             /usr/lib/python3.5/posixpath.py:91    line         return path
+             /usr/lib/python3.5/posixpath.py:91    return    <= join: 'a/b'
+    'a/b'
+
+In a terminal it would look like:
+
+.. image:: https://raw.githubusercontent.com/ionelmc/python-hunter/master/docs/code-trace.png
+
+------
+
+With ``VarsPrinter``:
+
+.. sourcecode:: python
+
+    import hunter
+    # note that this kind of invocation will also use the default `CodePrinter`
+    hunter.trace(hunter.Q(module='posixpath', action=hunter.VarsPrinter('path')))
+
+    import os
+    os.path.join('a', 'b')
+
+Would result in:
+
+.. sourcecode:: pycon
+
+    >>> os.path.join('a', 'b')
+             /usr/lib/python3.5/posixpath.py:71    call      def join(a, *p):
+             /usr/lib/python3.5/posixpath.py:76    line          sep = _get_sep(a)
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:39    call      def _get_sep(path):
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:40    line          if isinstance(path, bytes):
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:43    line              return '/'
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:43    return            return '/'
+                                                   ...       return value: '/'
+             /usr/lib/python3.5/posixpath.py:77    line          path = a
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:78    line          try:
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:79    line              if not p:
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:81    line              for b in p:
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:82    line                  if b.startswith(sep):
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:84    line                  elif not path or path.endswith(sep):
+                                                   vars      path => 'a'
+             /usr/lib/python3.5/posixpath.py:87    line                      path += sep + b
+                                                   vars      path => 'a/b'
+             /usr/lib/python3.5/posixpath.py:81    line              for b in p:
+                                                   vars      path => 'a/b'
+             /usr/lib/python3.5/posixpath.py:91    line          return path
+                                                   vars      path => 'a/b'
+             /usr/lib/python3.5/posixpath.py:91    return        return path
+                                                   ...       return value: 'a/b'
+    'a/b'
+
+In a terminal it would look like:
+
+.. image:: https://raw.githubusercontent.com/ionelmc/python-hunter/master/docs/vars-trace.png
+
+-----
+
+You can give it a tree-like configuration where you can optionally configure specific actions for parts of the
+tree (like dumping variables or a pdb set_trace):
+
+.. sourcecode:: python
+
+    from hunter import trace, Q, Debugger
+    from pdb import Pdb
+
+    trace(
+        # drop into a Pdb session if ``foo.bar()`` is called
+        Q(module="foo", function="bar", kind="call", action=Debugger(klass=Pdb))
+        |  # or
+        Q(
+            # show code that contains "mumbo.jumbo" on the current line
+            lambda event: event.locals.get("mumbo") == "jumbo",
+            # and it's not in Python's stdlib
+            stdlib=False,
+            # and it contains "mumbo" on the current line
+            source__contains="mumbo"
+        )
+    )
+
+    import foo
+    foo.func()
+
+With a ``foo.py`` like this:
+
+.. sourcecode:: python
+
+    def bar():
+        execution_will_get_stopped  # cause we get a Pdb session here
+
+    def func():
+        mumbo = 1
+        mumbo = "jumbo"
+        print("not shown in trace")
+        print(mumbo)
+        mumbo = 2
+        print(mumbo) # not shown in trace
+        bar()
+
+
+We get:
+
+.. sourcecode:: pycon
+
+    >>> foo.func()
+    not shown in trace
+        /home/ionel/osp/python-hunter/foo.py:8     line          print(mumbo)
+    jumbo
+        /home/ionel/osp/python-hunter/foo.py:9     line          mumbo = 2
+    2
+        /home/ionel/osp/python-hunter/foo.py:1     call      def bar():
+    > /home/ionel/osp/python-hunter/foo.py(2)bar()
+    -> execution_will_get_stopped  # cause we get a Pdb session here
+    (Pdb)
+
+In a terminal it would look like:
+
+.. image:: https://raw.githubusercontent.com/ionelmc/python-hunter/master/docs/tree-trace.png
+
+.. _env-var-activation:
+
+Environment variable activation
+-------------------------------
+
+For your convenience environment variable activation is available. Just run your app like this::
+
+
+    PYTHONHUNTER="module='os.path'" python yourapp.py
+
+On Windows you'd do something like::
+
+    set PYTHONHUNTER=module='os.path'
+    python yourapp.py
+
+The activation works with a clever ``.pth`` file that checks for that env var presence and before your app runs does something
+like this::
+
+    from hunter import *
+    trace(<whatever-you-had-in-the-PYTHONHUNTER-env-var>)
+
+Note that Hunter is activated even if the env var is empty, eg: ``PYTHONHUNTER=""``.
+
+Filtering DSL
+-------------
+
+Hunter supports a flexible query DSL, see the `introduction
+<https://python-hunter.readthedocs.org/en/latest/introduction.html>`_.
+
+Development
+===========
+
+To run the all tests run::
+
+    tox
+
+
+FAQ
+===
+
+Why not Smiley?
+---------------
+
+There's some obvious overlap with `smiley <https://pypi.python.org/pypi/smiley>`_ but there are few fundamental differences:
+
+* Complexity. Smiley is simply over-engineered:
+
+  * It uses IPC and a SQL database.
+  * It has a webserver. Lots of dependencies.
+  * It uses threads. Side-effects and subtle bugs are introduced in your code.
+  * It records everything. Tries to dump any variable. Often fails and stops working.
+
+  Why do you need all that just to debug some stuff in a terminal? Simply put, it's a nice idea but the design choices work
+  against you when you're already neck-deep into debugging your own code. In my experience Smiley has been very buggy and
+  unreliable. Your mileage may vary of course.
+
+* Tracing long running code. This will make Smiley record lots of data, making it unusable.
+
+  Now because Smiley records everything, you'd think it's better suited for short programs. But alas, if your program runs
+  quickly then it's pointless to record the execution. You can just run it again.
+
+  It seems there's only one situation where it's reasonable to use Smiley: tracing io-bound apps remotely. Those apps don't
+  execute lots of code, they just wait on network so Smiley's storage won't blow out of proportion and tracing overhead might
+  be acceptable.
+* Use-cases. It seems to me Smiley's purpose is not really debugging code, but more of a "non interactive monitoring" tool.
+
+In contrast, Hunter is very simple:
+
+* Few dependencies.
+* Low overhead (tracing/filtering code has an optional Cython extension).
+* No storage. This simplifies lots of things.
+
+  The only cost is that you might need to run the code multiple times to get the filtering/actions right. This means Hunter is
+  not really suited for "post-mortem" debugging. If you can't reproduce the problem anymore then Hunter won't be of much help.
+
+Why not pytrace?
+----------------
+
+`Pytrace <https://pypi.python.org/pypi/pytrace>`_ is another tracer tool. It seems quite similar to Smiley - it uses a sqlite 
+database for the events, threads and IPC.
+
+TODO: Expand this.
+
+Why (not) coverage?
+-------------------
+
+For purposes of debugging `coverage <https://pypi.python.org/pypi/coverage>`_ is a great tool but only as far as "debugging
+by looking at what code is (not) run". Checking branch coverage is good but it will only get you as far.
+
+>From the other perspective, you'd be wondering if you could use Hunter to measure coverage-like things. You could do it but
+for that purpose Hunter is very "rough": it has no builtin storage. You'd have to implement your own storage. You can do it
+but it wouldn't give you any advantage over making your own tracer if you don't need to "pre-filter" whatever you're
+recording.
+
+In other words, filtering events is the main selling point of Hunter - it's fast (cython implementation) and the query API is
+flexible enough.
+
+
+Changelog
+=========
+
+1.3.0 (2016-04-14)
+------------------
+
+* Added ``Event.thread``.
+* Added ``Event.threadid`` and ``Event.threadname`` (available for filtering with ``Q`` objects).
+* Added ``threading_support`` argument to ``hunter.trace``: makes new threads be traced and changes action output to include
+  threadname.
+* Added support for using `pdb++ <https://pypi.python.org/pypi/pdbpp>`_ in the ``Debugger`` action.
+* Added support for using `manhole <https://pypi.python.org/pypi/manhole>`_ via a new ``Manhole`` action.
+* Made the ``handler`` a public but readonly property of ``Tracer`` objects.
+
+
+1.2.2 (2016-01-28)
+------------------
+
+* Fix broken import. Require `fields>=4.0`.
+* Simplify a string check in Cython code.
+
+1.2.1 (2016-01-27)
+------------------
+
+* Fix "KeyError: 'normal'" bug in ``CallPrinter``. Create the NO_COLORS dict from the COLOR dicts. Some keys were missing.
+
+1.2.0 (2016-01-24)
+------------------
+
+* Fixed printouts of objects that return very large string in ``__repr__()``. Trimmed to 512. Configurable in actions with the
+  ``repr_limit`` option.
+* Improved validation of ``VarsPrinter``'s initializer.
+* Added a ``CallPrinter`` action.
+
+1.1.0 (2016-01-21)
+------------------
+
+* Implemented a destructor (``__dealloc__``) for the Cython tracer.
+* Improved the restoring of the previous tracer in the Cython tracer (use ``PyEval_SetTrace``) directly.
+* Removed ``tracer`` as an allowed filtering argument in ``hunter.Query``.
+* Add basic validation (must be callable) for positional arguments and actions passed into ``hunter.Q``. Closes
+  `#23 <https://github.com/ionelmc/python-hunter/issues/23>`_.
+* Fixed ``stdlib`` checks (wasn't very reliable). Closes `#24 <https://github.com/ionelmc/python-hunter/issues/24>`_.
+
+1.0.2 (2016-01-05)
+------------------
+
+* Fixed missing import in ``setup.py``.
+
+1.0.1 (2015-12-24)
+------------------
+
+* Fix a compile issue with the MSVC compiler (seems it don't like the inline option on the ``fast_When_call``).
+
+1.0.0 (2015-12-24)
+------------------
+
+* Implemented fast tracer and query objects in Cython. **MAY BE BACKWARDS INCOMPATIBLE**
+
+  To force using the old pure-python implementation set the ``PUREPYTHONHUNTER`` environment variable to non-empty value.
+* Added filtering operators: ``contains``, ``startswith``, ``endswith`` and ``in``. Examples:
+
+  * ``Q(module_startswith='foo'`` will match events from ``foo``, ``foo.bar`` and ``foobar``.
+  * ``Q(module_startswith=['foo', 'bar']`` will match events from ``foo``, ``foo.bar``, ``foobar``, ``bar``, ``bar.foo`` and ``baroo`` .
+  * ``Q(module_endswith='bar'`` will match events from ``foo.bar`` and ``foobar``.
+  * ``Q(module_contains='ip'`` will match events from ``lipsum``.
+  * ``Q(module_in=['foo', 'bar']`` will match events from ``foo`` and ``bar``.
+  * ``Q(module_regex=r"(re|sre.*)\b") will match events from ``re``, ``re.foobar``, ``srefoobar`` but not from ``repr``.
+
+* Removed the ``merge`` option. Now when you call ``hunter.trace(...)`` multiple times only the last one is active.
+  **BACKWARDS INCOMPATIBLE**
+* Remove the `previous_tracer handling`. Now when you call ``hunter.trace(...)`` the previous tracer (whatever was in
+  ``sys.gettrace()``) is disabled and restored when ``hunter.stop()`` is called. **BACKWARDS INCOMPATIBLE**
+* Fixed ``CodePrinter`` to show module name if it fails to get any sources.
+
+0.6.0 (2015-10-10)
+------------------
+
+* Added a ``clear_env_var`` option on the tracer (disables tracing in subprocess).
+* Added ``force_colors`` option on ``VarsPrinter`` and ``CodePrinter``.
+* Allowed setting the `stream` to a file name (option on ``VarsPrinter`` and ``CodePrinter``).
+* Bumped up the filename alignment to 40 cols.
+* If not merging then `self` is not kept as a previous tracer anymore.
+  Closes `#16 <https://github.com/ionelmc/python-hunter/issues/16>`_.
+* Fixed handling in VarsPrinter: properly print eval errors and don't try to show anything if there's an AttributeError.
+  Closes `#18 <https://github.com/ionelmc/python-hunter/issues/18>`_.
+* Added a ``stdlib`` boolean flag (for filtering purposes).
+  Closes `#15 <https://github.com/ionelmc/python-hunter/issues/15>`_.
+* Fixed broken frames that have "None" for filename or module (so they can still be treated as strings).
+* Corrected output files in the ``install_lib`` command so that pip can uninstall the pth file.
+  This only works when it's installed with pip (sadly, ``setup.py install/develop`` and ``pip install -e`` will still
+  leave pth garbage on ``pip uninstall hunter``).
+
+0.5.1 (2015-04-15)
+------------------
+
+* Fixed ``Event.globals`` to actually be the dict of global vars (it was just the locals).
+
+0.5.0 (2015-04-06)
+------------------
+
+* Fixed ``And`` and ``Or`` "single argument unwrapping".
+* Implemented predicate compression. Example: ``Or(Or(a, b), c)`` is converted to ``Or(a, b, c)``.
+* Renamed the ``Event.source`` to ``Event.fullsource``.
+* Added ``Event.source`` that doesn't do any fancy sourcecode tokenization.
+* Fixed ``Event.fullsource`` return value for situations where the tokenizer would fail.
+* Made the print function available in the ``PYTHONHUNTER`` env var payload.
+* Added a __repr__ for ``Event``.
+
+0.4.0 (2015-03-29)
+------------------
+
+* Disabled colors for Jython (contributed by Claudiu Popa in `#12 <https://github.com/ionelmc/python-hunter/pull/12>`_).
+* Test suite fixes for Windows (contributed by Claudiu Popa in `#11 <https://github.com/ionelmc/python-hunter/pull/11>`_).
+* Added an introduction section in the docs.
+* Implemented a prettier fallback for when no sources are available for that frame.
+* Implemented fixups in cases where you use action classes as a predicates.
+
+0.3.1 (2015-03-29)
+------------------
+
+* Forgot to merge some commits ...
+
+0.3.0 (2015-03-29)
+------------------
+
+* Added handling for internal repr failures.
+* Fixed issues with displaying code that has non-ascii characters.
+* Implemented better display for ``call`` frames so that when a function has decorators the
+  function definition is shown (instead of just the first decorator).
+  See: `#8 <https://github.com/ionelmc/python-hunter/issues/8>`_.
+
+0.2.1 (2015-03-28)
+------------------
+
+* Added missing color entry for exception events.
+* Added ``Event.line`` property. It returns the source code for the line being run.
+
+0.2.0 (2015-03-27)
+------------------
+
+* Added color support (and ``colorama`` as dependency).
+* Added support for expressions in ``VarsPrinter``.
+* Breaking changes:
+
+  * Renamed ``F`` to ``Q``. And ``Q`` is now just a convenience wrapper for ``Query``.
+  * Renamed the ``PYTHON_HUNTER`` env variable to ``PYTHONHUNTER``.
+  * Changed ``When`` to take positional arguments.
+  * Changed output to show 2 path components (still not configurable).
+  * Changed ``VarsPrinter`` to take positional arguments for the names.
+* Improved error reporting for env variable activation (``PYTHONHUNTER``).
+* Fixed env var activator (the ``.pth`` file) installation with ``setup.py install`` (the "egg installs") and
+  ``setup.py develop``/``pip install -e`` (the "egg links").
+
+0.1.0 (2015-03-22)
+------------------
+
+* First release on PyPI.
+
+
