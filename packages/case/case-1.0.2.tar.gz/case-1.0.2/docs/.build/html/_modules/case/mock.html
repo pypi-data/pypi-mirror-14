@@ -1,0 +1,692 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>case.mock &mdash; case 1.0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/celery.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="case 1.0.1 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">case 1.0.1 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+<h1>Source code for case.mock</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">types</span>
+
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
+<span class="kn">from</span> <span class="nn">six</span> <span class="kn">import</span> <span class="n">reraise</span><span class="p">,</span> <span class="n">string_types</span><span class="p">,</span> <span class="n">iteritems</span> <span class="k">as</span> <span class="n">items</span>
+<span class="kn">from</span> <span class="nn">six.moves</span> <span class="kn">import</span> <span class="n">builtins</span>
+
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">WhateverIO</span><span class="p">,</span> <span class="n">decorator</span><span class="p">,</span> <span class="n">get_logger_handlers</span><span class="p">,</span> <span class="n">noop</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">unittest</span> <span class="kn">import</span> <span class="n">mock</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">mock</span>  <span class="c1"># noqa</span>
+
+<span class="n">PY3</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">3</span>
+<span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+    <span class="n">open_fqdn</span> <span class="o">=</span> <span class="s1">&#39;builtins.open&#39;</span>
+    <span class="n">module_name_t</span> <span class="o">=</span> <span class="nb">str</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">open_fqdn</span> <span class="o">=</span> <span class="s1">&#39;__builtin__.open&#39;</span>  <span class="c1"># noqa</span>
+    <span class="n">module_name_t</span> <span class="o">=</span> <span class="nb">bytes</span>  <span class="c1"># noqa</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;ANY&#39;</span><span class="p">,</span> <span class="s1">&#39;ContextMock&#39;</span><span class="p">,</span> <span class="s1">&#39;MagicMock&#39;</span><span class="p">,</span> <span class="s1">&#39;Mock&#39;</span><span class="p">,</span> <span class="s1">&#39;MockCallbacks&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;call&#39;</span><span class="p">,</span> <span class="s1">&#39;patch&#39;</span><span class="p">,</span> <span class="s1">&#39;sentinel&#39;</span><span class="p">,</span>
+
+    <span class="s1">&#39;wrap_logger&#39;</span><span class="p">,</span> <span class="s1">&#39;environ&#39;</span><span class="p">,</span> <span class="s1">&#39;sleepdeprived&#39;</span><span class="p">,</span> <span class="s1">&#39;mask_modules&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;stdouts&#39;</span><span class="p">,</span> <span class="s1">&#39;replace_module_value&#39;</span><span class="p">,</span> <span class="s1">&#39;sys_version&#39;</span><span class="p">,</span> <span class="s1">&#39;pypy_version&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;platform_pyimp&#39;</span><span class="p">,</span> <span class="s1">&#39;sys_platform&#39;</span><span class="p">,</span> <span class="s1">&#39;reset_modules&#39;</span><span class="p">,</span> <span class="s1">&#39;module&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;open&#39;</span><span class="p">,</span> <span class="s1">&#39;restore_logging&#39;</span><span class="p">,</span> <span class="s1">&#39;module_exists&#39;</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="n">ANY</span> <span class="o">=</span> <span class="n">mock</span><span class="o">.</span><span class="n">ANY</span>
+<span class="n">call</span> <span class="o">=</span> <span class="n">mock</span><span class="o">.</span><span class="n">call</span>
+<span class="n">patch</span> <span class="o">=</span> <span class="n">mock</span><span class="o">.</span><span class="n">patch</span>
+<span class="n">sentinel</span> <span class="o">=</span> <span class="n">mock</span><span class="o">.</span><span class="n">sentinel</span>
+
+
+<span class="k">class</span> <span class="nc">MockMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">on_nth_call_do</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">side_effect</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Change Mock side effect after ``n`` calls.</span>
+
+<span class="sd">        Example::</span>
+
+<span class="sd">            mock.on_nth_call_do(RuntimeError, n=3)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">on_call</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">call_count</span> <span class="o">&gt;=</span> <span class="n">n</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="n">side_effect</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">return_value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="n">on_call</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">on_nth_call_return</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">retval</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Change Mock to return specific return value after ``n`` calls.</span>
+
+<span class="sd">        Example::</span>
+
+<span class="sd">            mock.on_nth_call_return(&#39;STOP&#39;, n=3)</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">on_call</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">call_count</span> <span class="o">&gt;=</span> <span class="n">n</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">retval</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">return_value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="n">on_call</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">_mock_update_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="p">{},</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">items</span><span class="p">(</span><span class="n">attrs</span><span class="p">):</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Mock"><a class="viewcode-back" href="../../reference/case.mock.html#case.Mock">[docs]</a><span class="k">class</span> <span class="nc">Mock</span><span class="p">(</span><span class="n">mock</span><span class="o">.</span><span class="n">Mock</span><span class="p">,</span> <span class="n">MockMixin</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Mock</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mock_update_attributes</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MagicMock"><a class="viewcode-back" href="../../reference/case.mock.html#case.MagicMock">[docs]</a><span class="k">class</span> <span class="nc">MagicMock</span><span class="p">(</span><span class="n">mock</span><span class="o">.</span><span class="n">MagicMock</span><span class="p">,</span> <span class="n">MockMixin</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">MagicMock</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mock_update_attributes</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">_ContextMock</span><span class="p">(</span><span class="n">Mock</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Dummy class implementing __enter__ and __exit__</span>
+<span class="sd">    as the :keyword:`with` statement requires these to be implemented</span>
+<span class="sd">    in the class, not just the instance.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">exc_info</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+
+<div class="viewcode-block" id="ContextMock"><a class="viewcode-back" href="../../reference/case.mock.html#case.ContextMock">[docs]</a><span class="k">def</span> <span class="nf">ContextMock</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock that mocks :keyword:`with` statement contexts.&quot;&quot;&quot;</span>
+    <span class="n">obj</span> <span class="o">=</span> <span class="n">_ContextMock</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">obj</span><span class="o">.</span><span class="n">attach_mock</span><span class="p">(</span><span class="n">_ContextMock</span><span class="p">(),</span> <span class="s1">&#39;__enter__&#39;</span><span class="p">)</span>
+    <span class="n">obj</span><span class="o">.</span><span class="n">attach_mock</span><span class="p">(</span><span class="n">_ContextMock</span><span class="p">(),</span> <span class="s1">&#39;__exit__&#39;</span><span class="p">)</span>
+    <span class="n">obj</span><span class="o">.</span><span class="n">__enter__</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">obj</span>
+    <span class="c1"># if __exit__ return a value the exception is ignored,</span>
+    <span class="c1"># so it must return None here.</span>
+    <span class="n">obj</span><span class="o">.</span><span class="n">__exit__</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="bp">None</span>
+    <span class="k">return</span> <span class="n">obj</span></div>
+
+
+<span class="k">def</span> <span class="nf">_bind</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+    <span class="nd">@wraps</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">bound_meth</span><span class="p">(</span><span class="o">*</span><span class="n">fargs</span><span class="p">,</span> <span class="o">**</span><span class="n">fkwargs</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="o">*</span><span class="n">fargs</span><span class="p">,</span> <span class="o">**</span><span class="n">fkwargs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">bound_meth</span>
+
+
+<span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="k">def</span> <span class="nf">_get_class_fun</span><span class="p">(</span><span class="n">meth</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">meth</span>
+
+    <span class="k">def</span> <span class="nf">module_name</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">s</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">s</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">_get_class_fun</span><span class="p">(</span><span class="n">meth</span><span class="p">):</span>  <span class="c1"># noqa</span>
+        <span class="k">return</span> <span class="n">meth</span><span class="o">.</span><span class="n">__func__</span>
+
+    <span class="k">def</span> <span class="nf">module_name</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>  <span class="c1"># noqa</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="nb">unicode</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">s</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">s</span>
+
+
+<div class="viewcode-block" id="MockCallbacks"><a class="viewcode-back" href="../../reference/case.mock.html#case.MockCallbacks">[docs]</a><span class="k">class</span> <span class="nc">MockCallbacks</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">Mock</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">cls</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="n">_get_class_fun</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__init__</span><span class="p">)(</span><span class="n">r</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">items</span><span class="p">(</span><span class="nb">vars</span><span class="p">(</span><span class="n">cls</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;__dict__&#39;</span><span class="p">,</span> <span class="s1">&#39;__weakref__&#39;</span><span class="p">,</span> <span class="s1">&#39;__new__&#39;</span><span class="p">,</span> <span class="s1">&#39;__init__&#39;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">or</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                    <span class="n">r</span><span class="o">.</span><span class="n">__getattr__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="n">_bind</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">r</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">r</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">r</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="wrap_logger"><a class="viewcode-back" href="../../reference/case.mock.html#case.wrap_logger">[docs]</a><span class="k">def</span> <span class="nf">wrap_logger</span><span class="p">(</span><span class="n">logger</span><span class="p">,</span> <span class="n">loglevel</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Wrap :class:`logging.Logger` with a StringIO() handler.</span>
+
+<span class="sd">    yields a StringIO handle.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        with mock.wrap_logger(logger, loglevel=logging.DEBUG) as sio:</span>
+<span class="sd">            ...</span>
+<span class="sd">            sio.getvalue()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">old_handlers</span> <span class="o">=</span> <span class="n">get_logger_handlers</span><span class="p">(</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">sio</span> <span class="o">=</span> <span class="n">WhateverIO</span><span class="p">()</span>
+    <span class="n">siohandler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sio</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">handlers</span> <span class="o">=</span> <span class="p">[</span><span class="n">siohandler</span><span class="p">]</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">sio</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">handlers</span> <span class="o">=</span> <span class="n">old_handlers</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="environ"><a class="viewcode-back" href="../../reference/case.mock.html#case.environ">[docs]</a><span class="k">def</span> <span class="nf">environ</span><span class="p">(</span><span class="n">env_name</span><span class="p">,</span> <span class="n">env_value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock environment variable value.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @mock.environ(&#39;DJANGO_SETTINGS_MODULE&#39;, &#39;proj.settings&#39;)</span>
+<span class="sd">        def test_other_settings(self):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">sentinel</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+    <span class="n">prev_val</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">env_name</span><span class="p">,</span> <span class="n">sentinel</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="n">env_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">env_value</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">prev_val</span> <span class="ow">is</span> <span class="n">sentinel</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">env_name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="n">env_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">prev_val</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="sleepdeprived"><a class="viewcode-back" href="../../reference/case.mock.html#case.sleepdeprived">[docs]</a><span class="k">def</span> <span class="nf">sleepdeprived</span><span class="p">(</span><span class="n">module</span><span class="o">=</span><span class="n">time</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock time.sleep to do nothing.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @mock.sleepdeprived()  # &lt; patches time.sleep</span>
+<span class="sd">        @mock.sleepdeprived(celery.result)  # &lt; patches celery.result.sleep</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">old_sleep</span><span class="p">,</span> <span class="n">module</span><span class="o">.</span><span class="n">sleep</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">sleep</span><span class="p">,</span> <span class="n">noop</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">module</span><span class="o">.</span><span class="n">sleep</span> <span class="o">=</span> <span class="n">old_sleep</span></div>
+
+
+<span class="c1"># Taken from</span>
+<span class="c1"># http://bitbucket.org/runeh/snippets/src/tip/missing_modules.py</span>
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="mask_modules"><a class="viewcode-back" href="../../reference/case.mock.html#case.mask_modules">[docs]</a><span class="k">def</span> <span class="nf">mask_modules</span><span class="p">(</span><span class="o">*</span><span class="n">modnames</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Ban some modules from being importable inside the context</span>
+
+<span class="sd">    For example::</span>
+
+<span class="sd">        &gt;&gt;&gt; with mask_modules(&#39;sys&#39;):</span>
+<span class="sd">        ...     try:</span>
+<span class="sd">        ...         import sys</span>
+<span class="sd">        ...     except ImportError:</span>
+<span class="sd">        ...         print(&#39;sys not found&#39;)</span>
+<span class="sd">        sys not found</span>
+
+<span class="sd">        &gt;&gt;&gt; import sys  # noqa</span>
+<span class="sd">        &gt;&gt;&gt; sys.version</span>
+<span class="sd">        (2, 5, 2, &#39;final&#39;, 0)</span>
+
+<span class="sd">    Or as a decorator::</span>
+
+<span class="sd">        @mask_modules(&#39;sys&#39;)</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">realimport</span> <span class="o">=</span> <span class="n">builtins</span><span class="o">.</span><span class="n">__import__</span>
+
+    <span class="k">def</span> <span class="nf">myimp</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">modnames</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s1">&#39;No module named </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">realimport</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="n">builtins</span><span class="o">.</span><span class="n">__import__</span> <span class="o">=</span> <span class="n">myimp</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">builtins</span><span class="o">.</span><span class="n">__import__</span> <span class="o">=</span> <span class="n">realimport</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="stdouts"><a class="viewcode-back" href="../../reference/case.mock.html#case.stdouts">[docs]</a><span class="k">def</span> <span class="nf">stdouts</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Override `sys.stdout` and `sys.stderr` with `StringIO`</span>
+<span class="sd">    instances.</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.stdouts</span>
+<span class="sd">        def test_foo(self, stdout, stderr):</span>
+<span class="sd">            something()</span>
+<span class="sd">            self.assertIn(&#39;foo&#39;, stdout.getvalue())</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.stdouts() as (stdout, stderr):</span>
+<span class="sd">            something()</span>
+<span class="sd">            self.assertIn(&#39;foo&#39;, stdout.getvalue())</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">prev_out</span><span class="p">,</span> <span class="n">prev_err</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span>
+    <span class="n">prev_rout</span><span class="p">,</span> <span class="n">prev_rerr</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stdout__</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stderr__</span>
+    <span class="n">mystdout</span><span class="p">,</span> <span class="n">mystderr</span> <span class="o">=</span> <span class="n">WhateverIO</span><span class="p">(),</span> <span class="n">WhateverIO</span><span class="p">()</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stdout__</span> <span class="o">=</span> <span class="n">mystdout</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stderr__</span> <span class="o">=</span> <span class="n">mystderr</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">mystdout</span><span class="p">,</span> <span class="n">mystderr</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">prev_out</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span> <span class="o">=</span> <span class="n">prev_err</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">__stdout__</span> <span class="o">=</span> <span class="n">prev_rout</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">__stderr__</span> <span class="o">=</span> <span class="n">prev_rerr</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="replace_module_value"><a class="viewcode-back" href="../../reference/case.mock.html#case.replace_module_value">[docs]</a><span class="k">def</span> <span class="nf">replace_module_value</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock module value, given a module, attribute name and value.</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.replace_module_value(module, &#39;CONSTANT&#39;, 3.03)</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.replace_module_value(module, &#39;CONSTANT&#39;, 3.03):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">has_prev</span> <span class="o">=</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+    <span class="n">prev</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="nb">delattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">prev</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">prev</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_prev</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">delattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="sys_version"><a class="viewcode-back" href="../../reference/case.mock.html#case.sys_version">[docs]</a><span class="k">def</span> <span class="nf">sys_version</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock :data:`sys.version_info`</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.sys_version((3, 6, 1))</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.sys_version((3, 6, 1)):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">replace_module_value</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="s1">&#39;version_info&#39;</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="pypy_version"><a class="viewcode-back" href="../../reference/case.mock.html#case.pypy_version">[docs]</a><span class="k">def</span> <span class="nf">pypy_version</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock :data:`sys.pypy_version_info`</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.pypy_version((3, 6, 1))</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.pypy_version((3, 6, 1)):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">replace_module_value</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="s1">&#39;pypy_version_info&#39;</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="platform_pyimp"><a class="viewcode-back" href="../../reference/case.mock.html#case.platform_pyimp">[docs]</a><span class="k">def</span> <span class="nf">platform_pyimp</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock :data:`platform.python_implementation`</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.platform_pyimp(&#39;PyPy&#39;)</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.platform_pyimp(&#39;PyPy&#39;):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">replace_module_value</span><span class="p">(</span><span class="n">platform</span><span class="p">,</span> <span class="s1">&#39;python_implementation&#39;</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="sys_platform"><a class="viewcode-back" href="../../reference/case.mock.html#case.sys_platform">[docs]</a><span class="k">def</span> <span class="nf">sys_platform</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock :data:`sys.platform`</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.sys_platform(&#39;darwin&#39;)</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.sys_platform(&#39;darwin&#39;):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">prev</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="p">,</span> <span class="n">value</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">=</span> <span class="n">prev</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="reset_modules"><a class="viewcode-back" href="../../reference/case.mock.html#case.reset_modules">[docs]</a><span class="k">def</span> <span class="nf">reset_modules</span><span class="p">(</span><span class="o">*</span><span class="n">modules</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Remove modules from :data:`sys.modules` by name,</span>
+<span class="sd">    and reset back again when the test/context returns.</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.reset_modules(&#39;celery.result&#39;, &#39;celery.app.base&#39;)</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            pass</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.reset_modules(&#39;celery.result&#39;, &#39;celery.app.base&#39;):</span>
+<span class="sd">            pass</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">prev</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">modules</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">prev</span><span class="p">)</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="module"><a class="viewcode-back" href="../../reference/case.mock.html#case.module">[docs]</a><span class="k">def</span> <span class="nf">module</span><span class="p">(</span><span class="o">*</span><span class="n">names</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mock one or modules such that every attribute is a :class:`Mock`.&quot;&quot;&quot;</span>
+    <span class="n">prev</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">class</span> <span class="nc">MockModule</span><span class="p">(</span><span class="n">types</span><span class="o">.</span><span class="n">ModuleType</span><span class="p">):</span>
+
+        <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">Mock</span><span class="p">())</span>
+            <span class="k">return</span> <span class="n">types</span><span class="o">.</span><span class="n">ModuleType</span><span class="o">.</span><span class="n">__getattribute__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+
+    <span class="n">mods</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">prev</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="n">mod</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">MockModule</span><span class="p">(</span><span class="n">module_name</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+        <span class="n">mods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mod</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">mods</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">prev</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">del</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">pass</span></div>
+
+
+<span class="nd">@contextmanager</span>
+<span class="k">def</span> <span class="nf">mock_context</span><span class="p">(</span><span class="n">mock</span><span class="p">,</span> <span class="n">typ</span><span class="o">=</span><span class="n">Mock</span><span class="p">):</span>
+    <span class="n">context</span> <span class="o">=</span> <span class="n">mock</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">Mock</span><span class="p">()</span>
+    <span class="n">context</span><span class="o">.</span><span class="n">__enter__</span> <span class="o">=</span> <span class="n">typ</span><span class="p">()</span>
+    <span class="n">context</span><span class="o">.</span><span class="n">__exit__</span> <span class="o">=</span> <span class="n">typ</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">on_exit</span><span class="p">(</span><span class="o">*</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+            <span class="n">reraise</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+    <span class="n">context</span><span class="o">.</span><span class="n">__exit__</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="n">on_exit</span>
+    <span class="n">context</span><span class="o">.</span><span class="n">__enter__</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">context</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">context</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="open"><a class="viewcode-back" href="../../reference/case.mock.html#case.open">[docs]</a><span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="n">typ</span><span class="o">=</span><span class="n">WhateverIO</span><span class="p">,</span> <span class="n">side_effect</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Patch builtins.open so that it returns StringIO object.</span>
+
+<span class="sd">    :param typ: File object for open to return.</span>
+<span class="sd">        Defaults to :class:`WhateverIO` which is the bastard child</span>
+<span class="sd">        of :class:`io.StringIO` and :class:`io.BytesIO` accepting</span>
+<span class="sd">        both bytes and unicode input.</span>
+<span class="sd">    :param side_effect: Additional side effect for when the open context</span>
+<span class="sd">        is entered.</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.open()</span>
+<span class="sd">        def test_foo(self, open_fh):</span>
+<span class="sd">            something_opening_and_writing_a_file()</span>
+<span class="sd">            self.assertIn(&#39;foo&#39;, open_fh.getvalue())</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.open(io.BytesIO) as open_fh:</span>
+<span class="sd">            something_opening_and_writing_bytes_to_a_file()</span>
+<span class="sd">            self.assertIn(b&#39;foo&#39;, open_fh.getvalue())</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">with</span> <span class="n">patch</span><span class="p">(</span><span class="n">open_fqdn</span><span class="p">)</span> <span class="k">as</span> <span class="n">open_</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">mock_context</span><span class="p">(</span><span class="n">open_</span><span class="p">)</span> <span class="k">as</span> <span class="n">context</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">side_effect</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">context</span><span class="o">.</span><span class="n">__enter__</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="n">side_effect</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">__enter__</span><span class="o">.</span><span class="n">return_value</span> <span class="o">=</span> <span class="n">typ</span><span class="p">()</span>
+            <span class="n">val</span><span class="o">.</span><span class="n">__exit__</span> <span class="o">=</span> <span class="n">Mock</span><span class="p">()</span>
+            <span class="k">yield</span> <span class="n">val</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="restore_logging"><a class="viewcode-back" href="../../reference/case.mock.html#case.restore_logging">[docs]</a><span class="k">def</span> <span class="nf">restore_logging</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Restore root logger handlers after test returns.</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.restore_logging()</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            setup_logging()</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.restore_logging():</span>
+<span class="sd">            setup_logging()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">outs</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stdout__</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stderr__</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
+    <span class="n">level</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">level</span>
+    <span class="n">handlers</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">handlers</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stdout__</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">__stderr__</span> <span class="o">=</span> <span class="n">outs</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">level</span> <span class="o">=</span> <span class="n">level</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">handlers</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">handlers</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="module_exists"><a class="viewcode-back" href="../../reference/case.mock.html#case.module_exists">[docs]</a><span class="k">def</span> <span class="nf">module_exists</span><span class="p">(</span><span class="o">*</span><span class="n">modules</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Patch one or more modules to ensure they exist.</span>
+
+<span class="sd">    A module name with multiple paths (e.g. gevent.monkey) will</span>
+<span class="sd">    ensure all parent modules are also patched (``gevent`` +</span>
+<span class="sd">    ``gevent.monkey``).</span>
+
+<span class="sd">    Decorator example::</span>
+
+<span class="sd">        @mock.module_exists(&#39;gevent.monkey&#39;)</span>
+<span class="sd">        def test_foo(self):</span>
+<span class="sd">            pass</span>
+
+<span class="sd">    Context example::</span>
+
+<span class="sd">        with mock.module_exists(&#39;gevent.monkey&#39;):</span>
+<span class="sd">            gevent.monkey.patch_all = Mock(name=&#39;patch_all&#39;)</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">gen</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">old_modules</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">modules</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="n">module</span> <span class="o">=</span> <span class="n">types</span><span class="o">.</span><span class="n">ModuleType</span><span class="p">(</span><span class="n">module_name</span><span class="p">(</span><span class="n">module</span><span class="p">))</span>
+        <span class="n">gen</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">module</span><span class="o">.</span><span class="n">__name__</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">:</span>
+            <span class="n">old_modules</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">])</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">]</span> <span class="o">=</span> <span class="n">module</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">__name__</span>
+        <span class="k">if</span> <span class="s1">&#39;.&#39;</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
+            <span class="n">parent</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">attr</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">rpartition</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">parent</span><span class="p">],</span> <span class="n">attr</span><span class="p">,</span> <span class="n">module</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">gen</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">old_modules</span><span class="p">:</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">]</span> <span class="o">=</span> <span class="n">module</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><p class="logo"><a href="../../index.html">
+  <img class="logo" src="http://cloud.github.com/downloads/celery/celery/celery_128.png" alt="Logo"/>
+</a></p>
+<div id="donate">
+    <b>Donations welcome:</b>
+    <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+    <input type="hidden" name="cmd" value="_s-xclick">
+    <input type="hidden" name="encrypted" value="-----BEGIN PKCS7-----MIIHTwYJKoZIhvcNAQcEoIIHQDCCBzwCAQExggEwMIIBLAIBADCBlDCBjjELMAkGA1UEBhMCVVMxCzAJBgNVBAgTAkNBMRYwFAYDVQQHEw1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKEwtQYXlQYWwgSW5jLjETMBEGA1UECxQKbGl2ZV9jZXJ0czERMA8GA1UEAxQIbGl2ZV9hcGkxHDAaBgkqhkiG9w0BCQEWDXJlQHBheXBhbC5jb20CAQAwDQYJKoZIhvcNAQEBBQAEgYA2+c723xlntHKQYQR9yn9BEtUhDoUUlnOqhniqvNMWB4k2R0JpVkrNSu5JCbdjNOqDXKHoRfIWe3HXJJMPZBJKFMD5Izprb6xEZlTGaWnlrGXFfkdBaILQQgWYqV0DnuNmtDXCvfYmyu0p1K04wLjAJ1ufnBSP1UaS6BTcoIOOuTELMAkGBSsOAwIaBQAwgcwGCSqGSIb3DQEHATAUBggqhkiG9w0DBwQIFg/2qPwa7UCAgah20QLIllcp0VHazYo2C9h8c6gn8MTcTnpW0WFXhz9ylc/i5dCXabkrrLBBfg8NygAuvYRr4k1zdC0AJIgsV/6rSAhehabRvjRDH2EZ8OieqHfIPfkAcTm+JqbS6Z27lXkebYPnJzhkZxW7+ZC6hU/H40JFXChTag8lhqJfZELiOZLWxxilj2mkwlkdMx1YL6lcPAA7ajpAwjsnJYd/9VxLA6MDmcOu+TKgggOHMIIDgzCCAuygAwIBAgIBADANBgkqhkiG9w0BAQUFADCBjjELMAkGA1UEBhMCVVMxCzAJBgNVBAgTAkNBMRYwFAYDVQQHEw1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKEwtQYXlQYWwgSW5jLjETMBEGA1UECxQKbGl2ZV9jZXJ0czERMA8GA1UEAxQIbGl2ZV9hcGkxHDAaBgkqhkiG9w0BCQEWDXJlQHBheXBhbC5jb20wHhcNMDQwMjEzMTAxMzE1WhcNMzUwMjEzMTAxMzE1WjCBjjELMAkGA1UEBhMCVVMxCzAJBgNVBAgTAkNBMRYwFAYDVQQHEw1Nb3VudGFpbiBWaWV3MRQwEgYDVQQKEwtQYXlQYWwgSW5jLjETMBEGA1UECxQKbGl2ZV9jZXJ0czERMA8GA1UEAxQIbGl2ZV9hcGkxHDAaBgkqhkiG9w0BCQEWDXJlQHBheXBhbC5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBAMFHTt38RMxLXJyO2SmS+Ndl72T7oKJ4u4uw+6awntALWh03PewmIJuzbALScsTS4sZoS1fKciBGoh11gIfHzylvkdNe/hJl66/RGqrj5rFb08sAABNTzDTiqqNpJeBsYs/c2aiGozptX2RlnBktH+SUNpAajW724Nv2Wvhif6sFAgMBAAGjge4wgeswHQYDVR0OBBYEFJaffLvGbxe9WT9S1wob7BDWZJRrMIG7BgNVHSMEgbMwgbCAFJaffLvGbxe9WT9S1wob7BDWZJRroYGUpIGRMIGOMQswCQYDVQQGEwJVUzELMAkGA1UECBMCQ0ExFjAUBgNVBAcTDU1vdW50YWluIFZpZXcxFDASBgNVBAoTC1BheVBhbCBJbmMuMRMwEQYDVQQLFApsaXZlX2NlcnRzMREwDwYDVQQDFAhsaXZlX2FwaTEcMBoGCSqGSIb3DQEJARYNcmVAcGF5cGFsLmNvbYIBADAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBBQUAA4GBAIFfOlaagFrl71+jq6OKidbWFSE+Q4FqROvdgIONth+8kSK//Y/4ihuE4Ymvzn5ceE3S/iBSQQMjyvb+s2TWbQYDwcp129OPIbD9epdr4tJOUNiSojw7BHwYRiPh58S1xGlFgHFXwrEBb3dgNbMUa+u4qectsMAXpVHnD9wIyfmHMYIBmjCCAZYCAQEwgZQwgY4xCzAJBgNVBAYTAlVTMQswCQYDVQQIEwJDQTEWMBQGA1UEBxMNTW91bnRhaW4gVmlldzEUMBIGA1UEChMLUGF5UGFsIEluYy4xEzARBgNVBAsUCmxpdmVfY2VydHMxETAPBgNVBAMUCGxpdmVfYXBpMRwwGgYJKoZIhvcNAQkBFg1yZUBwYXlwYWwuY29tAgEAMAkGBSsOAwIaBQCgXTAYBgkqhkiG9w0BCQMxCwYJKoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0xNTEyMTAxOTEzMzBaMCMGCSqGSIb3DQEJBDEWBBTUno4gI/mmaVaGVpgB/CWwQd3DeDANBgkqhkiG9w0BAQEFAASBgFmZ1j1Ss/FNl/JRIOakhBJEdm2KGLH0d2ewwTYIgIkEKSdc5Rg2/2xFS/dglcs5Te3R2GzaqjGlNSKldsk/MgZP/BudpHAASQ09hrfDy5TaBlRRl1Yu0WzGBKcVm/WRh0v2TVV8vBHVGiJD+aY5epgRXXI/XUKD0bp8tVV1T7LS-----END PKCS7-----
+    ">
+    <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">
+    <img alt="" border="0" src="https://www.paypalobjects.com/en_US/i/scr/pixel.gif" width="1" height="1">
+    </form>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">case 1.0.1 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2016, Ask Solem.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,427 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>case.skip &mdash; case 1.0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/celery.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="case 1.0.1 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">case 1.0.1 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+<h1>Source code for case.skip</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">importlib</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="kn">from</span> <span class="nn">nose</span> <span class="kn">import</span> <span class="n">SkipTest</span>
+
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">decorator</span><span class="p">,</span> <span class="n">symbol_by_name</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;todo&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_darwin&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_darwin&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_environ&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_environ&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_module&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_module&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_jython&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_jython&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_platform&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_platform&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_pypy&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_pypy&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_python3&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_python3&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_win32&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_win32&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;unless_symbol&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;if_python_version_after&#39;</span><span class="p">,</span> <span class="s1">&#39;if_python_version_before&#39;</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="if_python_version_before"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_python_version_before">[docs]</a><span class="k">def</span> <span class="nf">if_python_version_before</span><span class="p">(</span><span class="o">*</span><span class="n">version</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if Python version is less than ``*version``.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        # skips test if running on Python &lt; 3.1</span>
+<span class="sd">        @skip.if_python_version_before(3, 1)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span> <span class="o">&lt;</span> <span class="n">version</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;python &lt; {0}: {1}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">version</span><span class="p">)),</span>
+            <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;reason&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;incompatible&#39;</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="if_python_version_after"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_python_version_after">[docs]</a><span class="k">def</span> <span class="nf">if_python_version_after</span><span class="p">(</span><span class="o">*</span><span class="n">version</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if Python version is greater or equal to ``*version``.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        # skips test if running on Python &gt;= 3.5</span>
+<span class="sd">        @skip.if_python_version_after(3, 5)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span> <span class="o">&gt;=</span> <span class="n">version</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;python &gt;= {0}: {1}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">version</span><span class="p">)),</span>
+            <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;reason&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;incompatible&#39;</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<div class="viewcode-block" id="if_python3"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_python3">[docs]</a><span class="k">def</span> <span class="nf">if_python3</span><span class="p">(</span><span class="o">*</span><span class="n">version</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if Python version is 3 or later.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_python3(reason=&#39;does not have buffer type&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">if_python_version_after</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="o">*</span><span class="n">version</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="unless_python3"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_python3">[docs]</a><span class="k">def</span> <span class="nf">unless_python3</span><span class="p">(</span><span class="o">*</span><span class="n">version</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if Python version is Python 2 or earlier.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.unless_python3()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">if_python_version_before</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="o">*</span><span class="n">version</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="if_environ"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_environ">[docs]</a><span class="k">def</span> <span class="nf">if_environ</span><span class="p">(</span><span class="n">env_var_name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if environment variable ``env_var_name`` is defined.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_environ(&#39;SKIP_SLOW_TESTS&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">env_var_name</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;envvar {0} set&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">env_var_name</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="unless_environ"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_environ">[docs]</a><span class="k">def</span> <span class="nf">unless_environ</span><span class="p">(</span><span class="n">env_var_name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if environment variable ``env_var_name`` is undefined.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.unless_environ(&#39;LOCALE&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">env_var_name</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;envvar {0} not set&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">env_var_name</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@decorator</span>
+<span class="k">def</span> <span class="nf">_skip_test</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span> <span class="n">sign</span><span class="p">):</span>
+    <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;{0}: {1}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sign</span><span class="p">,</span> <span class="n">reason</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="todo"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.todo">[docs]</a><span class="k">def</span> <span class="nf">todo</span><span class="p">(</span><span class="n">reason</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test flagging case as TODO.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.todo(reason=&#39;broken test&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_skip_test</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span> <span class="n">sign</span><span class="o">=</span><span class="s1">&#39;TODO&#39;</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">skip</span><span class="p">(</span><span class="n">reason</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">_skip_test</span><span class="p">(</span><span class="n">reason</span><span class="p">,</span> <span class="n">sign</span><span class="o">=</span><span class="s1">&#39;SKIP&#39;</span><span class="p">)</span>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="if_module"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_module">[docs]</a><span class="k">def</span> <span class="nf">if_module</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">import_errors</span><span class="o">=</span><span class="p">(</span><span class="ne">ImportError</span><span class="p">,)):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if ``module`` can be imported.</span>
+
+<span class="sd">    :param module: Module to import.</span>
+<span class="sd">    :keyword name: Alternative module name to use in reason.</span>
+<span class="sd">    :keyword import_errors: Tuple of import errors to check for.</span>
+<span class="sd">        Default is ``(ImportError,)``.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_module(&#39;librabbitmq&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">import_errors</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;module available: {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span> <span class="ow">or</span> <span class="n">module</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="unless_module"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_module">[docs]</a><span class="k">def</span> <span class="nf">unless_module</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">import_errors</span><span class="o">=</span><span class="p">(</span><span class="ne">ImportError</span><span class="p">,)):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if ``module`` can not be imported.</span>
+
+<span class="sd">    :param module: Module to import.</span>
+<span class="sd">    :keyword name: Alternative module name to use in reason.</span>
+<span class="sd">    :keyword import_errors: Tuple of import errors to check for.</span>
+<span class="sd">        Default is ``(ImportError,)``.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.unless_module(&#39;librabbitmq&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">module</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">import_errors</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;module not installed: {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span> <span class="ow">or</span> <span class="n">module</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="if_symbol"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_symbol">[docs]</a><span class="k">def</span> <span class="nf">if_symbol</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+              <span class="n">import_errors</span><span class="o">=</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">ImportError</span><span class="p">)):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if ``symbol`` can be imported.</span>
+
+<span class="sd">    :param module: Symbol to import.</span>
+<span class="sd">    :keyword name: Alternative symbol name to use in reason.</span>
+<span class="sd">    :keyword import_errors: Tuple of import errors to check for.</span>
+<span class="sd">        Default is ``(AttributeError, ImportError,)``.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_symbol(&#39;django.db.transaction:on_commit&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">symbol_by_name</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">import_errors</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;symbol exists: {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span> <span class="ow">or</span> <span class="n">symbol</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="unless_symbol"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_symbol">[docs]</a><span class="k">def</span> <span class="nf">unless_symbol</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                  <span class="n">import_errors</span><span class="o">=</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">ImportError</span><span class="p">)):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if ``symbol`` cannot be imported.</span>
+
+<span class="sd">    :param module: Symbol to import.</span>
+<span class="sd">    :keyword name: Alternative symbol name to use in reason.</span>
+<span class="sd">    :keyword import_errors: Tuple of import errors to check for.</span>
+<span class="sd">        Default is ``(AttributeError, ImportError,)``.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.unless_symbol(&#39;django.db.transaction:on_commit&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">symbol_by_name</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">import_errors</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;missing symbol: {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span> <span class="ow">or</span> <span class="n">symbol</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="if_platform"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_platform">[docs]</a><span class="k">def</span> <span class="nf">if_platform</span><span class="p">(</span><span class="n">platform_name</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if :data:`sys.platform` name matches ``platform_name``.</span>
+
+<span class="sd">    :param platform_name: Name to match with :data:`sys.platform`.</span>
+<span class="sd">    :keyword name: Alternative name to use in reason.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_platform(&#39;netbsd&#39;, name=&#39;NetBSD&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">platform_name</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;does not work on {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">platform_name</span> <span class="ow">or</span> <span class="n">name</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<div class="viewcode-block" id="if_jython"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_jython">[docs]</a><span class="k">def</span> <span class="nf">if_jython</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if running under Jython.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_jython()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">if_platform</span><span class="p">(</span><span class="s1">&#39;java&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Jython&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="if_win32"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_win32">[docs]</a><span class="k">def</span> <span class="nf">if_win32</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if running under Windows.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_win32()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">if_platform</span><span class="p">(</span><span class="s1">&#39;win32&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Windows&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="if_darwin"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_darwin">[docs]</a><span class="k">def</span> <span class="nf">if_darwin</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if running under OS X.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_darwin()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">if_platform</span><span class="p">(</span><span class="s1">&#39;darwin&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;OS X&#39;</span><span class="p">)</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="unless_platform"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_platform">[docs]</a><span class="k">def</span> <span class="nf">unless_platform</span><span class="p">(</span><span class="n">platform_name</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if :data:`sys.platform` name does not match ``platform_name``.</span>
+
+<span class="sd">    :param platform_name: Name to match with :data:`sys.platform`.</span>
+<span class="sd">    :keyword name: Alternative name to use in reason.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.unless_platform(&#39;netbsd&#39;, name=&#39;NetBSD&#39;)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">platform_name</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="s1">&#39;only applicable on {0}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">platform_name</span> <span class="ow">or</span> <span class="n">name</span><span class="p">))</span>
+    <span class="k">yield</span></div>
+
+
+<div class="viewcode-block" id="unless_jython"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_jython">[docs]</a><span class="k">def</span> <span class="nf">unless_jython</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if not running under Jython.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">unless_platform</span><span class="p">(</span><span class="s1">&#39;java&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Jython&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="unless_win32"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_win32">[docs]</a><span class="k">def</span> <span class="nf">unless_win32</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if not running under Windows.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">unless_platform</span><span class="p">(</span><span class="s1">&#39;win32&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Windows&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="unless_darwin"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_darwin">[docs]</a><span class="k">def</span> <span class="nf">unless_darwin</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if not running under OS X.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">unless_platform</span><span class="p">(</span><span class="s1">&#39;darwin&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;OS X&#39;</span><span class="p">)</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="if_pypy"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.if_pypy">[docs]</a><span class="k">def</span> <span class="nf">if_pypy</span><span class="p">(</span><span class="n">reason</span><span class="o">=</span><span class="s1">&#39;does not work on PyPy&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if running on PyPy.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.if_pypy()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="s1">&#39;pypy_version_info&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span>
+    <span class="k">yield</span></div>
+
+
+<span class="nd">@decorator</span>
+<div class="viewcode-block" id="unless_pypy"><a class="viewcode-back" href="../../reference/case.skip.html#case.skip.unless_pypy">[docs]</a><span class="k">def</span> <span class="nf">unless_pypy</span><span class="p">(</span><span class="n">reason</span><span class="o">=</span><span class="s1">&#39;only applicable for PyPy&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Skip test if not running on PyPy.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        @skip.unless_pypy()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="s1">&#39;pypy_version_info&#39;</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">SkipTest</span><span class="p">(</span><span class="n">reason</span><span class="p">)</span>
+    <span class="k">yield</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><p class="logo"><a href="../../index.html">
+  <img class="logo" src="http://cloud.github.com/downloads/celery/celery/celery_128.png" alt="Logo"/>
+</a></p>
+<div id="donate">
+    <b>Donations welcome:</b>
+    <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+    <input type="hidden" name="cmd" value="_s-xclick">
+    <input type="hidden" name="encrypted" value="-----BEGIN PKCS7-----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-----END PKCS7-----
+    ">
+    <input type="image" src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">
+    <img alt="" border="0" src="https://www.paypalobjects.com/en_US/i/scr/pixel.gif" width="1" height="1">
+    </form>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">case 1.0.1 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright 2016, Ask Solem.
+    </div>
+  </body>
+</html>
