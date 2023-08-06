@@ -1,0 +1,859 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Netlink basics &mdash; pyroute2 0.3.18 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.3.18',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="pyroute2 0.3.18 documentation" href="index.html" />
+    <link rel="next" title="Base netlink socket and marshal" href="nlsocket.html" />
+    <link rel="prev" title="Module architecture" href="arch.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="nlsocket.html" title="Base netlink socket and marshal"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="arch.html" title="Module architecture"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">pyroute2 0.3.18 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <span class="target" id="module-pyroute2.netlink"></span><div class="section" id="netlink-basics">
+<h1>Netlink basics<a class="headerlink" href="#netlink-basics" title="Permalink to this headline">¶</a></h1>
+<p>General netlink packet structure:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>nlmsg packet:
+    header
+    data
+</pre></div>
+</div>
+<p>Generic netlink message header:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>nlmsg header:
+    uint32 length
+    uint16 type
+    uint16 flags
+    uint32 sequence number
+    uint32 pid
+</pre></div>
+</div>
+<p>The <cite>length</cite> field is the length of all the packet, including
+data and header. The <cite>type</cite> field is used to distinguish different
+message types, commands etc. Please note, that there is no
+explicit protocol field &#8211; you choose a netlink protocol, when
+you create a socket.</p>
+<p>The <cite>sequence number</cite> is very important. Netlink is an asynchronous
+protocol &#8211; it means, that the packet order doesn&#8217;t matter and is
+not guaranteed. But responses to a request are always marked with
+the same sequence number, so you can treat it as a cookie.</p>
+<p>Please keep in mind, that a netlink request can initiate a
+cascade of events, and netlink messages from these events can
+carry sequence number == 0. E.g., it is so when you remove a
+primary IP addr from an interface, when <cite>promote_secondaries</cite>
+sysctl is set.</p>
+<p>Beside of incapsulated headers and other protocol-specific data,
+netlink messages can carry NLA (netlink attributes). NLA
+structure is as follows:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>NLA header:
+    uint16 length
+    uint16 type
+NLA data:
+    data-specific struct
+    # optional:
+    NLA
+    NLA
+    ...
+</pre></div>
+</div>
+<p>So, NLA structures can be nested, forming a tree.</p>
+<p>Complete structure of a netlink packet:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>nlmsg header:
+    uint32 length
+    uint16 type
+    uint16 flags
+    uint32 sequence number
+    uint32 pid
+[ optional protocol-specific data ]
+[ optional NLA tree ]
+</pre></div>
+</div>
+<p>More information about netlink protocol you can find in
+the man pages.</p>
+</div>
+<div class="section" id="pyroute2-and-netlink">
+<h1>Pyroute2 and netlink<a class="headerlink" href="#pyroute2-and-netlink" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="packets">
+<h2>packets<a class="headerlink" href="#packets" title="Permalink to this headline">¶</a></h2>
+<p>To simplify the development, pyroute2 provides an easy way to
+describe packet structure. As an example, you can take the
+ifaddrmsg description &#8211; <cite>pyroute2/netlink/rtnl/ifaddrmsg.py</cite>.</p>
+<p>To describe a packet, you need to inherit from <cite>nlmsg</cite> class:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyroute2.netlink</span> <span class="kn">import</span> <span class="n">nlmsg</span>
+
+<span class="k">class</span> <span class="nc">foo_msg</span><span class="p">(</span><span class="n">nlmsg</span><span class="p">):</span>
+    <span class="n">fields</span> <span class="o">=</span> <span class="p">(</span> <span class="o">...</span> <span class="p">)</span>
+    <span class="n">nla_map</span> <span class="o">=</span> <span class="p">(</span> <span class="o">...</span> <span class="p">)</span>
+</pre></div>
+</div>
+<p>NLA are described in the same way, but the parent class should be
+<cite>nla</cite>, instead of <cite>nlmsg</cite>. And yes, it is important to use the
+proper parent class &#8211; it affects the header structure.</p>
+</div>
+<div class="section" id="fields-attribute">
+<h2>fields attribute<a class="headerlink" href="#fields-attribute" title="Permalink to this headline">¶</a></h2>
+<p>The <cite>fields</cite> attribute describes the structure of the
+protocol-specific data. It is a tuple of tuples, where each
+member contains a field name and its data format.</p>
+<p>Field data format should be specified as for Python <cite>struct</cite>
+module. E.g., ifaddrmsg structure:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>struct ifaddrmsg {
+    __u8  ifa_family;
+    __u8  ifa_prefixlen;
+    __u8  ifa_flags;
+    __u8  ifa_scope;
+    __u32 ifa_index;
+};
+</pre></div>
+</div>
+<p>should be described as follows:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">ifaddrmsg</span><span class="p">(</span><span class="n">nlmsg</span><span class="p">):</span>
+    <span class="n">fields</span> <span class="o">=</span> <span class="p">((</span><span class="s1">&#39;family&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">),</span>
+              <span class="p">(</span><span class="s1">&#39;prefixlen&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">),</span>
+              <span class="p">(</span><span class="s1">&#39;flags&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">),</span>
+              <span class="p">(</span><span class="s1">&#39;scope&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">),</span>
+              <span class="p">(</span><span class="s1">&#39;index&#39;</span><span class="p">,</span> <span class="s1">&#39;I&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Format strings are passed directly to the <cite>struct</cite> module,
+so you can use all the notations like <cite>&gt;I</cite>, <cite>16s</cite> etc. All
+fields are parsed from the stream separately, so if you
+want to explicitly fix alignemt, as if it were C struct,
+use the <cite>pack</cite> attribute:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>class tstats(nla):
+    pack = &#39;struct&#39;
+    fields = ((&#39;version&#39;, &#39;H&#39;),
+              (&#39;ac_exitcode&#39;, &#39;I&#39;),
+              (&#39;ac_flag&#39;, &#39;B&#39;),
+              ...)
+</pre></div>
+</div>
+<p>Explicit padding bytes also can be used, when struct
+packing doesn&#8217;t work well:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">ipq_mode_msg</span><span class="p">(</span><span class="n">nlmsg</span><span class="p">):</span>
+    <span class="n">pack</span> <span class="o">=</span> <span class="s1">&#39;struct&#39;</span>
+    <span class="n">fields</span> <span class="o">=</span> <span class="p">((</span><span class="s1">&#39;value&#39;</span><span class="p">,</span> <span class="s1">&#39;B&#39;</span><span class="p">),</span>
+              <span class="p">(</span><span class="s1">&#39;__pad&#39;</span><span class="p">,</span> <span class="s1">&#39;7x&#39;</span><span class="p">),</span>
+              <span class="p">(</span><span class="s1">&#39;range&#39;</span><span class="p">,</span> <span class="s1">&#39;I&#39;</span><span class="p">),</span>
+              <span class="p">(</span><span class="s1">&#39;__pad&#39;</span><span class="p">,</span> <span class="s1">&#39;12x&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="nla-map-attribute">
+<h2>nla_map attribute<a class="headerlink" href="#nla-map-attribute" title="Permalink to this headline">¶</a></h2>
+<p>The <cite>nla_map</cite> attribute is a tuple of NLA descriptions. Each
+description is also a tuple in two different forms: either
+two fields, name and format, or three fields: type, name and
+format.</p>
+<p>Please notice, that the format field is a string name of
+corresponding NLA class:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>class ifaddrmsg(nlmsg):
+    ...
+    nla_map = ((&#39;IFA_UNSPEC&#39;,  &#39;hex&#39;),
+               (&#39;IFA_ADDRESS&#39;, &#39;ipaddr&#39;),
+               (&#39;IFA_LOCAL&#39;, &#39;ipaddr&#39;),
+               ...)
+</pre></div>
+</div>
+<p>This code will create mapping, where IFA_ADDRESS NLA will be of
+type 1 and IFA_LOCAL &#8211; of type 2, etc. Both NLA will be decoded
+as IP addresses (class <cite>ipaddr</cite>). IFA_UNSPEC will be of type 0,
+and if it will be in the NLA tree, it will be just dumped in hex.</p>
+<p>NLA class names are should be specified as strings, since they
+are resolved in runtime.</p>
+<p>There are several pre-defined NLA types, that you will get with
+<cite>nla</cite> class:</p>
+<blockquote>
+<div><ul class="simple">
+<li><cite>none</cite> &#8211; ignore this NLA</li>
+<li><cite>flag</cite> &#8211; boolean flag NLA (no payload; NLA exists = True)</li>
+<li><cite>uint8</cite>, <cite>uint16</cite>, <cite>uint32</cite>, <cite>uint64</cite> &#8211; unsigned int</li>
+<li><cite>be8</cite>, <cite>be16</cite>, <cite>be32</cite>, <cite>be64</cite> &#8211; big-endian unsigned int</li>
+<li><cite>ipaddr</cite> &#8211; IP address, IPv4 or IPv6</li>
+<li><cite>ip4addr</cite> &#8211; only IPv4 address type</li>
+<li><cite>ip6addr</cite> &#8211; only IPv6 address type</li>
+<li><cite>target</cite> &#8211; a univeral target (IPv4, IPv6, MPLS)</li>
+<li><cite>l2addr</cite> &#8211; MAC address</li>
+<li><cite>hex</cite> &#8211; hex dump as a string &#8211; useful for debugging</li>
+<li><cite>cdata</cite> &#8211; a binary data</li>
+<li><cite>string</cite> &#8211; UTF-8 string</li>
+<li><cite>asciiz</cite> &#8211; zero-terminated ASCII string, no decoding</li>
+<li><cite>array</cite> &#8211; array of simple types (uint8, uint16 etc.)</li>
+</ul>
+</div></blockquote>
+<p>Please refer to <cite>pyroute2/netlink/__init__.py</cite> for details.</p>
+<p>You can also make your own NLA descriptions:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>class ifaddrmsg(nlmsg):
+    ...
+    nla_map = (...
+               (&#39;IFA_CACHEINFO&#39;, &#39;cacheinfo&#39;),
+               ...)
+
+    class cacheinfo(nla):
+        fields = ((&#39;ifa_prefered&#39;, &#39;I&#39;),
+                  (&#39;ifa_valid&#39;, &#39;I&#39;),
+                  (&#39;cstamp&#39;, &#39;I&#39;),
+                  (&#39;tstamp&#39;, &#39;I&#39;))
+</pre></div>
+</div>
+<p>Custom NLA descriptions should be defined in the same class,
+where they are used.</p>
+<p>Also, it is possible to use not autogenerated type numbers, as
+for ifaddrmsg, but specify them explicitly:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>class iw_event(nla):
+    ...
+    nla_map = ((0x8B00, &#39;SIOCSIWCOMMIT&#39;, &#39;hex&#39;),
+               (0x8B01, &#39;SIOCGIWNAME&#39;, &#39;hex&#39;),
+               (0x8B02, &#39;SIOCSIWNWID&#39;, &#39;hex&#39;),
+               (0x8B03, &#39;SIOCGIWNWID&#39;, &#39;hex&#39;),
+               ...)
+</pre></div>
+</div>
+<p>Here you can see custom NLA type numbers &#8211; 0x8B00, 0x8B01 etc.
+It is not permitted to mix these two forms in one class: you should
+use ether autogenerated type numbers (two fields tuples), or
+explicit numbers (three fields typles).</p>
+</div>
+<div class="section" id="array-types">
+<h2>array types<a class="headerlink" href="#array-types" title="Permalink to this headline">¶</a></h2>
+<p>There are different array-like NLA types in the kernel, and
+some of them are covered by pyroute2. An array of simple type
+elements:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span># declaration
+nla_map = ((&#39;NLA_TYPE&#39;, &#39;array(uint8)&#39;), ...)
+
+# data layout
++======+======+----------------------------
+| len  | type | uint8 | uint8 | uint 8 | ...
++======+======+----------------------------
+
+# decoded
+{&#39;attrs&#39;: [[&#39;NLA_TYPE&#39;, (2, 3, 4, 5, ...)], ...], ...}
+</pre></div>
+</div>
+<p>An array of NLAs:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span># declaration
+nla_map = ((&#39;NLA_TYPE&#39;, &#39;*type&#39;), ...)
+
+# data layout
++=======+=======+-----------------------+-----------------------+--
+| len   | type* | len  | type | payload | len  | type | payload | ...
++=======+=======+-----------------------+-----------------------+--
+# type* -- in that case the type is OR&#39;ed with NLA_F_NESTED
+
+# decoded
+{&#39;attrs&#39;: [[&#39;NLA_TYPE&#39;, [payload, payload, ...]], ...], ...}
+</pre></div>
+</div>
+</div>
+<div class="section" id="parsed-netlink-message">
+<h2>parsed netlink message<a class="headerlink" href="#parsed-netlink-message" title="Permalink to this headline">¶</a></h2>
+<p>Netlink messages are represented by pyroute2 as dictionaries
+as follows:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>{&#39;header&#39;: {&#39;pid&#39;: ...,
+            &#39;length: ...,
+            &#39;flags&#39;: ...,
+            &#39;error&#39;: None,  # if you are lucky
+            &#39;type&#39;: ...,
+            &#39;sequence_number&#39;: ...},
+
+ # fields attributes
+ &#39;field_name1&#39;: value,
+ ...
+ &#39;field_nameX&#39;: value,
+
+ # nla tree
+ &#39;attrs&#39;: [[&#39;NLA_NAME1&#39;, value],
+           ...
+           [&#39;NLA_NAMEX&#39;, value],
+           [&#39;NLA_NAMEY&#39;, {&#39;field_name1&#39;: value,
+                          ...
+                          &#39;field_nameX&#39;: value,
+                          &#39;attrs&#39;: [[&#39;NLA_NAME.... ]]}]]}
+</pre></div>
+</div>
+<p>As an example, a message from the wireless subsystem about new
+scan event:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="p">{</span><span class="s1">&#39;index&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+ <span class="s1">&#39;family&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+ <span class="s1">&#39;__align&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+ <span class="s1">&#39;header&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;pid&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s1">&#39;length&#39;</span><span class="p">:</span> <span class="mi">64</span><span class="p">,</span>
+            <span class="s1">&#39;flags&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s1">&#39;error&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">,</span>
+            <span class="s1">&#39;type&#39;</span><span class="p">:</span> <span class="mi">16</span><span class="p">,</span>
+            <span class="s1">&#39;sequence_number&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span>
+ <span class="s1">&#39;flags&#39;</span><span class="p">:</span> <span class="mi">69699</span><span class="p">,</span>
+ <span class="s1">&#39;ifi_type&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+ <span class="s1">&#39;event&#39;</span><span class="p">:</span> <span class="s1">&#39;RTM_NEWLINK&#39;</span><span class="p">,</span>
+ <span class="s1">&#39;change&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+ <span class="s1">&#39;attrs&#39;</span><span class="p">:</span> <span class="p">[[</span><span class="s1">&#39;IFLA_IFNAME&#39;</span><span class="p">,</span> <span class="s1">&#39;wlp3s0&#39;</span><span class="p">],</span>
+           <span class="p">[</span><span class="s1">&#39;IFLA_WIRELESS&#39;</span><span class="p">,</span>
+            <span class="p">{</span><span class="s1">&#39;attrs&#39;</span><span class="p">:</span> <span class="p">[[</span><span class="s1">&#39;SIOCGIWSCAN&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;00:00:00:00:00:00:00:00:00:00:00:00&#39;</span><span class="p">]]}]]}</span>
+</pre></div>
+</div>
+<p>One important detail is that NLA chain is represented as a list of
+elements <cite>[&#8216;NLA_TYPE&#8217;, value]</cite>, not as a dictionary. The reason is that
+though in the kernel <em>usually</em> NLA chain is a dictionary, the netlink
+protocol by itself doesn&#8217;t require elements of each type to be unique.
+In a message there may be several NLA of the same type.</p>
+</div>
+<div class="section" id="encoding-and-decoding-algo">
+<h2>encoding and decoding algo<a class="headerlink" href="#encoding-and-decoding-algo" title="Permalink to this headline">¶</a></h2>
+<p>The message encoding works as follows:</p>
+<ol class="arabic simple">
+<li>Reserve space for the message header (if there is)</li>
+<li>Iterate defined <cite>fields</cite>, encoding values with <cite>struct.pack()</cite></li>
+<li>Iterate NLA from the <cite>attrs</cite> field, looking up types in <cite>nla_map</cite></li>
+<li>Encode the header</li>
+</ol>
+<p>Since every NLA is also an <cite>nlmsg</cite> object, there is a recursion.</p>
+<p>The decoding process is a bit simpler:</p>
+<ol class="arabic simple">
+<li>Decode the header</li>
+<li>Iterate <cite>fields</cite>, decoding values with <cite>struct.unpack()</cite></li>
+<li>Iterate NLA until the message ends</li>
+</ol>
+<p>If the <cite>fields</cite> attribute is an empty list, the step 2 will be skipped.
+The step 3 will be skipped in the case of the empty <cite>nla_map</cite>. If both
+attributes are empty lists, only the header will be encoded/decoded.</p>
+</div>
+<div class="section" id="create-and-send-messages">
+<h2>create and send messages<a class="headerlink" href="#create-and-send-messages" title="Permalink to this headline">¶</a></h2>
+<p>Using high-level interfaces like <cite>IPRoute</cite> or <cite>IPDB</cite>, you will never
+need to manually construct and send netlink messages. But in the case
+you really need it, it is simple as well.</p>
+<p>Having a description class, like <cite>ifaddrmsg</cite> from above, you need to:</p>
+<blockquote>
+<div><ul class="simple">
+<li>instantiate it</li>
+<li>fill the fields</li>
+<li>encode the packet</li>
+<li>send the encoded data</li>
+</ul>
+</div></blockquote>
+<p>The code:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyroute2.netlink</span> <span class="kn">import</span> <span class="n">NLM_F_REQUEST</span>
+<span class="kn">from</span> <span class="nn">pyroute2.netlink</span> <span class="kn">import</span> <span class="n">NLM_F_ACK</span>
+<span class="kn">from</span> <span class="nn">pyroute2.netlink</span> <span class="kn">import</span> <span class="n">NLM_F_CREATE</span>
+<span class="kn">from</span> <span class="nn">pyroute2.netlink</span> <span class="kn">import</span> <span class="n">NLM_F_EXCL</span>
+<span class="kn">from</span> <span class="nn">pyroute2.iproute</span> <span class="kn">import</span> <span class="n">RTM_NEWADDR</span>
+<span class="kn">from</span> <span class="nn">pyroute2.netlink.rtnl.ifaddrmsg</span> <span class="kn">import</span> <span class="n">ifaddrmsg</span>
+
+<span class="c1">##</span>
+<span class="c1"># add an addr to an interface</span>
+<span class="c1">#</span>
+
+<span class="c1"># create the message</span>
+<span class="n">msg</span> <span class="o">=</span> <span class="n">ifaddrmsg</span><span class="p">()</span>
+
+<span class="c1"># fill the protocol-specific fields</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;index&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">index</span>  <span class="c1"># index of the interface</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;family&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AF_INET</span>  <span class="c1"># address family</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;prefixlen&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">24</span>  <span class="c1"># the address mask</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;scope&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">scope</span>  <span class="c1"># see /etc/iproute2/rt_scopes</span>
+
+<span class="c1"># attach NLA -- it MUST be a list / mutable</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;attrs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[[</span><span class="s1">&#39;IFA_LOCAL&#39;</span><span class="p">,</span> <span class="s1">&#39;192.168.0.1&#39;</span><span class="p">],</span>
+                <span class="p">[</span><span class="s1">&#39;IFA_ADDRESS&#39;</span><span class="p">,</span> <span class="s1">&#39;192.162.0.1&#39;</span><span class="p">]]</span>
+
+<span class="c1"># fill generic netlink fields</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;header&#39;</span><span class="p">][</span><span class="s1">&#39;sequence_number&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">nonce</span>  <span class="c1"># an unique seq number</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;header&#39;</span><span class="p">][</span><span class="s1">&#39;pid&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">()</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;header&#39;</span><span class="p">][</span><span class="s1">&#39;type&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">RTM_NEWADDR</span>
+<span class="n">msg</span><span class="p">[</span><span class="s1">&#39;header&#39;</span><span class="p">][</span><span class="s1">&#39;flags&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">NLM_F_REQUEST</span> <span class="o">|</span>\
+                         <span class="n">NLM_F_ACK</span> <span class="o">|</span>\
+                         <span class="n">NLM_F_CREATE</span> <span class="o">|</span>\
+                         <span class="n">NLM_F_EXCL</span>
+
+<span class="c1"># encode the packet</span>
+<span class="n">msg</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+
+<span class="c1"># send the buffer</span>
+<span class="n">nlsock</span><span class="o">.</span><span class="n">sendto</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">buf</span><span class="o">.</span><span class="n">getvalue</span><span class="p">(),</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Please notice, that NLA list <em>MUST</em> be mutable.</p>
+<hr class="docutils" />
+<p>Module contents:</p>
+<dl class="exception">
+<dt id="pyroute2.netlink.NetlinkDataDecodeError">
+<em class="property">exception </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">NetlinkDataDecodeError</tt><big>(</big><em>exception</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.NetlinkDataDecodeError" title="Permalink to this definition">¶</a></dt>
+<dd><p>The error occured while decoding the message fields</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="pyroute2.netlink.NetlinkDecodeError">
+<em class="property">exception </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">NetlinkDecodeError</tt><big>(</big><em>exception</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.NetlinkDecodeError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base decoding error class.</p>
+<p>Incapsulates underlying error for the following analysis</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="pyroute2.netlink.NetlinkError">
+<em class="property">exception </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">NetlinkError</tt><big>(</big><em>code</em>, <em>msg=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.NetlinkError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base netlink error</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="pyroute2.netlink.NetlinkHeaderDecodeError">
+<em class="property">exception </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">NetlinkHeaderDecodeError</tt><big>(</big><em>exception</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.NetlinkHeaderDecodeError" title="Permalink to this definition">¶</a></dt>
+<dd><p>The error occured while decoding a header</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="pyroute2.netlink.NetlinkNLADecodeError">
+<em class="property">exception </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">NetlinkNLADecodeError</tt><big>(</big><em>exception</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.NetlinkNLADecodeError" title="Permalink to this definition">¶</a></dt>
+<dd><p>The error occured while decoding NLA chain</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.ctrlmsg">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">ctrlmsg</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.ctrlmsg" title="Permalink to this definition">¶</a></dt>
+<dd><p>Netlink control message</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.genlmsg">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">genlmsg</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.genlmsg" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generic netlink message</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nla">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">nla</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nla" title="Permalink to this definition">¶</a></dt>
+<dd><p>Main NLA class</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nla_base">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">nla_base</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nla_base" title="Permalink to this definition">¶</a></dt>
+<dd><p>The NLA base class. Use <cite>nla_header</cite> class as the header.</p>
+<dl class="attribute">
+<dt id="pyroute2.netlink.nla_base.header">
+<tt class="descname">header</tt><a class="headerlink" href="#pyroute2.netlink.nla_base.header" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <a class="reference internal" href="#pyroute2.netlink.nla_header" title="pyroute2.netlink.nla_header"><tt class="xref py py-class docutils literal"><span class="pre">nla_header</span></tt></a></p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nla_header">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">nla_header</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nla_header" title="Permalink to this definition">¶</a></dt>
+<dd><p>The NLA header structure: uin16 length and uint16 type.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">nlmsg</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg" title="Permalink to this definition">¶</a></dt>
+<dd><p>Main netlink message class</p>
+<dl class="attribute">
+<dt id="pyroute2.netlink.nlmsg.header">
+<tt class="descname">header</tt><a class="headerlink" href="#pyroute2.netlink.nlmsg.header" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <a class="reference internal" href="#pyroute2.netlink.nlmsg_header" title="pyroute2.netlink.nlmsg_header"><tt class="xref py py-class docutils literal"><span class="pre">nlmsg_header</span></tt></a></p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">nlmsg_atoms</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms" title="Permalink to this definition">¶</a></dt>
+<dd><p>A collection of base NLA types</p>
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.array">
+<em class="property">class </em><tt class="descname">array</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.array" title="Permalink to this definition">¶</a></dt>
+<dd><p>Array of simple data type</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.asciiz">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">asciiz</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.asciiz" title="Permalink to this definition">¶</a></dt>
+<dd><p>Zero-terminated string.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pyroute2.netlink.nlmsg_atoms.binary">
+<tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">binary</tt><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.binary" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <a class="reference internal" href="#pyroute2.netlink.nlmsg_atoms.cdata" title="pyroute2.netlink.nlmsg_atoms.cdata"><tt class="xref py py-class docutils literal"><span class="pre">cdata</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.cdata">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">cdata</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.cdata" title="Permalink to this definition">¶</a></dt>
+<dd><p>Binary data</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.flag">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">flag</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.flag" title="Permalink to this definition">¶</a></dt>
+<dd><p>&#8216;flag&#8217; type is used to denote attrs that have no payload</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.hex">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">hex</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.hex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Represent NLA&#8217;s content with header as hex string.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.ip4addr">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">ip4addr</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.ip4addr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Explicit IPv4 address type class.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.ip6addr">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">ip6addr</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.ip6addr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Explicit IPv6 address type class.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.ipaddr">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">ipaddr</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.ipaddr" title="Permalink to this definition">¶</a></dt>
+<dd><p>This class is used to decode IP addresses according to
+the family. Socket library currently supports only two
+families, AF_INET and AF_INET6.</p>
+<p>We do not specify here the string size, it will be
+calculated in runtime.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.l2addr">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">l2addr</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.l2addr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Decode MAC address.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.none">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">none</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.none" title="Permalink to this definition">¶</a></dt>
+<dd><p>&#8216;none&#8217; type is used to skip decoding of NLA. You can
+also use &#8216;hex&#8217; type to dump NLA&#8217;s content.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pyroute2.netlink.nlmsg_atoms.nul_string">
+<tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">nul_string</tt><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.nul_string" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <a class="reference internal" href="#pyroute2.netlink.nlmsg_atoms.asciiz" title="pyroute2.netlink.nlmsg_atoms.asciiz"><tt class="xref py py-class docutils literal"><span class="pre">asciiz</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.string">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">string</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.string" title="Permalink to this definition">¶</a></dt>
+<dd><p>UTF-8 string.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_atoms.target">
+<em class="property">class </em><tt class="descclassname">nlmsg_atoms.</tt><tt class="descname">target</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_atoms.target" title="Permalink to this definition">¶</a></dt>
+<dd><p>A universal target class. The target type depends on the msg
+family:</p>
+<ul class="simple">
+<li>AF_INET: IPv4 addr, string: &#8220;127.0.0.1&#8221;</li>
+<li>AF_INET6: IPv6 addr, string: &#8221;::1&#8221;</li>
+<li>AF_MPLS: MPLS labels, 0 .. k: [{&#8220;label&#8221;: 0x20, &#8220;ttl&#8221;: 16}, ...]</li>
+</ul>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_base">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">nlmsg_base</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base" title="Permalink to this definition">¶</a></dt>
+<dd><p>Netlink base class. You do not need to inherit it directly, unless
+you&#8217;re inventing completely new protocol structure.</p>
+<p>Use nlmsg or nla classes.</p>
+<p>The class provides several methods, but often one need to customize
+only <cite>decode()</cite> and <cite>encode()</cite>.</p>
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.copy">
+<tt class="descname">copy</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.copy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a decoded copy of the netlink message. Works
+correctly only if the message was encoded, or is
+received from the socket.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.decode">
+<tt class="descname">decode</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.decode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Decode the message. The message should have the <cite>buf</cite>
+attribute initialized. e.g.:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">data</span> <span class="o">=</span> <span class="n">sock</span><span class="o">.</span><span class="n">recv</span><span class="p">(</span><span class="mi">16384</span><span class="p">)</span>
+<span class="n">msg</span> <span class="o">=</span> <span class="n">ifinfmsg</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>If you want to customize the decoding process, override
+the method, but don&#8217;t forget to call parent&#8217;s <cite>decode()</cite>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomMessage</span><span class="p">(</span><span class="n">nlmsg</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">decode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">nlmsg</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="o">...</span>  <span class="c1"># do some custom data tuning</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.decode_nlas">
+<tt class="descname">decode_nlas</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.decode_nlas" title="Permalink to this definition">¶</a></dt>
+<dd><p>Decode the NLA chain. Should not be called manually, since
+it is called from <cite>decode()</cite> routine.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.dump">
+<tt class="descname">dump</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.dump" title="Permalink to this definition">¶</a></dt>
+<dd><p>Dump packet as a simple types struct</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.encode">
+<tt class="descname">encode</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.encode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Encode the message into the binary buffer:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">msg</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<span class="n">sock</span><span class="o">.</span><span class="n">send</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">buf</span><span class="o">.</span><span class="n">getvalue</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>If you want to customize the encoding process, override
+the method:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">CustomMessage</span><span class="p">(</span><span class="n">nlmsg</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">encode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="o">...</span>  <span class="c1"># do some custom data tuning</span>
+        <span class="n">nlmsg</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.encode_nlas">
+<tt class="descname">encode_nlas</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.encode_nlas" title="Permalink to this definition">¶</a></dt>
+<dd><p>Encode the NLA chain. Should not be called manually, since
+it is called from <cite>encode()</cite> routine.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.get_attr">
+<tt class="descname">get_attr</tt><big>(</big><em>attr</em>, <em>default=None</em>, <em>fmt='raw'</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.get_attr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the first attr by name or None</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.get_attrs">
+<tt class="descname">get_attrs</tt><big>(</big><em>attr</em>, <em>fmt='raw'</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.get_attrs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return attrs by name</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.get_encoded">
+<tt class="descname">get_encoded</tt><big>(</big><em>attr</em>, <em>default=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.get_encoded" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the first encoded NLA by name</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.getvalue">
+<tt class="descname">getvalue</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.getvalue" title="Permalink to this definition">¶</a></dt>
+<dd><p>Atomic NLAs return their value in the &#8216;value&#8217; field,
+not as a dictionary. Complex NLAs return whole dictionary.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.load">
+<tt class="descname">load</tt><big>(</big><em>dump</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.load" title="Permalink to this definition">¶</a></dt>
+<dd><p>Load packet from a structure</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="pyroute2.netlink.nlmsg_base.name2nla">
+<em class="property">classmethod </em><tt class="descname">name2nla</tt><big>(</big><em>name</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.name2nla" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert human-friendly name into NLA name</p>
+<p>Example: address -&gt; IFLA_ADDRESS</p>
+<p>Requires self.prefix to be set</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="pyroute2.netlink.nlmsg_base.nla2name">
+<em class="property">classmethod </em><tt class="descname">nla2name</tt><big>(</big><em>name</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.nla2name" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert NLA name into human-friendly name</p>
+<p>Example: IFLA_ADDRESS -&gt; address</p>
+<p>Requires self.prefix to be set</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.register_nlas">
+<tt class="descname">register_nlas</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.register_nlas" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert &#8216;nla_map&#8217; tuple into two dictionaries for mapping
+and reverse mapping of NLA types.</p>
+<p>ex: given:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">nla_map</span> <span class="o">=</span> <span class="p">((</span><span class="s1">&#39;TCA_HTB_UNSPEC&#39;</span><span class="p">,</span> <span class="s1">&#39;none&#39;</span><span class="p">),</span>
+           <span class="p">(</span><span class="s1">&#39;TCA_HTB_PARMS&#39;</span><span class="p">,</span> <span class="s1">&#39;htb_parms&#39;</span><span class="p">),</span>
+           <span class="p">(</span><span class="s1">&#39;TCA_HTB_INIT&#39;</span><span class="p">,</span> <span class="s1">&#39;htb_glob&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>creates:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>t_nla_map = {0: (&lt;class &#39;pyroute2...none&#39;&gt;, &#39;TCA_HTB_UNSPEC&#39;),
+             1: (&lt;class &#39;pyroute2...htb_parms&#39;&gt;, &#39;TCA_HTB_PARMS&#39;),
+             2: (&lt;class &#39;pyroute2...htb_glob&#39;&gt;, &#39;TCA_HTB_INIT&#39;)}
+r_nla_map = {&#39;TCA_HTB_UNSPEC&#39;: (&lt;class &#39;pyroute2...none&#39;&gt;, 0),
+             &#39;TCA_HTB_PARMS&#39;: (&lt;class &#39;pyroute2...htb_parms&#39;&gt;, 1),
+             &#39;TCA_HTB_INIT&#39;: (&lt;class &#39;pyroute2...htb_glob&#39;&gt;, 2)}
+</pre></div>
+</div>
+<p>nla_map format:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>nla_map = (([ID, ] NAME, TYPE[, FLAGS]), ...)
+</pre></div>
+</div>
+<p>Items in <cite>[...]</cite> are optional. If ID is not given, then the map will
+be autonumerated from 0. If flags are not given, they are 0 by default.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.reserve">
+<tt class="descname">reserve</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.reserve" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reserve space in the buffer for data. This can be used
+to skip encoding of the header until some fields will
+be known.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.reset">
+<tt class="descname">reset</tt><big>(</big><em>buf=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reset the message buffer. Optionally, set the message
+from the <cite>buf</cite> parameter. This parameter can be either
+string, or io.BytesIO, or dict instance.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.netlink.nlmsg_base.strip">
+<tt class="descname">strip</tt><big>(</big><em>attrs</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_base.strip" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove an NLA from the attrs chain. The <cite>attrs</cite>
+parameter can be either string, or iterable. In
+the latter case, will be stripped NLAs, specified
+in the provided list.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="pyroute2.netlink.nlmsg_header">
+<em class="property">class </em><tt class="descclassname">pyroute2.netlink.</tt><tt class="descname">nlmsg_header</tt><big>(</big><em>buf=None</em>, <em>length=None</em>, <em>parent=None</em>, <em>debug=False</em>, <em>init=None</em><big>)</big><a class="headerlink" href="#pyroute2.netlink.nlmsg_header" title="Permalink to this definition">¶</a></dt>
+<dd><p>Common netlink message header</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Netlink basics</a></li>
+<li><a class="reference internal" href="#pyroute2-and-netlink">Pyroute2 and netlink</a><ul>
+<li><a class="reference internal" href="#packets">packets</a></li>
+<li><a class="reference internal" href="#fields-attribute">fields attribute</a></li>
+<li><a class="reference internal" href="#nla-map-attribute">nla_map attribute</a></li>
+<li><a class="reference internal" href="#array-types">array types</a></li>
+<li><a class="reference internal" href="#parsed-netlink-message">parsed netlink message</a></li>
+<li><a class="reference internal" href="#encoding-and-decoding-algo">encoding and decoding algo</a></li>
+<li><a class="reference internal" href="#create-and-send-messages">create and send messages</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="arch.html"
+                        title="previous chapter">Module architecture</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="nlsocket.html"
+                        title="next chapter">Base netlink socket and marshal</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/netlink.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="nlsocket.html" title="Base netlink socket and marshal"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="arch.html" title="Module architecture"
+             >previous</a> |</li>
+        <li><a href="index.html">pyroute2 0.3.18 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Peter V. Saveliev.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+    </div>
+  </body>
+</html>

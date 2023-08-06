@@ -1,0 +1,753 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>IPDB module &mdash; pyroute2 0.3.18 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.3.18',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="pyroute2 0.3.18 documentation" href="index.html" />
+    <link rel="next" title="Netns management overview" href="netns.html" />
+    <link rel="prev" title="IPRoute module" href="iproute.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="netns.html" title="Netns management overview"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="iproute.html" title="IPRoute module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">pyroute2 0.3.18 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <span class="target" id="module-pyroute2.ipdb"></span><div class="section" id="ipdb-module">
+<h1>IPDB module<a class="headerlink" href="#ipdb-module" title="Permalink to this headline">¶</a></h1>
+<p>Basically, IPDB is a transactional database, containing records,
+representing network stack objects. Any change in the database
+is not reflected immediately in OS (unless you ask for that
+explicitly), but waits until <cite>commit()</cite> is called. One failed
+operation during <cite>commit()</cite> rolls back all the changes, has been
+made so far. Moreover, IPDB has commit hooks API, that allows
+you to roll back changes depending on your own function calls,
+e.g. when a host or a network becomes unreachable.</p>
+<div class="section" id="ipdb-vs-iproute">
+<h2>IPDB vs. IPRoute<a class="headerlink" href="#ipdb-vs-iproute" title="Permalink to this headline">¶</a></h2>
+<p>These two modules, IPRoute and IPDB, use completely different
+approaches. The first one, IPRoute, is synchronous by default,
+and can be used in the same way, as usual Linux utilities. It
+doesn&#8217;t spawn any additional threads or processes, until you
+explicitly ask for that.</p>
+<p>The latter, IPDB, is an asynchronously updated database, that
+starts several additional threads by default. If your project&#8217;s
+policy doesn&#8217;t allow implicit threads, keep it in mind.</p>
+<p>The choice depends on your project&#8217;s workflow. If you plan to
+retrieve the system info not too often (or even once), or you
+are sure there will be not too many network object, it is better
+to use IPRoute. If you plan to lookup the network info  on a
+regular basis and there can be loads of network objects, it is
+better to use IPDB. Why?</p>
+<p>IPRoute just loads what you ask &#8211; and loads all the information
+you ask to. While IPDB loads all the info upon startup, and
+later is just updated by asynchronous broadcast netlink messages.
+Assume you want to lookup ARP cache that contains hundreds or
+even thousands of objects. Using IPRoute, you have to load all
+the ARP cache every time you want to make a lookup. While IPDB
+will load all the cache once, and then maintain it up-to-date
+just inserting new records or removing them by one.</p>
+<p>So, IPRoute is much simpler when you need to make a call and
+then exit. While IPDB is cheaper in terms of CPU performance
+if you implement a long-running program like a daemon. Later
+it can change, if there will be (an optional) cache for IPRoute
+too.</p>
+</div>
+<div class="section" id="quickstart">
+<h2>quickstart<a class="headerlink" href="#quickstart" title="Permalink to this headline">¶</a></h2>
+<p>Simple tutorial:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">pyroute2</span> <span class="kn">import</span> <span class="n">IPDB</span>
+<span class="c1"># several IPDB instances are supported within on process</span>
+<span class="n">ip</span> <span class="o">=</span> <span class="n">IPDB</span><span class="p">()</span>
+
+<span class="c1"># commit is called automatically upon the exit from `with`</span>
+<span class="c1"># statement</span>
+<span class="k">with</span> <span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">eth0</span> <span class="k">as</span> <span class="n">i</span><span class="p">:</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="s1">&#39;00:11:22:33:44:55&#39;</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">ifname</span> <span class="o">=</span> <span class="s1">&#39;bala&#39;</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">txqlen</span> <span class="o">=</span> <span class="mi">2000</span>
+
+<span class="c1"># basic routing support</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="o">.</span><span class="n">add</span><span class="p">({</span><span class="s1">&#39;dst&#39;</span><span class="p">:</span> <span class="s1">&#39;default&#39;</span><span class="p">,</span> <span class="s1">&#39;gateway&#39;</span><span class="p">:</span> <span class="s1">&#39;10.0.0.1&#39;</span><span class="p">})</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+<span class="c1"># do not forget to shutdown IPDB</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Please, notice <cite>ip.release()</cite> call in the end. Though it is
+not forced in an interactive python session for the better
+user experience, it is required in the scripts to sync the
+IPDB state before exit.</p>
+<p>IPDB uses IPRoute as a transport, and monitors all broadcast
+netlink messages from the kernel, thus keeping the database
+up-to-date in an asynchronous manner. IPDB inherits <cite>dict</cite>
+class, and has two keys:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyroute2</span> <span class="kn">import</span> <span class="n">IPDB</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span> <span class="o">=</span> <span class="n">IPDB</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span><span class="o">.</span><span class="n">by_name</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+<span class="go">[&#39;bond0&#39;, &#39;lo&#39;, &#39;em1&#39;, &#39;wlan0&#39;, &#39;dummy0&#39;, &#39;virbr0-nic&#39;, &#39;virbr0&#39;]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span><span class="o">.</span><span class="n">by_index</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+<span class="go">[32, 1, 2, 3, 4, 5, 8]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+<span class="go">[32,</span>
+<span class="go"> 1,</span>
+<span class="go"> 2,</span>
+<span class="go"> 3,</span>
+<span class="go"> 4,</span>
+<span class="go"> 5,</span>
+<span class="go"> 8,</span>
+<span class="go"> &#39;lo&#39;,</span>
+<span class="go"> &#39;em1&#39;,</span>
+<span class="go"> &#39;wlan0&#39;,</span>
+<span class="go"> &#39;bond0&#39;,</span>
+<span class="go"> &#39;dummy0&#39;,</span>
+<span class="go"> &#39;virbr0-nic&#39;,</span>
+<span class="go"> &#39;virbr0&#39;]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="p">[</span><span class="s1">&#39;em1&#39;</span><span class="p">][</span><span class="s1">&#39;address&#39;</span><span class="p">]</span>
+<span class="go">&#39;f0:de:f1:93:94:0d&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="p">[</span><span class="s1">&#39;em1&#39;</span><span class="p">][</span><span class="s1">&#39;ipaddr&#39;</span><span class="p">]</span>
+<span class="go">[(&#39;10.34.131.210&#39;, 23),</span>
+<span class="go"> (&#39;2620:52:0:2282:f2de:f1ff:fe93:940d&#39;, 64),</span>
+<span class="go"> (&#39;fe80::f2de:f1ff:fe93:940d&#39;, 64)]</span>
+<span class="go">&gt;&gt;&gt;</span>
+</pre></div>
+</div>
+<p>One can address objects in IPDB not only with dict notation, but
+with dot notation also:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">em1</span><span class="o">.</span><span class="n">address</span>
+<span class="go">&#39;f0:de:f1:93:94:0d&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">em1</span><span class="o">.</span><span class="n">ipaddr</span>
+<span class="go">[(&#39;10.34.131.210&#39;, 23),</span>
+<span class="go"> (&#39;2620:52:0:2282:f2de:f1ff:fe93:940d&#39;, 64),</span>
+<span class="go"> (&#39;fe80::f2de:f1ff:fe93:940d&#39;, 64)]</span>
+<span class="go">```</span>
+</pre></div>
+</div>
+<p>It is up to you, which way to choose. The former, being more flexible,
+is better for developers, the latter, the shorter form &#8211; for system
+administrators.</p>
+<p>The library has also IPDB module. It is a database synchronized with
+the kernel, containing some of the information. It can be used also
+to set up IP settings in a transactional manner:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pyroute2</span> <span class="kn">import</span> <span class="n">IPDB</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pprint</span> <span class="kn">import</span> <span class="n">pprint</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span> <span class="o">=</span> <span class="n">IPDB</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pprint</span><span class="p">(</span><span class="n">ip</span><span class="o">.</span><span class="n">by_name</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+<span class="go">[&#39;bond0&#39;,</span>
+<span class="go"> &#39;lo&#39;,</span>
+<span class="go"> &#39;vnet0&#39;,</span>
+<span class="go"> &#39;em1&#39;,</span>
+<span class="go"> &#39;wlan0&#39;,</span>
+<span class="go"> &#39;macvtap0&#39;,</span>
+<span class="go"> &#39;dummy0&#39;,</span>
+<span class="go"> &#39;virbr0-nic&#39;,</span>
+<span class="go"> &#39;virbr0&#39;]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">lo</span>
+<span class="go">{&#39;promiscuity&#39;: 0,</span>
+<span class="go"> &#39;operstate&#39;: &#39;UNKNOWN&#39;,</span>
+<span class="go"> &#39;qdisc&#39;: &#39;noqueue&#39;,</span>
+<span class="go"> &#39;group&#39;: 0,</span>
+<span class="go"> &#39;family&#39;: 0,</span>
+<span class="go"> &#39;index&#39;: 1,</span>
+<span class="go"> &#39;linkmode&#39;: 0,</span>
+<span class="go"> &#39;ipaddr&#39;: [(&#39;127.0.0.1&#39;, 8), (&#39;::1&#39;, 128)],</span>
+<span class="go"> &#39;mtu&#39;: 65536,</span>
+<span class="go"> &#39;broadcast&#39;: &#39;00:00:00:00:00:00&#39;,</span>
+<span class="go"> &#39;num_rx_queues&#39;: 1,</span>
+<span class="go"> &#39;txqlen&#39;: 0,</span>
+<span class="go"> &#39;ifi_type&#39;: 772,</span>
+<span class="go"> &#39;address&#39;: &#39;00:00:00:00:00:00&#39;,</span>
+<span class="go"> &#39;flags&#39;: 65609,</span>
+<span class="go"> &#39;ifname&#39;: &#39;lo&#39;,</span>
+<span class="go"> &#39;num_tx_queues&#39;: 1,</span>
+<span class="go"> &#39;ports&#39;: [],</span>
+<span class="go"> &#39;change&#39;: 0}</span>
+<span class="go">&gt;&gt;&gt;</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="transaction-modes">
+<h2>transaction modes<a class="headerlink" href="#transaction-modes" title="Permalink to this headline">¶</a></h2>
+<p>IPDB has several operating modes:</p>
+<blockquote>
+<div><ul>
+<li><p class="first">&#8216;direct&#8217; &#8211; any change goes immediately to the OS level</p>
+</li>
+<li><dl class="first docutils">
+<dt>&#8216;implicit&#8217; (default) &#8211; the first change starts an implicit</dt>
+<dd><p class="first last">transaction, that have to be committed</p>
+</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>&#8216;explicit&#8217; &#8211; you have to begin() a transaction prior to</dt>
+<dd><p class="first last">make any change</p>
+</dd>
+</dl>
+</li>
+<li><p class="first">&#8216;snapshot&#8217; &#8211; no changes will go to the OS in any case</p>
+</li>
+</ul>
+</div></blockquote>
+<p>The default is to use implicit transaction. This behaviour can
+be changed in the future, so use &#8216;mode&#8217; argument when creating
+IPDB instances.</p>
+<p>The sample session with explicit transactions:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span>In [1]: from pyroute2 import IPDB
+In [2]: ip = IPDB(mode=&#39;explicit&#39;)
+In [3]: ifdb = ip.interfaces
+In [4]: ifdb.tap0.begin()
+    Out[3]: UUID(&#39;7a637a44-8935-4395-b5e7-0ce40d31d937&#39;)
+In [5]: ifdb.tap0.up()
+In [6]: ifdb.tap0.address = &#39;00:11:22:33:44:55&#39;
+In [7]: ifdb.tap0.add_ip(&#39;10.0.0.1&#39;, 24)
+In [8]: ifdb.tap0.add_ip(&#39;10.0.0.2&#39;, 24)
+In [9]: ifdb.tap0.review()
+    Out[8]:
+    {&#39;+ipaddr&#39;: set([(&#39;10.0.0.2&#39;, 24), (&#39;10.0.0.1&#39;, 24)]),
+     &#39;-ipaddr&#39;: set([]),
+     &#39;address&#39;: &#39;00:11:22:33:44:55&#39;,
+     &#39;flags&#39;: 4099}
+In [10]: ifdb.tap0.commit()
+</pre></div>
+</div>
+<p>Note, that you can <cite>review()</cite> the <cite>last()</cite> transaction, and
+<cite>commit()</cite> or <cite>drop()</cite> it. Also, multiple <cite>self._transactions</cite>
+are supported, use uuid returned by <cite>begin()</cite> to identify them.</p>
+<p>Actually, the form like &#8216;ip.tap0.address&#8217; is an eye-candy. The
+IPDB objects are dictionaries, so you can write the code above
+as that:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="p">[</span><span class="s1">&#39;tap0&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">down</span><span class="p">()</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="p">[</span><span class="s1">&#39;tap0&#39;</span><span class="p">][</span><span class="s1">&#39;address&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;00:11:22:33:44:55&#39;</span>
+<span class="o">...</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="context-managers">
+<h2>context managers<a class="headerlink" href="#context-managers" title="Permalink to this headline">¶</a></h2>
+<p>Also, interface objects in transactional mode can operate as
+context managers:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">tap0</span> <span class="k">as</span> <span class="n">i</span><span class="p">:</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">address</span> <span class="o">=</span> <span class="s1">&#39;00:11:22:33:44:55&#39;</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">ifname</span> <span class="o">=</span> <span class="s1">&#39;vpn&#39;</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">add_ip</span><span class="p">(</span><span class="s1">&#39;10.0.0.1&#39;</span><span class="p">,</span> <span class="mi">24</span><span class="p">)</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">add_ip</span><span class="p">(</span><span class="s1">&#39;10.0.0.1&#39;</span><span class="p">,</span> <span class="mi">24</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>On exit, the context manager will authomatically <cite>commit()</cite> the
+transaction.</p>
+</div>
+<div class="section" id="create-interfaces">
+<h2>create interfaces<a class="headerlink" href="#create-interfaces" title="Permalink to this headline">¶</a></h2>
+<p>IPDB can also create interfaces:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">&#39;bridge&#39;</span><span class="p">,</span> <span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;control&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">i</span><span class="p">:</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">add_port</span><span class="p">(</span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">eth1</span><span class="p">)</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">add_port</span><span class="p">(</span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">eth2</span><span class="p">)</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">add_ip</span><span class="p">(</span><span class="s1">&#39;10.0.0.1/24&#39;</span><span class="p">)</span>  <span class="c1"># the same as i.add_ip(&#39;10.0.0.1&#39;, 24)</span>
+</pre></div>
+</div>
+<p>IPDB supports many interface types, see docs below for the
+<cite>IPDB.create()</cite> method.</p>
+</div>
+<div class="section" id="routing-management">
+<h2>routing management<a class="headerlink" href="#routing-management" title="Permalink to this headline">¶</a></h2>
+<p>IPDB has a simple yet useful routing management interface.
+To add a route, there is an easy to use syntax:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># spec as a dictionary</span>
+<span class="n">spec</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;dst&#39;</span><span class="p">:</span> <span class="s1">&#39;172.16.1.0/24&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;oif&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+        <span class="s1">&#39;gateway&#39;</span><span class="p">:</span> <span class="s1">&#39;192.168.122.60&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;metrics&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;mtu&#39;</span><span class="p">:</span> <span class="mi">1400</span><span class="p">,</span>
+                    <span class="s1">&#39;advmss&#39;</span><span class="p">:</span> <span class="mi">500</span><span class="p">}}</span>
+
+<span class="c1"># pass spec as is</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">spec</span><span class="p">)</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+<span class="c1"># pass spec as kwargs</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="o">**</span><span class="n">spec</span><span class="p">)</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+<span class="c1"># use keyword arguments explicitly</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">dst</span><span class="o">=</span><span class="s1">&#39;172.16.1.0/24&#39;</span><span class="p">,</span> <span class="n">oif</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>To access and change the routes, one can use notations as follows:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span># default table (254)
+#
+# change the route gateway and mtu
+#
+with ip.routes[&#39;172.16.1.0/24&#39;] as route:
+    route.gateway = &#39;192.168.122.60&#39;
+    route.metrics.mtu = 1500
+
+# access the default route
+print(ip.routes[&#39;default])
+
+# change the default gateway
+with ip.routes[&#39;default&#39;] as route:
+    route.gateway = &#39;10.0.0.1&#39;
+
+# list automatic routes keys
+print(ip.routes.tables[255].keys())
+</pre></div>
+</div>
+<p><strong>Route specs</strong></p>
+<p>It is important to understand, that routing tables in IPDB
+are lists, not dicts. It is still possible to use a dict syntax
+to retrieve records, but under the hood the tables are lists.</p>
+<p>To retrieve or create routes one should use route specs. The
+simplest case is to retrieve one route:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># get route by prefix</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="p">[</span><span class="s1">&#39;172.16.1.0/24&#39;</span><span class="p">]</span>
+
+<span class="c1"># get route by a special name</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="p">[</span><span class="s1">&#39;default&#39;</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>If there are more than one route that matches the spec, only
+the first one will be retrieved. One should iterate all the
+records and filter by a key to retrieve all matches:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># only one route will be retrieved</span>
+<span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="p">[</span><span class="s1">&#39;fe80::/64&#39;</span><span class="p">]</span>
+
+<span class="c1"># get all routes by this prefix</span>
+<span class="p">[</span> <span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">ip</span><span class="o">.</span><span class="n">routes</span> <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;dst&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;fe80::/64&#39;</span> <span class="p">]</span>
+</pre></div>
+</div>
+<p>It is possible to use dicts as specs:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="p">[{</span><span class="s1">&#39;dst&#39;</span><span class="p">:</span> <span class="s1">&#39;172.16.0.0/16&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;oif&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">}]</span>
+</pre></div>
+</div>
+<p>The dict is just the same as a route representation in the
+records list.</p>
+<p><strong>Route metrics</strong></p>
+<p>A special object is dedicated to route metrics, one can access it
+via <cite>route.metrics</cite> or <cite>route[&#8216;metrics&#8217;]</cite>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="c1"># these two statements are equal:</span>
+<span class="k">with</span> <span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="p">[</span><span class="s1">&#39;172.16.1.0/24&#39;</span><span class="p">]</span> <span class="k">as</span> <span class="n">route</span><span class="p">:</span>
+    <span class="n">route</span><span class="p">[</span><span class="s1">&#39;metrics&#39;</span><span class="p">][</span><span class="s1">&#39;mtu&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1400</span>
+
+<span class="k">with</span> <span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="p">[</span><span class="s1">&#39;172.16.1.0/24&#39;</span><span class="p">]</span> <span class="k">as</span> <span class="n">route</span><span class="p">:</span>
+    <span class="n">route</span><span class="o">.</span><span class="n">metrics</span><span class="o">.</span><span class="n">mtu</span> <span class="o">=</span> <span class="mi">1400</span>
+</pre></div>
+</div>
+<p>Possible metrics are defined in <cite>rtmsg.py:rtmsg.metrics</cite>, e.g.
+<cite>RTAX_HOPLIMIT</cite> means <cite>hoplimit</cite> metric etc.</p>
+<p><strong>Multipath routing</strong></p>
+<p>Multipath nexthops are managed via <cite>route.add_nh()</cite> and <cite>route.del_nh()</cite>
+methods. They are available to review via <cite>route.multipath</cite>, but one
+should not directly add/remove/modify nexthops <cite>route.multipath</cite>, as
+the changes will not be committed correctly.</p>
+<p>To create a multipath route:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="o">.</span><span class="n">add</span><span class="p">({</span><span class="s1">&#39;dst&#39;</span><span class="p">:</span> <span class="s1">&#39;172.16.232.0/24&#39;</span><span class="p">,</span>
+               <span class="s1">&#39;multipath&#39;</span><span class="p">:</span> <span class="p">[{</span><span class="s1">&#39;gateway&#39;</span><span class="p">:</span> <span class="s1">&#39;172.16.231.2&#39;</span><span class="p">,</span>
+                              <span class="s1">&#39;hops&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span>
+                             <span class="p">{</span><span class="s1">&#39;gateway&#39;</span><span class="p">:</span> <span class="s1">&#39;172.16.231.3&#39;</span><span class="p">,</span>
+                              <span class="s1">&#39;hops&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">},</span>
+                             <span class="p">{</span><span class="s1">&#39;gateway&#39;</span><span class="p">:</span> <span class="s1">&#39;172.16.231.4&#39;</span><span class="p">}]})</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>To change a multipath route:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ip</span><span class="o">.</span><span class="n">routes</span><span class="p">[</span><span class="s1">&#39;172.16.232.0/24&#39;</span><span class="p">]</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
+    <span class="n">r</span><span class="o">.</span><span class="n">add_nh</span><span class="p">({</span><span class="s1">&#39;gateway&#39;</span><span class="p">:</span> <span class="s1">&#39;172.16.231.5&#39;</span><span class="p">})</span>
+    <span class="n">r</span><span class="o">.</span><span class="n">del_nh</span><span class="p">({</span><span class="s1">&#39;gateway&#39;</span><span class="p">:</span> <span class="s1">&#39;172.16.231.4&#39;</span><span class="p">})</span>
+</pre></div>
+</div>
+<p><strong>On multipath hops</strong></p>
+<p>The <cite>iproute2</cite> tool uses <cite>weigth</cite> instead of <cite>hops</cite>. The weight
+is number of hops + 1, so when one creates a nexthop with <cite>hops == 2</cite>,
+the <cite>iproute2</cite> utility will show <cite>weight 3</cite>.</p>
+<p>But the Linux kernel uses <cite>rtnh_hops</cite>, and the <cite>pyroute2</cite> library
+uses here no implications, directly mapping the kernel provided value.</p>
+<p><strong>Multipath default routes</strong></p>
+<p>Deprecation notice: <em>As of the merge of kill_rtcache into the kernel,
+and it&#8217;s release in ~3.6, weighted default routes no longer work</em>.
+Please refer to
+<a class="reference external" href="https://github.com/svinota/pyroute2/issues/171#issuecomment-149297244">https://github.com/svinota/pyroute2/issues/171#issuecomment-149297244</a>
+for details.</p>
+</div>
+<div class="section" id="performance-issues">
+<h2>performance issues<a class="headerlink" href="#performance-issues" title="Permalink to this headline">¶</a></h2>
+<p>In the case of bursts of Netlink broadcast messages, all
+the activity of the pyroute2-based code in the async mode
+becomes suppressed to leave more CPU resources to the
+packet reader thread. So please be ready to cope with
+delays in the case of Netlink broadcast storms. It means
+also, that IPDB state will be synchronized with OS also
+after some delay.</p>
+</div>
+<div class="section" id="classes">
+<h2>classes<a class="headerlink" href="#classes" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="pyroute2.ipdb.IPDB">
+<em class="property">class </em><tt class="descclassname">pyroute2.ipdb.</tt><tt class="descname">IPDB</tt><big>(</big><em>nl=None</em>, <em>mode='implicit'</em>, <em>restart_on_error=None</em>, <em>nl_async=None</em>, <em>debug=False</em>, <em>ignore_rtables=None</em><big>)</big><a class="headerlink" href="#pyroute2.ipdb.IPDB" title="Permalink to this definition">¶</a></dt>
+<dd><p>The class that maintains information about network setup
+of the host. Monitoring netlink events allows it to react
+immediately. It uses no polling.</p>
+<dl class="method">
+<dt id="pyroute2.ipdb.IPDB.create">
+<tt class="descname">create</tt><big>(</big><em>kind</em>, <em>ifname</em>, <em>reuse=False</em>, <em>**kwarg</em><big>)</big><a class="headerlink" href="#pyroute2.ipdb.IPDB.create" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create an interface. Arguments &#8216;kind&#8217; and &#8216;ifname&#8217; are
+required.</p>
+<blockquote>
+<div><ul>
+<li><dl class="first docutils">
+<dt>kind — interface type, can be of:</dt>
+<dd><ul class="first last simple">
+<li>bridge</li>
+<li>bond</li>
+<li>vlan</li>
+<li>tun</li>
+<li>dummy</li>
+<li>veth</li>
+<li>macvlan</li>
+<li>macvtap</li>
+<li>gre</li>
+<li>team</li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p class="first">ifname — interface name</p>
+</li>
+<li><p class="first">reuse — if such interface exists, return it anyway</p>
+</li>
+</ul>
+</div></blockquote>
+<p>Different interface kinds can require different
+arguments for creation.</p>
+<p>► <strong>veth</strong></p>
+<p>To properly create <cite>veth</cite> interface, one should specify
+<cite>peer</cite> also, since <cite>veth</cite> interfaces are created in pairs:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;v1p0&#39;</span><span class="p">,</span> <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;veth&#39;</span><span class="p">,</span> <span class="n">peer</span><span class="o">=</span><span class="s1">&#39;v1p1&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">i</span><span class="p">:</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">add_ip</span><span class="p">(</span><span class="s1">&#39;10.0.0.1/24&#39;</span><span class="p">)</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">add_ip</span><span class="p">(</span><span class="s1">&#39;10.0.0.2/24&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The code above creates two interfaces, <cite>v1p0</cite> and <cite>v1p1</cite>, and
+adds two addresses to <cite>v1p0</cite>.</p>
+<p>► <strong>macvlan</strong></p>
+<p>Macvlan interfaces act like VLANs within OS. The macvlan driver
+provides an ability to add several MAC addresses on one interface,
+where every MAC address is reflected with a virtual interface in
+the system.</p>
+<p>In some setups macvlan interfaces can replace bridge interfaces,
+providing more simple and at the same time high-performance
+solution:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;mvlan0&#39;</span><span class="p">,</span>
+          <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;macvlan&#39;</span><span class="p">,</span>
+          <span class="n">link</span><span class="o">=</span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">em1</span><span class="p">,</span>
+          <span class="n">macvlan_mode</span><span class="o">=</span><span class="s1">&#39;private&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Several macvlan modes are available: &#8216;private&#8217;, &#8216;vepa&#8217;, &#8216;bridge&#8217;,
+&#8216;passthru&#8217;. Ususally the default is &#8216;vepa&#8217;.</p>
+<p>► <strong>macvtap</strong></p>
+<p>Almost the same as macvlan, but creates also a character tap device:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;mvtap0&#39;</span><span class="p">,</span>
+          <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;macvtap&#39;</span><span class="p">,</span>
+          <span class="n">link</span><span class="o">=</span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">em1</span><span class="p">,</span>
+          <span class="n">macvtap_mode</span><span class="o">=</span><span class="s1">&#39;vepa&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Will create a device file <cite>&#8220;/dev/tap%s&#8221; % ip.interfaces.mvtap0.index</cite></p>
+<p>► <strong>gre</strong></p>
+<p>Create GRE tunnel:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;grex&#39;</span><span class="p">,</span>
+               <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;gre&#39;</span><span class="p">,</span>
+               <span class="n">gre_local</span><span class="o">=</span><span class="s1">&#39;172.16.0.1&#39;</span><span class="p">,</span>
+               <span class="n">gre_remote</span><span class="o">=</span><span class="s1">&#39;172.16.0.101&#39;</span><span class="p">,</span>
+               <span class="n">gre_ttl</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span> <span class="k">as</span> <span class="n">i</span><span class="p">:</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">add_ip</span><span class="p">(</span><span class="s1">&#39;192.168.0.1/24&#39;</span><span class="p">)</span>
+    <span class="n">i</span><span class="o">.</span><span class="n">up</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The keyed GRE requires explicit iflags/oflags specification:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;grex&#39;</span><span class="p">,</span>
+          <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;gre&#39;</span><span class="p">,</span>
+          <span class="n">gre_local</span><span class="o">=</span><span class="s1">&#39;172.16.0.1&#39;</span><span class="p">,</span>
+          <span class="n">gre_remote</span><span class="o">=</span><span class="s1">&#39;172.16.0.101&#39;</span><span class="p">,</span>
+          <span class="n">gre_ttl</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+          <span class="n">gre_ikey</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+          <span class="n">gre_okey</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+          <span class="n">gre_iflags</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+          <span class="n">gre_oflags</span><span class="o">=</span><span class="mi">32</span><span class="p">)</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>► <strong>vlan</strong></p>
+<p>VLAN interfaces require additional parameters, <cite>vlan_id</cite> and
+<cite>link</cite>, where <cite>link</cite> is a master interface to create VLAN on:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;v100&#39;</span><span class="p">,</span>
+          <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;vlan&#39;</span><span class="p">,</span>
+          <span class="n">link</span><span class="o">=</span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">eth0</span><span class="p">,</span>
+          <span class="n">vlan_id</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+
+<span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;v100&#39;</span><span class="p">,</span>
+          <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;vlan&#39;</span><span class="p">,</span>
+          <span class="n">link</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+          <span class="n">vlan_id</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <cite>link</cite> parameter should be either integer, interface id, or
+an interface object. VLAN id must be integer.</p>
+<p>► <strong>vxlan</strong></p>
+<p>VXLAN interfaces are like VLAN ones, but require a bit more
+parameters:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">ip</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ifname</span><span class="o">=</span><span class="s1">&#39;vx101&#39;</span><span class="p">,</span>
+          <span class="n">kind</span><span class="o">=</span><span class="s1">&#39;vxlan&#39;</span><span class="p">,</span>
+          <span class="n">vxlan_link</span><span class="o">=</span><span class="n">ip</span><span class="o">.</span><span class="n">interfaces</span><span class="o">.</span><span class="n">eth0</span><span class="p">,</span>
+          <span class="n">vxlan_id</span><span class="o">=</span><span class="mi">101</span><span class="p">,</span>
+          <span class="n">vxlan_group</span><span class="o">=</span><span class="s1">&#39;239.1.1.1&#39;</span><span class="p">,</span>
+          <span class="n">vxlan_ttl</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>All possible vxlan parameters are listed in the module
+<cite>pyroute2.netlink.rtnl.ifinfmsg:... vxlan_data</cite>.</p>
+<p>► <strong>tuntap</strong></p>
+<p>Possible <cite>tuntap</cite> keywords:</p>
+<blockquote>
+<div><ul class="simple">
+<li><cite>mode</cite> — &#8220;tun&#8221; or &#8220;tap&#8221;</li>
+<li><cite>uid</cite> — integer</li>
+<li><cite>gid</cite> — integer</li>
+<li><cite>ifr</cite> — dict of tuntap flags (see tuntapmsg.py)</li>
+</ul>
+</div></blockquote>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.ipdb.IPDB.initdb">
+<tt class="descname">initdb</tt><big>(</big><em>nl=None</em><big>)</big><a class="headerlink" href="#pyroute2.ipdb.IPDB.initdb" title="Permalink to this definition">¶</a></dt>
+<dd><p>Restart IPRoute channel, and create all the DB
+from scratch. Can be used when sync is lost.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.ipdb.IPDB.register_callback">
+<tt class="descname">register_callback</tt><big>(</big><em>callback</em>, <em>mode='post'</em><big>)</big><a class="headerlink" href="#pyroute2.ipdb.IPDB.register_callback" title="Permalink to this definition">¶</a></dt>
+<dd><p>IPDB callbacks are routines executed on a RT netlink
+message arrival. There are two types of callbacks:
+&#8220;post&#8221; and &#8220;pre&#8221; callbacks.</p>
+<p>...</p>
+<p>&#8220;Post&#8221; callbacks are executed after the message is
+processed by IPDB and all corresponding objects are
+created or deleted. Using ipdb reference in &#8220;post&#8221;
+callbacks you will access the most up-to-date state
+of the IP database.</p>
+<p>&#8220;Post&#8221; callbacks are executed asynchronously in
+separate threads. These threads can work as long
+as you want them to. Callback threads are joined
+occasionally, so for a short time there can exist
+stopped threads.</p>
+<p>...</p>
+<p>&#8220;Pre&#8221; callbacks are synchronous routines, executed
+before the message gets processed by IPDB. It gives
+you the way to patch arriving messages, but also
+places a restriction: until the callback exits, the
+main event IPDB loop is blocked.</p>
+<p>Normally, only &#8220;post&#8221; callbacks are required. But in
+some specific cases &#8220;pre&#8221; also can be useful.</p>
+<p>...</p>
+<dl class="docutils">
+<dt>The routine, <cite>register_callback()</cite>, takes two arguments:</dt>
+<dd><ul class="first last simple">
+<li>callback function</li>
+<li>mode (optional, default=&#8221;post&#8221;)</li>
+</ul>
+</dd>
+</dl>
+<p>The callback should be a routine, that accepts three
+arguments:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">cb</span><span class="p">(</span><span class="n">ipdb</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Arguments are:</p>
+<blockquote>
+<div><ul>
+<li><dl class="first docutils">
+<dt><strong>ipdb</strong> is a reference to IPDB instance, that invokes</dt>
+<dd><p class="first last">the callback.</p>
+</dd>
+</dl>
+</li>
+<li><p class="first"><strong>msg</strong> is a message arrived</p>
+</li>
+<li><p class="first"><strong>action</strong> is just a msg[&#8216;event&#8217;] field</p>
+</li>
+</ul>
+</div></blockquote>
+<p>E.g., to work on a new interface, you should catch
+action == &#8216;RTM_NEWLINK&#8217; and with the interface index
+(arrived in msg[&#8216;index&#8217;]) get it from IPDB:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">index</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;index&#39;</span><span class="p">]</span>
+<span class="n">interface</span> <span class="o">=</span> <span class="n">ipdb</span><span class="o">.</span><span class="n">interfaces</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.ipdb.IPDB.release">
+<tt class="descname">release</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.ipdb.IPDB.release" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shutdown IPDB instance and sync the state. Since
+IPDB is asyncronous, some operations continue in the
+background, e.g. callbacks. So, prior to exit the
+script, it is required to properly shutdown IPDB.</p>
+<p>The shutdown sequence is not forced in an interactive
+python session, since it is easier for users and there
+is enough time to sync the state. But for the scripts
+the <cite>release()</cite> call is required.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pyroute2.ipdb.IPDB.serve_forever">
+<tt class="descname">serve_forever</tt><big>(</big><big>)</big><a class="headerlink" href="#pyroute2.ipdb.IPDB.serve_forever" title="Permalink to this definition">¶</a></dt>
+<dd><p>Main monitoring cycle. It gets messages from the
+default iproute queue and updates objects in the
+database.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Should not be called manually.</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="pyroute2.ipdb.get_addr_nla">
+<tt class="descclassname">pyroute2.ipdb.</tt><tt class="descname">get_addr_nla</tt><big>(</big><em>msg</em><big>)</big><a class="headerlink" href="#pyroute2.ipdb.get_addr_nla" title="Permalink to this definition">¶</a></dt>
+<dd><p>Utility function to get NLA, containing the interface
+address.</p>
+<p>Inconsistency in Linux IP addressing scheme is that
+IPv4 uses IFA_LOCAL to store interface&#8217;s ip address,
+and IPv6 uses for the same IFA_ADDRESS.</p>
+<p>IPv4 sets IFA_ADDRESS to == IFA_LOCAL or to a
+tunneling endpoint.</p>
+<dl class="docutils">
+<dt>Args:</dt>
+<dd><ul class="first last simple">
+<li>msg (nlmsg): RTM_.*ADDR message</li>
+</ul>
+</dd>
+<dt>Returns:</dt>
+<dd><ul class="first last simple">
+<li>nla (nla): IFA_LOCAL for IPv4 and IFA_ADDRESS for IPv6</li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">IPDB module</a><ul>
+<li><a class="reference internal" href="#ipdb-vs-iproute">IPDB vs. IPRoute</a></li>
+<li><a class="reference internal" href="#quickstart">quickstart</a></li>
+<li><a class="reference internal" href="#transaction-modes">transaction modes</a></li>
+<li><a class="reference internal" href="#context-managers">context managers</a></li>
+<li><a class="reference internal" href="#create-interfaces">create interfaces</a></li>
+<li><a class="reference internal" href="#routing-management">routing management</a></li>
+<li><a class="reference internal" href="#performance-issues">performance issues</a></li>
+<li><a class="reference internal" href="#classes">classes</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="iproute.html"
+                        title="previous chapter">IPRoute module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="netns.html"
+                        title="next chapter">Netns management overview</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/ipdb.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="netns.html" title="Netns management overview"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="iproute.html" title="IPRoute module"
+             >previous</a> |</li>
+        <li><a href="index.html">pyroute2 0.3.18 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, Peter V. Saveliev.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+    </div>
+  </body>
+</html>
