@@ -1,0 +1,36 @@
+# Copyright 2015 Nicta
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: run remote
+  hosts: all
+  user: ubuntu
+  tasks:
+    - name: copy key file
+      copy: src={{ key_file_src }} dest={{ remote_dir }}/{{ key_file_name }} mode=0600
+
+    - name: copy hosts file
+      copy: src={{ hosts_file_src }} dest={{ remote_dir }}/{{ hosts_file_name }}
+
+    - name: copy vars file
+      copy: src={{ vars_file_src }} dest={{ remote_dir }}/{{ vars_file_name }}
+
+    - name: run remote ansible
+      shell: ansible-playbook -i {{ hosts_file_name }} --extra-vars '@{{ vars_file_name }}' --private-key {{ key_file_name }} {{ playbook_file }}
+      args:
+        chdir: "{{ remote_dir }}"
+
+    - name: delete key file, vars file, and hosts file
+      file: path={{ remote_dir }}/{{ key_file_name }} state=absent
+    - file: path={{ remote_dir }}/{{ hosts_file_name }} state=absent
+    - file: path={{ remote_dir }}/{{ vars_file_name }} state=absent
