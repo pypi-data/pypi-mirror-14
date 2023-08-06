@@ -1,0 +1,154 @@
+#!/usr/bin/env python
+#
+# Script to set or update a UUID for an image or VM.
+#
+# Copyright (c) 2014 Ravello Systems Inc. Released under Apache 2 license.
+
+"""Set or update the BIOS UUID on an image or VM.
+
+Usage:
+  ravello-set-uuid [--image] [options] <image>
+  ravello-set-uuid --vm [options] <application> <vm>
+  ravello-set-uuid (-h | --help)
+
+The arguments <image>, <application, and <vm> specify the object to
+apply the UUID to. These arguments are interpreted as names first, and
+if no such object is found, as IDs.
+
+Arguments:
+  <image>           The image name or ID.
+  <application>     The application name or ID.
+  <vm>              The VM name or ID.
+
+Options:
+  --image           Set the UUID for an image.
+  --vm              Set the UUID for a VM in an application.
+  -n, --numeric     Skip name resolution and load the object directly by ID.
+  -U <uuid>, --uuid=<uuid>
+                    Set this UUID instead of generating a new one.
+  -u <username>, --username=<username>
+                    Ravello API username. If absent use $RAVELLO_USERNAME.
+  -p <password>, --password=<password>
+                    Ravello API password. If absent use $RAVELLO_PASSWORD.
+  -d, --debug       Enable debugging mode.
+"""
+
+import os
+import sys
+import re
+import uuid
+
+import logging
+from docopt import docopt
+from getpass import getpass
+from ravello_sdk import RavelloClient
+
+
+re_uuid = re.compile('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.I)
+
+
+def parse_args():
+    """Parse and validate arguments."""
+    args = docopt(__doc__)
+    if not args.get('--vm'):
+        args['--image'] = True
+    if not args['--username']:
+        args['--username'] = os.environ.get('RAVELLO_USERNAME')
+    if not args['--username']:
+        raise ValueError('specify --username or set $RAVELLO_USERNAME')
+    if not args['--password']:
+        args['--password'] = os.environ.get('RAVELLO_PASSWORD')
+    if not args['--password'] and sys.stdin.isatty():
+        args['--password'] = getpass('Enter Ravello API password: ')
+    if not args['--password']:
+        raise ValueError('specify --password or set $RAVELLO_PASSWORD')
+    if args['--numeric']:
+        for key in ('<image>', '<application>', '<vm>'):
+            if args.get(key) and not args[key].isdigit():
+                raise ValueError('{0} must be numeric when --numeric'.format(key))
+    if args['--uuid']:
+        if not re_uuid.match(args['--uuid']):
+            raise ValueError('illegal UUID: {0}'.format(args['--uuid']))
+    else:
+        args['--uuid'] = str(uuid.uuid4())
+    return args
+
+
+def get_image(client, name, numeric=False):
+    """Load an image by name or ID."""
+    image = None
+    if not numeric:
+        images = client.get_images({'name': name})
+        if len(images) == 1:
+            image = client.reload(images[0])
+        elif len(images) > 1:
+            raise ValueError('{0} images match name {1!r}'.format(len(images), name))
+    if name.isdigit():
+        image = client.get_image(name)
+    if image is None:
+        raise ValueError('image not found: {0}'.format(name))
+    return image
+
+
+def get_application(client, name, numeric=False):
+    """Load an application by name or ID."""
+    app = None
+    if not numeric:
+        apps = client.get_applications({'name': name})
+        if len(apps) == 1:
+            app = client.reload(apps[0])
+        elif len(apps) > 1:
+            raise ValueError('{0} applications match name {1!r}'.format(len(apps), name))
+    if name.isdigit():
+        app = client.get_application(name)
+    if app is None:
+        raise ValueError('application not found: {0}'.format(name))
+    return app
+
+
+def get_design_vm(application, name, numeric=False):
+    """Get a design VM by name or ID."""
+    vms = application.get('design', {}).get('vms', [])
+    if not numeric:
+        for vm in vms:
+            if vm['name'] == name:
+                return vm
+    for vm in vms:
+        if vm['id'] == name:
+            return vm
+    raise ValueError('vm not found: {0}'.format(name))
+
+
+def main():
+    """Main entry point."""
+    debug = True
+    try:
+        args = parse_args()
+        debug = args['--debug']
+        logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
+
+        client = RavelloClient(args['--username'], args['--password'])
+
+        if args['--image']:
+            image = get_image(client, args['<image>'], args['--numeric'])
+            image['biosUuid'] = args['--uuid']
+            client.update_image(image)
+
+        else:
+            app = get_application(client, args['<application>'], args['--numeric'])
+            vm = get_design_vm(app, args['<vm>'], args['--numeric'])
+            vm['biosUuid'] = args['--uuid']
+            client.update_application(app)
+
+        print('UUID set to: {0}'.format(args['--uuid']))
+
+    except Exception as e:
+        if debug:
+            raise
+        sys.stderr.write('Error: {0!s}\n'.format(e))
+        sys.exit(1)
+    sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()
