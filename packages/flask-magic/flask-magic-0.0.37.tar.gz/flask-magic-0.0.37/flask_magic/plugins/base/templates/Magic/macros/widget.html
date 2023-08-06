@@ -1,0 +1,347 @@
+{#
+
+ Widget
+
+ A collection of some of Bootstrap components
+
+ Most of the macros must be called in your template around the content to be wrapped in
+
+ {% call collapsible('My Title') %}
+    This is the body
+ {% endcall %}
+
+
+#}
+
+{# -------------------------------------------------------------------------- #}
+{#
+
+widget.alert(): display alert message
+
+widget.alert(message, category, dismissible)
+    - message: The message to display
+    - category: the category (info, success, danger, warning)
+    - Dismissible: When True it will show a close button
+#}
+
+{% macro alert(message, category="info", dismissible=True) %}
+    <div class="alert
+        alert-{{ category|replace('error', 'danger') }}
+        {% if dismissible %}alert-dismissible{%endif%}
+        " role="alert">
+        {% if dismissible %}
+         <button type="button" class="close" data-dismiss="alert">
+             <span aria-hidden="true">&times;</span>
+             <span class="sr-only">Close</span>
+         </button>
+        {% endif %}
+        {{ message }}
+    </div>
+{% endmacro %}
+{# -------------------------------------------------------------------------- #}
+
+{#
+ widget.flashed_messages(): display message by flask's flash()
+
+ widget.flashed_messages(dismissible)
+    - dimissible: Boolean When True it will show a close button
+
+#}
+
+{% macro flashed_messages(dismissible=True) %}
+    {% for category, message in get_flashed_messages(with_categories=True) %}
+        {{ alert(message=message, category=category, dismissible=dismissible) }}
+    {%endfor%}
+{% endmacro %}
+
+
+
+{# -------------------------------------------------------------------------- #}
+{# -------------------------------------------------------------------------- #}
+{# macros below should be called with call #}
+
+
+
+{%-  macro _format_key(val, def) -%}
+    {{- val | default(def, true) | slug -}}
+{%-  endmacro -%}
+
+{#
+
+collapsible()
+
+    {%  call collapsible('title', key, collapse, parent) %}
+        content
+    {%  endcall %}
+
+    params:
+        - title: The title of the collapsible
+        - key: a unique to identify this collapsible
+        - collapse: (bool) to collapse or expend the component
+        - parent: when using 'collapsible_accordion', pass the parent id
+#}
+{% macro collapsible(title, key=none, collapse=false, parent="accordion") %}
+     <div class="panel panel-default">
+        <div class="panel-heading" role="tab" id="heading{{ _format_key(key, title) }}">
+          <h4 class="panel-title">
+            <a role="button"
+               data-toggle="collapse"
+               data-parent="#{{ parent }}"
+               href="#j-collapse{{ _format_key(key, title) }}"
+               aria-expanded="true"
+               aria-controls="j-collapse{{ _format_key(key, title) }}">
+              {{ title | safe }}
+            </a>
+          </h4>
+        </div>
+
+        <div id="j-collapse{{ _format_key(key, title) }}"
+             class="panel-collapse collapse {% if not collapse %}in{%  endif %}"
+             role="tabpanel"
+             aria-labelledby="heading{{ _format_key(key, title) }}">
+          <div class="panel-body">
+            {{ caller() }}
+          </div>
+        </div>
+    </div>
+{%  endmacro %}
+
+
+{#
+accordion()
+
+     Requires the use of collapsable
+
+
+     {%  call accordion() %}
+        {%  call collapsible('My Acc Name') %}
+            ... content
+        {%  endcall %}
+
+     {%  endcall %}
+
+     params:
+        - id: a unique identifier
+ #}
+{%  macro accordion(id="accordion") %}
+        <div class="panel-group" id="{{ id }}" role="tablist" aria-multiselectable="true">
+            {{ caller() }}
+        </div>
+{%  endmacro %}
+
+
+{# -------------------------------------------------------------------------- #}
+{#
+widget.panel(title, class, type)
+        - title: The title
+        - class: the class to apply on the panel
+        - type: string:
+            - table: it will make the table responsive
+#}
+{%  macro panel(title, class="panel-default", type=None) %}
+    <div class="panel {{ class }} widget-panel">
+
+        <div class="panel-heading">
+            <h4 class="panel-title">{{ title | safe }}</h4>
+        </div>
+
+        {% if type == "table" %}
+            <div class="table-responsive">
+                {{ caller() }}
+            </div>
+        {% else %}
+            <div class="panel-body">
+                {{ caller() }}
+            </div>
+        {% endif %}
+
+    </div>
+{%  endmacro %}
+
+
+{# -------------------------------------------------------------------------- #}
+{#
+
+ widget.modal(title, id, class="")
+    - title: of the modal
+    - id: of the modal
+    - classes
+
+    By default modal doesn't have footer.
+
+    - To add a footer, in your caller() add the footer in the <footer> tag
+
+        <footer>
+            CONTENT
+        </footer>
+
+    - Same for header if you want to change the header
+
+        <header>
+            CONTENT
+        </header>
+
+
+ #}
+{% macro modal(title, id, class="") %}
+    <div class="modal fade {{ class }} widget-modal" id="{{ id }}" tabindex="-1" role="dialog" aria-labelledby="modal-label-{{ id }}" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                    <h4 class="modal-title" id="modal-label-{{ id }}">{{ title | safe }}</h4>
+                </div>
+                <div class="modal-body">
+                  {{ caller() }}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endmacro %}
+
+#-----------------------------------------------------------------------------#}
+
+{#
+pagination
+     :paginator: iterator
+     :endpoint:
+     :prev: Text for previous button
+     :next: Text for Next button
+     :class: A class name for pagination if customed. If you are extending the class
+             best to add the original class and your custom class
+             ie: 'pagination my_custom_pagination' or 'pager my_custom_page'
+     :pager: If true it will show a pager instead of numbered pagination
+     :mobile: if True, if will show the pagination into a 'pager'
+
+#}
+{% macro pagination(paginator, endpoint=None, prev="Prev", next="Next", class=None, pager=False, mobile=True) %}
+    {% if mobile %}
+        <div class="hidden-lg hidden-md hidden-sm">
+            {{ _pagination(paginator, endpoint, prev, next, class, pager=true, **kwargs) }}
+        </div>
+        <div class="hidden-xs">
+            {{ _pagination(paginator, endpoint, prev, next, class, pager=false, **kwargs) }}
+        </div>
+    {% else %}
+        {{ _pagination(paginator, endpoint, prev, next, class, pager, **kwargs) }}
+    {% endif %}
+
+{% endmacro %}
+
+{% macro _pagination(paginator, endpoint=None, prev="", next="", class=None, pager=False) %}
+    {% if not endpoint %}
+        {% set endpoint = request.endpoint %}
+    {% endif %}
+    {% if "page" in kwargs %}
+        {% set _ = kwargs.pop("page") %}
+    {% endif %}
+
+    {%  if not class %}
+        {% set class = "pagination" %}
+        {% if pager %}
+            {% set class = "pager" %}
+        {% endif %}
+    {% endif %}
+
+    {% set _prev_btn = "<span aria-hidden='true'>&larr;</span> %s" % prev %}
+    {% set _next_btn = "%s <span aria-hidden='true'>&rarr;</span>" % next %}
+
+    <nav>
+      <ul class="{{ class }}">
+
+          {%- if paginator.has_prev %}
+            <li class="previous">
+                <a href="{{ url_for(endpoint, page=paginator.prev_page_number, **kwargs) }}">
+                     {{ _prev_btn | safe }}</a>
+            </li>
+          {% else %}
+            <li class="disabled previous">
+                <a href="#">{{ _prev_btn | safe }}</a>
+            </li>
+          {%- endif %}
+
+
+            {% if not pager %}
+
+                  {%- for page in paginator.iter_pages() %}
+                    {% if page %}
+                      {% if page != paginator.page %}
+                        <li><a href="{{ url_for(endpoint, page=page, **kwargs) }}"
+                         rel="me">{{ page }}</a></li>
+                      {% else %}
+                        <li class="active"><span>{{ page }}</span></li>
+                      {% endif %}
+                    {% else %}
+                      <li><span class=ellipsis>…</span></li>
+                    {% endif %}
+                  {%- endfor %}
+
+            {% endif %}
+
+
+          {%- if paginator.has_next %}
+            <li class="next">
+                <a href="{{ url_for(endpoint, page=paginator.next_page_number, **kwargs) }}">
+                    {{ _next_btn | safe }}</a>
+            </li>
+          {% else %}
+            <li class="disabled next">
+                <a href="#">{{ _next_btn | safe }}</a>
+            </li>
+          {%- endif %}
+      </ul>
+    </nav>
+
+{% endmacro %}
+
+#-------------------------------------------------------------------------------
+
+
+{% macro share_buttons(text=None, url=None, show_count=False, show_label=True, buttons=["facebook", "twitter", "googleplus"]) %}
+    <div class="share-buttons"
+         data-buttons='{{ buttons | tojson }}'
+         {% if url %}data-url="{{ url }}"{% endif %}
+         {% if text %}data-text="{{ text }}"{% endif %}
+         data-show-count="{{ show_count }}"
+         data-show-label="{{ show_label }}"
+    ></div>
+
+{% endmacro %}
+
+
+
+
+{#
+ To create an image
+ Has the option of making that image easyload
+
+ params:
+    - file: The image name
+    - lazy: (bool) if True, it will be lazy loaded
+    - static: (bool) it will be treated as static files if true
+    - responsive: (bool)
+#}
+{% macro img(file, lazy=true, responsive=true, static=false) %}
+    {% set _class = kwargs.pop('class', '') %}
+    {% set _responsive = "responsive" if responsive else "" %}
+
+    {% set blank_image_1x1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=" %}
+    {% set image_file = static_file(file) if static else file%}
+    {% set lazy_class = "lazy" %}
+
+    {% if lazy %}
+        {% set img_src = blank_image_1x1 %}
+        {% set data_src = image_file %}
+    {% else %}
+        {% set img_src = image_file %}
+        {% set data_src = "" %}
+        {% set lazy_class = "" %}
+    {% endif %}
+
+
+    <img src="{{ img_src }}"
+         data-src="{{ data_src }}"
+         class="{{ lazy_class }} {{ _responsive }} {{ _class }}"
+         {% for key in kwargs %}{{key | safe}}="{{kwargs[key]|safe}}"{% endfor %}
+    >
+{% endmacro %}
