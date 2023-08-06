@@ -1,0 +1,1 @@
+(function(){$(document).ready(function(){var $radios=$("#id_source input[type=radio]"),$importBtn=$("#powerpack_import_users"),$groups=$("#id_group");function updateState(){var $checked=$radios.filter(":checked");$importBtn.prop("disabled",$checked.length===0);$groups.prop("disabled",$checked.val()!=="group")}$radios.on("change",updateState);updateState()})}).call(this);

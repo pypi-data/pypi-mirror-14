@@ -1,0 +1,126 @@
+{% extends "powerpack/reports/report_page.html" %}
+{% load djblets_utils gravatars i18n %}
+
+{% block css %}
+{{block.super}}
+{%  if extension.is_rb_17 %}
+<link href="{{extension.htdocs_css.powerpack_jquery_ui}}" rel="stylesheet" type="text/css" />
+{%  endif %}
+{% endblock %}
+
+{% block title %}{{report.summary}}{% endblock %}
+{% block report_title %}{{report.summary}}{% endblock %}
+
+{% block report_content %}
+<div id="powerpack_report_header">
+ <form action="." method="get">
+  {% csrf_token %}
+
+  <input class="powerpack-report-run primary" type="submit"
+         value="Run Report" />
+
+  <div id="powerpack_report_filters">
+   <div class="powerpack-report-filter">
+    <label for="id_start">From</label>
+    {{form.start}}
+    {{form.start.errors}}
+   </div>
+
+   <div class="powerpack-report-filter">
+    <label for="id_end">To</label>
+    {{form.end}}
+    {{form.end.errors}}
+   </div>
+
+   <div class="powerpack-report-filter">
+    <label for="id_users">Posted by</label>
+    {{form.users}}
+    {{form.users.errors}}
+   </div>
+
+   <div class="powerpack-report-filter">
+    <label for="id_users">To groups</label>
+    {{form.groups}}
+    {{form.groups.errors}}
+   </div>
+  </div>
+ </form>
+</div>
+
+<div id="powerpack_report_container">
+ <div id="powerpack_report_info">
+  <h3>About this report</h3>
+  {{report.long_description_html|safe}}
+ </div>
+
+ <div id="powerpack_report_results"></div>
+</div>
+{% endblock report_content %}
+
+{% block scripts-post %}
+{{block.super}}
+
+{%  if has_results %}
+<script>
+$(function() {
+    var reviewRequests = [
+{%   for review_request in review_requests %}
+            {
+                submitter: '{{review_request.submitter}}',
+                summary: '{{review_request.summary}}',
+                diffs: {{review_request.diffset_history.diffsets.count}},
+                reviews: {{review_request.non_self_review_count}},
+{%    if review_request.is_closed %}
+                reviewDuration: {{review_request.review_duration_days}},
+{%    endif %}
+{%    if review_request.has_first_review %}
+                firstReview: {{review_request.first_review_duration}},
+{%    endif %}
+                openIssues: {{review_request.open_issue_count}},
+                fixedIssues: {{review_request.fixed_issue_count}},
+                droppedIssues: {{review_request.dropped_issue_count}}
+            }{% if not forloop.last %},{% endif %}
+{%   endfor %}
+        ],
+        reviews = [
+{%   for review in reviews %}
+            {
+                user: '{{review.user}}',
+                reviewRequest: {{review.review_request.pk}},
+                reviewRequestSubmitter: '{{review.review_request.submitter}}',
+                openIssues: {{review.open_issue_count}},
+                fixedIssues: {{review.fixed_issue_count}},
+                droppedIssues: {{review.dropped_issue_count}},
+                shipIt: {{review.ship_it|yesno:"true,false"}}
+            }{% if not forloop.last %},{% endif %}
+{%   endfor %}
+        ],
+        users = {
+{%   for user in users %}
+            '{{user.username}}': {
+                name: '{{user|user_displayname|escapejs}}',
+                gravatar: '{% if use_gravatars %}{% gravatar user 24 %}{% endif %}'
+            }{% if not forloop.last %},{% endif %}
+{%   endfor %}
+        },
+        filterView = new PowerPack.Reports.FilterView({
+            el: $('#powerpack_report_filters'),
+            localSitePrefix: '{% if local_site_name %}s/{{local_site_name}}/{% endif %}'
+        }),
+        reportView = new {{js_view_class}}({
+            model: new {{js_model_class}}({}, {
+                reviewRequests: reviewRequests,
+                reviews: reviews,
+                users: users,
+                startDate: '{{start}}',
+                endDate: '{{end}}'
+            }),
+            el: $('#powerpack_report_results')
+        });
+
+    filterView.render();
+    reportView.render();
+});
+</script>
+{%  endif %}
+{% endblock scripts-post %}

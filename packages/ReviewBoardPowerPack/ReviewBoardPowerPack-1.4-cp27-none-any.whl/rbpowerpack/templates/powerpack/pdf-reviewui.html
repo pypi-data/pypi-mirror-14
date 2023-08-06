@@ -1,0 +1,70 @@
+{% extends base_template %}
+{% load compressed i18n reviewtags staticfiles %}
+
+{% block title %}{% trans "PDF" %}{% if caption %}: {{caption}}{% endif %}{% endblock %}
+
+{# This and review_ui_scripts are only executed in RB 2.0+ #}
+{% block review_ui_css %}
+{%  for bundle_name in review_ui.css_bundle_names %}
+{%   compressed_css bundle_name %}
+{%  endfor %}
+{% endblock %}
+
+{% block review_ui_scripts %}
+{%  for bundle_name in review_ui.js_bundle_names %}
+{%   compressed_js bundle_name %}
+{%  endfor %}
+{%  for js_file in review_ui.js_files %}
+<script src="{{js_file}}"></script>
+{%  endfor %}
+{% endblock %}
+
+{% block css %}
+{{block.super}}
+{%  if review_ui.extension.is_rb_17 %}
+<link href="{{review_ui.extension.htdocs_css.powerpack_pdf}}" rel="stylesheet" type="text/css" />
+{%  endif %}
+{% endblock %}
+
+{% block scripts-post %}
+{{block.super}}
+{%  if review_ui.extension.is_rb_17 %}
+<script src="{{review_ui.extension.htdocs_js.powerpack_pdf}}"></script>
+<script src="{{review_ui.extension.htdocs_js.libpdf}}"></script>
+{%  endif %}
+<script>
+PDFJS.workerSrc = '{{review_ui.pdf_worker_url|escapejs}}';
+
+function constructReviewUI(extraAttributes) {
+    var view = new PowerPack.PDF.ReviewableView({
+        model: new PowerPack.PDF.Reviewable(_.defaults({
+            caption: '{{caption}}',
+            fileAttachmentID: '{{pdf.id}}',
+            {{review_ui.extension.is_rb_17|yesno:'serializedComments,serializedCommentBlocks'}}: {{review_ui.get_comments_json}},
+            pdf: new PowerPack.PDF.PDF({
+                pdfURL: '{{pdf.file.url}}'
+            })
+        }, extraAttributes || {}))
+    });
+
+    view.render();
+    $('#pdf-review-ui-container').append(view.$el);
+}
+
+{%  if review_ui.extension.is_rb_17 %}
+$(document).ready(function() {
+    constructReviewUI();
+});
+{%  else %}
+RB.PageManager.ready(function(page) {
+    constructReviewUI({
+        reviewRequest: page.reviewRequest
+    });
+});
+{%  endif %}
+</script>
+{% endblock %}
+
+{% block review_ui_content %}
+<div id="pdf-review-ui-container"></div>
+{% endblock %}
