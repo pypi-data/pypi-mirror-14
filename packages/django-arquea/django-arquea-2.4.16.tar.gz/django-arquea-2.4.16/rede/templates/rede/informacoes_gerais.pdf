@@ -1,0 +1,127 @@
+{% extends "base.pdf" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load static %}
+{% load l10n %}
+{% block extrastyle %}
+
+table {
+    line-height:1;
+    table-layout:fixed;
+    font-size:0.7em;
+}
+td { padding-top:3px; padding-left:2px;}
+th { 
+    padding-top:3px; 
+    text-align:left; 
+    font-weight:bold;
+    border-bottom:1px dotted #ccc;
+}
+table tr td {
+  border:0;
+}
+.entidade-tbl {
+    border: 1px solid black;
+    width: 100%;
+    margin-top: 4pt;
+    page-break-inside: avoid;
+}
+.asn-tbl {
+    border: 1px solid #ddd;
+    width: 430pt;
+    padding-right: 2pt;
+}
+{% endblock %}
+{% block content %}
+<h2>Entidades ligadas à ANSP</h2>
+    {% for i in info %}
+        <table class="entidade-tbl">
+            <tr>
+                <th style="width:20%;">Entidade</th>
+                <th style="width:10%;">URL</th>
+                <th style="width:24%;">Endereço</th>
+                <th style="width:8%;">Cidade</th>
+                <th style="width:8%;">CEP</th>
+                <th style="width:20%;">Ponto de entrada na ANSP</th>
+            </tr>
+            <tr>
+                <td>{{ i.info.participante.entidade.sigla }} - {{ i.info.participante.entidade.nome }}</td>
+                <td style="word-wrap:break-word; ">{{ i.info.participante.entidade.url }}</td>
+                <td>{{ i.info.participante.rua }}, {{ i.info.participante.num }}. {{ i.info.participante.bairro }}.</td>
+                <td>{{ i.info.participante.cidade }}</td>
+                <td>{{ i.info.participante.cep }}</td>
+                <td>{{ i.info.entrada_ansp }}</td>
+            </tr>
+            <tr>
+                <td colspan="6" style="padding-left:6pt;">
+                    <table class="asn-tbl">
+                        <tr>
+                            <th style="width:10%;">ASN</th>
+                            <th style="width:30%;">Bloco(s) Ip(s)</th>
+                            <th style="width:18%;">Operadora</th>
+                            <th style="width:15%;">Capacidade do link (Mbps)</th>
+                            <th style="width:17%;">IP de entrada</th>
+                            <th style="width:10%;">Link redundante?</th>
+                        </tr>
+                        <tr>
+                            <td rowspan="{{i.operadoras.count|default:1}}">
+                                {% for a in i.asn %} 
+                                    {{ a.numero }}{% if not forloop.last %}, {% endif %}
+                                    {% empty %}
+                                    AS não encontrado
+                                {% endfor %}
+                            </td>
+                            <td rowspan="{{i.operadoras.count|default:1}}">
+                                {% for b in i.bloco_ip %} 
+                                    {{ b }}{% if not forloop.last %}, {% endif %}
+                                    {% empty %}
+                                    Bloco IP não encontrado
+                                {% endfor %}
+                            </td>
+                            {% for o in i.operadoras %}
+                                {% if forloop.counter != 1 %} </tr> <tr> {% endif %}
+                                <td>{{ o.operadora|default:"Operadora não cadastrada" }}</td>
+                                <td>{{ o.banda|default:"Banda não cadastrada" }}</td>
+                                <td>
+                                   {% for ib in o.ip_borda.all %}
+                                      {{ ib.ip }}{% if not forloop.last %} - {% endif %}
+                                      {% empty %}
+                                      IP não cadastrado
+                                   {% endfor %}
+                                </td>
+                                <td>
+                                   {% if not o.link_redundante %}
+                                      Não
+                                   {% else %}
+                                      Sim
+                                   {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    </table>
+                    {% if i.contatos_tec %}
+                        <table style="border:1px solid #ddd;width:100%;">
+                            <tr>
+                                <th>Contato</th>
+                                <th>E-mail</th>
+                                <th>Telefone</th>
+                            </tr>
+                            <tr>
+                                {% for c in i.contatos_tec %}
+                                    {% if forloop.counter != 1 %} </tr> <tr> {% endif %}
+                                    <td>{{ c.contato.nome|default:"Contato não cadastrado" }}</td>
+                                    <td>{{ c.contato.email|default:"E-Mail não cadastrado" }}</td>
+                                    <td>{{ c.contato.tel|default:"Fone não cadastrado" }}</td>
+                                {% endfor %}
+                            </tr>
+                        </table>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    {% endfor %}
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'outorga.views.item_modalidade' %}">Itens do orçamento por modalidade</a>
+    </div>
+{% endblock %}
+{% block content %}
+<h1 repeat="1">Pagamentos por item de outorga do processo {{ termo }} e modalidade {{ modalidade }}</h1>
+
+<div id="report_title">
+    <div id="report_toolbar">
+        <form action="{% url 'outorga.views.item_modalidade' 1 %}" method="GET" id="id_form_recurso_pdf">
+            <input type="hidden" name="termo" value="{{ termo.id }}" />
+            <input type="hidden" name="modalidade" value="{{ modalidade.id }}" />
+            <input type="hidden" name="entidade" value="{{ entidade|default:0 }}" />
+            <input type="hidden" name="marca" value="{{ marca|default:0 }}" />
+            <input type="hidden" name="procedencia" value="{{ procedencia|default:0 }}" />
+            <div title="Imprimir" class="btn_print">
+               <input type="submit" title="Versão para impressão" class="btn_print" value="" />
+            </div>
+        </form>
+    </div>
+</div>
+
+
+    <table border="0" repeat="1" cellpadding="5">
+    {% for it in itens %}
+           <tr><th colspan="4">{{ it.item.descricao }} - {{ it.total|moeda }}</th></tr>
+          {% for pg in it.pagtos %}
+              <tr class="{% cycle 'z1' 'z2' %}">
+                    <td width="5%"></td>
+                    <td width="5%">{{ pg.p.conta_corrente.cod_oper }}</td>
+                    <td width="5%">{{ pg.p.conta_corrente.data_oper|date:"d/m" }}</td>
+                    <td>{{ pg.p.protocolo.descricao2 }}</td>
+                    <td>{{ pg.p.protocolo.referente }}</td>
+                    <td width="10%"><a href="/financeiro/pagamento/{{ pg.p.id }}">{{ pg.p.valor_fapesp|moeda }}</a></td>
+                    <td>[{{ pg.p.protocolo.tipo_documento.nome }} - <a href="/protocolo/protocolo/{{ pg.p.protocolo.id }}">{{ pg.p.protocolo.num_documento }}</a>]</td>
+              </tr>
+              {% for a in pg.docs %}
+                 <tr>
+                    <td colspan="3"></td>
+                    <td>{{ a.tipo.nome }}</td>
+                    <td>parc. {{ a.parcial }}/pag. {{ a.pagina }}</td>
+                    <td>{% if a.arquivo %}<a href="{{ a.arquivo.url }}">arquivo</a>{% endif %}</td>
+                 </tr>
+              {% endfor %}
+              {% for pt in pg.patrimonios %}
+                 <tr>
+                    <td colspan="3"><td>(Patrimônio: marca, modelo e número de série)</td>
+                    <td>{{ pt.marca }}</td>
+                    <td>{{ pt.modelo }}</td>
+                    <td>{{ pt.ns }}</td>
+                 </tr>
+              {% endfor %}
+          {% endfor %}
+    {% endfor %}
+    </table>
+
+{% endblock %}
+

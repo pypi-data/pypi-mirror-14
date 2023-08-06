@@ -1,0 +1,101 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n %}
+{% block extrahead %}
+    <script>
+        var funcionarios = [];
+        {% for func in funcionarios %}
+            funcionarios.push({id:'{{ func.funcionario.id }}', nome:'{{ func.funcionario.nome }}', ano_inicio:'{{ func.ano_inicio }}', mes_inicio:'{{ func.mes_inicio }}', ano_fim:'{{ func.ano_fim }}', mes_fim:'{{ func.mes_fim }}'})
+        {% endfor %}
+        function get_funcionario() {
+            retorno = '';
+            id = $('#form_funcionario').val();
+            
+            for (var i=0,len=funcionarios.length; i<len; i++) {
+                if (funcionarios[i].id == id) {
+                    retorno = funcionarios[i];
+                }
+            }
+            return retorno;
+        }
+        function mudar_funcionario() {
+              funcionario = get_funcionario();
+              $('#form_ano').empty();
+              $('#form_ano').append('<option value="0">Todos</option>');
+              for (var ano = funcionario.ano_inicio; ano <= funcionario.ano_fim; ano++) {
+                 $('#form_ano').append('<option value="'+ano+'">'+ano+'</option>');
+              }
+              mudar_ano();
+        }
+       
+        function mudar_ano() {
+            funcionario = get_funcionario()
+            ano = $('#form_ano').val();
+            
+            mes_fim = 12;
+            if (ano == funcionario.ano_fim) {
+                mes_fim = funcionario.mes_fim;
+            }
+            mes_inicio = 1;
+            if (ano == funcionario.ano_inicio) {
+                mes_inicio = funcionario.mes_inicio;
+            }
+            $('#form_mes').empty();
+            $('#form_mes').append('<option value="0">Todos</option>');
+            for (var mes = mes_inicio; mes <= mes_fim; mes++) {
+               $('#form_mes').append('<option value="'+mes+'">'+mes+'</option>');
+            }
+        }
+        
+    </script>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'membro.views.mensal_func' %}">Controle de horário mensal</a>
+    </div>
+{% endblock %}
+{% block content %}
+    <div id="report_title">
+        <h1>Controle de horário mensal</h1>
+    </div>
+    
+    <div id="div_filtro">
+        <fieldset>
+            <legend>Filtro</legend>
+            <form method="GET">
+               <select id="form_funcionario" name="funcionario" onchange="mudar_funcionario();">
+                  <option value="-1">---</option>
+                  {% for func in funcionarios %}
+                  <option value="{{ func.funcionario.id }}">{{ func.funcionario.nome }}</option>
+                  {% endfor %}
+               </select>
+               <br />
+               <select id='form_ano' name="ano" onchange="mudar_ano();">
+                  {% for ano in anos %}
+                  <option value="{{ ano }}">{% if ano == 0 %}Todos{% else %}{{ ano }}{% endif %}</option>
+                  {% endfor %}
+               </select>
+               <select id='form_mes' name="mes">
+                  {% for mes in meses %}
+                  <option value="{{ mes }}">{% if mes == 0 %}Todos{% else %}{{ mes }}{% endif %}</option>
+                  {% endfor %}
+               </select>
+               <input type="submit" value="Enviar">
+            </form>
+        </fieldset>
+    </div>
+    
+    {% if not funcionarios %}
+        <table border="0" repeat="1">
+            <tr><td><br><br>Não foram encontrados dados para a exibição.</td></tr>
+        </table>
+    {% endif %}
+
+{% endblock %}
+

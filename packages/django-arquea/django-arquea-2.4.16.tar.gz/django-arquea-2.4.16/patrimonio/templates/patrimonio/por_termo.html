@@ -1,0 +1,257 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n %}
+{% load static from staticfiles %}
+{% block extrahead %}
+<style>
+#div_filtro {
+	width: 750px;
+	clear:both;
+	margin-left:25px;
+}
+#form_filtro {
+    display:table-row;
+}
+#form_filtro select {
+    width: 135px;
+} 
+
+#form_filtro div {
+    display:table-cell;
+    padding-right:15px;
+    padding-left:15px;
+}
+#form_filtro div div{
+    display:table-row;
+    
+}
+#form_filtro label {
+    display:table-cell;
+}
+#form_filtro input, 
+#form_filtro select {
+    display:table-cell;
+    margin-left:10px;
+}
+#form_filtro #id_marca {
+}
+
+#form_filtro #div_submit {
+    vertical-align:bottom;
+}
+
+#tbl_conteudo th {
+    background-color:#ddd;
+    font-weight: bold;
+    border-bottom:1px darkgray solid;
+}
+#tbl_conteudo a {
+    color: inherit;
+    line-height: inherit;
+}
+.th_nf {}
+.th_descricao {}
+.th_valor {}
+.th_marca {}
+.th_ns {}
+.th_estado {}
+.th_localizacao {width:445px;}
+.th_posicao {}
+
+.tr_saldo td{
+    background-color:#f7f7f7;
+}
+</style>
+<script type="text/javascript" src="{% static "js/selects.js" %}"></script>
+<script>
+    $( document ).ready(function() {
+        $( "#id_termo" ).bind("change", function() {
+            ajax_get_marcas_por_termo('#id_marca', $("#id_termo").val());
+        });
+    });
+</script>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'patrimonio.views.por_termo' %}">Patrimônio por termo de outorga</a>
+    </div>
+{% endblock %}
+{% block content %}
+<h1 repeat="1">Inventário da outorga {{ termo|default:'' }}</h1>
+
+{% if termos %}
+    <div id="report_toolbar">
+        <form action="{% url 'patrimonio.views.por_termo' 1 %}" method="GET" id="id_form_recurso">
+            <input type="hidden" name="termo" value="{{termo.id}}" >
+            <input type="hidden" name="modalidade" value="{{modalidade}}" >
+            <input type="hidden" name="agilis" value="{{agilis}}" >
+            <input type="hidden" name="doado" value="{{doado}}" >
+            <input type="hidden" name="localizado" value="{{localizado}}" >
+            <input type="hidden" name="numero_fmusp" value="{{numero_fmusp}}" >
+            <input type="hidden" name="ver_numero_fmusp" value="{{ver_numero_fmusp|default:""}}" >
+            {%for m in marca%}
+                <input type="hidden" name="marca" value="{{m}}" >
+            {%endfor%}
+            <div title="Imprimir" class="btn_print">
+               <input type="submit" title="Versão para impressão" class="btn_print" name="acao" value="1"  />
+            </div>
+        </form>
+    </div>
+{% endif %}
+<div id="div_filtro">
+    <fieldset>
+        <legend>Filtro</legend>
+    	<form method="GET" id="form_filtro">
+        	<div>
+        		<div>
+        		    <label for="id_termo">Termo de outorga*:</label>
+        		    <select name="termo" id="id_termo">
+        		      <option value="0">Todos</option>
+        		      {% for t in filtro_termos %}
+        		         <option value="{{ t.id }}" {% if t.id == termo.id%}selected{% endif %}>{{ t }}</option>
+        		      {% endfor %}
+        		    </select>
+        		</div>
+        		<div>
+        		    <label for="id_marca">Marca</label>
+        		    <select name="marca" id="id_marca" multiple size=4>
+        		        <option value="0" {% if '0' in marca%}selected{% endif %}>Todos</option>
+        		        {% for m in filtro_marcas %}
+        		           <option value="{{ m.id }}" {% if m.id|safe in marca%}selected{% endif %}>{{ m }}</option>
+        		        {% endfor %}
+        		    </select>
+        		</div>
+        		
+        		<div>
+        		    <label for="id_modalidade">Modalidade</label>
+        		    <select name="modalidade" id="id_modalidade">
+        		        <option value="0" {% if '0' == modalidade%}selected{% endif %}>Todos</option>
+        		        <option value="1" {% if '1' == modalidade%}selected{% endif %}>Material permanente</option>
+        		        <option value="2" {% if '2' == modalidade%}selected{% endif %}>Material de consumo</option>
+        		    </select>
+        		</div>
+        	</div>
+        	<div>
+        		<div>
+        		    <label for="id_agilis">Têm Agilis</label>
+        		    <select name="agilis" id="id_agilis">
+        		         <option value="-" {% if '-' == agilis%}selected{% endif %}>Todos</option>
+        		         <option value="0" {% if '0' == agilis%}selected{% endif %}>Não</option>
+        		         <option value="1" {% if '1' == agilis%}selected{% endif %}>Sim</option>
+        		    </select>
+        		</div>
+        		<div>
+        		    <label for="id_doado">Doado por processo oficial</label>
+        		    <select name="doado" id="id_doado">
+        		         <option value="2" {% if '2' == doado%}selected{% endif %}>Todos</option>
+        		         <option value="0" {% if '0' == doado%}selected{% endif %}>Não doados</option>
+        		         <option value="1" {% if '1' == doado%}selected{% endif %}>Doados</option>
+        		    </select>
+        		</div>
+        		<div>
+        		    <label for="id_localizado">Patrimônio localizado</label>
+        		    <select name="localizado" id="id_localizado">
+        		         <option value="2" {% if '2' == localizado%}selected{% endif %}>Todos</option>
+        		         <option value="0" {% if '0' == localizado%}selected{% endif %}>Não localizados</option>
+        		         <option value="1" {% if '1' == localizado%}selected{% endif %}>Localizados</option>
+        		    </select>
+        		</div>
+        		<div>
+        		    <label for="id_numero_fmusp">Com identificação do patrimônio oficial</label>
+        		    <select name="numero_fmusp" id="id_numero_fmusp">
+        		         <option value="2" {% if '2' == numero_fmusp%}selected{% endif %}>Todos</option>
+        		         <option value="0" {% if '0' == numero_fmusp%}selected{% endif %}>Não</option>
+        		         <option value="1" {% if '1' == numero_fmusp%}selected{% endif %}>Sim</option>
+        		    </select>
+        		</div>
+        		<div>
+        		    <label for="id_ver_numero_fmusp">Apresenta patrimônio oficial no relatório</label>
+        		    <input type="checkbox" name="ver_numero_fmusp" id="id_ver_numero_fmusp"  {% if 'on' in ver_numero_fmusp%}checked{% endif %} />
+        		</div>
+        	</div>
+        	<br />
+        	<div id="div_submit">
+        	    <input type="submit" value="Enviar">
+        	</div>
+    	</form>
+     </fieldset>
+</div>
+
+{% if termos %}
+    <p style="clear:both;"></p>
+    <table id="tbl_conteudo" border="0" repeat="1" cellpadding="5">
+        <tr>
+            {% if ver_numero_fmusp %}
+                <th>Patrimônio oficial</th>
+            {% endif %}
+            <th class="th_nf">NF</th>
+            <th colspan="2" class="th_descricao">Descrição - complemento</th>
+            <th class="th_valor">Valor</th>
+            <th class="th_marca">Marca</th>
+            <th class="th_ns">NS</th>
+            <th class="th_estado">Estado</th>
+            <th class="th_localizacao">Localização</th>
+            <th class="th_posicao">Posição</th>
+        </tr>
+        {% for t in termos %}
+            {% for tp in t.tipos %}
+               {% for pg in tp.pagamentos %}
+                  <tr>
+                    {% if ver_numero_fmusp %}
+                        <td></td>
+                    {% endif %}
+                    <td><a href="{% url 'admin:protocolo_protocolo_change' pg.pg.protocolo.id %}">{{ pg.pg.protocolo.num_documento }}</a></td>
+                    <td colspan="9"></td>
+                  </tr>
+                  {% for p in pg.patrimonios %}
+                     <tr>
+                        {% if ver_numero_fmusp %}
+                            <td>{{ p.numero_fmusp|default_if_none:"" }}</td>
+                        {% endif %}
+                        <td></td>
+                        <td colspan="2"><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{% if p.equipamento %}[{{ p.equipamento.tipo }}] {% endif %}{{ p.descricao }} - {{ p.complemento|default:"" }}</a></td>
+                        <td>{{ p.valor }}</td>
+                        <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ p.equipamento.entidade_fabricante.sigla }}</a> </td>
+                        <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ p.ns }}</a></td>
+                        {% with p.historico_atual as historico_atual %}  
+                        <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ historico_atual.estado }}</a></td>
+                        <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ historico_atual.endereco }}</a></td>
+                        <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ historico_atual.posicao|default_if_none:"" }}</a></td>
+                        {% endwith %}
+                     </tr>
+                     {% if not numero_fmusp %}
+                       {% for pf in p.contido.all %}
+                        <tr>
+                            {% if ver_numero_fmusp %}
+                                <td></td>
+                            {% endif %}
+                            <td></td>
+                            <td width="10px"></td>
+                            <td>{% if pf.equipamento %}[{{ pf.equipamento.tipo }}] {% endif %}{{ pf.descricao }} - {{ pf.complemento|default:"" }}</td>
+                            <td>{{ pf.valor }}</td>
+                            <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ pf.equipamento.entidade_fabricante.sigla }}</a></td>
+                            <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ pf.ns }}</td>
+                            <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ pf.historico_atual.estado }}</td>
+                            <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ pf.historico_atual.endereco }}</td>
+                            <td><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ pf.historico_atual.posicao|default_if_none:"" }}</td>
+                        </tr>
+                       {% endfor %}
+                     {% endif %}
+                  {% endfor %}
+               {% endfor %}
+            {% endfor %}
+        {% endfor %}
+    </table>
+{% else %}
+    <table border="0" repeat="1" cellpadding="5">
+        <tr><td>Não foram encontrados dados para a exibição.</td></tr>
+    </table>
+{% endif %}
+{% endblock %}
+

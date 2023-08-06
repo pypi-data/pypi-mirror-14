@@ -1,0 +1,412 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n proto_tags admin_static %}
+{% load l10n %}
+{% block extrahead %}
+{% load static %}
+{% get_static_prefix as STATIC_PREFIX %}
+
+<link rel="stylesheet" type="text/css" href="{{ STATIC_PREFIX }}css/racks.css" />
+<link rel="stylesheet" type="text/css" href="{% static "css/base-print.css" %}" />
+<style type="text/css">
+.u {
+    background-image: url('{{ STATIC_PREFIX }}img/1u.png');
+}
+@media print {
+  .u,
+  .rack,
+  .roteador,
+  .interno,
+  .dc,
+  .u-n,
+  .bloco-n, .page-break {
+        -webkit-print-color-adjust: exact;
+  }
+  .u {}
+  .equip {}
+  .roteador {background:#81878b !important;}
+  .espaco {}
+  .interno {top:-10px; position:relative;}
+  .rack_grid{margin-top:10px; position:relative;}
+  .dc {}
+  .u-n {}
+  .bloco-n {}
+  .breadcrumbs {display:none;visibility:hidden;}
+  
+}
+
+#icons {
+  height: 40px;
+}
+ 
+ /* utilizado para mostrar que um equipamento está 'desabilitado'
+    na visão do rack. Isso normalmente acontece quando ele oculpa
+    metade da profundidade do rack.
+    Ex: O equipamento de meia profundidade está na posição frontal. Na visão traseira
+        ele vai aparecer como 'desabilitado'
+ */
+/**
+    Exibe ou esconde as imagens dos stencils 
+*/
+ {% if chk_stencil == "0" %}
+    .interno a img { display:none; }
+ {% endif %}
+/**
+    Exibe ou esconde as legendas dos equipamentos 
+*/
+ {% if chk_legenda == "0" %}
+    .interno a div div div { display:none; }
+ {% endif %}
+</style>
+<script type="text/javascript" src="{{ STATIC_PREFIX }}js/racks.js"></script>
+<script type="text/javascript" src="{{ STATIC_PREFIX }}js/admin/RelatedObjectLookups.js"></script>
+{% endblock %}
+{% block breadcrumbs %}
+    {% if not is_popup %}
+        <div class="breadcrumbs">Você está em: 
+          <a href="../../">{% trans "Home" %}</a>&rsaquo;
+          <a href="/patrimonio/racks">Diagrama de Racks Frontal</a>
+        </div>
+    {% endif %}
+{% endblock %}
+{% block content %}
+<h1>Diagrama de Racks Frontal</h1>
+<div id="div_filtro">
+    <fieldset>
+        <legend>Filtro</legend>
+        <div id="wrap-form">
+            <form id="form_racks" method="GET">
+                Data Centers
+                <select name="dc_id" onchange="this.form.submit();">
+                    <option value="0">Todos</option>
+                    {% for dc in todos_dcs %}
+                       <option value="{{ dc.id }}" {% if request.GET.dc_id == dc.id|lower %}selected{% endif %}>{{ dc.nome|default:'' }}</option>
+                    {% endfor %}
+                </select>
+                {% if not dc %}
+                    <button name="Buscar" onclick="document.getElementById('form_racks').submit();">Buscar</button>
+                {% endif %}
+            </form>
+        </div>
+    </fieldset>
+</div>
+{% if dcs %}
+<br>
+<div id="icons">
+    <a href="{{ request.get_full_path  }}&pdf=2" class="printlink"><img src="{{ STATIC_URL }}img/icon-pdf.png" title="Exportar para PDF." /></a>
+</div>
+<form>
+    <input type="checkbox" id="chk_stencil" name="chk_stencil" value="1" {% if chk_stencil = 1 %}checked{% endif %}><span>&nbsp;Mostrar stencils</span><br>
+    <input type="checkbox" id="chk_legenda" name="chk_legenda" value="1" {% if chk_legenda = 1 %}checked{% endif %}><span>&nbsp;Mostrar legendas</span><br>
+    <input type="checkbox" id="chk_legenda_desc" name="chk_legenda_desc" value="1" {% if chk_legenda_desc = 1 %}checked{% endif %}><span>&nbsp;Mostrar descrição.</span><br><br>
+    
+    <input type="checkbox" id="chk_traseira" name="chk_traseira" value="1" {% if chk_traseira = 1 %}checked{% endif %}><span>&nbsp;Mostrar visão traseira do Rack.</span><br>
+    <input type="checkbox" id="chk_outros" name="chk_outros" value="1" {% if chk_outros = 1 %}checked{% endif %}><span>&nbsp;Mostrar outros equipamentos.</span><br>
+    <input type="checkbox" id="chk_avisos" name="chk_avisos" value="1" {% if chk_avisos = 1 %}checked{% endif %}><span>&nbsp;Mostrar avisos.</span><br>
+</form>
+<br><br><br>
+{% for dc in dcs %}
+    {% if not forloop.first %}
+       <div class="page-break"></div>
+    {% endif %}
+	<div class="dc">
+	<h1>{{ dc.entidade }} - {{ dc.nome|default:'' }}</h1>
+	{% for fileira in dc.fileiras %}
+		<p></p>
+		{% for rack in fileira.racks %}
+		<div class="rack">
+		  <div style="display:inline-table">
+		    <div class="rack_frontal_E rack_lateral"> </div>
+			<div class="rack_frontal" style="display:table-row;">
+			    <h2>
+			      <a href="{% url "admin:patrimonio_patrimonio_change" rack.id %}" onclick="return showAddAnotherPopup(this);">
+			      {{ rack.nome|default:'' }} ({{ rack.vazio }} ocupado)
+			      </a>
+			    </h2>
+			    <div class="div_pdu">
+				    {% for eq in rack.equipamentos_pdu %}
+				        {% if eq.pos_col == 'LE' %}
+						   {% if eq.id %}
+		                       <a href="{% url "admin:patrimonio_patrimonio_change" eq.id %}" onclick="return showAddAnotherPopup(this);">
+		                   {% endif %}
+					       <div class="equip " rel="tooltip" title="{{ eq.descricao }}" 
+                                style="margin-top:{{ eq.eixoY|unlocalize }}px; height:{{ eq.altura|unlocalize }}px;">
+                                {% if eq.imagem %}<img src="{{ eq.imagem }}" />{% endif %}
+                           </div>
+                           {% if eq.id %}
+                               </a>
+                           {% endif %}
+					    {% endif %}
+				    {% endfor %}
+			    </div>
+			    <div id="rack{{ dc.id }}_{{forloop.counter}}" class="bloco-n" style="height: {{ rack.altura_pxs|unlocalize }}px;">
+			        {% for i in rack.altura_count reversed %}
+			            <div class="u-n"><div>{{ i }}</div></div>
+			        {% endfor %}
+			    </div>
+			    <div class="u" style="height: {{ rack.altura_pxs|unlocalize }}px;"></div>
+			    <div class="interno" style="">
+                    <div class="rack_grid">
+                        {% for i in rack.altura_count %}
+                            <div class="rack_grid_item" style="{% if forloop.first %}border-top:1px solid lightgray;{% endif %}"></div>
+                        {% endfor %}
+                    </div>
+			    {% for eq in rack.equipamentos %}
+			       <div {% if not eq.flag_traseiro %} style="z-index:10;"{% endif %}>
+			       {% if eq.id %}
+			           <a href="{% url "admin:patrimonio_patrimonio_change" eq.id %}" onclick="return showAddAnotherPopup(this);">
+			       {% endif %}
+			       <div class="{% if eq.pos_col %} pos_{{eq.pos_col}} {% endif %} {% if eq.conflito %}conflito{% endif %} equip {% if eq.flag_traseiro and eq.profundidade < 1.0 %}profundidade_curta{% endif %}" rel="tooltip" title="{% if eq.nome %}{{ eq.nome|default:'' }} - {% endif %}{{ eq.descricao }} - pos:{{eq.pos_original|default:'0'|unlocalize}} pt" 
+			           style="margin-top:{{ eq.eixoY|unlocalize }}px; height:{{ eq.altura|unlocalize }}px;">
+		               <div>
+			               <div class="{% if eq.pos_col %} pos_{{eq.pos_col}}_label {% endif %}" style="height:{{ eq.altura|unlocalize }}px;">
+			                {% if eq.pos_col %}
+	                            {% if eq.tam >= 9 %}{{ eq.nome|default:""|truncatechars:50 }}
+	                            {% elif eq.tam >= 6 %}{{ eq.nome|default:""|truncatechars:35 }}
+	                            {% else %}{{ eq.nome|default:""|truncatechars:20 }}{% endif %}
+					        {% else %}
+					            {% if eq.tam >= 9 %}{{ eq.nome|default:""|truncatechars:90 }}
+					            {% elif eq.tam >= 6 %}
+					                {{ eq.nome|default:""|truncatechars:60 }}
+					            {% else %}
+					                {{ eq.nome|default:""|truncatechars:30 }}
+					            {% endif %}
+	                        {% endif %}
+				            </div>
+	                       <div class="{% if eq.pos_col %} pos_{{eq.pos_col}}_label {% endif %}" style="height:{{ eq.altura|unlocalize }}px;" style="position:absolute">
+	                        {% if eq.pos_col %}
+	                            {% if eq.tam >= 15 %}{{ eq.descricao|truncatechars:80 }}
+	                            {% elif eq.tam >= 12 %}{{ eq.descricao|truncatechars:65 }}
+	                            {% elif eq.tam >= 9 %}{{ eq.descricao|truncatechars:50 }}
+	                            {% elif eq.tam >= 6 %}{{ eq.descricao|truncatechars:35 }}
+	                            {% else %}{{ eq.descricao|truncatechars:20 }}{% endif %}
+	                        {% else %}
+	                            {% if eq.tam >= 15 %}{{ eq.descricao|truncatechars:150 }}
+	                            {% elif eq.tam >= 12 %}{{ eq.descricao|truncatechars:120 }}
+	                            {% elif eq.tam >= 9 %}{{ eq.descricao|truncatechars:90 }}
+	                            {% elif eq.tam >= 6 %}{{ eq.descricao|truncatechars:60 }}
+	                            {% else %}{{ eq.descricao|truncatechars:30 }}{% endif %}
+	                        {% endif %}
+	                        </div>
+			            </div>
+			            {% if eq.flag_traseiro %}
+    			            {% if eq.imagem_traseira %}<img src="{{ eq.imagem_traseira }}" {% if eq.profundidade < 1.0 %}class="profundidade_curta"{% endif %}/>{% endif %}
+    			        {% else %}
+    			            {% if eq.imagem %}<img src="{{ eq.imagem }}" />{% endif %}
+                        {% endif %}
+			            
+			       </div>
+			       
+			       {% if eq.id %}
+			           </a>
+			       {% endif %}
+			       </div>
+			    {% endfor %}
+			    </div>
+			    <div class="u" style="height: {{ rack.altura_pxs|unlocalize }}px;"></div>
+			    <div class="div_pdu">
+			    {% for eq in rack.equipamentos_pdu %}
+                    {% if eq.pos_col == 'LD' %}
+                        {% if eq.id %}
+                            <a href="{% url "admin:patrimonio_patrimonio_change" eq.id %}" onclick="return showAddAnotherPopup(this);">
+                        {% endif %}
+                       <div class="equip " rel="tooltip" title="{{ eq.descricao }}" 
+                            style="margin-top:{{ eq.eixoY|unlocalize }}px; height:{{ eq.altura|unlocalize }}px;">
+                            {% if eq.imagem %}<img src="{{ eq.imagem }}" />{% endif %}
+                       </div>
+                        {% if eq.id %}
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                </div>
+			</div>
+			<div class="rack_frontal_D rack_lateral"> </div>
+		    <div style="display:table-cell;min-width:20px;"></div>
+			{# rack visão traseira #}
+			<div class="rack_traseiro_E rack_lateral"> </div>
+            <div class="rack_traseiro">
+                <h2>{{ rack.nome|default:'' }} (Visão traseira)</h2>
+                <div class="div_pdu">
+                    {% for eq in rack.equipamentos_pdu %}
+                        {% if eq.pos_col == 'TE' %}
+                           {% if eq.id %}
+                               <a href="{% url "admin:patrimonio_patrimonio_change" eq.id %}" onclick="return showAddAnotherPopup(this);">
+                           {% endif %}
+                           <div class="equip " rel="tooltip" title="{{ eq.descricao }}" 
+                                style="margin-top:{{ eq.eixoY|unlocalize }}px; height:{{ eq.altura|unlocalize }}px;">
+                                {% if eq.imagem %}<img src="{{ eq.imagem }}" />{% endif %}
+                           </div>
+                           {% if eq.id %}
+                               </a>
+                           {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                <div id="rack{{ dc.id }}_{{forloop.counter}}" class="bloco-n" style="height: {{ rack.altura_pxs|unlocalize }}px;">
+                    {% for i in rack.altura_count reversed %}
+                        <div class="u-n"><div>{{ i }}</div></div>
+                    {% endfor %}
+                </div>
+                <div class="u" style="height: {{ rack.altura_pxs|unlocalize }}px;"></div>
+                <div class="interno">
+                    <div class="rack_grid">
+                        {% for i in rack.altura_count %}
+                            <div class="rack_grid_item" style="{% if forloop.first %}border-top:1px solid lightgray;{% endif %}"></div>
+                        {% endfor %}
+                    </div>
+                
+                {% for eq in rack.equipamentos %}
+                   <div {% if eq.flag_traseiro %} style="z-index:10;"{% endif %}>
+                   {% if eq.id %}
+                       <a href="{% url "admin:patrimonio_patrimonio_change" eq.id %}" onclick="return showAddAnotherPopup(this);">
+                   {% endif %}
+                   <div class="{% if eq.pos_col %} pos_{{eq.pos_col}} {% endif %} {% if eq.conflito %}conflito{% endif %} equip {% if not eq.flag_traseiro and eq.profundidade < 1.0 %}profundidade_curta{% endif %}" rel="tooltip" title="{% if eq.nome %}{{ eq.nome|default:'' }} - {% endif %}{{ eq.descricao }} - pos:{{eq.pos_original|default:'0'|unlocalize}} pt" 
+                       style="margin-top:{{ eq.eixoY|unlocalize }}px; height:{{ eq.altura|unlocalize }}px;">
+                       <div>
+                           <div class="{% if eq.pos_col %} pos_{{eq.pos_col}}_label {% endif %}" style="height:{{ eq.altura|unlocalize }}px;">
+                            {% if eq.pos_col %}
+                                {% if eq.tam >= 9 %}{{ eq.nome|default:""|truncatechars:50 }}
+                                {% elif eq.tam >= 6 %}{{ eq.nome|default:""|truncatechars:35 }}
+                                {% else %}{{ eq.nome|default:""|truncatechars:20 }}{% endif %}
+                            {% else %}
+                                {% if eq.tam >= 9 %}{{ eq.nome|default:""|truncatechars:90 }}
+                                {% elif eq.tam >= 6 %}
+                                    {{ eq.nome|default:""|truncatechars:60 }}
+                                {% else %}
+                                    {{ eq.nome|default:""|truncatechars:30 }}
+                                {% endif %}
+                            {% endif %}
+                            </div>
+                           <div class="{% if eq.pos_col %} pos_{{eq.pos_col}}_label {% endif %}" style="height:{{ eq.altura|unlocalize }}px;" style="position:absolute">
+                            {% if eq.pos_col %}
+                                {% if eq.tam >= 15 %}{{ eq.descricao|truncatechars:80 }}
+                                {% elif eq.tam >= 12 %}{{ eq.descricao|truncatechars:65 }}
+                                {% elif eq.tam >= 9 %}{{ eq.descricao|truncatechars:50 }}
+                                {% elif eq.tam >= 6 %}{{ eq.descricao|truncatechars:35 }}
+                                {% else %}{{ eq.descricao|truncatechars:20 }}{% endif %}
+                            {% else %}
+                                {% if eq.tam >= 15 %}{{ eq.descricao|truncatechars:150 }}
+                                {% elif eq.tam >= 12 %}{{ eq.descricao|truncatechars:120 }}
+                                {% elif eq.tam >= 9 %}{{ eq.descricao|truncatechars:90 }}
+                                {% elif eq.tam >= 6 %}{{ eq.descricao|truncatechars:60 }}
+                                {% else %}{{ eq.descricao|truncatechars:30 }}{% endif %}
+                            {% endif %}
+                            </div>
+                        </div>
+                        
+                        {% if eq.flag_traseiro %}
+                            {% if eq.imagem %}<img src="{{ eq.imagem }}" />{% endif %}
+                        {% else %}
+                            {% if eq.imagem_traseira %}<img src="{{ eq.imagem_traseira }}" {% if eq.profundidade < 1.0 %}class="profundidade_curta"{% endif %} />{% endif %}
+                        {% endif %}
+                   </div>
+                   
+                   {% if eq.id %}
+                       </a>
+                   {% endif %}
+                   </div>
+                {% endfor %}
+                </div>
+                <div class="u" style="height: {{ rack.altura_pxs|unlocalize }}px;"></div>
+                <div class="div_pdu">
+                    {% for eq in rack.equipamentos_pdu %}
+                        {% if eq.pos_col == 'TD' %}
+                           {% if eq.id %}
+                               <a href="{% url "admin:patrimonio_patrimonio_change" eq.id %}" onclick="return showAddAnotherPopup(this);">
+                           {% endif %}
+                           <div class="equip " rel="tooltip" title="{{ eq.descricao }}" 
+                                style="margin-top:{{ eq.eixoY|unlocalize }}px; height:{{ eq.altura|unlocalize }}px;">
+                                {% if eq.imagem %}<img src="{{ eq.imagem }}" />{% endif %}
+                           </div>
+                           {% if eq.id %}
+                               </a>
+                           {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="rack_frontal_D rack_lateral"> </div>
+          </div>
+          <div style="display:table-row">
+		    {% if rack.equipamentos_fora_visao %}
+	            <div class="outros">
+	                <div class="outros-content">
+	                <table>
+	                    <caption class="outros-title">Outros equipamentos.</caption>
+	                    <tr>
+	                        <th>Desc</th>
+	                        <th>Tam</th>
+	                        <th>Pos</th>
+	                        <th>Col</th>
+	                    </tr>
+	                    {% for eq in rack.equipamentos_fora_visao %}
+	                        <tr>
+		                        <td>
+		    	                    <a href="{% url "admin:patrimonio_patrimonio_change" eq.id %}" onclick="return showAddAnotherPopup(this);">{{ eq.nome|default:'' }}{{ eq.descricao|truncatechars:45 }}</a>
+		    	                </td>
+		                        <td>{{ eq.tam }}</td>
+		                        <td>{{ eq.pos }}</td>
+		                        <td>{{ eq.pos_col|default:'-' }}</td>
+	                        </tr>
+	                    {% endfor %}
+	                </table>
+	                </div>
+	            </div>
+            {% endif %}
+		    {% if rack.conflitos %}
+		        <div class="conflitos">
+		            <span class="conflitos-title">Avisos!</span>
+		            <div class="conflitos-content">
+		            <table>
+		                <tr>
+		                    <th>EQ</th>
+		                    <th>Pos</th>
+		                    <th>Alt</th>
+		                </tr>
+		                {% for conflito in rack.conflitos %}
+		                    <tr class="conflito-tbl-obs">
+		                       <td colspan=3>{{ conflito.obs }}</td>
+		                    </tr>
+		                    <tr>
+		                       {% if conflito.eq1 %}
+		                        <td>
+		                           <a href="{% url "admin:patrimonio_patrimonio_change" conflito.eq1.id %}" onclick="return showAddAnotherPopup(this);">
+		                            {{ conflito.eq1.descricao }}
+		                            </a>
+		                        </td>
+		                        <td>{{ conflito.eq1.pos }}</td>
+		                        <td>{{ conflito.eq1.tam }}</td>
+		                        {% endif %}
+		                    </tr>
+		                    <tr>
+		                        {% if conflito.eq2 %}
+		                        <td>
+		                            <a href="{% url "admin:patrimonio_patrimonio_change" conflito.eq2.id %}" onclick="return showAddAnotherPopup(this);">
+		                                {{ conflito.eq2.descricao }}
+		                            </a>
+		                        </td>
+		                        <td>{{ conflito.eq2.pos }}</td>
+		                        <td>{{ conflito.eq2.tam }}</td>
+		                        {% endif %}
+		                    </tr>
+		                {% endfor %}
+		            </table>
+		            </div>
+		        </div>
+	        {% endif %}
+		    </div>{# div do rack #}
+		  </div>
+		{% endfor %}{# ENDFOR RACK #}
+    {% endfor %}{# ENDFOR FILEIRA #}
+	</div>
+{% endfor %}{# ENDFOR DC #}
+{% endif %}
+</div>
+
+{% endblock %}

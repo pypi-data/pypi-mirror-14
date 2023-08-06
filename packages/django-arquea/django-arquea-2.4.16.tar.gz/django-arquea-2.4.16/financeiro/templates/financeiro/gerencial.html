@@ -1,0 +1,236 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load static %}
+{% load i18n %}
+{% block extrahead %}
+<style>
+	#container {
+	    margin: 0 auto;
+	    width: 1700px;
+	}
+	#footer {
+	    width: inherit;
+	}
+	
+	/* Estilos da tabela de dados consolidados*/
+	#tbl_consolidado th {
+	    background-color: lightgray;
+	}
+	#tbl_consolidado th,
+	#tbl_consolidado td {
+	    padding: 2px 2px;
+	    font-size:10px;
+	}
+	/* dimensões das celulas de titulo horizontal */
+	#tbl_consolidado .tit_vert span  {
+	    display: block;
+	    text-align: center;
+	    width:54px;
+	}
+	/* dimensões das celulas de titulo vertical */
+	#tbl_consolidado td.sp_moda span {
+	    width: 185px;
+        display: block;
+        font-weight: bold;
+    }
+	#tbl_consolidado td.sp_conc span{
+	    white-space: nowrap;
+	    font-weight: bold;
+	}
+	#tbl_consolidado td.sp_real span,
+    #tbl_consolidado td.sp_sald span {
+        width: 100px;
+        display: block;
+        white-space:nowrap;
+        font-weight: bold;
+    }
+
+    
+	/* Bordas */
+	#tbl_consolidado th {
+	    border-bottom: 1px black solid;
+	}
+	#tbl_consolidado th.sp_real ,
+	#tbl_consolidado td.sp_real {
+	    border-left: 1px black solid;
+	}
+	#tbl_consolidado th.sp_moda,
+	#tbl_consolidado td.sp_moda,
+	#tbl_consolidado th.sp_conc,
+	#tbl_consolidado td.sp_conc {
+	    border-right: 1px black solid;
+	}
+	
+	
+	/* Estilo das tabelas de modalidades*/
+	.tbl_modalidades th,
+	.tbl_modalidades td {
+	    padding: 3px 2px;
+	    font-size:10px;
+	}
+	
+	.tbl_modalidades th {
+	    background-color: lightgray;
+	}
+	
+	.tbl_modalidades th.sp_conc span {
+        background-color: lightgray;
+        display: block;
+        width: 100px;
+    }
+    .tbl_modalidades th.span_desc span {
+        display: block;
+        width: 150px;
+    }
+    .tbl_modalidades th.sp_entidade span {
+        display: block;
+        width: 65px;
+    }
+    
+	/* dimensões das celulas de titulo horizontal */
+	.tbl_modalidades .tit_vert span {
+	    display: block;
+	    width: 54px;
+	    text-align: center;
+	}
+	.tbl_modalidades td.sp_real span,
+	.tbl_modalidades td.sp_sald span {
+	    white-space: nowrap;
+	    display:block;
+	    width: 100px;
+	}
+	.tbl_modalidades td.sp_conc span{
+        white-space: nowrap;
+        display: block;
+    }
+	
+	.tbl_modalidades th {
+	    border-bottom: 1px black solid;
+	}
+	.tbl_modalidades th.sp_real,
+	.tbl_modalidades td.sp_real {
+	    border-left: 1px black solid;
+	}
+	.tbl_modalidades th.sp_conc,
+	.tbl_modalidades td.sp_conc,
+	.tbl_modalidades th.span_entidade,
+	.tbl_modalidades td.span_entidade {
+	    border-right: 1px black solid;
+	}
+        .tbl_modalidades td.obs {
+	    font-weight:bold;
+	}
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'financeiro.views.relatorio_gerencial' %}">Relatório gerencial</a>
+    </div>
+{% endblock %}
+{% block content %}
+<h1>Relatório gerencial do processo {{ termo }}, atualizado em {{ atualizado|date:"d/m/Y" }}</h1>
+<h3>Atençao: apenas o filtro por Reserva Tecnica esta aplicado aos totais. Os filtros de data e de parcial e aplicado apenas
+na coluna "Total realizado parcial".</h3>
+<div id="report_toolbar">
+    <form action="{% url 'financeiro.views.relatorio_gerencial' 1 %}" method="GET" id="id_form_recurso">
+        <input type="hidden" value="{{ inicio }}" name="inicio" />
+        <input type="hidden" value="{{ termino }}" name="termino" />
+        <input type="hidden" value="{{ parcial }}" name="parcial" />
+        <input type="hidden" value="{{ rt }}" name="rt" />
+        <input type="hidden" value="{{ termo.id }}" name="termo" />
+        <div title="Imprimir" class="btn_print">
+           <input type="submit" title="Versão para impressão A3" class="btn_print" name="tamanho" value="a3"  />
+           <input type="submit" title="Versão para impressão A4" class="btn_print" name="tamanho" value="a4"  />
+        </div>
+    </form>
+</div>
+
+    <table border="1" cellpadding="5" id="tbl_consolidado">
+	    <tr>
+		    <th class="sp_moda"><span>Modalidade</span></th>
+		    <th class="sp_conc"><span>Concessão</span></th>
+		    {% for m in meses %}
+		      <th class="tit_vert"><span>{{ m }}</span></th>
+		    {% endfor %}
+            <th class="sp_real"><span>Total realizado parcial</span></th>
+		    <th class="sp_real"><span>Total realizado</span></th>
+		    <th class="sp_sald"><span>Saldo</span></th>
+	    </tr>
+	    {% for m in modalidades %}
+		<tr>
+		    <td class="sp_moda"><span>{{ m.modalidade }}</span></td>
+		    <td class="sp_conc"><span>{{ m.concedido|moeda:m.modalidade.moeda_nacional }}</span></td>
+			{% for v in m.meses|dictsort:"ord" %}
+			  <td>{{ v.valor|moeda_valor:m.modalidade.moeda_nacional }}</td>
+			{% endfor %}
+            <td class="sp_real"><span>{{ m.realizado_parcial|moeda_css:m.modalidade.moeda_nacional}}</span></b></td>
+	        <td class="sp_real"><span>{{ m.realizado|moeda_css:m.modalidade.moeda_nacional}}</span></b></td>
+            <td class="sp_sald"><span>{{ m.saldo|moeda_css:m.modalidade.moeda_nacional }}</span></td>
+        </tr>
+	    {% endfor %}
+	    <tr>
+	        <td class="sp_moda"><span>Total (R$)</span></td>
+	        <td class="sp_conc"><span>{{ gerais.concedido_real|moeda_css }}</span></td>
+		    {% for t in totais|dictsort:"ord" %}
+		        <td><b>{{ t.total_real|moeda_valor_css }}</b></td>
+		    {% endfor %}
+            <td class="sp_real"><span>{{ gerais.gasto_real_parcial|moeda_css }}</span></td>
+		    <td class="sp_real"><span>{{ gerais.gasto_real|moeda_css }}</span></td>
+		    <td class="sp_sald"><span>{{ gerais.saldo_real|moeda_css }}</span></td>
+	    </tr>
+	    <tr>
+	        <td class="sp_moda"><span>Total (US$)</span></td>
+	        <td class="sp_conc"><span>{{ gerais.concedido_dolar|moeda_css:0 }}</span></td>
+		    {% for t in totais|dictsort:"ord" %}
+		        <td><b>{{ t.total_dolar|moeda_valor_css:0 }}</b></td>
+		    {% endfor %}
+		    <td class="sp_real"><span>{{ gerais.gasto_dolar_parcial|moeda_css:0 }}</span></td>
+		    <td class="sp_real"><span>{{ gerais.gasto_dolar|moeda_css:0 }}</span></td>
+		    <td class="sp_sald"><span>{{ gerais.saldo_dolar|moeda_css:0 }}</span></td>
+	    </tr>
+    </table>
+
+{% for m in modalidades %}
+  <h3>{{ m.modalidade.nome }}</h3>
+  <table border="1" repeat="1" cellpadding="5" class="tbl_modalidades">
+  <tr>
+	  <th>Qtd.</th>
+	  <th class="span_desc"><span>Descrição</span></th>
+	  <th class="sp_entidade"><span>Entidade</span></th>
+	  <th class="sp_conc"><span>Concessão</span></th>
+	    {% for mes in meses %}
+	      <th class="tit_vert"><span>{{ mes }}</span></th>
+          {% if forloop.last %}
+             <th class="sp_real"><span>Total realizado parcial</span></th>
+          {% endif %}
+	    {% endfor %}
+	  <th class="sp_real"><span>Total realizado</span></th>
+	  <th class="sp_sald"><span>Saldo</span></th>
+  </tr>
+
+  {% for it, valores in m.itens.items|dictsort:"0.descricao" %}
+     <tr>
+        <td>{{ it.quantidade }}</td>
+        <td class="span_desc"><span>{{ it.descricao }}</span></td>
+        <td class="sp_entidade"><span>{{ it.entidade.sigla }}</span></td>
+        <td class="sp_conc"><b><span>{{ it.valor|default:0.00|moeda_css:m.modalidade.moeda_nacional }}</span></b></td>
+	     {% for v in valores|dictsort:"ord" %}
+	        <td>{{ v.valor|moeda_valor_css:m.modalidade.moeda_nacional }}</td>
+            {% if forloop.last %}
+                <td class="sp_real"><span>{{ v.total_parcial|moeda_css:m.modalidade.moeda_nacional }}</span</td>
+            {% endif %}
+	     {% endfor %}
+	     <td class="sp_real"><span>{{ it.valor_realizado_acumulado|moeda_css:m.modalidade.moeda_nacional }}</span</td>
+	     <td class="sp_sald"><span>{{ it.saldo|moeda_css:m.modalidade.moeda_nacional }}</span></td>
+     </tr>
+  {% endfor %}
+     <tr><td class="obs" colspan="{{ meses|length|add:"6" }}">* {{ m.obs|linebreaksbr }}</td></tr>
+  </table>
+{% endfor %}
+{% endblock %}

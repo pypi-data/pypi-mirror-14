@@ -1,0 +1,209 @@
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load l10n %}
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style>
+@page {
+{% if size == '3' %}
+    size: a{{ size }};
+    background-image: url('media:{{papelaria.papel_timbrado_retrato_a3}}');
+    padding: {{papelaria.retrato_a3_margem_superior|default:0.5|unlocalize}}cm 1cm {{papelaria.retrato_a3_margem_inferior|default:0.5|unlocalize}}cm 1cm;
+{% elif size == '4' %}
+    size: a{{ size }} landscape;
+    background-image: url('media:{{papelaria.papel_timbrado_paisagem_a4}}');
+    padding: {{papelaria.paisagem_a4_margem_superior|default:0.5|unlocalize}}cm 1cm {{papelaria.paisagem_a4_margem_inferior|default:0.5|unlocalize}}cm 1cm;
+{% endif %}
+  background-position: center top;
+  background-size: 100% 102%;
+  background-repeat:no-repeat;
+  margin-top:0;
+  margin-right:1cm;
+  margin-bottom:1cm;
+  margin-left:0;
+
+  @bottom-right {
+    content: 'Pág ' counter(page);
+    white-space: pre;
+    color: grey;
+    vertical-align: bottom;
+    font-family: Arial;
+    font-size: 0.7em;
+    margin-bottom: 0.8cm;
+  }
+}
+
+{% if size == '3' %}
+    #th_data { width:4.5cm; }
+    #th_codigo { width:1.2cm; }
+    #th_hist { width:5cm; }
+    #th_valor { width:2.5cm; }
+    #th_comprovante { width:1.7cm; }
+    #th_diferenca { width:8.5cm; }
+    #th_discordancia { width:4cm; }
+{% elif size == '4' %}
+    #th_data { width:4.5cm; }
+    #th_codigo { width:1.2cm; }
+    #th_hist { width:5cm; }
+    #th_valor { width:2.5cm; }
+    #th_comprovante { width:1.7cm; }
+    #th_diferenca { width:8.5cm; }
+    #th_discordancia { width:4cm; }
+{% endif %}
+
+ body {
+    margin: 0;
+    padding: 0;
+    width:100%;
+    height:100%;
+    font-family: Arial;
+    font-size:0.6em;
+}
+
+.tbl_resumo {
+    width: 700px;
+    clear:both;
+    margin-left: 0;
+    border-collapse:collapse;
+}
+.tbl_resumo td{
+    width: 25%;
+}
+.tbl_resumo td:nth-child(1),
+.tbl_resumo td:nth-child(3){
+    font-weight:bold;
+}
+.tbl_resumo td:nth-child(3){
+    border-left: 1px black solid;
+}
+.tbl_resumo tbody tr:first-child td{
+    border-top: 1px black solid;
+}
+.tbl_resumo tbody tr:last-child td{
+    border-bottom: 1px black solid;
+}
+.tbl_resumo tbody td:first-child{
+    border-left: 1px black solid;
+}
+.tbl_resumo tbody td:last-child{
+    border-right: 1px black solid;
+}
+
+.tbl_resumo_msg {
+    font-weight: bold;
+    font-style: italic;
+}
+#tbl_dados {
+    margin-top:0.4cm;
+}
+#tbl_dados th {
+    background-color:#eee;
+    border-bottom: 1px solid darkgray;
+    border-top: 1px solid darkgray;
+    padding:5px 0 5px 0;
+}
+#tbl_dados hr{
+    background-color:darkgray;
+    margin:5px 0 5px 0;
+}
+.td_total{
+    border-top: 1px solid;
+}
+
+#report_toolbar span {
+    display: inline-block;
+    width: 126px;
+    margin-top: 9px;
+    left: 5px;
+    position: relative;
+}
+.parciais_wrapper {
+    padding-left: 10px;
+    margin-bottom: 10px;
+}
+</style> 
+</head>
+<body>
+<h1 repeat="1">Extrato do financeiro do processo {{ termo }}</h1>
+<table class="tbl_resumo">
+    <thead>
+        <tr><td colspan="2">
+            <h2>Total do Processo {{ termo }}</h2>
+        </td></tr>
+    </thead>
+    <tbody>
+        <tr><td>Total liberado:</td><td>{{ totais.total_liberado|moeda }}</td><td>Concessões:</td><td>{{ totais.total_concedido|moeda }}</td></tr>
+        <tr><td>Total devolvido:</td><td>{{ totais.total_devolvido|moeda }}</td><td>Suplementações:</td><td>{{ totais.total_suplementado|moeda }}</td></tr>
+        <tr><td>Total estornado:</td><td>{{ totais.total_estornado|moeda }}</td><td>Anulações:</td><td>{{ totais.total_anulado|moeda }}</td></tr>
+        <tr><td class="td_total">= Total disponibilizado:</td><td class="td_total">{{ totais.total_disponibilizado|moeda }}</td><td>Cancelamentos:</td><td>{{ totais.total_cancelado|moeda }}</td></tr>
+        <tr><td>Total realizado:</td><td>{{ totais.total_pagamentos|moeda }}</td><td></td><td></td></tr>
+        <tr><td class="td_total">= Diferença:</td><td class="td_total">{{ totais.total_processo|moeda }}</td><td class="td_total">= Total de concessões:</td><td class="td_total">{{ totais.total_concessoes|moeda }}</td></tr>
+        <tr><td>Somatória das diferenças em pgtos.:</td><td>{{ totais.total_somatoria_diferenca|moeda }}</td><td></td><td></td></tr>
+    </tbody>
+</table>
+{% for p in parciais %}
+{% if not forloop.first %}
+    <div style="page-break-before: always;" />
+{% endif %}
+<div class="parciais_wrapper">
+    <table class="tbl_resumo">
+        <thead>
+            <tr><td colspan="2">
+                <h2>Parcial {% if p.parcial != 'None' %}{{ p.parcial }}{% endif %}</h2>
+            </td></tr>
+        </thead>
+        <tbody>
+            <tr><td>Total liberado:</td><td>{{ p.liberado|moeda }}</td><td>Concessões:</td><td>{{ p.concedido|moeda }}</td></tr>
+            <tr><td>Total devolvido:</td><td>{{ p.devolvido|moeda }}</td><td>Suplementações:</td><td>{{ p.suplementado|moeda }}</td></tr>
+            <tr><td>Total estornado:</td><td>{{ p.estornado|moeda }}</td><td>Anulações:</td><td>{{ p.anulado|moeda }}</td></tr>
+            <tr><td class="td_total">= Total disponibilizado:</td><td class="td_total">{{ p.disponibilizado|moeda }}</td><td>Cancelamentos:</td><td>{{ p.cancelado|moeda }}</td></tr>
+            <tr><td>Total realizado:</td><td>{{ p.pagamentos|moeda }}</td><td></td><td></td></tr>
+            <tr><td class="td_total">= Diferença:</td><td class="td_total">{{ p.total_processo|moeda }}</td><td class="td_total">= Total de concessões:</td><td class="td_total">{{ p.concessoes|moeda }}</td></tr>
+            <tr><td>Somatória das diferenças em pgtos.:</td><td>{{ p.somatoria_diferenca|moeda }}</td><td></td><td></td></tr>
+        </tbody>
+    </table>
+    <table border="0" repeat="1" cellpadding="5" id="tbl_dados">
+       <tr>
+            <th id="th_data">Data<hr>&nbsp;</th>
+            <th id="th_codigo">Código<hr>&nbsp;</th>
+            <th id="th_hist">Histórico<hr>&nbsp;</th>
+            <th id="th_valor">Valor<hr>Valor CHQ.</th>
+            <th id="th_comprovante">Comprovante<hr>Img. CHQ.</th>
+            <th id="th_diferenca">Diferença<hr>[Parcial/(Página)]</th>
+            <th id="th_discordancia">Discordância<hr>&nbsp;</th>
+       </tr>
+    {% for e in p.extrato %}
+       <tr>
+          <td>{% if e.data %}{{ e.data|date:"d/m/Y" }} [{{ e.valor_data|moeda }}]{% endif %}</td>
+          <td>{{ e.cod }}</td>
+          <td>{{ e.historico }}</td>
+          <td>{{ e.valor|moeda }}</td>
+          <td></td>
+          <td style="color:{{ e.cor }};">{% if e.diferenca %}{{ e.diferenca|moeda }} (Diferença){% endif %}</td>
+          {% if e.patrocinio %}<td>Discordância do movimento da conta corrente: {{ e.patrocinio|moeda }}</td>{% endif %}
+          </tr>
+           {% for cc in e.cheques %}
+              <tr>
+                <td colspan="3"></td>
+                <td>{{ cc.valor|moeda }}</td>
+                <td>{{ cc.cod }}</td>
+                <td>{{ cc.parciais }}</td>
+              </tr>
+              {% if cc.obs %}
+                  <tr>
+                    <td colspan="3"></td>
+                    <td colspan="3"><b>Observação:</b> {{ cc.obs }}</td>
+                  </tr>
+              {% endif %}
+           {% endfor %}
+    {% endfor %}
+    </table>
+</div>
+{% endfor %}
+</body>
+</html>

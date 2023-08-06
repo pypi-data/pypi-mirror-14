@@ -1,0 +1,344 @@
+{% load proto_tags admin_static cache %}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="{{ LANGUAGE_CODE }}" xml:lang="{{ LANGUAGE_CODE }}" {% if LANGUAGE_BIDI %}dir="rtl"{% endif %}>
+<head>
+	<title>{% block title %}{% endblock %}</title>
+        <link rel="shortcut icon" href="{% static "img/favicon.png" %}" />
+	<link rel="stylesheet" type="text/css" href="{% block stylesheet %}{% static "css/base.css" %}{% endblock %}" />
+	<link rel="stylesheet" type="text/css" href="{% static "css/import-export-admin.css" %}" />
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+    <meta http-equipv="Content-type" content="text/html; charset=utf-8" />
+	{% block extrastyle %}{% endblock %}
+	<!--[if lte IE 7]><link rel="stylesheet" type="text/css" href="{% block stylesheet_ie %}{% static "css/ie.css" %}{% endblock %}" /><![endif]-->
+	{% if LANGUAGE_BIDI %}<link rel="stylesheet" type="text/css" href="{% block stylesheet_rtl %}{% static "css/rtl.css" %}{% endblock %}" />{% endif %}
+	<script type="text/javascript">window.__admin_media_prefix__ = "{% filter escapejs %}{% static "" %}{% endfilter %}";</script>
+	{% block blockbots %}<meta name="robots" content="NONE,NOARCHIVE" />{% endblock %}
+
+	<script type="text/javascript" src="{% static "js/jquery.min.js" %}"></script>
+        {% block extrahead %}{% endblock %}
+	<script type="text/javascript" src="{% static "js/jquery-blockUI.js" %}"></script>
+
+    <script src="http://code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+	<!--<script type="text/javascript" src="/media/js/jquery.accordion.js"></script>
+	
+	<script type="text/javascript"> 
+		$(function(){ 
+			$('#efeito').accordion({ 
+			autoheight:false 
+			});
+		}); 
+	</script>-->
+	
+	<script type="text/javascript"> <!-- modal box e slider de acoes recentes -->
+		$(document).ready(function() {
+            $('.modal-box').hide();
+			$('.modal-call-header').click(function() {
+                var id = '#mod-'+$(this).attr('app');
+				$.blockUI({ 
+				    message: $(id),
+				    css: { top: '10%' }  
+				});
+			}); 
+			
+			$('.modal-close').click(function() { 
+            $.unblockUI(); 
+            return false; 
+			});
+			
+			$('.blockOverlay').click(function() { 
+            $.unblockUI(); 
+            return false; 
+			});
+
+		 	$(".btn-slide-actions").click(function(){
+			$("#content-actions").slideToggle("default").css("z-index",1000);
+			 $(this).toggleClass("active"); return false;
+			});
+
+            // Evento para abrir e fechar o menu de configuração/administração
+            $('#menu_config_top').width('105px');
+            $('#menu_config_top_items').hide();
+            $('#menu_config_top_title').click(function(e){
+                if ($('#menu_config_top').width() < 300) {
+                    $('#menu_config_top').width('100%');
+                    $('#menu_config_top_items').toggle();
+                } else {
+                    $('#menu_config_top_items').toggle();
+                    $('#menu_config_top').width('105px');
+                }
+                
+            });
+		});
+
+        document.onreadystatechange = function() {
+                if (document.readyState == "complete") {
+                        parent.scroll(0,0);
+                }
+        }
+
+$(document).ajaxSend(function(event, xhr, settings) {
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie != '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = jQuery.trim(cookies[i]);
+                // Does this cookie string begin with the name we want?
+                if (cookie.substring(0, name.length + 1) == (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    function sameOrigin(url) {
+        // url could be relative or scheme relative or absolute
+        var host = document.location.host; // host + port
+        var protocol = document.location.protocol;
+        var sr_origin = '//' + host;
+        var origin = protocol + sr_origin;
+        // Allow absolute or scheme relative URLs to same origin
+        return (url == origin || url.slice(0, origin.length + 1) == origin + '/') ||
+            (url == sr_origin || url.slice(0, sr_origin.length + 1) == sr_origin + '/') ||
+            // or any other URL that isn't scheme relative or absolute i.e relative.
+            !(/^(\/\/|http:|https:).*/.test(url));
+    }
+    function safeMethod(method) {
+        return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+    }
+
+    if (!safeMethod(settings.type) && sameOrigin(settings.url)) {
+        xhr.setRequestHeader("X-CSRFToken", getCookie('csrftoken'));
+    }
+});
+    </script>
+
+	
+</head>
+{% load i18n %}
+
+<body class="{% if is_popup %}popup {% endif %}{% block bodyclass %}{% endblock %}"
+  data-admin-utc-offset="{% now "Z" %}">
+{% block header %}
+        <!-- Header -->
+    {% if not is_popup %}
+        <div id="header">
+            <div class="header-content">
+                    <div id="branding" class="header-logo">
+                        {% block branding %}
+                        {% endblock %}
+                    </div>
+        			<div class="header-sites">
+                        {% if linksHeader %}
+        				<ul>
+                            {% for link in linksHeader %}
+                                {% if forloop.first %}
+                                    <li><span class="meta-label2">Sites:</span></li>
+                                    <li><a href="{{ link.url }}" target="_blank">{{ link.titulo }}</a></li>
+                                {% else %}
+                                    <li><span class="meta-sep2">/</span></li>
+                                    <li><a href="{{ link.url }}" target="_blank">{{ link.titulo }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+        				</ul>
+                        {% endif %}
+        			</div>
+        			
+                {% cache 1800 base-html-header request.user.username %}
+        			{% if user.is_active and user.is_staff %}
+            			<div id="user-tools">
+            				<ul>
+            				<li class="username">{% trans 'Welcome,' %}<strong> {% filter force_escape %}{% firstof user.first_name user.username %}{% endfilter %}</strong></li>
+            				{% block userlinks %}
+                                <li >{% controle_horario user %}</li>
+            					{% url 'admin:password_change' as password_change_url %}
+            					{% if password_change_url %}
+            					   <li><a class="change-pass" href="{{ password_change_url }}">
+            					{% else %}
+            					   <li><a class="change-pass" href="{{ root_path }}password_change/">
+            					{% endif %}
+            					{% trans 'Change password' %}</a></li>
+            					{% url 'django_cas_ng.views.logout' as logout_url %}
+            					{% if logout_url %}
+            					   <li><a class="sair" href="{{ logout_url }}">
+            					{% else %}
+            					   <li><a class="sair" href="{% url 'admin:logout' %}">
+            					{% endif %}
+            					{% trans 'Log out' %}</a></li>
+            				{% endblock %}
+            				</ul>
+            			</div>
+        			{% endif %}
+        			{% block nav-global %}{% endblock %}
+                {% endcache %}
+    
+                {% if messages %}
+                    <ul class="messagelist">
+                        {% for message in messages %}
+                            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>
+                                <span>{{ message }}<span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+    	   </div>
+        </div><!-- END HEADER -->
+    {% endif %}
+{% endblock %}
+<!-- END Header -->
+<!-- Container -->
+<div id="container">
+<!-- ABAS -->
+    {% if not is_popup %}
+    	{#% if user.is_superuser %#}
+        	<div class="content-abas" id="menu_config_top">
+        		<h2 id="menu_config_top_title">Config.</h2>
+        		  <div id="menu_config_top_items">
+        			{% if adm_app_list %}
+        				{% for app in adm_app_list %}
+        					<div class="module-header">
+
+        						<a href="#" class="modal-call-header {{app.name}}" app="{{app.name}}">{% blocktrans with app.verbose_name as name %}{{ name }}{% endblocktrans %}</a>
+        				
+        						<div class="modal-box" id="mod-{{app.name}}" style="display:none;">
+        							<h2>{{app.verbose_name}}</h2><a class="modal-close" title="Fechar" name="fechar" >fechar</a>
+        							<table summary="{% blocktrans with app.name as name %}Models available in the {{ name }} application.{% endblocktrans %}">
+        								{% for model in app.models %}
+        								<tr>
+        								{% if model.perms.change %}
+        									<th scope="row"><a href="{{ model.admin_url }}">{{ model.name }}</a></th>
+        								{% else %}
+        									<th scope="row">{{ model.name }}</th>
+        								{% endif %}
+        
+        								{% if model.perms.add %}
+        									<td><a href="{{ model.admin_url }}add/" class="addlink">{% trans 'Add' %}</a></td>
+        								{% else %}
+        									<td>&nbsp;</td>
+        								{% endif %}
+        
+        								{% if model.perms.change %}
+        									<td><a href="{{ model.admin_url }}" class="changelink">{% trans 'Change' %}</a></td>
+        								{% else %}
+        									<td>&nbsp;</td>
+        								{% endif %}
+        								</tr>
+        								{% endfor %}
+        							</table>
+        						</div><!-- end modal-box -->
+        					</div><!-- end module-header -->
+        				{% endfor %}
+        			{% else %}
+        				<p>{% trans "You don't have permission to edit anything." %}</p>
+        			{% endif %}
+        		</div>
+        	</div>
+    	{#% endif %#}
+    {% endif %}
+	{% block abas %}
+        {% if not is_popup %}
+            {% cache 1800 base-html-modulos request.user.username %}
+            	<div class="content-abas">
+            		<h2>Módulos</h2>
+            		{{ menu_type }}
+            		{% load tree_menu_tags %}
+                    {% show_menu "root" "ordered-list" %}
+            	</div>
+            {% endcache %}
+        {% endif %}
+	{% endblock %}
+	{% block breadcrumbs %}
+        <div class="breadcrumbs">
+            Você está em: <a href="/">{% trans 'Home' %}</a>
+            {% if title %} &rsaquo; {{ title }}{% endif %}
+        </div>
+    {% endblock %}
+    <!-- Content -->
+    <div id="content" class="{% block coltype %}colM{% endblock %}" style="display:none;">
+        {% block pretitle %}{% endblock %}
+        
+        {% block content %}
+			{% block object-tools-items %}
+			      {% if has_add_permission %}
+			          <li>
+			            <a href="add/{% if is_popup %}?_popup=1{% endif %}" class="addlink">
+			              {% blocktrans with cl.opts.verbose_name as name %}Add {{ name }}{% endblocktrans %}
+			            </a>
+			          </li>
+			      {% endif %}
+			{% endblock %}
+			{{ content }}
+        {% endblock %}
+		
+        {% block sidebar %}{% endblock %}
+        <!--<br class="clear" />-->
+    </div>
+    <script type="text/javascript">
+         $(document).ready(function () {
+             $("#content").show();
+         }); 
+    </script>
+    <!-- END Content -->
+</div><!-- END Container -->
+
+ {% block footer %}
+	<div id="footer" {% if is_popup %}style="height:inherit;"{% endif %}>
+	
+		<div class="footer-content">
+		
+            {% if not is_popup %}
+    			<div class="content-modules-footer">
+    				<h2>Módulos carregados</h2>
+    				<ul>
+                        {% if adm_app_list %}
+        				    {% for app in adm_app_list %}
+        						<li>
+        							<a href="#" class="section modal-call2" app="{{app.name}}">{% blocktrans with app.name as name %}{{ name }}{% endblocktrans %}</a>
+                                </li>
+        				    {% endfor %}
+    			        {% else %}
+    				        <p class="edit-alert">{% trans "You don't have permission to edit anything." %}</p>
+    			        {% endif %}
+    				</ul>
+    			</div><!-- end content-modules-footer -->
+    			<div class="footer-sites">
+                    {% if linksFooter %}
+                        <h2>Sites</h2>
+                        <ul>
+                            {% for link in linksFooter %}
+                                <li><a href="{{ link.url }}" target="_blank">{{ link.titulo }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+    			</div>
+                {% if logoFooter %}
+                        <div class="nara-logo" title="{{logoFooter.titulo}}" {% if logoFooter %}style="background-image:url({{ logoFooter.logo.url }});"{% endif %}>
+                        </div>
+                {% else %}
+                    <div class="nara-logo">
+                        <a href="http://www.ansp.br/index.php/br/nara">Sobre nós</a>
+                    </div>
+    			{% endif %}
+            {% endif %}
+			<div class="footer-copy">
+				Copyright©2010 <span class="meta-sep2">/</span> NARA <span class="meta-sep2">/</span> {% trans "Todos os direitos reservados" %}
+				<span class="meta-sep2">/</span>
+				<span class="links-copy">
+				<a href="Http://www.ansp.br">termos de uso</a>
+				<span class="meta-sep2">/</span>
+				<a href="Http://www.ansp.br">Segurança e privacidade</a>
+				<span class="meta-sep2">/</span>
+				<a href="Http://www.ansp.br">www.ansp.br</a>
+				<span class="meta-sep2">/</span>
+				<a href="http://www.fapesp.br">www.fapesp.br</a></span>
+				</span>
+			</div>
+			
+		</div>
+	</div>
+    
+{% endblock %}
+    <div class="modal"><!-- Place at bottom of page --></div>
+</body>
+</html>

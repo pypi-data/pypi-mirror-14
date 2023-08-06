@@ -1,0 +1,90 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n %}
+{% load static from staticfiles %}
+{% block extrahead %}
+<script src="{% static "js/jquery.js" %} type="text/javascript"></script>
+<script type="text/javascript">
+</script>
+<style>
+table tr td {
+  border:0;
+}
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'rede.views.planejamento2' %}">Serviços contratados por processo</a>
+    </div>
+{% endblock %}
+{% block content %}
+<h1>Serviços contratados por processo</h1>
+<div id="report_toolbar">
+    <form action="{% url 'rede.views.planejamento2' 1 %}" method="GET">
+       <input type="hidden" value="{{ entidade.id }}" name="entidade" />
+       <input type="hidden" value="{{ termo.id }}" name="termo" />
+       {% if beneficiado %}
+       <input type="hidden" value="{{ beneficiado.id }}" name="beneficiado" />
+       {% endif %}
+       {% for s in servicos %}
+       <input type="hidden" value="{{ s }}" name="tiposervico" />
+       {% endfor %}
+       <div title="Imprimir" class="btn_print">
+           <input type="submit" title="Versão para impressão" class="btn_print" name="acao" value="1"  />
+       </div>
+    </form>
+</div>
+<div style="clear:both" />
+<h3>{{ entidade }}{% if beneficiado %} - {{ beneficiado }} ({{ sem|moeda }}, {{ com|moeda }}){% endif %}</h3>
+<h3>Processo {{ termo }}</h3>
+
+<h4 style="color:red;">O valor total por nota refere-se à soma dos ítens descritos, com e sem impostos, conforme beneficiado e serviço selecionados no filtro.</h4>
+<table>
+{% for p in pagamentos %}
+    <tr>
+        <th>Nota fiscal</th>
+        <th>Valor total sem imposto</th>
+        <th>Valor total com imposto</th>
+    </tr>
+    <tr>
+        <td>{{ p.nf }}</td>
+        <td>{{ p.sem|moeda }}</td>
+        <td>{{ p.com|moeda }}</td>
+    </tr>
+    <tr>
+        <td colspan="3">
+            <table border="1">
+                <tr>
+                    <th style="width:150px">OS e contrato</th>
+                    <th style="width:100px">Número de vezes que foi pago</th>
+                    <th>Descrição do item</th>
+                    <th style="width:150px">Valor unitário sem imposto</th>
+                    <th style="width:150px">Valor unitário com imposto</th>
+                </tr>
+                {% for r in p.recursos %}
+                     <tr style="border-top:1px solid;border-color:#c8c8c8">
+                        <td><a href="{{ r.os.primeiro_arquivo.url }}">{{ r.os }}</a> <a href="{{ r.os.contrato.arquivo.url }}">CT {{ r.os.contrato.numero }}</a></td>
+                        <td>{{ r.quantidade }}</td>
+                        <td>{{ r.tipo }} - {{ r.referente }}</td>
+                        <td>{{ r.sem|moeda }}</td>
+                        <td>{{ r.com|moeda }}</td>
+                    </tr>
+                    {% for b in r.beneficiados %}
+                        <tr>
+                            <td>{{ b }}</td>
+                            <td colspan="4">{{ b.porcentagem|floatformat:"-2" }} %</td>
+                        </tr>
+                    {% endfor %}
+                {% endfor %}
+            </table>
+        </tr>
+{% endfor %}
+</table>
+{% endblock %}
+

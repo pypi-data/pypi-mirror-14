@@ -1,0 +1,160 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n admin_modify admin_static %}
+{% block extrahead %}
+<link rel="stylesheet" type="text/css" href="{% static "css/base-print.css" %}" />
+<style>
+ .patr a:link,
+ .patr a:visited,
+ .patr a:hover,
+ .patr a:active {
+   color:inherit;
+   line-height:inherit;  
+} 
+ .level1 {
+    color:#102BB2; 
+ }
+ .level1 .level_btn {
+    display:table-cell;
+    width:15px;
+ }
+ .level1 a {
+    display:table-cell;
+ } 
+ .level0.tr_border {
+    border-top:1px darkgray solid;
+ }
+ .level0 {
+    font-weight: bold;
+    background-color: #f7f7f7;
+ }
+ /*
+ .level1.tr_border .clickable {
+    border-bottom:1px #102BB2 solid;
+ }
+ */
+ #tbl_content {
+    margin: 0;
+    width: 100%;
+    word-break: break-all;
+ }
+ 
+ /* Descricao */
+ #tbl_content td:nth-child(9) {
+    word-break: break-word;
+ } 
+ 
+ /* ID */
+  #tbl_content td:nth-child(1) { width:53px; }
+ /* TIPO */
+  #tbl_content td:nth-child(2) { width:155px; }
+ /* MODELO */
+  #tbl_content td:nth-child(3) { width:125px; }
+ /* PART NUMBER */
+  #tbl_content td:nth-child(4) { width:135px; }
+ /* NS */
+  #tbl_content td:nth-child(5) { width:125px; }
+ /* APELIDO */
+  #tbl_content td:nth-child(6) { width:80px; }
+  /* DESCRICAO com largura variável*/
+  /*#tbl_content td:nth-child(7) { width:50px; }*/
+ /* POSICAO */
+  #tbl_content td:nth-child(8) { width:85px; }
+ /* ESTADO */
+  #tbl_content td:nth-child(9) { width:75px; }
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'patrimonio.views.por_local_rack' %}">Patrimônio por local e rack</a>
+    </div>
+{% endblock %}
+{% block content %}
+<h1 repeat="1">Patrimônios por local e rack</h1>
+<div id="report_toolbar">
+    <form action="{% url 'patrimonio.views.por_local_rack' 1 %}" method="GET" id="id_form_recurso">
+        <input type="hidden" name="entidade" value="{{ request.GET.entidade }}" />
+        <input type="hidden" name="endereco" value="{{ request.GET.endereco }}" />
+        <input type="hidden" name="detalhe" value="{{ request.GET.detalhe }}" />
+        <input type="hidden" name="com_fmusp" value="{{ request.GET.com_fmusp }}" />
+        <div title="Imprimir" class="btn_print">
+           <input type="submit" title="Versão para impressão A4" class="btn_print" name="acao" value="1"  />
+        </div>
+    </form>
+</div>
+<div style="clear:both;"></div>
+{% for end in enderecos %}
+    <h4>
+        {% if end.endereco %}
+            {{ end.endereco }}
+        {% else %}
+            {{ end.detalhe }}
+        {% endif %}
+    </h4>
+    {% if end.detalhes %}
+    {% endif %}
+    {% for d in end.detalhes %}
+    <table border="0" repeat="1" cellpadding="5" id="tbl_content" style="margin-top: 15px;">
+        <tr class="" id="" style="background-color:;font-weight:bold; border:1px black solid;">
+            <td colspan='11'>{{ d.detalhe }}</td>
+        </tr>
+        <tr style="background-color:lightgray;font-weight:bold; border:1px black solid;">
+            <th>ID</th>
+            <th>Tipo</th>
+            <th>Modelo</th>
+            <th>Part number</th>
+            <th>NS</th>
+            <th>Apelido</th>
+            <th>Descrição</th>
+            <th>Posição</th>
+            <th>Estado</th>
+        </tr>
+        {% for p in d.patrimonio %}
+           <tr class="patr level0 tr_border" id="tr_{{p.id}}">
+             <td><div class="level_btn"></div><a href="{% url 'admin:patrimonio_patrimonio_change' p.id %}">{{ p.id }}</a></td>
+             <td class="clickable">{{ p.tipo|default:'' }}</td>
+             <td class="clickable">{{ p.modelo|default:'' }}</td>
+             <td class="clickable">{{ p.part_number|default:'' }}</td>
+             <td class="clickable">{{ p.ns|default:'' }}</td>
+             <td class="clickable">{{ p.apelido|default:'' }}</td>
+             <td class="clickable">{{ p.descricao|default:'' }} - {{ p.complemento|default:'' }}</td>
+             <td class="clickable">{{ p.posicao|default:'' }}</td>
+             <td class="clickable">{{ p.estado|default:'' }}</td>
+           </tr>
+           {% for f in p.contido %}
+              <tr class="patr level1 {% if forloop.last %} tr_border{% endif %}" id="tr_{{f.id}}">
+                 <td><div class="level_btn"></div><a href="{% url 'admin:patrimonio_patrimonio_change' f.id %}">{{ f.id }}</a></td>
+                 <td class="clickable">{{ f.tipo }}</td>
+                 <td class="clickable">{{ f.modelo }}</td>
+                 <td class="clickable">{{ f.part_number }}</td>
+                 <td class="clickable">{{ f.ns }}</td>
+                 <td class="clickable">{{ f.apelido|default:'' }}</td>
+                 <td class="clickable">{{ f.descricao }}</td>
+                 <td class="clickable">{{ f.posicao|default:'' }}</td>
+                 <td class="clickable">{{ f.estado }}</td>
+               </tr>
+           {% endfor %}
+        {% endfor %}
+    </table>
+    {% endfor %}
+{% endfor %}
+
+<script type="text/javascript">
+    $('.patr').each(function(i, v) {
+        var href = $(this).find("a").attr("href");
+        $(this).find(".clickable").each(function(i, v) {
+            v = $(v);
+            var txt = v.html();
+            txt = '<a href="' + href + '">' + txt + '</a>';
+            v.html(txt);
+        });
+    
+    });
+</script>
+{% endblock %}

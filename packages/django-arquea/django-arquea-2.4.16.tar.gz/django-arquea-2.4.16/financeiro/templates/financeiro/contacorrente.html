@@ -1,0 +1,63 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n %}
+{% block extrahead %}
+<style>
+#tbl_conteudo {
+    border-collapse: collapse;
+}
+#tbl_conteudo th {
+    background-color:#ddd;
+    font-weight: bold;
+    border-bottom:1px darkgray solid;
+}
+.tr_saldo td{
+    background-color:#f7f7f7;
+}
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'financeiro.views.extrato' %}">Panorama da conta corrente</a>
+    </div>
+{% endblock %}
+{% block content %}
+    <h1 repeat="1">Panorama da conta corrente do projeto em {{ ano }}</h1>
+    {% if extrato|length > 0 %}
+        <div id="report_toolbar">
+            <form action="{% url 'financeiro.views.extrato' 1 %}" method="GET" id="id_form_recurso">
+                <input type="hidden" name="ano" value="{{ ano }}" />
+                <div title="Imprimir" class="btn_print">
+                   <input type="submit" title="Versão para impressão A3" class="btn_print" name="acao" value="1"  />
+                </div>
+                <span>Imprimir em A3</span>
+            </form>
+        </div>
+    
+        <table border="0" repeat="1" cellpadding="5" id="tbl_conteudo">
+        <tr><th>Data</th><th>Documento</th><th>Histórico</th><th>Valor</th><th>Liberação do financeiro</th><th>Pagamento</th><th>Imagem do cheque</th><th>Processo</th></tr>
+        {% for e in extrato %}
+            {% if e.saldo_mes_anterior != None %}
+               <tr class="tr_saldo"><td colspan=3><b>Saldo anterior</b></td><td><b>{{ e.saldo_mes_anterior|default:0.0|moeda }}</b></td><td colspan="4"></td></tr>
+            {% elif e.data_oper != None %}
+     	      <tr><td>{{ e.data_oper|date:"d/m/Y" }}</td><td>{{ e.cod_oper }}</td><td>{{ e.historico }}</td><td>{{ e.valor|default:0.0|moeda }}</td><td>{% if e.extrato_financeiro %}{{ e.extrato_financeiro.valor|moeda }}{% endif %}</td><td>{{ e.parciais }}</td><td>{% if e.imagem %}<a href="{{ e.imagem.url }}">cheque</a>{% endif %}</td><td>{{ e.extrato_financeiro.termo }}</td></tr>
+               {% if e.obs %}
+                  <tr><td></td><td colspan="5"><b>Observação</b>: {{ e.obs }}</td></tr>
+               {% endif %}
+    	   {% elif e.saldo != None %}
+    	       <tr class="tr_saldo"><td colspan=3><b>Saldo ao final do mês {{ e.data|date:'m' }}</b></td><td><b>{{ e.saldo|default:0.0|moeda }}</b></td><td colspan="4"></td></tr>
+    	   {% endif %}
+        {% endfor %}
+        </table>
+    {% else %}
+        <table border="0">
+            <tr><td>Não há lançamentos no extrato.</td></tr>
+        </table>
+    {% endif %}
+{% endblock %}

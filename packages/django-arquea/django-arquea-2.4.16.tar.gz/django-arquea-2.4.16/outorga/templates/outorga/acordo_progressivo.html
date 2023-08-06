@@ -1,0 +1,221 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load static %}
+{% load i18n %}
+{% block extrahead %}
+<style>
+    .excedido{
+        color:red
+    }
+
+    /* tbl consolidado */
+    #tbl_consolidado th {
+        background-color:lightgray;
+        border-bottom:1px black solid;
+    }
+    #tbl_consolidado th.td_nome {
+        border-right:1px black solid;
+        line-height: 30px;
+        vertical-align: middle;
+        padding-left:10px;
+    }
+    #tbl_consolidado th.td_nome span {
+        width: 190px;
+        display: block;
+    }
+    #tbl_consolidado th.td_total {
+        font-weight:bold;
+        border-left:1px black solid;
+    }
+    
+    /* deve quebar a coluna de titulos*/
+    #tbl_consolidado td.td_tipo,
+    #tbl_consolidado td.td_termo {
+        white-space:nowrap;
+        border:1px gray dotted;
+    }
+    #tbl_consolidado td.td_total {
+        white-space:nowrap;
+        font-weight:bold;
+        border-right:1px gray dotted;
+        border-bottom:1px gray dotted;
+        border-left:1px black solid;
+    }
+    #tbl_consolidado td.td_nome,
+    #tbl_consolidado td.td_tipo {
+        border-right:1px black solid;
+        font-weight:bold;
+    }
+    .tbl_acordos th {
+        background-color:lightgray;
+        border-bottom:1px black solid;
+    }
+    .cons-dolar {
+        display:block;
+        border-top:1px darkgray dotted;
+    }
+    .tbl_acordos .tr_item {
+        border-top:1px darkgray solid;
+    }
+</style>
+<script type="text/javascript">
+    $(function() {
+        $(".btn_collapse").click(function() {
+            $(this).hide();
+            $(".btn_expand").show();
+            $('.td_termo').hide();
+            $('.td_tipo').hide();
+        });
+        $(".btn_expand").click(function() {
+            $(this).hide();
+            $(".btn_collapse").show();
+            $('.td_termo').show();
+            $('.td_tipo').show();
+        });
+    });
+</script>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'outorga.views.acordo_progressivo' %}">Relatório gerencial progressivo</a>
+    </div>
+{% endblock %}
+{% block content %}
+<h1 repeat="1"></h1>
+<div id="report_title">
+    <h1>Relatório gerencial progressivo</h1>
+    {% if acordos %}
+        <div id="report_toolbar">
+            <form action="{% url 'outorga.views.acordo_progressivo' 1 %}" method="GET" id="id_form_recurso_pdf">
+                <div title="Imprimir" class="btn_print">
+                   <input type="submit" title="Versão para impressão" class="btn_print" value="" />
+                </div>
+                <div title="Expandir processos" class="btn_expand" style="display:none;">
+                   <input type="button" title="Expandir processos" class="btn_expand" value="" />
+                </div>
+                <div title="Esconder processos" class="btn_collapse">
+                   <input type="button" title="Esconder processos" class="btn_collapse" value="" />
+                </div>
+            </form>
+        </div>
+    {% endif %}
+</div>
+{% if acordos %}
+    <table id="tbl_consolidado" border="0" repeat="1" cellpadding="5">
+	    <tr>
+	    {% comment %}<th colspan="2" class="td_nome"><span>&nbsp;</span></th>{% endcomment %}
+	    <th class="td_nome"><div>Realizado</div></th>
+	    {% for t in termos %}
+	       <th class="td_tipo">Processo {{ t }}<br />{{ t.inicio|date:"d/m/Y" }}<br />a<br />{{ t.termino|date:"d/m/Y" }}</th>
+	    {% endfor %}
+	    <th class="td_total">Total</th>
+	    </tr>
+	    {% for a in acordos %}
+	    <tr>
+	       <td class="td_nome">{{ a.nome }}</td>
+	       {% comment %}
+	       <td class="td_tipo">
+	           {% if a.tem_real %}
+	               <span>
+	                   Concedido<br />
+	                   Realizado
+	                   <br /> Saldo
+	               </span>
+	           {% endif %}
+	           {% if a.tem_dolar %}
+	               <span class="cons-dolar">
+	                   Concedido<br />
+	                   Realizado
+	                   <br />Saldo
+	               </span>
+	           {% endif %}
+	       </td>
+	       {% endcomment %}
+	       
+	       {% for t in a.termos %}
+	          <td class="td_termo">
+	          {% if t.tem_real %}
+	               {# {{ t.concedido_real|moeda }}<br /> #}
+	               {{ t.realizado_real|moeda }}<br />
+	               {# {{ t.saldo_real|moeda_css }}<br /> #}
+	          {% else %}
+	               {# <br /> #}
+	               <br />
+	               {# <br /> #}
+	          {% endif %}
+	          {% if t.tem_dolar %}
+	               <span class="cons-dolar">
+	                   {# {{ t.concedido_dolar|moeda:0 }}<br /> #}
+	                   {{ t.realizado_dolar|moeda:0 }}<br />
+	                   {# {{ t.saldo_dolar|moeda_css:0 }}<br /> #}
+	               </span>
+	          {% endif %}
+	          </td>
+	       {% endfor %}
+	       <td class="td_total">
+	            {% if a.tem_real %}
+		            {# {{a.totalTermoConcedidoReal|moeda}}<br/> #}
+		            {{a.totalTermoRealizadoReal|moeda}}<br/>
+		            {# {{a.totalTermoSaldoReal|moeda_css}}<br/> #}
+	            {% else %}
+		            {# <br /> #}
+		            <br />
+		            {# <br /> #}
+	            {% endif %}
+	            {% if a.tem_dolar %}
+		            <span class="cons-dolar">
+			            {# {{a.totalTermoConcedidoDolar|moeda:0}}<br/> #}
+			            {{a.totalTermoRealizadoDolar|moeda:0}}<br/>
+			            {# {{a.totalTermoSaldoDolar|moeda_css:0}}<br/> #}
+		            </span>
+	            {% endif %}
+	       </td>
+	    {% endfor %}
+	    </tr>
+    </table>
+
+    {% for a in acordos %}
+    <h4>{{ a.nome }}</h4>
+    <table border="0" class="tbl_acordos">
+       <tr>
+        <th width="6%">Termo</th>
+        <th width="54%">Item da outorga</th>
+        <th width="10%">Entidade</th>
+        <th width="10%">Total Concedido</th>
+        <th width="10%">Realizado</th>
+        <th width="10%">Porcentagem</th>
+       </tr>
+       {% for t in a.termos %}
+          {% for item in t.itens %}
+             <tr class="{% if forloop.first %}tr_item{% endif %} ">
+                 <td>{% if forloop.counter == 1 %}{{ t.termo }}{% endif %}</td>
+                 <td>{{ item.item.descricao }}</td>
+                 <td>{{ item.item.entidade }}</td>
+                 {% if item.item.natureza_gasto.modalidade.moeda_nacional %}
+                     <td>{{ item.concedido|moeda }}</td>
+                     <td>{{ item.realizado|moeda }}</td>
+                     <td {% if item.excedido %}class="excedido"{% endif %}>{{ item.porcentagem }}</td>
+                 {% else %}
+		             <td>{{ item.concedido|moeda:0 }}</td>
+		             <td>{{ item.realizado|moeda:0 }}</td>
+		             <td {% if item.excedido %}class="excedido"{% endif %}>{{ item.porcentagem }}</td>
+		         {% endif %}
+		     </tr>
+          {% endfor %}
+       {% endfor %}
+    </table>
+    {% endfor %}
+{% else %}
+    <table border="0" repeat="1">
+        <tr><td><br><br>Não foram encontrados dados para a exibição.</td></tr>
+    </table>
+{% endif %}
+
+{% endblock %}
+

@@ -1,0 +1,126 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'rede.views.blocosip_ansp' %}">Lista de Blocos IP - Blocos ANSP</a>
+    </div>
+{% endblock %}
+{% block extrastyle %}
+<style type="text/css">
+  ins {float:left;}
+  div#theader {font-weight:bold; clear:both;}
+  div#div_filtro {margin-bottom:15px;}
+  div#div_filtro label {width:85px; display:inline-block;}
+  
+  .td_titulo, thead th {
+     background: lightgray;
+     border-bottom: 1px black solid;
+     text-align: left;
+     font-size: 12px;
+     font-weight: bold;
+     border-top: 1px black solid;
+  }
+  .td_bottom {
+     border-top: 1px black solid;
+     border-bottom:0;
+  }
+  #blocos td {
+     vertical-align: middle;
+  }
+  .col1 {border-left: 1px black solid;}
+  .obs {border-right: 1px black solid;}
+
+</style>
+{% endblock %}
+{% block content %}
+<div id="report_title">
+	<h1>Blocos IP - Blocos ANSP</h1>
+</div>
+<div id="div_filtro">
+    <fieldset>
+        <legend>Filtro</legend>
+        <form method="GET">
+        <label for="id_anunciante">Anunciante:</label>
+        <select name="anunciante" id="id_anunciante">
+          <option value="0" selected>Todos</option>
+          {% for asn in filtro_asns %}
+             <option value="{{ asn.id }}" {% if asn.id|striptags == request.GET.anunciante|striptags %}selected{% endif %}>{{ asn }}</option>
+          {% endfor %}
+        </select>
+        <br />
+        <label for="id_proprietario">Proprietário:</label>
+        <select name="proprietario" id="id_proprietario">
+          <option value="0" selected>Todos</option>
+          {% for asn in filtro_proprietario %}
+             <option value="{{ asn.id }}" {% if asn.id|striptags == request.GET.proprietario|striptags %}selected{% endif %}>{{ asn }}</option>
+          {% endfor %}
+        </select>
+        <br />
+        <input type="submit" value="Enviar">
+        </form>
+    </fieldset>
+</div>
+<div id="report_toolbar">
+    {% if blocos %}
+    <form action="{% url 'rede.views.blocosip_ansp' %}" method="GET" id="id_form_recurso_xls">
+        <input type="hidden" name="anunciante" value="{{request.GET.anunciante}}" />
+        <input type="hidden" name="proprietario" value="{{request.GET.proprietario}}" />
+        <input type="hidden" name="usuario" value="{{request.GET.usuario}}" />
+        <input type="hidden" name="designado" value="{{request.GET.designado}}" />
+        <input type="hidden" name="xls" value="1" />
+        <div title="Exportar para Excel" class="btn_excel">
+           <input type="submit" value="" />
+        </div>
+    </form>
+    {% endif %}
+</div>
+{% if blocos|length_is:"0" %}
+    <div style="border:1px solid lightgray; padding: 15px;">
+        <strong>Não foram encontrados Blocos IP que satisfaçam os filtros selecionados.</strong>
+    </div>
+{% endif %}
+{% if blocos %}
+    <div id="blocos">
+    <table>
+        {% for b in blocos %}
+           <tr>
+               <td colspan="5">&nbsp;</td>
+           </tr>
+           <tr>
+               <td style="border:1px solid black;" colspan="5">
+                   <h4>Bloco <a href="{% url "admin:rede_blocoip_change" b.id %}" >{{ b.obj }} - {{ b.netmask }}</a></h4>
+               </td>
+           </tr>
+           {% if b.subnivel %}
+               <tr>
+                  <td class="col1 td_titulo">Prefixo</td>
+                  <td class="colunas td_titulo">Máscara IP</td>
+                  <td class="colunas td_titulo">ASN Anunciante</td>
+                  <td class="colunas td_titulo">Usuário</td>
+                  <td class="obs td_titulo">Obs</td>
+               </tr>
+               {% for sb in b.subnivel %}
+                   <tr>
+                      <td class="col1"><a href="{% url "admin:rede_blocoip_change" sb.id %}">{{ sb.obj }}</a></td>
+                      <td class="colunas">{{ sb.netmask }}</td>
+                      <td class="colunas">{{ sb.obj.asn.numero|default_if_none:"-" }}</td>
+                      <td class="colunas">{{ sb.obj.usuario|default_if_none:"-" }}</td>
+                      <td class="obs">{{ sb.obj.obs }}</td>
+                   </tr>
+               {% endfor %}
+           {% endif %}
+           <tr>
+               <td class="td_bottom" colspan="5"></td>
+           </tr>
+        {% endfor %}
+    </table>
+    </div>
+{% endif %}
+{% endblock %}

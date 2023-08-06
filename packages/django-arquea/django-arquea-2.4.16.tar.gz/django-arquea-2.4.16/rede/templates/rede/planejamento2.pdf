@@ -1,0 +1,105 @@
+{% extends "base.pdf" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load static %}
+{% load l10n %}
+{% block size %}a3{% endblock %}
+{% block background %}background-image: url('media:{{papelaria.papel_timbrado_retrato_a3}}');{% endblock %}
+
+{% block top %}{{papelaria.retrato_a3_margem_superior|default:0.5|unlocalize}}{% endblock %}
+{% block bottom %}{{papelaria.retrato_a3_margem_inferior|default:0.5|unlocalize}}{% endblock %}
+
+{% block extrastyle %}
+    tr th { background-color: #eee; }
+    td { padding-top:3px; padding-left:2px;}
+    th { padding-top:3px; }
+    table tr td {
+      border:0;
+    }
+    .nf-tbl {
+        border: 1px;
+        width: 100%;
+        table-layout: fixed;
+    }
+    .nf-tbl th { align: left; }
+    .nf-tbl tr td:nth-child(1) { width: 20%; }
+    .nf-tbl tr td:nth-child(2) { width: 40%; }
+    .nf-tbl tr td:nth-child(3) { width: 40%; }
+    
+    .contrato-tbl {
+        border: 1px black solid;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    h3 {page-break-before:auto;}
+
+{% endblock %}
+{% block content %}
+<h1>Relatório de Serviços contratados por processo</h1>
+<h3>{{ entidade }}{% if beneficiado %} - {{ beneficiado }} ({{ sem|moeda }}, {{ com|moeda }}){% endif %}</h3>
+<h3>Processo {{ termo }}</h3>
+
+<h4 style="color:red;">O valor total por nota refere-se à soma dos ítens descritos, com e sem impostos, confome beneficiado e serviço selecionados no filtro.</h4>
+{% for p in pagamentos %}
+    <table class="nf-tbl">
+        <thead>
+        <tr>
+            <th>Nota fiscal</th>
+            <th>Valor total sem imposto</th>
+            <th>Valor total com imposto</th>
+        </tr>
+        </thead>
+        <tr>
+            <td>{{ p.nf }}</td>
+            <td>{{ p.sem|moeda }}</td>
+            <td>{{ p.com|moeda }}</td>
+        </tr>
+    </table>
+    <table class="contrato-tbl" repeat="1">
+        <thead>
+        <tr>
+            <th style="width:3.5cm;">OS e contrato</th>
+            <th style="width:2cm;">Número de vezes que foi pago</th>
+            <th style="width:12cm;">Descrição do item</th>
+            <th colspan="2">
+                <table>
+                    <tr><td colspan="2">Valor sem imposto</td></tr>
+                    <tr><td>Unitário</td><td>Subtotal</td></tr>
+                </table>
+             </th>
+            <th colspan="2">
+                <table>
+                    <tr><td colspan="2">Valor com imposto</td></tr>
+                    <tr><td>Unitário</td><td>Subtotal</td></tr>
+                </table>
+            </th>
+        </tr>
+        </thead>
+        {% for r in p.recursos %}
+            <tr>
+                <td>{{ r.os }} - CT {{ r.os.contrato.numero }}</td>
+                <td>{{ r.quantidade }}</td>
+                <td>{{ r.tipo }} - {{ r.referente }}</td>
+                <td>{{ r.sem|moeda }}</td>
+                <td>{{ r.sub_sem|moeda }}</td>
+                <td>{{ r.com|moeda }}</td>
+                <td>{{ r.sub_com|moeda }}</td>
+            </tr>
+              {% if r.beneficiados %}
+                  {% for b in r.beneficiados %}
+                    <tr style="border:0;">
+                        <td>{{ b }}</td>
+                        <td colspan="6">{{ b.porcentagem|floatformat:"-3" }} %{% if not forloop.last %},{% endif %} 
+                    </td></tr>
+                  {% endfor %}
+              {% endif %}
+        {% endfor %}
+    </table>
+    <div style="height:0.5cm;">&nbsp;</div>
+{% endfor %}
+
+{% endblock %}

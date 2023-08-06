@@ -1,0 +1,130 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n %}
+{% block extrastyle %}
+<style>
+ 
+ #tbl_relatorio td a{
+    line-height:inherit;
+ }
+ 
+ td.td_estado_os { text-align: center; } 
+ 
+ td.td_os span,
+ td.td_v_unit span,
+ td.td_v_simp span,
+ td.td_v_cimp span,
+ td.td_t_simp span,
+ td.td_t_geral span,
+ td.td_ref span,
+ td.td_termo span
+ {
+     white-space:nowrap;
+ }
+ 
+  div#theader {font-weight:bold; clear:both;}
+  div#div_filtro {margin-bottom:15px;}
+  div#div_filtro label {width:145px; display:inline-block;}
+
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'rede.views.custo_terremark' %}">Custo dos recursos contratados</a>
+    </div>
+{% endblock %}
+{% block content %}
+<div id="report_title">
+	<h1>Custos dos recursos contratados</h1>
+	<div id="report_toolbar">
+		<form action="{% url 'rede.views.custo_terremark' %}" method="GET" id="id_form_recurso">
+            <div id="div_filtro">
+                <fieldset>
+                    <legend>Filtro</legend>
+                    <div style="padding-left:15px; float:left;">
+                        <label for="id_estado" style="font-weight:bold;">Filtro por estado da OS: </label>
+                        <select name="estado" id="id_estado" onchange="javascript: document.forms['id_form_recurso'].submit()">
+                            <option value="0">Todos</option>
+                            {% for e in filtro_estados %}
+                                <option value="{{ e.id }}" {% if e.id == estado_selected %}selected{% endif %}>{{ e.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </fieldset>
+            </div>
+            {% if recursos %}
+    		    <div title="Imprimir" class="btn_print">
+    		       <input type="submit" title="Versão para impressão" class="btn_print" name="acao" value="1"  />
+    		    </div>
+    		    <div title="Exportar para Excel" class="btn_excel">
+    		       <input type="submit" name="acao" value="2"  />
+    		    </div>
+            {% endif %}
+		</form>
+	</div>
+</div>
+{% if recursos %}
+    <table id="tbl_relatorio">
+    <tr>
+        {#<th>ID</th>#}
+        <th>Contrato</th>
+        <th>OS</th>
+        {% if not estado_selected or estado_selected == '0' %}
+            <th>Est. OS</th>
+        {% endif %}
+        <th>Data Ini.</th>
+        <th>Data Fim</th>
+        <th>Projeto</th>
+        <th>Descrição</th>
+        <th>Referente</th>
+        <th>Unidade</th>
+        <th>Preço unitário</th>
+        <th><span title="Quantidade de recurso contratrado.">Qtd</span></th>
+        <th>Custo mensal sem imposto</th>
+        <th>Custo mensal com imposto</th>
+        <th>Meses pagos</th>
+        <th>Ref.</th>
+        <th>Total sem imposto</th>
+        <th>Total com imposto</th>
+        <th>Nota fiscal</th>
+        <th>Termo</th>
+    <tr>
+    {% for r in recursos %}
+       <tr>
+         {#<td><a href="{% url 'admin:rede_recurso_change' r.id %}">{{ r.id }}</a></td>#}
+         <td><a href="{% url 'admin:outorga_contrato_change' r.planejamento.os.contrato_id %}">{{ r.planejamento.os.contrato.numero }}</a></td>
+         <td class="td_os"><span><a href="{% url 'admin:outorga_ordemdeservico_change' r.planejamento.os_id %}">{{ r.planejamento.os }}</a></td>
+         {% if not estado_selected or estado_selected == '0' %}
+            <td class="td_estado_os"><span>{{ r.planejamento.os.estado|default:'-' }}</span></td>
+         {% endif %}
+         <td><span>{{ r.planejamento.os.data_inicio|date:"d/m/Y" }}</span></td>
+         <td><span>{{ r.planejamento.os.data_rescisao|date:"d/m/Y" }}</span></td>
+    	 <td>{{ r.planejamento.projeto }}</td>
+    	 <td>{{ r.planejamento.tipo }}</td>
+    	 <td>{{ r.planejamento.referente }}</td>
+    	 <td>{{ r.planejamento.unidade }}</td>
+    	 <td class="td_v_unit"><span>{{ r.planejamento.valor_unitario|moeda }}</span></td>
+    	 <td>{{ r.planejamento.quantidade }}</td>
+    	 <td class="td_v_simp"><span>{{ r.valor_mensal_sem_imposto|moeda }}</span></td>
+    	 <td class="td_v_cimp"><span>{{ r.valor_imposto_mensal|moeda }}</span></td>
+    	 <td><a href="{% url 'admin:rede_recurso_change' r.id %}">{{ r.quantidade }}</a></td>
+    	 <td class="td_ref"><span>{{r.mes_referencia|default:"-"}} / {{r.ano_referencia|default:"-"}}</span></td>
+    	 <td class="td_t_simp"><span>{{ r.total_sem_imposto|moeda }}</span></td>
+    	 <td class="td_t_geral"><span>{{ r.total_geral|moeda }}</span></td>
+    	 <td><a href="{% url 'admin:financeiro_pagamento_change' r.pagamento_id %}">{{ r.pagamento.protocolo.num_documento }}</a></td>
+    	 <td class="td_termo"><span>{{ r.pagamento.termo }}</span></td>
+       </tr>
+    {% endfor %}
+    </table>
+{% else %}
+    <table border="0" repeat="1">
+        <tr><td><br><br>Não foram encontrados dados para a exibição.</td></tr>
+    </table>
+{% endif %}
+{% endblock %}

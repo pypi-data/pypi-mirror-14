@@ -1,0 +1,208 @@
+{% extends "base.pdf" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+
+{% load proto_tags %}
+{% load static %}
+{% load l10n %}
+
+{% block size %} a4 {% endblock %}
+{% block background %}background-image: url('media:{{papelaria.papel_timbrado_retrato_a4}}');{% endblock %}
+{% block top %} {{papelaria.retrato_a4_margem_superior|default:0.5|unlocalize}}{% endblock %}
+{% block bottom %} {{papelaria.retrato_a4_margem_inferior|default:0.5|unlocalize}}{% endblock %}
+
+{% block extrastyle %}
+ body {
+    position:relative;
+    margin: 0;
+    padding: 0;
+    width:100%;
+    height:100%;
+ }
+ #conteudo {
+    font-family: Arial;
+    font-size:0.6em;
+    position:relative;
+    padding:0;
+    margin:0;
+ }
+ h1 {
+    font-family: Arial;
+    font-size:1.5em;
+ }
+
+
+ #conteudo {
+    margin: 0;
+    width: 100%;
+    word-wrap:break-word;
+ }
+ #conteudo .fieldset {
+    border: 1px lightgray solid;
+    padding: 5px 10px 0 10px;
+    margin-bottom: 10px;
+    margin-left: 10px;
+ }
+ #conteudo .legend_item_titulo {
+    margin-bottom: 5px;
+    font-weight:bold;
+    
+ }
+ 
+ #conteudo h4 {
+    font-size:14px;
+    background-color: lightgray;
+    padding-top: 3px;
+    padding-left: 3px;
+ }
+ .div_item_conteudo_interno, .div_item_ocorrencia, .div_item_servicos, .div_item_arquivos {
+    margin-bottom:10px;
+ }
+ 
+ .div_item_ocorrencia .div_item_label, 
+ .div_item_ocorrencia .div_item_conteudo,
+ .div_item_servicos .div_item_label, 
+ .div_item_servicos .div_item_conteudo,
+ .div_item_arquivos .div_item_label, 
+ .div_item_arquivos .div_item_conteudo
+ {
+    display: inline-table;
+    page-break-inside:auto;
+ }
+ .div_item_conteudo {
+    width: 100%;
+    vertical-align: top;
+ }
+ .div_item_conteudo ul {
+    margin: 0 0 0 15px;
+    padding: 0;
+    vertical-align: top;
+ }
+ .div_item_memorandos, .div_item_tickets, .div_item_patrimonios {
+    display: inline-table;
+    width: 33%;
+ }
+ .div_item_arquivo_nome, .div_item_arquivo_tamanho, .div_item_arquivo_palavra {
+    display: inline-table;
+    margin-right:20px;
+ }
+ 
+ .div_item_label {
+    font-weight:bold;
+    width: 100px;
+    margin-bottom:7px;
+    vertical-align: top;
+ }
+ .div_item_label_arquivos {
+    font-weight:bold;
+    width: 80px;
+    margin-bottom:7px;
+    vertical-align: top;
+ }
+
+
+{% endblock %}
+{% block content %}
+<h1 repeat="1">Relatório do repositório {{data_de}} {{data_de|default:''|date:'d/M/Y'}}</h1>
+
+<div id="conteudo">
+{% for g in grupos %}
+    <h4>{{g.entidade}} {% if g.nome %} - {{g.nome}}{% endif %}{% if g.natureza %} - {{g.natureza}}{% endif %}</h4>
+    {% for r in g.repositorios %}
+    <div class="fieldset">
+        <div class="legend_item_titulo">{{r.data_ocorrencia}} - {{r.estado}}</div>
+        <div class="div_item">
+            <div class="div_item_ocorrencia">
+                <div class="div_item_label">Ocorrência:</div>
+                <div class="div_item_conteudo">{{r.ocorrencia|linebreaksbr}}</div>
+            </div>
+            <div class="div_item_servicos">
+                <div class="div_item_label">Serviços:</div>
+                <div class="div_item_conteudo">
+                    {% for s in r.servicos %}
+                        {{s.nome}}
+                        {% if s.first and not s.last %}
+                        &nbsp;-&nbsp;
+                        {% endif %}
+                        {% empty %} --- 
+                    {% endfor %}
+                 </div>
+            </div>
+            {% if r.memorandos or r.tickets or r.patrimonios %}
+                <div class="div_item_conteudo_interno">
+                    <div class="div_item_memorandos">
+                        <div class="div_item_label">Memorandos:</div>
+                        <div class="div_item_conteudo">
+                            {% for m in r.memorandos %}
+                                {% if forloop.first %}
+                                    <ul>
+                                {% endif %}
+                                <li>{{m}}</li>
+                                {% if forloop.last %}
+                                    </ul>
+                                {% endif %}
+                                {% empty %} --- {% endfor %}
+                        </div>
+                    </div>
+                    <div class="div_item_tickets">
+                        <div class="div_item_label">OTRS:</div>
+                        <div class="div_item_conteudo">
+                            {% for m in r.tickets %}
+                                {% if forloop.first %}
+                                    <ul>
+                                {% endif %}
+                                <li>{{m}}</li>
+                                {% if forloop.last %}
+                                    </ul>
+                                {% endif %}
+                                {% empty %} --- {% endfor %}
+                        </div>
+                    </div>
+                    <div class="div_item_patrimonios">
+                        <div class="div_item_label">Patrimônios:</div>
+                        <div class="div_item_conteudo">
+                            {% for p in r.patrimonios %}
+                                {% if forloop.first %}
+                                    <ul>
+                                {% endif %}
+                                <li>{{p}}</li>
+                                {% if forloop.last %}
+                                    </ul>
+                                {% endif %}
+                                {% empty %} --- {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            {% if r.anexos %}
+                <div class="div_item_arquivos">
+                    <div class="div_item_label_arquivos">Arquivos:</div>
+                    <div class="div_item_conteudo">
+                        {% for a in r.anexos %}
+                            {% if a and a.nome %}
+                                {% if forloop.first %}
+                                    <ul style="page-break-inside:auto;">
+                                {% endif %}
+                                <li>
+                                    <div class="div_item_arquivo_nome">{{a.nome}}</div>
+                                    <div class="div_item_arquivo_tamanho">({{a.tamanho}} KBytes)</div>
+                                    <div class="div_item_arquivo_palavra">{{a.palavras_chave}}</div>
+                                </li>
+                                {% if forloop.last %}
+                                    </ul>
+                                {% endif %}
+                            {% endif %}
+                        {% empty %} --- {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+{% endfor %}
+</div>
+{% endblock %}

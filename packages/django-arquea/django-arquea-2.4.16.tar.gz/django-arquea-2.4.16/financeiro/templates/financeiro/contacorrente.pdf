@@ -1,0 +1,99 @@
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load static %}
+{% load l10n %}
+<html xmlns="http://www.w3.org/1999/xhtml" lang="pt-br" xml:lang="pt-br" >
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <link rel="stylesheet" type="text/css" href="static:css/pdf_weasy.css">
+<style>
+@page {
+  size: a3;
+  background-image: url('media:{{papelaria.papel_timbrado_retrato_a3}}');
+  background-position: center top;
+  background-size: 100% 102%;
+  background-repeat:no-repeat;
+  margin-top:0;
+  margin-right:1cm;
+  margin-bottom:1cm;
+  margin-left:0;
+  padding: {{papelaria.retrato_a3_margem_superior|default:0.5|unlocalize}}cm 1cm {{papelaria.retrato_a3_margem_inferior|default:0.5|unlocalize}}cm 1cm;
+
+  @bottom-right {
+    content: 'Pág ' counter(page);
+    white-space: pre;
+    color: grey;
+    vertical-align: bottom;
+    font-family: Arial;
+    font-size: 0.7em;
+    margin-bottom: 0.8cm;
+  } 
+} 
+
+ body {
+    margin: 0;
+    padding: 0;
+    width:100%;
+    height:100%;
+    font-family: Arial;
+    font-size:0.7em;
+}
+
+table {
+    width: 100%;
+    table-layout: fixed;
+}
+th {
+    background-color:#ddd;
+    font-weight: bold;
+    border-bottom:1px darkgray solid;
+}
+tr th { background-color: #eee; }
+tr td { padding-top:0.5em; }
+.th_data { width: 1.7cm; }
+.th_documento { width: 1.8cm; }
+.th_historico { width: 4.5cm; }
+.th_valor { width: 2.5cm; }
+.th_liberacao { width: 3.5cm; }
+.th_pagamento { width: 9cm; }
+.th_processo { width: 2.0cm; }
+.tr_saldo td{
+    background-color:#f7f7f7;
+}
+</style> 
+</head>
+<body>
+<h1 repeat="1">Panorama da conta corrente do projeto em {{ ano }}</h1>
+    <table border="0" repeat="1" cellpadding="5">
+    <thead>
+    <tr>
+        <th class="th_data">Data</th>
+        <th class="th_documento">Documento</th>
+        <th class="th_historico">Histórico</th>
+        <th class="th_valor">Valor</th>
+        <th class="th_liberacao">Liberação do financeiro</th>
+        <th class="th_pagamento">Pagamento</th>
+        <th class="th_processo">Processo</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for e in extrato %}
+        {% if e.saldo_mes_anterior %}
+           <tr class="tr_saldo"><td colspan=3><b>Saldo anterior</b></td><td><b>{{ e.saldo_mes_anterior|default:0|moeda }}</b></td><td colspan="4"></td></tr>
+        {% elif e.data_oper %}
+           <tr><td>{{ e.data_oper|date:"d/m/Y" }}</td><td>{{ e.cod_oper }}</td><td>{{ e.historico }}</td><td>{{ e.valor|moeda }}</td><td>{% if e.extrato_financeiro %}{{ e.extrato_financeiro.valor|moeda }}{% endif %}</td><td>{{ e.parciais }}</td><td>{{ e.extrato_financeiro.termo }}</td></tr>
+           {% if e.obs %}
+              <tr><td></td><td colspan="5"><b>Observação</b>: {{ e.obs }}</td></tr>
+           {% endif %}
+        {% elif e.saldo %}
+           <tr class="tr_saldo"><td colspan=3><b>Saldo ao final do mês {{ e.data|date:'m' }}</b></td><td><b>{{ e.saldo|moeda }}</b></td><td colspan="4"></td></tr>
+        {% endif %}
+    {% endfor %}
+    </tbody>
+    </table>
+</body>
+</html>

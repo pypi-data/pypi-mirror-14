@@ -1,0 +1,179 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n %}
+{% block extrahead %}
+<style>
+ .table-consolidado {
+    width: 700px;
+    border: 1px dotted;
+ }
+ #table-controle {
+    width: 900px;
+ }
+ #table-controle tr {
+    height: 25px;
+ }
+ #table-controle td {
+    padding: 0 4px 0 4px;
+ }
+ 
+ .table-consolidado td,
+ #table-controle td,
+ #table-controle th {
+    border-left: 1px dotted;
+    border-right: 1px dotted;
+    white-space:nowrap;
+    width: 50px;
+    vertical-align: middle;
+ }
+ #table-controle .th-obs {
+    width: 0;
+ }
+ 
+ #table-controle .td-obs {
+    white-space:normal;
+    width: 550px;   
+  }
+  
+ .table-consolidado th,
+ #table-controle th {
+    font-weight:bold;
+    border: 2px black solid ;
+ }
+ .tr-last-line td {
+    font-weight:bold;
+    border-top: 1px solid black;
+  } 
+  .tr-final-de-semana {
+    color: black;
+    background-color: #eee;
+  }
+  .tr-feriado {
+    color: red;
+    background-color: #ddd;
+  }
+  
+  @media print {
+        .btn_al_0, 
+        .btn_al_60,
+        .btn_add_ini_20,
+        .btn_add_end_20,
+        .btn_voltar_20,
+        .btn_avancar_20 {
+            display:none;
+        }
+  }
+</style>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'membro.views.mensal_func' %}">Controle de horário mensal</a>
+    </div>
+{% endblock %}
+{% block content %}
+  <h1>Controle de horário mensal</h1>
+  <h2>{{ membro.nome }}</h2>
+  <table class="table-consolidado">
+    <tr><th width="150px">Total de banco de horas</th><td>{{total_geral_banco_horas}}</td></tr>
+    <tr><th>Total de banco de férias</th><td>{{total_geral_ferias}}</td></tr>
+  </table>
+<h3>Total de horas por período</h3>
+<table class="table-consolidado">
+    <tr id="tr-first-line">
+        <th>Mês</th>
+        <th style="text-align:right;">Total de horas úteis</th>
+        <th style="text-align:right;">Total trabalhado</th>
+        <th style="text-align:right;">Total de dispensas</th>
+        <th style="text-align:right;">Total de ferias</th>
+        <th style="text-align:right;">Total banco de horas</th>
+    </tr>
+{% for m in meses %}
+    <tr>
+        <td>{{ m.mes }}/{{ m.ano }}</td>
+        <td style="text-align:right;">{{ m.total_horas_periodo }}</td>
+        <td style="text-align:right;">{{ m.total }}</td>
+        <td style="text-align:right;">{{ m.total_horas_dispensa }}</td>
+        <td style="text-align:right;">{{ m.total_horas_ferias }}</td>
+        <td style="text-align:right;">{{ m.total_banco_horas }}</td>
+     </tr>
+ {% endfor %}
+    <tr class="tr-last-line">
+        <td><strong>Total</strong></td>
+        <td style="text-align:right;">{{ total_horas_periodo }}</td>
+        <td style="text-align:right;">{{ total_horas }}</td>
+        <td style="text-align:right;">{{ total_horas_dispensa }}</td>
+        <td style="text-align:right;">{{ total_horas_ferias }}</td>
+        <td style="text-align:right;">{{ total_banco_horas }}</td>
+     </tr>
+</table>
+  
+<h3>Horas mensais do período</h3>  
+  
+{% for m in meses %}
+    <hr>
+    <h3>{{ m.mes }}/{{ m.ano }} ({{ m.total }})</h3>
+    <table id="table-controle">
+        <tr>
+            <th>dia</th>
+            <th>Entrada</th>
+            <th>Almoço</th>
+            <th>Saída</th>
+            <th>Total</th>
+            <th class='th-obs'>Obs</th>
+        </tr>
+    {% for dia in m.dias %}
+        {% if dia.controles %}
+    	    {% for d in dia.controles %}
+    	    <tr class="{% if dia.is_feriado %}tr-feriado{% elif dia.is_final_de_semana %}tr-final-de-semana{% endif %}" >
+    	        {% comment %} Junta as celulas de dias iguais {% endcomment %}
+    	        <td {% if forloop.first %}{% if dia.controles|length > 1 %}rowspan="{{dia.controles|length}}" style="vertical-align:middle;"{% endif %}{% else %}style="display:none"{% endif %}>{{ d.entrada|date:"d" }}</td>
+    	        <td>
+    	            <a href="{% url 'admin:membro_controle_change' d.id %}">{{ d.entrada|date:"d/m  H:i" }}</a></td>
+    	        <td>
+    	            {% if d.almoco or d.almoco == 0 %}
+    	                <a href="{% url 'admin:membro_controle_change' d.id %}">{{ d.almoco|default_if_none:"" }}</a>
+    	            {% endif %}
+    	        </td>
+    	        <td>
+    	            <a href="{% url 'admin:membro_controle_change' d.id %}">{{ d.saida|date:"d/m  H:i" }}</a>
+    	        </td>
+    	        <td {% if d.segundos > 72000 %}
+    	                    style="background-color:red;"
+    	                {% elif d.segundos < 0%}
+    	                    style="background-color:red;"
+    	                {% elif d.segundos > 43200 %}
+    	                    style="background-color:lightyellow;"
+    	                {% endif %}>
+    	            
+    	            <a href="{% url 'admin:membro_controle_change' d.id %}">{{ d.permanencia }}</a>
+    	        </td>
+    	        <td class='td-obs'><a href="{% url 'admin:membro_controle_change' d.id %}"><strong>{{ dia.obs }}</strong>{% if dia.obs %} - {% endif %}{{ d.obs|default_if_none:"" }}</a></td>
+    	    </tr>
+    	    {% endfor %}
+    	{% else %}
+            <tr class="{% if dia.is_feriado %}tr-feriado{% elif dia.is_final_de_semana %}tr-final-de-semana{% endif %}">
+                <td>{{ dia.dia|date:"d" }}</td>
+                <td colspan=5 class='td-obs'><strong>{{ dia.obs }}</strong></td>
+            </tr>
+    	{% endif %}
+    {% endfor %}
+        <tr class="tr-last-line">
+            <td colspan="4"><strong>Total</strong></td>
+            <td><strong>{{ m.total }}</strong></td>
+        </tr>
+    </table>
+    <p>
+    	<div><strong>Total de horas úteis = </strong>{{ m.total_horas_periodo }}</div>
+    	<div><strong>Total de horas de dispensas = </strong>{{ m.total_horas_dispensa }}</div>
+    	<div><strong>Total de horas de ferias = </strong>{{ m.total_horas_ferias }}</div>
+    	<div><strong>Total banco de horas = </strong>{{ m.total_banco_horas }}</div>
+    </p>
+ 
+{% endfor %}
+{% endblock %}

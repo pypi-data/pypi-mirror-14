@@ -1,0 +1,154 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load static %}
+{% load i18n %}
+{% block extrahead %}
+<style>
+ td a, th a {
+    line-height:inherit;
+ }
+ td p {
+    line-height:inherit;
+    margin:0;
+ }
+ .nivel1, .nivel2{
+    font-weight: bold;
+ }
+ .nivel1 {
+    border-top:2px black solid;
+    border-bottom:1px gray solid;
+ }
+ .nivel2 td {
+    border-collapse:separate;
+    border-bottom:1px lightgray solid;
+ }
+ .nivel2 td:nth-child(1), .nivel3 td:nth-child(1), .nivel4 td:nth-child(1) {
+    border-bottom:1px white solid;
+ }
+ 
+ .nivel3 td {
+    border-top:1px lightgray solid;
+ }
+ .nivel3 td:nth-child(2) {
+    border-top:1px white solid;
+ }
+ .nivel4 td:nth-child(2), .nivel4 td:nth-child(3), .nivel4 td:nth-child(4) {
+    border-top:1px white solid;
+ }
+
+ .nivel3 td {
+    border-collapse:separate;
+ }
+ 
+ .btn_pivot {
+    cursor:pointer;
+    margin:5px;
+    display:inline;
+ }
+</style>
+<script type="text/javascript">
+$(function(){
+   $(".btn_pivot").click(function(){
+       id = $(this).closest("tr").attr("id");
+       value = $(this).html();
+       if (value == '-') {
+            $("." + id).hide();
+            $(this).html('+')
+       } else {
+            $("." + id).show();
+            $(this).html('-')
+       }
+   });
+});
+</script>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'financeiro.views.relatorio_acordos' %}">Relatório de acordos</a>
+    </div>
+{% endblock %}
+{% block content %}
+<h1 repeat="1">Relatório de acordos da outorga {{ termo }}</h1>
+<div id="report_toolbar">
+    <form action="{% url 'financeiro.views.relatorio_acordos' 1 %}" method="GET" id="id_form_recurso">
+        <input type="hidden" value="{{ termo.id }}" name="termo" />
+        <input type="hidden" value="{{ rt }}" name="rt" />
+        <input type="hidden" value="{{ parcial }}" name="parcial" />
+        <div title="Imprimir" class="btn_print">
+           <input type="submit" title="Versão para impressão A4" class="btn_print" name="acao" value="1"  />
+        </div>
+    </form>
+</div>
+
+    <table border="0" cellpadding="5">
+    <tr>
+       <td width="4%"></td>
+       <td width="5%"></td>
+       <td width="3%"></td>
+       <td width="3%"></td>
+       <td width="22%"></td>
+       <td width="35%"></td>
+       <td width="9%"></td>
+       <td width="18%"></td>
+    </tr>
+    {% for ac in acordos %}
+		<tr class="nivel1" id="tr_1_{{forloop.counter}}">
+		   <td colspan="6"><div class="btn_pivot">{% if ac.itens|length_is:"0" %}&nbsp;{% else %}-{% endif %}</div>{{ ac.desc }}</td>
+		   <td colspan="2">
+		       {% if ac.totalGeralReal %}<p>{{ ac.totalGeralReal|moeda }}</p>{% endif %}
+	           {% if ac.totalGeralDolar %}<p>{{ ac.totalGeralDolar|moeda:0 }}</p>{% endif %}</td>
+		</tr>
+		{% for it in ac.itens %}
+		  <tr class="nivel2 tr_1_{{forloop.parentloop.counter}}" id="tr_2_{{forloop.parentloop.counter}}_{{forloop.counter}}">
+			  <td></td>
+			  <td colspan="5"><div class="btn_pivot">{% if it.pg|length_is:"0" %}&nbsp;{% else %}-{% endif %}</div>{{ it.desc }}</td>
+			  <td colspan="2">
+			      {% if it.totalReal %}<p>{{ it.totalReal|moeda }}</p>{% endif %}
+			      {% if it.totalDolar %}<p>{{ it.totalDolar|moeda:0 }}</p>{% endif %}
+			  </td>
+		  </tr>
+		  {% for pg in it.pg %}
+		      <tr class="{% cycle 'z1' 'z2' %} nivel3 tr_1_{{forloop.parentloop.parentloop.counter}} tr_2_{{forloop.parentloop.parentloop.counter}}_{{forloop.parentloop.counter}}" id="tr_3_{{forloop.parentloop.parentloop.counter}}_{{forloop.parentloop.counter}}_{{forloop.counter}}">
+			      <td>&nbsp;</td>
+			      <td>&nbsp;</td>
+			      <td>
+			         {% if pg.p.conta_corrente.imagem %}
+			             <span style="white-space:nowrap"><a href="{% get_media_prefix %}{{ pg.p.conta_corrente.imagem }}">CHQ {{ pg.p.conta_corrente.cod_oper|default:"-" }}</a></span>
+			         {% else %}
+			             {{ pg.p.conta_corrente.cod_oper|default:"-" }}
+			         {% endif %}
+			      </td>
+			      <td>{{ pg.p.conta_corrente.data_oper|date:"d/m"|default:"-" }}</td>
+			      <td>{{ pg.p.protocolo.descricao2 }}</td><td>{{ pg.p.protocolo.referente }}</td>
+			      <td><a href="{% url 'admin:financeiro_pagamento_change' pg.p.id %}">
+			          {% if pg.p.origem_fapesp and pg.p.origem_fapesp.item_outorga.natureza_gasto.modalidade.moeda_nacional == False %}
+			              {{ pg.p.valor_fapesp|moeda:0 }}
+			          {% else %}
+			              {{ pg.p.valor_fapesp|moeda }}
+			          {% endif %}
+			      </a></td>
+			      <td>[{{ pg.p.protocolo.tipo_documento.nome }} - <a href="{% url 'admin:protocolo_protocolo_change' pg.p.protocolo.id %}">{{ pg.p.protocolo.num_documento }}</a>]</td>
+		      </tr>
+              {% for a in pg.docs %}
+                 <tr class="nivel4 tr_1_{{forloop.parentloop.parentloop.parentloop.counter}} tr_2_{{forloop.parentloop.parentloop.parentloop.counter}}_{{forloop.parentloop.parentloop.counter}}" id="tr_4_{{forloop.counter}}">
+	                 <td>&nbsp;</td>
+	                 <td>&nbsp;</td>
+	                 <td {% if forloop.first %}style="border:inherit"{% endif %}>&nbsp;</td>
+	                 <td {% if forloop.first %}style="border:inherit"{% endif %}>&nbsp;</td>
+	                 <td>parc. {{ a.parcial }}/pag. {{ a.pagina }}</td>
+	                 <td>{{ a.tipo.nome }}</td>
+	                 <td>&nbsp;</td>
+	                 <td>{% if a.arquivo %}<a href="{{ a.arquivo.url }}">arquivo</a>{% endif %}</td>
+                 </tr>
+	          {% endfor %}
+	       {% endfor %}
+		{% endfor %}
+    {% endfor %}
+    </table>
+{% endblock %}

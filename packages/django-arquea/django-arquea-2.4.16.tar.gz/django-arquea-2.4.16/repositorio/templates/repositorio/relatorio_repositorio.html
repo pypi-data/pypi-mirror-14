@@ -1,0 +1,297 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n admin_modify admin_static %}
+{% block extrahead %}
+<script type="text/javascript" src="{{STATIC_URL}}js/selects.js"></script>
+<link rel="stylesheet" type="text/css" href="{% static "css/jquery-ui.min.css" %}" />
+<script type="text/javascript" src="{% static "js/jquery-ui.min.js" %}"></script>
+<script type="text/javascript" src="{% static "js/datepicker-pt-BR.js" %}"></script>
+
+<link rel="stylesheet" type="text/css" href="{% static "css/base-print.css" %}" />
+<style>
+#form_filtro #id_marca {
+}
+#form_filtro #div_filtro_datas {
+    display:table; 
+    padding:0;
+ }
+#form_filtro #div_filtro_datas div {
+    display:table-row; 
+    padding:0;
+ }
+#form_filtro #div_filtro_datas #div_filtro_datas_de,
+#form_filtro #div_filtro_datas #div_filtro_datas_ate {
+    display:table-cell; 
+    padding:0; 
+ }
+#form_filtro #div_filtro_datas #div_filtro_datas_ate {
+    padding-left:65px;
+}
+  
+
+ #conteudo {
+    margin: 0;
+    width: 100%;
+    word-break: break-all;
+ }
+ #conteudo fieldset {
+    padding: 10px;
+    margin-bottom: 20px;
+    margin-left: 10px;
+ }
+ #conteudo h4 {
+    font-size:14px;
+    background-color: lightgray;
+    padding-top: 3px;
+    padding-left: 3px;
+ }
+ .div_item_conteudo_interno, .div_item_ocorrencia, .div_item_servicos, .div_item_arquivos {
+    margin-bottom:10px;
+ }
+ 
+ .div_item_ocorrencia .div_item_label, 
+ .div_item_ocorrencia .div_item_conteudo,
+ .div_item_servicos .div_item_label, 
+ .div_item_servicos .div_item_conteudo,
+ .div_item_arquivos .div_item_label, 
+ .div_item_arquivos .div_item_conteudo
+ {
+    display: inline-table;
+ }
+ .div_item_conteudo {
+    width: 88%;
+ }
+ .div_item_conteudo li {
+    margin-left:15px;
+ }
+ 
+ .div_item_ocorrencia .div_item_conteudo {
+    word-break: break-word;
+ }
+ 
+ .div_item_memorandos, .div_item_tickets, .div_item_patrimonios {
+    display: inline-table;
+    width: 33%;
+ }
+ 
+ .table_item_conteudo {
+    border:0;
+    margin:0;
+    padding:0;
+    display:block;
+ }
+ .td_item_arquivo_nome, .td_item_arquivo_tamanho, .td_item_arquivo_palavra {
+    margin-right:20px;
+    border: 0;
+ }
+.td_item_arquivo_nome {
+ }
+.td_item_arquivo_nome a {
+    line-height: initial;
+ }
+.td_item_arquivo_tamanho {
+    width: 10%;
+}
+.td_item_arquivo_palavra {
+    width: 30%;
+}
+ 
+ .div_item_label {
+    font-weight:bold;
+    width: 100px;
+    margin-bottom:7px;
+ }
+ .legend_item_titulo {
+    font-weight:bold;
+ }
+ .legend_item_titulo a {
+    color:inherit;
+ }
+ 
+</style>
+<script>
+ $(document).ready(function(){
+    $( "#id_data_de" ).datepicker();
+    $( "#id_data_de" ).datepicker("option", "dateFormat", "yy-mm-dd");
+    {% if data_de %}
+        $( "#id_data_de" ).datepicker( "setDate", "{{data_de|default:''}}" );
+    {% endif %}
+    $( "#id_data_ate" ).datepicker();
+    $( "#id_data_ate" ).datepicker("option", "dateFormat", "yy-mm-dd");
+    {% if data_de %}
+        $( "#id_data_ate" ).datepicker( "setDate", "{{data_ate|default:''}}" );
+    {% endif %}
+ });
+</script>
+{% endblock %}
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+        <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+        <a href="{% url 'repositorio.views.relatorio_repositorio' %}">Relatório do Repositório</a>
+    </div>
+{% endblock %}
+{% block content %}
+<h1 repeat="1">Relatório do repositório {{data_de}} {{data_de|default:''|date:'d/M/Y'}}</h1>
+{% if qtd_grupos > 0 %}
+    <div id="report_toolbar">
+        <form action="{% url 'repositorio.views.relatorio_repositorio' 1 %}" method="GET" id="id_form_recurso">
+            <input type="hidden" name="entidade" value="{{ entidade|default:'' }}" />
+            <input type="hidden" name="natureza" value="{{ natureza|default:'' }}" />
+            <input type="hidden" name="servico" value="{{ servico|default:'' }}" />
+            <input type="hidden" name="data_de" value="{{ data_de|default:'' }}" />
+            <input type="hidden" name="data_ate" value="{{ data_ate|default:'' }}" />
+            <div title="Imprimir" class="btn_print">
+                 <input type="submit" title="Versão para impressão A4" class="btn_print" name="acao" value="1"  />
+            </div>
+        </form>
+    </div>
+{% endif %}
+<div id="div_filtro">
+    <fieldset>
+        <legend><h3>Filtro</h3></legend>
+        <form method="GET" id="form_filtro">
+        <div>
+            <fieldset style="padding-right:10px;">
+                <legend>Tipo do repositório:</legend>
+                <div>
+                    <label for="id_tipo">Entidade:</label>
+                    <select name="entidade" id="id_entidade" onchange="ajax_repositorio_tipo_nomes(this.value);">
+                        <option value="0" {% if entidade == '0' %}selected{% endif %}>Todos</option>
+                        {% for e in filtro_entidades %}
+                            <option value="{{ e.id }}" {% if e.id|safe == entidade %}selected{% endif %}>{{ e }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="id_nome">Grupo:</label>
+                    <select name="nome" id="id_nome">
+                        <option value="" {% if nome == '' %}selected{% endif %}>Todos</option>
+                        {% for e in filtro_nomes %}
+                            <option value="{{ e.nome }}" {% if e.nome|safe == nome %}selected{% endif %}>{{ e.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </fieldset>
+            <fieldset style="padding-right:10px;">
+                <div>
+                    <label for="id_natureza">Natureza:</label>
+                    <select name="natureza" id="id_natureza">
+                        <option value="0" {% if natureza == '0'%}selected{% endif %}>Todos</option>
+                        {% for m in filtro_naturezas %}
+                            <option value="{{ m.id }}" {% if m.id|safe == natureza %}selected{% endif %}>{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="id_servico">Serviço:</label>
+                    <select name="servico" id="id_servico">
+                        <option value="0" {% if servico == '0'%}selected{% endif %}>Todos</option>
+                        {% for m in filtro_servicos %}
+                            <option value="{{ m.id }}" {% if m.id|safe == servico %}selected{% endif %}>{{ m }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div id="div_filtro_datas">
+                    <div>
+                        <div id="div_filtro_datas_de">
+                            <label for="id_data_de" style="display:inline; margin-right:28px;">De:</label>
+                            <input name="data_de" id="id_data_de" style="display:inline" value="{{data_de|default:''}}" />
+                        </div>
+                        <div  id="div_filtro_datas_ate">
+                            <label for="id_data_ate" style="display:inline">Ate:</label>
+                            <input name="data_ate" id="id_data_ate"  style="display:inline" value="{{data_ate|default:''}}" />
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
+        </div>
+        <br />
+        <div id="div_submit">
+            <input type="submit" value="Enviar">
+        </div>
+        </form>
+    </fieldset>
+</div>
+<div style="clear:both;"></div>
+<div id="conteudo">
+{% for g in grupos %}
+    <h4>{{g.entidade}} {% if g.nome %} - {{g.nome}}{% endif %}{% if g.natureza %} - {{g.natureza}}{% endif %}</h4>
+    {% for r in g.repositorios %}
+    <fieldset>
+        <legend class="legend_item_titulo">
+            <a href="{% url 'admin:repositorio_repositorio_change' r.id %}">
+                <span id="span_repositorio_{{r.id}}">{{r.data_ocorrencia}} - {{r.estado}}</span>
+            </a>
+        </legend>
+        <div class="div_item">
+            <div class="div_item_ocorrencia">
+                <div class="div_item_label">Ocorrência:</div>
+                <div class="div_item_conteudo">{{r.ocorrencia|linebreaksbr}}</div>
+            </div>
+            <div class="div_item_servicos">
+                <div class="div_item_label">Serviços:</div>
+                <div class="div_item_conteudo">
+                    {% for s in r.servicos %}
+                        {{s.nome}}
+                        {% if not forloop.last %}&nbsp; / &nbsp;{% endif %}
+                        {% empty %} --- 
+                    {% endfor %}
+                 </div>
+            </div>
+            {% if r.memorandos or r.tickets or r.patrimonios %}
+                <div class="div_item_conteudo_interno">
+                    <div class="div_item_memorandos">
+                        <div class="div_item_label">Memorandos:</div>
+                        <div class="div_item_conteudo">
+                            <ul>
+                            {% for m in r.memorandos %}<li>{{m}}</li>{% empty %} --- {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="div_item_tickets">
+                        <div class="div_item_label">OTRS:</div>
+                        <div class="div_item_conteudo">
+                            <ul>
+                            {% for m in r.tickets %}<li>{{m}}</li>{% empty %} --- {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="div_item_patrimonios">
+                        <div class="div_item_label">Patrimônios:</div>
+                        <div class="div_item_conteudo">
+                            <ul>
+                            {% for p in r.patrimonios %}<li>{{p}}</li>{% empty %} --- {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+            {% if r.anexos %}
+                <div class="div_item_arquivos">
+                    <div class="div_item_label">Arquivos:</div>
+                    <table class="div_item_conteudo table_item_conteudo">
+                        {% for a in r.anexos %}
+                            <tr>
+                                <td class="td_item_arquivo_nome">
+                                    <a href="{{a.path}}">
+                                        {{a.nome}}
+                                    </a>
+                                </td>
+                                <td class="td_item_arquivo_tamanho">({{a.tamanho}} KBytes)</td>
+                                <td class="td_item_arquivo_palavra">{{a.palavras_chave}}</td>
+                            </tr>
+                        {% empty %} --- {% endfor %}
+                    </table>
+                </div>
+            {% endif %}
+        </div>
+    </fieldset>
+    {% endfor %}
+{% endfor %}
+</div>
+{% endblock %}

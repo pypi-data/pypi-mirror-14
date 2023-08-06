@@ -1,0 +1,234 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load proto_tags %}
+{% load i18n proto_tags admin_static %}
+{% load l10n %}
+{% load static %}
+{% block extrahead %}
+{% get_static_prefix as STATIC_PREFIX %}
+ 
+<link rel="stylesheet" type="text/css" href="{% static "css/jquery-ui.min.css" %}" />
+<link rel="stylesheet" type="text/css" href="{% static "css/colorpicker.css" %}" />
+
+<script type="text/javascript" src="{% static "js/jquery-ui.min.js" %}"></script>
+<script type="text/javascript" src="{% static "js/colorpicker.js" %}"></script>
+<script type="text/javascript" src="{% static "js/planta_baixa.js" %}"></script>
+
+<style>
+    #wrap-form { display: inline-block; }
+    #icons { display: inline-block; }
+    #icons img {
+        width:30px;
+        height:35px;
+        margin:-10px;
+    }
+
+    #planta_container { position:relative; min-width: 1345px; }
+    #planta_container hr { color:black; margin:15px 0 15px 0; }
+    #planta_container #objects_wrapper { position:relative; display:inline-block; border:1px lightgray solid; padding:10px; }
+    #planta_container #draggable_wrapper { 
+        position:relative; 
+        display:inline-block; 
+        margin-left:30px; 
+        vertical-align:top; 
+        margin-left:30px; 
+        border:4px double lightgray;
+        width:930px;
+        height:510px;
+    }
+    #planta_container #draggable_wrapper #datacenter_wrapper { position:relative; border:5px solid lightgray; }
+
+    .draggable { 
+        padding: 0px;
+        margin: 0;
+        font-size: .9em;
+        -webkit-box-sizing:border-box;
+        -moz-box-sizing:border-box;
+        box-sizing:border-box;
+    }
+    .draggable-content { margin:5px; text-align:center;}
+    .draggable-content .obj_drag_title {font-weight:bold;}
+  
+    /* Form do Datacenter */
+    #dc_w, #dc_h { display:inline-block;}
+    #div_dc_objs #div_dc_msg {color:red;}
+    #div_dc_objs .input_drag_value { width:30px;}
+    #div_dc_objs .span_obj_title { width:65px; display:inline-block; vertical-align: text-bottom; margin-bottom:2px; }
+    .span_obj_title a:link { color: black; text-decoration: none; }
+    .span_obj_title a:visited { color: black; text-decoration: none; }
+    .span_obj_title a:hover { color: black; text-decoration: underline; }
+    .span_obj_title a:active { color: black; text-decoration: underline; }
+  
+    /* Form dos objetos */
+    /* Lista dos objetos */
+    .li_obj { background: #fff; list-style-type: none; vertical-align: text-bottom;}
+    .li_obj .span_obj_title { width:65px; display:inline-block; vertical-align: text-bottom; margin-bottom:2px;}
+    .li_obj input[type=text] { vertical-align: inherit; }
+  
+    .li_obj .input_drag_value { width:30px;}
+    .li_obj .input_color_picker { width:45px; margin: 0 0 0 10px;}
+    .li_obj .input_desc { width:45px; margin: 0 0 0 10px;}
+    .li_obj .addlink {
+        clear:both;
+        float:none;
+        padding: 0;
+        margin: 0;
+        background: url({% static "img/admin/icon_addlink.gif" %}) 0 .2em no-repeat;
+        display: inline-block;
+        width: 15px;
+        border: 0;
+        vertical-align: middle;
+    }
+    .li_obj .deletelink {
+        clear:both;
+        float:none;
+        padding: 0;
+        margin: 0 0 0 2px;
+        background: url({% static "img/admin/icon_deletelink.gif" %}) 0 .2em no-repeat;
+        display: inline-block;
+        width: 13px;
+        border: 0;
+        vertical-align: middle;
+    }
+    .icon_width,.icon_height {
+        display: inline-block;
+        width: 16px;
+        height:20px;
+        position:relative;
+        border: 0;
+        margin: 0 0 0 10px;
+    }
+    .icon_width { background: url({% static "img/icon_width_alfa.png" %}) 0 .25em no-repeat; }
+    .icon_height { background: url({% static "img/icon_height_alfa.png" %}) 0 .25em no-repeat; }
+    .icon_width.disabled { background: url({% static "img/icon_width_alfa_disabled.png" %}) 0 .25em no-repeat; }
+    .icon_height.disabled  { background: url({% static "img/icon_height_alfa_disabled.png" %}) 0 .25em no-repeat; }
+    
+    .ui-spinner-button  { display:inline-block; }
+    .ui-spinner  { border:0; }
+    
+    #div_submit_container { position:relative;height:100px; padding-top:15px; }
+    #input_submit { margin: 0 5px 0 5px;}
+  </style>
+{% endblock %}
+{% block breadcrumbs %}
+	{% if not is_popup %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">
+        {% trans "Home" %}
+      </a>
+       &rsaquo;
+       <a href="/patrimonio/planta_baixa_edit"> 
+        Diagrama de Planta baixa - Racks
+      </a>
+    </div>
+	{% endif %}
+{% endblock %}
+{% block content %}
+
+<h1>Diagrama de Planta Baixa</h1>
+<div id="wrap-form">
+	{% if not todos_dcs %}
+	   <p>É necessário adicionar os Data Centers para habilitar a edição da planta baixa.</p>
+	   <p><a href="{% url "admin:patrimonio_plantabaixadatacenter_add" %}" target="_blank">Clique aqui para adicionar.</a></p>
+	{% else %}
+        <div id="div_filtro" style="margin:20px 0 20px 0;">
+            <fieldset>
+                <legend>Filtro</legend>
+                <form id="form_racks" method="GET" style="margin-right:20px;">
+                    <span class="span_obj_title">Data Centers</span>
+                    <select name="dc" onchange="this.form.submit();">
+                    <option value="-">--------</option>
+                    {% for dc in todos_dcs %}
+                       <option value="{{ dc.id }}" {% if request.GET.dc == dc.id|lower %}selected{% endif %}>{{ dc.nome|default:'' }}</option>
+                    {% endfor %}
+                    </select>
+                </form>
+                </form>
+            </fieldset>
+        </div>
+    {% endif %}
+</div>
+{% if request.GET.dc %}
+<div id="icons">
+    <a href="{{ request.get_full_path  }}&pdf=2" class="printlink"><img src="{{ STATIC_URL }}img/icon-pdf.png" title="Exportar para PDF." /></a>
+</div>
+<form method="POST">
+{% csrf_token %}
+<input type="hidden" name="obj_length" value="{{objetos|length}}" />
+<input type="hidden" name="dc_id" value="{{dc.id}}" />
+<div id="planta_container">
+    <div id="objects_wrapper">
+        <div id="div_dc_objs">
+            <span class="span_obj_title">Data center</span>
+            <div class="icon_height" title="Altura"></div>
+            <input type="hidden" id="dc_h" name="dc_h" class="input_drag_value spinner_height_dc" value="{{dc.h}}" readonly />
+            <div class="icon_width" title="Largura"></div>
+            <input type="hidden" id="dc_w" name="dc_w" class="input_drag_value spinner_width_dc" value="{{dc.w}}" readonly />
+        </div>
+        <hr />
+        <ul>
+            {% for r in objetos %}
+                <li id="li_obj_{{forloop.counter0}}" class="li_obj">
+                    <input type="hidden" id="obj_patrimonio_id_{{forloop.counter0}}" name="obj_patrimonio_id_{{forloop.counter0}}" value="{{r.patrimonio_id|default:''}}" />
+                    <input type="hidden" id="obj_posicao_id_{{forloop.counter0}}" name="obj_posicao_id_{{forloop.counter0}}" value="{{r.posicao.id|default:''}}" />
+                    <input type="hidden" id="obj_objeto_id_{{forloop.counter0}}" name="obj_objeto_id_{{forloop.counter0}}" value="{{r.objeto.id|default:''}}" />
+                    <input type="hidden" id="obj_x_id_{{forloop.counter0}}" name="obj_x_id_{{forloop.counter0}}" class="input_drag_value" value="{{r.posicao.x}}" />
+                    <input type="hidden" id="obj_y_id_{{forloop.counter0}}" name="obj_y_id_{{forloop.counter0}}" class="input_drag_value" value="{{r.posicao.y}}" />
+                    
+                    <span class="span_obj_title" style="width:65px;display:inline-block;">
+                        {% if r.objeto %}
+                            <a href="{% url "admin:patrimonio_plantabaixaobjeto_change" r.objeto.id %}" target="_blank"> {{r.posicao.objeto.titulo|default:r.nome|default:'sem_titulo'}}</a>
+                        {% elif r.patrimonio_id %}
+                            <a href="{% url "admin:patrimonio_patrimonio_change" r.patrimonio_id %}" target="_blank">{{r.nome|default:'sem_titulo'}}</a>
+                        {% else %}
+                             {{r.posicao.objeto.titulo|default:r.nome|default:'sem_titulo'}}
+                        {% endif %}
+                    </span>
+                    <div class="icon_height {% if r.posicao == '' %}disabled{% endif %}" id="icon_height_{{forloop.counter0}}" title="Altura"></div>
+                    
+                    <input type="hidden" id="obj_h_id_{{forloop.counter0}}" name="obj_h_id_{{forloop.counter0}}" class="input_drag_value spinner_height {% if r.posicao == '' %}disabled{% endif %}" value="{{r.posicao.h}}" readonly />
+                    
+                    <div class="icon_width {% if r.posicao == '' %}disabled{% endif %}" id="icon_width_{{forloop.counter0}}" title="Largura"></div>
+                    <input type="hidden" id="obj_w_id_{{forloop.counter0}}" name="obj_w_id_{{forloop.counter0}}" class="input_drag_value spinner_width {% if r.posicao == '' %}disabled{% endif %}" value="{{r.posicao.w}}" readonly />
+                    
+                    <input type="text" maxlength="6" size="6" class="input_color_picker" id='color_picker_{{forloop.counter0}}' name="obj_cor_id_{{forloop.counter0}}" value="{{r.cor|default:''}}" style="background:#{{r.posicao.cor}};" title="Cor" {% if r.posicao == '' %}disabled=true{% endif %} />
+                    <input type="text" maxlength="80" size="10" class="input_desc" id='obj_desc_{{forloop.counter0}}' name='obj_desc_{{forloop.counter0}}' value="{{r.desc|default:''}}" title="Descrição" {% if r.posicao == '' %}disabled=true{% endif %} />
+                    
+                    {% if r.posicao %}
+                        <input type="button" onclick="delete_obj(this, '{{forloop.counter0}}', '{{r.posicao.objeto.titulo|default:r.nome}}');" class="deletelink"  title="Remover objeto." />
+                    {% else %}
+                        <input type="button" onclick="add_obj(this, '{{forloop.counter0}}', '{{r.posicao.objeto.titulo|default:r.nome}}');" class="addlink"  title="Adicionar objeto." />
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+        <div>
+            <p><a href="{% url "admin:patrimonio_plantabaixaobjeto_add" %}" target="_blank">Adicionar novo objeto.</a></p>
+        </div>
+    </div>
+    
+    <div id="draggable_wrapper">
+        <div id="datacenter_wrapper" style="width:{{dc.w|unlocalize}}px; height:{{dc.h|unlocalize}}px;">
+            {% for r in objetos %}
+                {% if r.posicao %}
+                    <div id="obj_drag_id_{{forloop.counter0}}" class="draggable ui-widget-content" style="position:absolute;top:{{r.posicao.y|unlocalize}}px;left:{{r.posicao.x|unlocalize}}px;width:{{r.posicao.w|unlocalize}}px;height:{{r.posicao.h|unlocalize}}px;background:#{{r.posicao.cor}};">
+                        <div class="draggable-content">
+                          <p class="obj_drag_title"> {{r.posicao.objeto.titulo|default:r.nome}}</p>
+                          <p id="obj_drag_desc_{{forloop.counter0}}" class="obj_drag_desc"> {{r.posicao.descricao|default:''}}</p>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+<div id="div_submit_container">
+    <input type="submit" id="input_submit" value="Salvar" />
+</div>
+</form>
+{% endif %}
+{% endblock %}

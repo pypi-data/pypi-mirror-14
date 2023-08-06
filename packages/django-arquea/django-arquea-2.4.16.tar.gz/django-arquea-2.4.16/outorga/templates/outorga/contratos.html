@@ -1,0 +1,235 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+{% endcomment %}
+{% load i18n %}
+{% load static from staticfiles %}
+{% block extrahead %}
+<style>
+    #div_filtro {
+        width: 750px;
+        clear:both;
+        margin-left:25px;
+    }
+    #form_filtro {
+        display:table-row;
+    }
+    #form_filtro select {
+        min-width: 135px;
+    } 
+    
+    #form_filtro div {
+        display:table-cell;
+        padding-right:15px;
+        padding-left:15px;
+    }
+    #form_filtro div div{
+        display:table-row;
+        
+    }
+    #form_filtro label {
+        display:table-cell;
+    }
+    #form_filtro input, 
+    #form_filtro select {
+        display:table-cell;
+        margin-left:10px;
+    }
+    #form_filtro #id_marca {
+    }
+    
+    #form_filtro #div_submit {
+        vertical-align:bottom;
+    }
+    .img_arquivo {
+        width:25px;
+    }
+    .tbl_conteudo_contrato {
+        width:100%;
+        margin: 0;
+        border: 0;
+        padding: 0;
+    }
+    .tbl_conteudo_contrato td a,
+    .tbl_conteudo_contrato td {
+        line-height: 13px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+    }
+    .tbl_conteudo_contrato>tbody>tr>td {
+        border: 0;
+    }
+    .tbl_conteudo_contrato .th_contrato_inicio { width: 9%; }
+    .tbl_conteudo_contrato .th_contrato_termino { width: 9%; }
+    .tbl_conteudo_contrato .th_contrato_numero { width: 57%; }
+    .tbl_conteudo_contrato .th_contrato_arquivo { width: 22%; }
+    .tbl_conteudo_contrato .th_contrato_novacao { width: 7%; }
+    
+    .div_entidades {
+        margin:2%;
+        width:96%;
+    }
+    
+    .div_entidade {
+        font-size:15px;
+        font-weight: bold;
+        padding:8px;
+        padding-top:16px;
+    }
+    .div_entidade_contrato {
+        border:1px lightgray solid;
+        padding: 3px 5px;
+    }
+    .tr_conteudo_contrato_header {
+        background-color:lightgray;
+        font-weight:bold;
+        border:1px black solid;
+        margin:20px;
+    }
+    
+    .tr_contrato {
+        border: 1px lightgray solid;
+    }
+    .div_conteudo_os {
+        padding-left:20px;
+    }
+    .tbl_conteudo_os {
+        width:100%;
+        margin: 0;
+        border: 0;
+        padding: 0;
+    }
+    .tr_conteudo_os_header {
+        background-color:#efefef;
+        font-weight:bold;
+        border:1px black solid; 
+    }
+    
+    .tbl_conteudo_os .th_os_inicio { width: 7%; }
+    .tbl_conteudo_os .th_os_termino { width: 7%; }
+    .tbl_conteudo_os .th_os_osname { width: 15%; }
+    .tbl_conteudo_os .th_os_descr { width: 43%; }
+    .tbl_conteudo_os .th_os_arquivo { width: 21%; }
+    .tbl_conteudo_os .th_os_estado { width: 7%; }
+    
+</style>
+<script type="text/javascript" src="{% static "js/selects.js" %}"></script>
+{% endblock %}
+
+{% block breadcrumbs %}
+    <div class="breadcrumbs">Você está em: 
+      <a href="../../">{% trans "Home" %}</a> &rsaquo; 
+      <a href="{% url 'outorga.views.contratos' %}">Contratos por entidade</a>
+    </div>
+{% endblock %}
+{% block content %}
+{% load proto_tags admin_static %}
+{% load static %}
+{% get_static_prefix as STATIC_PREFIX %}
+<h1 repeat="1">Contratos por entidade</h1>
+
+
+{% if entidades %}
+    <div id="report_toolbar">
+        <form action="{% url 'outorga.views.contratos' 1 %}" method="GET" id="id_form_recurso">
+            <input type="hidden" name="entidade" value="{{entidade.id}}" >
+            <input type="hidden" name="estadoos" value="{{estadoos.id}}" >
+            <div title="Imprimir" class="btn_print">
+               <input type="submit" title="Versão para impressão" class="btn_print" name="acao" value="1"  />
+            </div>
+        </form>
+    </div>
+{% endif %}
+<div id="div_filtro">
+    <fieldset>
+        <legend>Filtro</legend>
+        <form method="GET" id="form_filtro">
+            <div>
+                <div>
+                    <label for="id_entidade">Entidade:</label>
+                    <select name="entidade" id="id_entidade">
+                      <option value="0">Todos</option>
+                      {% for e in filtro_entidades %}
+                         <option value="{{ e.id }}" {% if e.id == entidade.id %}selected{% endif %}>{{ e.sigla }}</option>
+                      {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="id_estado_os">Estado da OS:</label>
+                    <select name="estadoos" id="id_estado_os">
+                      <option value="0">Todos</option>
+                      {% for e in filtro_estadoos %}
+                         <option value="{{ e.id }}" {% if e.id == estadoos.id %}selected{% endif %}>{{ e.nome }}</option>
+                      {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div id="div_submit">
+                <input type="submit" value="Enviar">
+            </div>
+        </form>
+     </fieldset>
+</div>
+
+{% if entidades %}
+    <div class="div_entidades">
+        {% for e in entidades %}
+            <div class="div_entidade"><strong>{{ e.entidade }}</strong></div>
+            <div class="div_entidade_contrato" style="border:1px lightgray solid; padding: 3px 5px;">
+                {% for c in e.contratos %}
+                    <table class="tbl_conteudo_contrato">
+                        <tr class="tr_conteudo_contrato_header">
+                            <th class="th_contrato_inicio">Início</th>
+                            <th class="th_contrato_termino">Término</th>
+                            <th class="th_contrato_numero">Contrato</a></th>
+                            <th class="th_contrato_arquivo">Arquivos</th>
+                            <th class="th_contrato_novacao">Renovação</th>
+                        </tr>
+                        <tr>
+                            <td>{{ c.inicio|date:"d/m/Y" }}</td>
+                            <td>{{ c.termino|date:"d/m/Y" }}</td>
+                            <td><a href="{% url 'admin:outorga_contrato_change' c.id %}">{{ c.numero }}</a></td>
+                            <td>{% if c.arquivo %}<a href="{{ c.arquivo.url }}"><img class="img_arquivo" title="{{ a.arquivo.name }}" src="{{ STATIC_PREFIX }}img/icon_arquivo_documento.png" ></a>{% endif %}</td>
+                            <td>{% if c.auto %}Auto{% endif %}</td>
+                        </tr>
+                    </table>
+                    {% if c.os %}
+                        <div class="div_conteudo_os">
+                            <table class="tbl_conteudo_os">
+                                {% for os in c.os %}
+                                    {% if forloop.first %}
+                                        <tr class="tr_conteudo_os_header">
+                                            <th class="th_os_inicio">Início</th>
+                                            <th class="th_os_termino">Término</th>
+                                            <th class="th_os_osname">OS</a></th>
+                                            <th class="th_os_descr">Descrição</th>
+                                            <th class="th_os_arquivo">Arquivos</th>
+                                            <th class="th_os_estado">Estado</th>
+                                            <th class=""></th>
+                                        </tr>
+                                    {% endif %}
+                                    <tr>
+                                        <td>{{ os.data_inicio|date:"d/m/Y" }}</td>
+                                        <td>{{ os.data_rescisao|date:"d/m/Y" }}</td>
+                                        <td><a href="{% url 'admin:outorga_ordemdeservico_change' os.id %}">{{ os.tipo.nome }} - {{ os.numero }}</a></td>
+                                        <td width="30%">{{ os.descricao }}</td>
+                                        <td>{% for a in os.arquivos.all %}<a href="{{ a.arquivo.url }}" target="_blank"><img class="img_arquivo" title="{{ a.arquivo.name }}" src="{{ STATIC_PREFIX }}img/icon_arquivo_documento.png" ></a> {% endfor %}</td>
+                                        <td>{{ os.estado }}</td>
+                                        <td></td>
+                                    </tr>
+                                {% endfor %}
+                            </table>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <table border="0" repeat="1" cellpadding="5">
+        <tr><td>Não foram encontrados dados para a exibição.</td></tr>
+    </table>
+{% endif %}
+{% endblock %}
