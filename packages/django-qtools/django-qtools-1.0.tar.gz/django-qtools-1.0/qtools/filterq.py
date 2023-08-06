@@ -1,0 +1,160 @@
+# from django.core.exceptions import FieldDoesNotExist
+from django.db import models
+from django.db.models.fields import FieldDoesNotExist
+from django.db.models.query import QuerySet
+from django.db.models.query_utils import Q
+from django.utils import six
+
+from .exceptions import NoOpFilterException
+from .lookups import get_lookup_adapter
+from .utils import assert_is_valid_lookup_for_field, django_instances_to_keys, get_field_simple_datatype, RELATED_FIELD_CLASSES
+
+
+def filter_by_q(objs, q, lookup_adapter=None):
+    """Filters a collection of objects by a Q object"""
+    return [obj for obj in objs if obj_matches_q(obj, q)]
+
+
+def obj_matches_q(obj, q, lookup_adapter=None):
+    """Returns True if obj matches the Q object"""
+
+    does_it_match = q.connector == q.AND
+    for child in q.children:
+        if isinstance(child, Q):
+            r = obj_matches_q(obj, child)
+        else:
+            filter_statement, value = child
+            r = obj_matches_filter_statement(obj, filter_statement, value, lookup_adapter)
+
+        if q.connector == q.AND and not r:
+            does_it_match = False
+            break
+        elif q.connector == q.OR and r:
+            does_it_match = True
+            break
+
+    if q.negated:
+        does_it_match = not does_it_match
+
+    return does_it_match
+
+
+def get_model_attribute_values_by_db_name(obj, name, lookup_adapter=None):
+    """
+    Get the model instance attribute value
+
+    Handles traversing relationships as well as simple attributes.
+
+    Always returns a collection of values.
+    """
+    model = type(obj)
+    field = get_obj_field(obj, name)
+    if isinstance(field, RELATED_FIELD_CLASSES):
+        accessor_name = field.get_accessor_name()
+        try:
+            manager_or_obj = getattr(obj, accessor_name)
+        except model.DoesNotExist:
+            return []
+
+        if isinstance(manager_or_obj, models.Manager):
+            return list(manager_or_obj.all())
+        else:
+            return [manager_or_obj]
+    else:
+        try:
+            return [getattr(obj, name)]
+        except model.DoesNotExist:
+            return []
+
+
+def get_obj_field(obj, field_name):
+    model = type(obj)
+    opts = model._meta
+    try:
+        field = opts.get_field(field_name)
+    except FieldDoesNotExist:
+        field = opts._name_map[field_name][0]
+    return field
+
+
+def obj_matches_filter_statement(obj, filter_statement, filter_value, lookup_adapter=None):
+    """Returns True if the obj matches the filter statement"""
+    next_token, remaining_statement_parts = process_filter_statement(filter_statement)
+    lookup = remaining_statement_parts[-1]
+    lookup_adapter = get_lookup_adapter(lookup_adapter)
+    if obj is None:
+        return lookup_adapter.evaluate_lookup(lookup, obj, filter_value)
+
+    # handle QuerySets as arguments
+    if isinstance(filter_value, QuerySet):
+        filter_value = list(filter_value)
+
+    if not isinstance(obj, models.Model):
+        raise Exception("Only django objects supported for now. %s" % str(obj))
+
+    if len(remaining_statement_parts) == 1:
+        model = type(obj)
+        field = get_obj_field(obj, next_token)
+        simple_type = get_field_simple_datatype(field)
+        assert_is_valid_lookup_for_field(lookup, simple_type)
+
+        try:
+            filter_value, lookup = prep_filter_value_and_lookup(model, filter_statement, filter_value)
+        except NoOpFilterException:
+            return True
+
+        obj_values = get_model_attribute_values_by_db_name(obj, next_token)
+        obj_values = django_instances_to_keys(*obj_values)
+        for obj_value in obj_values:
+            r = lookup_adapter.evaluate_lookup(lookup, obj_value, filter_value, simple_type)
+            if r:
+                return True
+        return False
+
+    obj_values = get_model_attribute_values_by_db_name(obj, next_token)
+
+    for o in obj_values:
+        result = obj_matches_filter_statement(o, '__'.join(remaining_statement_parts), filter_value)
+        if result:
+            return True
+
+
+def prep_filter_value_and_lookup(model, filter_statement, filter_value):
+    """
+    Prepare the filter value and lookup for execution in python
+
+    Converts the filter value to the appropriate type to be used in the query.
+
+    In some cases the lookup may be changed to a more appropriate lookup.
+    """
+    qs = model.objects.filter(**{filter_statement: filter_value})
+
+    try:
+        lookup = qs.query.where.children[0].lookup_name
+        if lookup == 'in' and isinstance(filter_value, six.string_types):
+            pass
+        else:
+            filter_value = qs.query.where.children[0].rhs
+
+    except IndexError:
+        # the filter was a no-op
+        raise NoOpFilterException()
+    return filter_value, lookup
+
+
+def process_filter_statement(filter_statement):
+    """splits a filter statement and identifies the lookup"""
+    statement_parts = filter_statement.split('__')
+
+    lookup = statement_parts[-1]
+    lookup_adapter = get_lookup_adapter()
+    if lookup not in lookup_adapter.SUPPORTED_LOOKUP_NAMES:
+        lookup = 'exact'
+
+    if lookup != statement_parts[-1]:
+        statement_parts.append(lookup)
+
+    next_token = statement_parts[0]
+    del statement_parts[0]
+
+    return next_token, statement_parts
