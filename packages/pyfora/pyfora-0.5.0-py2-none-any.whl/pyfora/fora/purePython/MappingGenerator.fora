@@ -1,0 +1,65 @@
+/***************************************************************************
+   Copyright 2015 Ufora Inc.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+****************************************************************************/
+
+class {
+   member @subgenerator;
+   member @mapper;
+
+   operator new(subgenerator, mapper) {
+       return createInstance(MappingGenerator,
+                             @subgenerator: subgenerator,
+                             @mapper: mapper);
+       }
+   (@unnamed_args: (subgenerator, mapper), *args) {
+       return createInstance(MappingGenerator,
+                             @subgenerator: subgenerator,
+                             @mapper: mapper);
+       };
+
+   canSplit: fun(*args) { return @subgenerator.canSplit(); };
+
+   split: fun(*args) { 
+      match (@subgenerator.split()) with 
+         (PyTuple(...) t) { PyTuple((MappingGenerator(t[0], @mapper), 
+                                     MappingGenerator(t[1], @mapper))) }
+         (PyNone(...) res) { res }
+         (...) { throw TypeError(PyString(
+             "Generator 'split' operations should return None or a pair of Generators")); }
+         ; 
+      };
+
+   associativeReduce: fun(valSoFar, add, merge, empty) {
+      __without_stacktrace_augmentation { 
+         return @subgenerator.associativeReduce(
+            valSoFar,
+            fun(lst, val) { 
+               __without_stacktrace_augmentation { 
+                  add(lst, @mapper(val)) 
+                  }
+               },
+            merge,
+            empty
+            )
+         }
+      };
+
+   operator iterator() {
+      for x in @subgenerator
+         yield @mapper(x)
+      };
+
+   mixin PyGeneratorBase;
+   };
