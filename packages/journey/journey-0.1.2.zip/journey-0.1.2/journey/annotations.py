@@ -1,0 +1,2 @@
+consumer = '@@CONSUMER'
+provider = '@@PROVIDER'
