@@ -1,0 +1,642 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>coaster.views &mdash; coaster 0.5.0-dev documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.5.0-dev',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="coaster 0.5.0-dev documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <link media="only screen and (max-device-width: 480px)" href="../../_static/small_flask.css" type= "text/css" rel="stylesheet" />
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">coaster 0.5.0-dev documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for coaster.views</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">wraps</span>
+<span class="kn">import</span> <span class="nn">urlparse</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="p">(</span><span class="n">session</span> <span class="k">as</span> <span class="n">request_session</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">url_for</span><span class="p">,</span> <span class="n">json</span><span class="p">,</span> <span class="n">Response</span><span class="p">,</span>
+    <span class="n">redirect</span><span class="p">,</span> <span class="n">abort</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">current_app</span><span class="p">,</span> <span class="n">render_template</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">werkzeug.routing</span> <span class="kn">import</span> <span class="n">BuildError</span>
+<span class="kn">from</span> <span class="nn">werkzeug.exceptions</span> <span class="kn">import</span> <span class="n">BadRequest</span>
+<span class="kn">from</span> <span class="nn">werkzeug.wrappers</span> <span class="kn">import</span> <span class="n">Response</span> <span class="k">as</span> <span class="n">WerkzeugResponse</span>
+
+<span class="n">__jsoncallback_re</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s">r&#39;^[a-z$_][0-9a-z$_]*$&#39;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">I</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">__index_url</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">url_for</span><span class="p">(</span><span class="s">&#39;index&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">BuildError</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">script_root</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s">&#39;/&#39;</span>
+
+
+<span class="k">def</span> <span class="nf">__clean_external_url</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">url</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;http://&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">url</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;https://&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">url</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;//&#39;</span><span class="p">):</span>
+        <span class="c"># Do the domains and ports match?</span>
+        <span class="n">pnext</span> <span class="o">=</span> <span class="n">urlparse</span><span class="o">.</span><span class="n">urlsplit</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="n">preq</span> <span class="o">=</span> <span class="n">urlparse</span><span class="o">.</span><span class="n">urlsplit</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pnext</span><span class="o">.</span><span class="n">port</span> <span class="o">!=</span> <span class="n">preq</span><span class="o">.</span><span class="n">port</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s">&#39;&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">pnext</span><span class="o">.</span><span class="n">hostname</span> <span class="o">==</span> <span class="n">preq</span><span class="o">.</span><span class="n">hostname</span> <span class="ow">or</span> <span class="n">pnext</span><span class="o">.</span><span class="n">hostname</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&#39;.&#39;</span> <span class="o">+</span> <span class="n">preq</span><span class="o">.</span><span class="n">hostname</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="s">&#39;&#39;</span>
+    <span class="k">return</span> <span class="n">url</span>
+
+
+<div class="viewcode-block" id="get_current_url"><a class="viewcode-back" href="../../views.html#coaster.views.get_current_url">[docs]</a><span class="k">def</span> <span class="nf">get_current_url</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return the current URL including the query string as a relative path. If the app uses subdomains,</span>
+<span class="sd">    return an absolute path</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">current_app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;SERVER_NAME&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span>
+            <span class="c"># Check current hostname against server name, ignoring port numbers, if any (split on &#39;:&#39;)</span>
+            <span class="n">request</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s">&#39;HTTP_HOST&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">current_app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;SERVER_NAME&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]):</span>
+        <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">url</span>
+
+    <span class="n">url</span> <span class="o">=</span> <span class="n">url_for</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">endpoint</span><span class="p">,</span> <span class="o">**</span><span class="n">request</span><span class="o">.</span><span class="n">view_args</span><span class="p">)</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;QUERY_STRING&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">query</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">url</span> <span class="o">+</span> <span class="s">&#39;?&#39;</span> <span class="o">+</span> <span class="n">query</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">url</span>
+
+</div>
+<span class="n">__marker</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<div class="viewcode-block" id="get_next_url"><a class="viewcode-back" href="../../views.html#coaster.views.get_next_url">[docs]</a><span class="k">def</span> <span class="nf">get_next_url</span><span class="p">(</span><span class="n">referrer</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">external</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">session</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">__marker</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the next URL to redirect to. Don&#39;t return external URLs unless</span>
+<span class="sd">    explicitly asked for. This is to protect the site from being an unwitting</span>
+<span class="sd">    redirector to external URLs. Subdomains are okay, however.</span>
+
+<span class="sd">    This function looks for a ``next`` parameter in the request or in the session</span>
+<span class="sd">    (depending on whether parameter ``session`` is True). If no ``next`` is present,</span>
+<span class="sd">    it checks the referrer (if enabled), and finally returns either the provided</span>
+<span class="sd">    default (which can be any value including ``None``) or ``url_for(&#39;index&#39;)``.</span>
+<span class="sd">    If your app does not have a URL endpoint named ``index``, ``/`` is returned.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">session</span><span class="p">:</span>
+        <span class="n">next_url</span> <span class="o">=</span> <span class="n">request_session</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;next&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span> <span class="ow">or</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;next&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">next_url</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;next&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">next_url</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">external</span><span class="p">:</span>
+        <span class="n">next_url</span> <span class="o">=</span> <span class="n">__clean_external_url</span><span class="p">(</span><span class="n">next_url</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">next_url</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">next_url</span>
+
+    <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="n">__marker</span><span class="p">:</span>
+        <span class="n">usedefault</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">usedefault</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="k">if</span> <span class="n">referrer</span> <span class="ow">and</span> <span class="n">request</span><span class="o">.</span><span class="n">referrer</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">external</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">referrer</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">__clean_external_url</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">referrer</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">default</span> <span class="k">if</span> <span class="n">usedefault</span> <span class="k">else</span> <span class="n">__index_url</span><span class="p">())</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">default</span> <span class="k">if</span> <span class="n">usedefault</span> <span class="k">else</span> <span class="n">__index_url</span><span class="p">())</span>
+
+</div>
+<div class="viewcode-block" id="jsonp"><a class="viewcode-back" href="../../views.html#coaster.views.jsonp">[docs]</a><span class="k">def</span> <span class="nf">jsonp</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a JSON response with a callback wrapper, if asked for.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">),</span>
+        <span class="n">indent</span><span class="o">=</span><span class="bp">None</span> <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">is_xhr</span> <span class="k">else</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">callback</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;callback&#39;</span><span class="p">,</span> <span class="n">request</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;jsonp&#39;</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">callback</span> <span class="ow">and</span> <span class="n">__jsoncallback_re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">callback</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="s">u&#39;</span><span class="si">%s</span><span class="s">(&#39;</span> <span class="o">%</span> <span class="n">callback</span> <span class="o">+</span> <span class="n">data</span> <span class="o">+</span> <span class="s">u&#39;);&#39;</span>
+        <span class="n">mimetype</span> <span class="o">=</span> <span class="s">&#39;application/javascript&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">mimetype</span> <span class="o">=</span> <span class="s">&#39;application/json&#39;</span>
+    <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">mimetype</span><span class="o">=</span><span class="n">mimetype</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="RequestTypeError"><a class="viewcode-back" href="../../views.html#coaster.views.RequestTypeError">[docs]</a><span class="k">class</span> <span class="nc">RequestTypeError</span><span class="p">(</span><span class="n">BadRequest</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Exception that combines TypeError with BadRequest. Used by :func:`requestargs`.&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="RequestValueError"><a class="viewcode-back" href="../../views.html#coaster.views.RequestValueError">[docs]</a><span class="k">class</span> <span class="nc">RequestValueError</span><span class="p">(</span><span class="n">BadRequest</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Exception that combines ValueError with BadRequest. Used by :func:`requestargs`.&quot;&quot;&quot;</span>
+    <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="requestargs"><a class="viewcode-back" href="../../views.html#coaster.views.requestargs">[docs]</a><span class="k">def</span> <span class="nf">requestargs</span><span class="p">(</span><span class="o">*</span><span class="nb">vars</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decorator that loads parameters from request.values if not specified in the</span>
+<span class="sd">    function&#39;s keyword arguments. Usage::</span>
+
+<span class="sd">        @requestargs(&#39;param1&#39;, (&#39;param2&#39;, int), &#39;param3[]&#39;, ...)</span>
+<span class="sd">        def function(param1, param2=0, param3=None):</span>
+<span class="sd">            ...</span>
+
+<span class="sd">    requestargs takes a list of parameters to pass to the wrapped function, with</span>
+<span class="sd">    an optional filter (useful to convert incoming string request data into integers</span>
+<span class="sd">    and other common types). If a required parameter is missing and your function does</span>
+<span class="sd">    not specify a default value, Python will raise TypeError. requestargs recasts this</span>
+<span class="sd">    as :exc:`RequestTypeError`, which returns HTTP 400 Bad Request.</span>
+
+<span class="sd">    If the parameter name ends in ``[]``, requestargs will attempt to read a list from</span>
+<span class="sd">    the incoming data. Filters are applied to each member of the list, not to the whole</span>
+<span class="sd">    list.</span>
+
+<span class="sd">    If the filter raises a ValueError, this is recast as a :exc:`RequestValueError`,</span>
+<span class="sd">    which also returns HTTP 400 Bad Request.</span>
+
+<span class="sd">    Tests::</span>
+
+<span class="sd">        &gt;&gt;&gt; from flask import Flask</span>
+<span class="sd">        &gt;&gt;&gt; app = Flask(__name__)</span>
+<span class="sd">        &gt;&gt;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; @requestargs(&#39;p1&#39;, (&#39;p2&#39;, int), (&#39;p3[]&#39;, int))</span>
+<span class="sd">        ... def f(p1, p2=None, p3=None):</span>
+<span class="sd">        ...     return p1, p2, p3</span>
+<span class="sd">        ...</span>
+<span class="sd">        &gt;&gt;&gt; f(p1=1)</span>
+<span class="sd">        (1, None, None)</span>
+<span class="sd">        &gt;&gt;&gt; f(p1=1, p2=2)</span>
+<span class="sd">        (1, 2, None)</span>
+<span class="sd">        &gt;&gt;&gt; f(p1=&#39;a&#39;, p2=&#39;b&#39;)</span>
+<span class="sd">        (&#39;a&#39;, &#39;b&#39;, None)</span>
+<span class="sd">        &gt;&gt;&gt; with app.test_request_context(&#39;/?p2=2&#39;):</span>
+<span class="sd">        ...     f(p1=&#39;1&#39;)</span>
+<span class="sd">        ...</span>
+<span class="sd">        (&#39;1&#39;, 2, None)</span>
+<span class="sd">        &gt;&gt;&gt; with app.test_request_context(&#39;/?p3=1&amp;p3=2&#39;):</span>
+<span class="sd">        ...     f(p1=&#39;1&#39;, p2=&#39;2&#39;)</span>
+<span class="sd">        ...</span>
+<span class="sd">        (&#39;1&#39;, &#39;2&#39;, [1, 2])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">inner</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="n">namefilt</span> <span class="o">=</span> <span class="p">[(</span><span class="n">name</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="n">filt</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&#39;[]&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">filt</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">filt</span> <span class="ow">in</span>
+                <span class="p">[(</span><span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="k">else</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">vars</span><span class="p">]]</span>
+
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">decorated_function</span><span class="p">(</span><span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">filt</span><span class="p">,</span> <span class="n">is_list</span> <span class="ow">in</span> <span class="n">namefilt</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kw</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">request</span> <span class="ow">and</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">values</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">filt</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="n">is_list</span><span class="p">:</span>
+                                <span class="n">kw</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">getlist</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="n">kw</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">try</span><span class="p">:</span>
+                                <span class="k">if</span> <span class="n">is_list</span><span class="p">:</span>
+                                    <span class="n">kw</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">filt</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">getlist</span><span class="p">(</span><span class="n">name</span><span class="p">)]</span>
+                                <span class="k">else</span><span class="p">:</span>
+                                    <span class="n">kw</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">filt</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">values</span><span class="p">[</span><span class="n">name</span><span class="p">])</span>
+                            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                                <span class="k">raise</span> <span class="n">RequestValueError</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">RequestTypeError</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">decorated_function</span>
+    <span class="k">return</span> <span class="n">inner</span>
+
+</div>
+<div class="viewcode-block" id="load_model"><a class="viewcode-back" href="../../views.html#coaster.views.load_model">[docs]</a><span class="k">def</span> <span class="nf">load_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">parameter</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+        <span class="n">workflow</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">permission</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">addlperms</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decorator to load a model given a query parameter.</span>
+
+<span class="sd">    Typical usage::</span>
+
+<span class="sd">        @app.route(&#39;/&lt;profile&gt;&#39;)</span>
+<span class="sd">        @load_model(Profile, {&#39;name&#39;: &#39;profile&#39;}, &#39;profileob&#39;)</span>
+<span class="sd">        def profile_view(profileob):</span>
+<span class="sd">            # &#39;profileob&#39; is now a Profile model instance. The load_model decorator replaced this:</span>
+<span class="sd">            # profileob = Profile.query.filter_by(name=profile).first_or_404()</span>
+<span class="sd">            return &quot;Hello, %s&quot; % profileob.name</span>
+
+<span class="sd">    Using the same name for request and parameter makes code easier to understand::</span>
+
+<span class="sd">        @app.route(&#39;/&lt;profile&gt;&#39;)</span>
+<span class="sd">        @load_model(Profile, {&#39;name&#39;: &#39;profile&#39;}, &#39;profile&#39;)</span>
+<span class="sd">        def profile_view(profile):</span>
+<span class="sd">            return &quot;Hello, %s&quot; % profile.name</span>
+
+<span class="sd">    ``load_model`` aborts with a 404 if no instance is found. ``load_model`` also</span>
+<span class="sd">    recognizes queries to ``url_name`` of :class:`~coaster.sqlalchemy.BaseIdNameMixin`</span>
+<span class="sd">    instances and will automatically load the model. TODO: that should be handled by</span>
+<span class="sd">    the model, not here.</span>
+
+<span class="sd">    :param model: The SQLAlchemy model to query. Must contain a ``query`` object</span>
+<span class="sd">        (which is the default with Flask-SQLAlchemy)</span>
+
+<span class="sd">    :param attributes: A dict of attributes (from the URL request) that will be</span>
+<span class="sd">        used to query for the object. For each key:value pair, the key is the name of</span>
+<span class="sd">        the column on the model and the value is the name of the request parameter that</span>
+<span class="sd">        contains the data</span>
+
+<span class="sd">    :param parameter: The name of the parameter to the decorated function via which</span>
+<span class="sd">        the result is passed. Usually the same as the attribute. If the parameter name</span>
+<span class="sd">        is prefixed with &#39;g.&#39;, the parameter is also made available as g.&lt;parameter&gt;</span>
+
+<span class="sd">    :param workflow: If True, the method ``workflow()`` of the instance is</span>
+<span class="sd">        called and the resulting workflow object is passed to the decorated</span>
+<span class="sd">        function instead of the instance itself</span>
+
+<span class="sd">    :param kwargs: If True, the original request parameters are passed to the decorated</span>
+<span class="sd">        function as a ``kwargs`` parameter</span>
+
+<span class="sd">    :param permission: If present, ``load_model`` calls the</span>
+<span class="sd">        :meth:`~coaster.sqlalchemy.PermissionMixin.permissions` method of the</span>
+<span class="sd">        retrieved object with ``g.user`` as a parameter. If ``permission`` is not</span>
+<span class="sd">        present in the result, ``load_model`` aborts with a 403. ``g`` is the Flask</span>
+<span class="sd">        request context object and you are expected to setup a request environment</span>
+<span class="sd">        in which ``g.user`` is the currently logged in user. Flask-Lastuser does this</span>
+<span class="sd">        automatically for you. The permission may be a string or a list of strings,</span>
+<span class="sd">        in which case access is allowed if any of the listed permissions are available</span>
+
+<span class="sd">    :param addlperms: Iterable or callable that returns an iterable containing additional</span>
+<span class="sd">        permissions available to the user, apart from those granted by the models. In an app</span>
+<span class="sd">        that uses Lastuser for authentication, passing ``lastuser.permissions`` will pass</span>
+<span class="sd">        through permissions granted via Lastuser</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">load_models</span><span class="p">((</span><span class="n">model</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">parameter</span><span class="p">),</span>
+        <span class="n">workflow</span><span class="o">=</span><span class="n">workflow</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">kwargs</span><span class="p">,</span> <span class="n">permission</span><span class="o">=</span><span class="n">permission</span><span class="p">,</span> <span class="n">addlperms</span><span class="o">=</span><span class="n">addlperms</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="load_models"><a class="viewcode-back" href="../../views.html#coaster.views.load_models">[docs]</a><span class="k">def</span> <span class="nf">load_models</span><span class="p">(</span><span class="o">*</span><span class="n">chain</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decorator to load a chain of models from the given parameters. This works just like</span>
+<span class="sd">    :func:`load_model` and accepts the same parameters, with some small differences.</span>
+
+<span class="sd">    :param chain: The chain is a list of tuples of (``model``, ``attributes``, ``parameter``).</span>
+<span class="sd">        Lists and tuples can be used interchangeably. All retrieved instances are passed as</span>
+<span class="sd">        parameters to the decorated function</span>
+
+<span class="sd">    :param workflow: Like with :func:`load_model`, ``workflow()`` is called on the last</span>
+<span class="sd">        instance in the chain, and *only* the resulting workflow object is passed to the</span>
+<span class="sd">        decorated function</span>
+
+<span class="sd">    :param permission: Same as in :func:`load_model`, except</span>
+<span class="sd">        :meth:`~coaster.sqlalchemy.PermissionMixin.permissions` is called on every instance</span>
+<span class="sd">        in the chain and the retrieved permissions are passed as the second parameter to the</span>
+<span class="sd">        next instance in the chain. This allows later instances to revoke permissions granted</span>
+<span class="sd">        by earlier instances. As an example, if a URL represents a hierarchy such as</span>
+<span class="sd">        ``/&lt;page&gt;/&lt;comment&gt;``, the ``page`` can assign ``edit`` and ``delete`` permissions,</span>
+<span class="sd">        while the ``comment`` can revoke ``edit`` and retain ``delete`` if the current user</span>
+<span class="sd">        owns the page but not the comment</span>
+
+<span class="sd">    In the following example, load_models loads a Folder with a name matching the name in the</span>
+<span class="sd">    URL, then loads a Page with a matching name and with the just-loaded Folder as parent.</span>
+<span class="sd">    If the Page provides a &#39;view&#39; permission to the current user (`g.user`), the decorated</span>
+<span class="sd">    function is called::</span>
+
+<span class="sd">        @app.route(&#39;/&lt;folder_name&gt;/&lt;page_name&gt;&#39;)</span>
+<span class="sd">        @load_models(</span>
+<span class="sd">            (Folder, {&#39;name&#39;: &#39;folder_name&#39;}, &#39;folder&#39;),</span>
+<span class="sd">            (Page, {&#39;name&#39;: &#39;page_name&#39;, &#39;parent&#39;: &#39;folder&#39;}, &#39;page&#39;),</span>
+<span class="sd">            permission=&#39;view&#39;)</span>
+<span class="sd">        def show_page(folder, page):</span>
+<span class="sd">            return render_template(&#39;page.html&#39;, folder=folder, page=page)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">inner</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">decorated_function</span><span class="p">(</span><span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+            <span class="n">permissions</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="n">permission_required</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;permission&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">permission_required</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+                <span class="n">permission_required</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">permission_required</span><span class="p">])</span>
+            <span class="k">elif</span> <span class="n">permission_required</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">permission_required</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">permission_required</span><span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">models</span><span class="p">,</span> <span class="n">attributes</span><span class="p">,</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">chain</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+                    <span class="n">models</span> <span class="o">=</span> <span class="p">(</span><span class="n">models</span><span class="p">,)</span>
+                <span class="n">item</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">for</span> <span class="n">model</span> <span class="ow">in</span> <span class="n">models</span><span class="p">:</span>
+                    <span class="n">query</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">query</span>
+                    <span class="n">url_check</span> <span class="o">=</span> <span class="bp">False</span>
+                    <span class="n">url_key</span> <span class="o">=</span> <span class="n">url_name</span> <span class="o">=</span> <span class="bp">None</span>
+                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">attributes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                        <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="s">&#39;url_name&#39;</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s">&#39;url_id_attr&#39;</span><span class="p">):</span>
+                            <span class="n">url_key</span> <span class="o">=</span> <span class="n">v</span>
+                            <span class="n">url_name</span> <span class="o">=</span> <span class="n">kw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url_key</span><span class="p">)</span>
+                            <span class="n">parts</span> <span class="o">=</span> <span class="n">url_name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">request</span> <span class="ow">and</span> <span class="n">request</span><span class="o">.</span><span class="n">method</span> <span class="o">==</span> <span class="s">&#39;GET&#39;</span><span class="p">:</span>
+                                <span class="n">url_check</span> <span class="o">=</span> <span class="bp">True</span>
+                            <span class="k">try</span><span class="p">:</span>
+                                <span class="n">url_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                                <span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+                            <span class="n">query</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">model</span><span class="o">.</span><span class="n">url_id_attr</span><span class="p">:</span> <span class="n">url_id</span><span class="p">})</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+                                <span class="n">query</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">kw</span><span class="p">)})</span>
+                            <span class="k">else</span><span class="p">:</span>
+                                <span class="k">if</span> <span class="s">&#39;.&#39;</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+                                    <span class="n">first</span><span class="p">,</span> <span class="n">attrs</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                                    <span class="n">val</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">first</span><span class="p">)</span>
+                                    <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">):</span>
+                                        <span class="n">val</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+                                <span class="k">else</span><span class="p">:</span>
+                                    <span class="n">val</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">kw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
+                                <span class="n">query</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">val</span><span class="p">})</span>
+                    <span class="n">item</span> <span class="o">=</span> <span class="n">query</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                        <span class="c"># We found it, so don&#39;t look in additional models</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">abort</span><span class="p">(</span><span class="mi">404</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="s">&#39;redirect_view_args&#39;</span><span class="p">):</span>
+                    <span class="c"># This item is a redirect object. Redirect to destination</span>
+                    <span class="n">view_args</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">view_args</span><span class="p">)</span>
+                    <span class="n">view_args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">redirect_view_args</span><span class="p">())</span>
+                    <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url_for</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">endpoint</span><span class="p">,</span> <span class="o">**</span><span class="n">view_args</span><span class="p">),</span> <span class="n">code</span><span class="o">=</span><span class="mi">302</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">permission_required</span><span class="p">:</span>
+                    <span class="n">permissions</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">permissions</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">user</span><span class="p">,</span> <span class="n">inherited</span><span class="o">=</span><span class="n">permissions</span><span class="p">)</span>
+                    <span class="n">addlperms</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;addlperms&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+                    <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">addlperms</span><span class="p">):</span>
+                        <span class="n">addlperms</span> <span class="o">=</span> <span class="n">addlperms</span><span class="p">()</span> <span class="ow">or</span> <span class="p">[]</span>
+                    <span class="n">permissions</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">addlperms</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">g</span><span class="p">:</span>
+                    <span class="n">g</span><span class="o">.</span><span class="n">permissions</span> <span class="o">=</span> <span class="n">permissions</span>
+                <span class="k">if</span> <span class="n">url_check</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">url_name</span> <span class="o">!=</span> <span class="n">url_name</span><span class="p">:</span>
+                        <span class="c"># The url_name doesn&#39;t match.</span>
+                        <span class="c"># Redirect browser to same page with correct url_name.</span>
+                        <span class="n">view_args</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">view_args</span><span class="p">)</span>
+                        <span class="n">view_args</span><span class="p">[</span><span class="n">url_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">url_name</span>
+                        <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url_for</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">endpoint</span><span class="p">,</span> <span class="o">**</span><span class="n">view_args</span><span class="p">),</span> <span class="n">code</span><span class="o">=</span><span class="mi">302</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;g.&#39;</span><span class="p">):</span>
+                    <span class="n">parameter</span> <span class="o">=</span> <span class="n">parameter</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="n">parameter</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">parameter</span><span class="p">]</span> <span class="o">=</span> <span class="n">item</span>
+            <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;workflow&#39;</span><span class="p">):</span>
+                <span class="c"># Get workflow for the last item in the chain</span>
+                <span class="n">wf</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">workflow</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">permission_required</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">permission_required</span> <span class="o">&amp;</span> <span class="n">permissions</span><span class="p">):</span>
+                    <span class="n">abort</span><span class="p">(</span><span class="mi">403</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;kwargs&#39;</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="n">wf</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="n">kw</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="n">wf</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">permission_required</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">permission_required</span> <span class="o">&amp;</span> <span class="n">permissions</span><span class="p">):</span>
+                    <span class="n">abort</span><span class="p">(</span><span class="mi">403</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;kwargs&#39;</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="n">kwargs</span><span class="o">=</span><span class="n">kw</span><span class="p">,</span> <span class="o">**</span><span class="n">result</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">decorated_function</span>
+    <span class="k">return</span> <span class="n">inner</span>
+
+</div>
+<div class="viewcode-block" id="render_with"><a class="viewcode-back" href="../../views.html#coaster.views.render_with">[docs]</a><span class="k">def</span> <span class="nf">render_with</span><span class="p">(</span><span class="n">template</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">jsonp</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Decorator to render the wrapped method with the given template (or dictionary</span>
+<span class="sd">    of mimetype keys to templates, where the template is a string name of a template</span>
+<span class="sd">    file or a callable that returns a Response). The method&#39;s return value must be</span>
+<span class="sd">    a dictionary and is passed to the template as parameters. Callable templates get</span>
+<span class="sd">    a single parameter with the method&#39;s return value. Usage::</span>
+
+<span class="sd">        @app.route(&#39;/myview&#39;)</span>
+<span class="sd">        @render_with(&#39;myview.html&#39;)</span>
+<span class="sd">        def myview():</span>
+<span class="sd">            return {&#39;data&#39;: &#39;value&#39;}</span>
+
+<span class="sd">        @app.route(&#39;/myview_with_json&#39;)</span>
+<span class="sd">        @render_with(&#39;myview.html&#39;, json=True)</span>
+<span class="sd">        def myview_no_json():</span>
+<span class="sd">            return {&#39;data&#39;: &#39;value&#39;}</span>
+
+<span class="sd">        @app.route(&#39;/otherview&#39;)</span>
+<span class="sd">        @render_with({</span>
+<span class="sd">            &#39;text/html&#39;: &#39;otherview.html&#39;,</span>
+<span class="sd">            &#39;text/xml&#39;: &#39;otherview.xml&#39;})</span>
+<span class="sd">        def otherview():</span>
+<span class="sd">            return {&#39;data&#39;: &#39;value&#39;}</span>
+
+<span class="sd">        @app.route(&#39;/404view&#39;)</span>
+<span class="sd">        @render_with(&#39;myview.html&#39;)</span>
+<span class="sd">        def myview():</span>
+<span class="sd">            return {&#39;error&#39;: &#39;404 Not Found&#39;}, 404</span>
+
+<span class="sd">        @app.route(&#39;/headerview&#39;)</span>
+<span class="sd">        @render_with(&#39;myview.html&#39;)</span>
+<span class="sd">        def myview():</span>
+<span class="sd">            return {&#39;data&#39;: &#39;value&#39;}, 200, {&#39;X-Header&#39;: &#39;Header value&#39;}</span>
+
+<span class="sd">    When a mimetype is specified and the template is not a callable, the response is</span>
+<span class="sd">    returned with the same mimetype. Callable templates must return Response objects</span>
+<span class="sd">    to ensure the correct mimetype is set.</span>
+
+<span class="sd">    If a dictionary of templates is provided and does not include a handler for ``*/*``,</span>
+<span class="sd">    render_with will attempt to use the handler for (in order) ``text/html``, ``text/plain``</span>
+<span class="sd">    and the various JSON types, falling back to rendering the value into a unicode string.</span>
+
+<span class="sd">    If the method is called outside a request context, the wrapped method&#39;s original</span>
+<span class="sd">    return value is returned. This is meant to facilitate testing and should not be</span>
+<span class="sd">    used to call the method from within another view handler as the presence of a</span>
+<span class="sd">    request context will trigger template rendering.</span>
+
+<span class="sd">    Rendering may also be suspended by calling the view handler with ``_render=False``.</span>
+
+<span class="sd">    render_with provides JSON and JSONP handlers for the ``application/json``,</span>
+<span class="sd">    ``text/json`` and ``text/x-json`` mimetypes if ``json`` or ``jsonp`` is True</span>
+<span class="sd">    (default is False).</span>
+
+<span class="sd">    :param template: Single template, or dictionary of MIME type to templates. If the</span>
+<span class="sd">        template is a callable, it is called with the output of the wrapped function</span>
+<span class="sd">    :param json: Helper to add a JSON handler (default is False)</span>
+<span class="sd">    :param jsonp: Helper to add a JSONP handler (if True, also provides JSON, default is False)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">jsonp</span><span class="p">:</span>
+        <span class="n">templates</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;application/json&#39;</span><span class="p">:</span> <span class="n">jsonp</span><span class="p">,</span>
+            <span class="s">&#39;text/json&#39;</span><span class="p">:</span> <span class="n">jsonp</span><span class="p">,</span>
+            <span class="s">&#39;text/x-json&#39;</span><span class="p">:</span> <span class="n">jsonp</span><span class="p">,</span>
+            <span class="p">}</span>
+    <span class="k">elif</span> <span class="n">json</span><span class="p">:</span>
+        <span class="n">templates</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s">&#39;application/json&#39;</span><span class="p">:</span> <span class="n">jsonify</span><span class="p">,</span>
+            <span class="s">&#39;text/json&#39;</span><span class="p">:</span> <span class="n">jsonify</span><span class="p">,</span>
+            <span class="s">&#39;text/x-json&#39;</span><span class="p">:</span> <span class="n">jsonify</span><span class="p">,</span>
+            <span class="p">}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">templates</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">template</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+        <span class="n">templates</span><span class="p">[</span><span class="s">&#39;*/*&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">template</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">template</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">templates</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">template</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c"># pragma: no cover</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s">&quot;Expected string or dict for template&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="s">&#39;*/*&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">templates</span><span class="p">:</span>
+        <span class="n">templates</span><span class="p">[</span><span class="s">&#39;*/*&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">unicode</span>
+        <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="p">(</span><span class="s">&#39;text/html&#39;</span><span class="p">,</span> <span class="s">&#39;text/plain&#39;</span><span class="p">,</span> <span class="s">&#39;application/json&#39;</span><span class="p">,</span> <span class="s">&#39;text/json&#39;</span><span class="p">,</span> <span class="s">&#39;text/x-json&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">handler</span> <span class="ow">in</span> <span class="n">templates</span><span class="p">:</span>
+                <span class="n">templates</span><span class="p">[</span><span class="s">&#39;*/*&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">templates</span><span class="p">[</span><span class="n">handler</span><span class="p">]</span>
+                <span class="k">break</span>
+
+    <span class="k">def</span> <span class="nf">inner</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">decorated_function</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="c"># Check if we need to bypass rendering</span>
+            <span class="n">render</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s">&#39;_render&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+
+            <span class="c"># Get the result</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+            <span class="c"># Is the result a Response object? Don&#39;t attempt rendering</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="p">(</span><span class="n">Response</span><span class="p">,</span> <span class="n">WerkzeugResponse</span><span class="p">,</span> <span class="n">current_app</span><span class="o">.</span><span class="n">response_class</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="n">result</span>
+
+            <span class="c"># Did the result include status code and headers?</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                <span class="n">resultset</span> <span class="o">=</span> <span class="n">result</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">resultset</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">resultset</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">status_code</span> <span class="o">=</span> <span class="n">resultset</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">status_code</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">resultset</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="n">headers</span> <span class="o">=</span> <span class="n">resultset</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">headers</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">status_code</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="n">headers</span> <span class="o">=</span> <span class="bp">None</span>
+
+            <span class="c"># Find a matching mimetype between Accept headers and available templates</span>
+            <span class="n">use_mimetype</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">if</span> <span class="n">render</span> <span class="ow">and</span> <span class="n">request</span><span class="p">:</span>
+                <span class="n">mimetypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">m</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                    <span class="s">&#39;Accept&#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;;&#39;</span><span class="p">,</span> <span class="s">&#39;,&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="s">&#39;/&#39;</span> <span class="ow">in</span> <span class="n">m</span><span class="p">]</span>
+                <span class="n">use_mimetype</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">for</span> <span class="n">mimetype</span> <span class="ow">in</span> <span class="n">mimetypes</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">mimetype</span> <span class="ow">in</span> <span class="n">templates</span><span class="p">:</span>
+                        <span class="n">use_mimetype</span> <span class="o">=</span> <span class="n">mimetype</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="n">use_mimetype</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="s">&#39;*/*&#39;</span> <span class="ow">in</span> <span class="n">templates</span><span class="p">:</span>
+                        <span class="n">use_mimetype</span> <span class="o">=</span> <span class="s">&#39;*/*&#39;</span>
+
+            <span class="c"># Now render the result with the template for the mimetype</span>
+            <span class="k">if</span> <span class="n">use_mimetype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">templates</span><span class="p">[</span><span class="n">use_mimetype</span><span class="p">]):</span>
+                    <span class="n">rendered</span> <span class="o">=</span> <span class="n">templates</span><span class="p">[</span><span class="n">use_mimetype</span><span class="p">](</span><span class="n">result</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rendered</span><span class="p">,</span> <span class="n">Response</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">status_code</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="n">rendered</span><span class="o">.</span><span class="n">status_code</span> <span class="o">=</span> <span class="n">status_code</span>
+                        <span class="k">if</span> <span class="n">headers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="n">rendered</span><span class="o">.</span><span class="n">headers</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">rendered</span> <span class="o">=</span> <span class="n">current_app</span><span class="o">.</span><span class="n">response_class</span><span class="p">(</span>
+                            <span class="n">rendered</span><span class="p">,</span>
+                            <span class="n">status</span><span class="o">=</span><span class="n">status_code</span><span class="p">,</span>
+                            <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span>
+                            <span class="n">mimetype</span><span class="o">=</span><span class="n">use_mimetype</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">use_mimetype</span> <span class="o">!=</span> <span class="s">&#39;*/*&#39;</span><span class="p">:</span>
+                        <span class="n">rendered</span> <span class="o">=</span> <span class="n">current_app</span><span class="o">.</span><span class="n">response_class</span><span class="p">(</span>
+                            <span class="n">render_template</span><span class="p">(</span><span class="n">templates</span><span class="p">[</span><span class="n">use_mimetype</span><span class="p">],</span> <span class="o">**</span><span class="n">result</span><span class="p">),</span>
+                            <span class="n">status</span><span class="o">=</span><span class="n">status_code</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span>
+                            <span class="n">mimetype</span><span class="o">=</span><span class="n">use_mimetype</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">rendered</span> <span class="o">=</span> <span class="n">render_template</span><span class="p">(</span><span class="n">templates</span><span class="p">[</span><span class="n">use_mimetype</span><span class="p">],</span> <span class="o">**</span><span class="n">result</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">status_code</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">headers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="n">rendered</span> <span class="o">=</span> <span class="p">(</span><span class="n">rendered</span><span class="p">,</span> <span class="n">status_code</span><span class="p">,</span> <span class="n">headers</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">status_code</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                            <span class="n">rendered</span> <span class="o">=</span> <span class="p">(</span><span class="n">rendered</span><span class="p">,</span> <span class="n">status_code</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">rendered</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">result</span>
+        <span class="k">return</span> <span class="n">decorated_function</span>
+    <span class="k">return</span> <span class="n">inner</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  <div class="footer">
+    &copy; Copyright 2012-15, HasGeek.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>coaster.db &mdash; coaster 0.5.0-dev documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.5.0-dev',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="coaster 0.5.0-dev documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <link media="only screen and (max-device-width: 480px)" href="../../_static/small_flask.css" type= "text/css" rel="stylesheet" />
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">coaster 0.5.0-dev documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for coaster.db</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.exc</span> <span class="kn">import</span> <span class="n">IntegrityError</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm.exc</span> <span class="kn">import</span> <span class="n">NoResultFound</span>
+<span class="kn">from</span> <span class="nn">flask.ext.sqlalchemy</span> <span class="kn">import</span> <span class="n">SQLAlchemy</span> <span class="k">as</span> <span class="n">SQLAlchemyBase</span><span class="p">,</span> <span class="n">SignallingSession</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;SQLAlchemy&#39;</span><span class="p">,</span> <span class="s">&#39;db&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="CoasterSession"><a class="viewcode-back" href="../../db.html#coaster.db.CoasterSession">[docs]</a><span class="k">class</span> <span class="nc">CoasterSession</span><span class="p">(</span><span class="n">SignallingSession</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Custom session that provides additional helper methods.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="CoasterSession.add_and_commit"><a class="viewcode-back" href="../../db.html#coaster.db.CoasterSession.add_and_commit">[docs]</a>    <span class="k">def</span> <span class="nf">add_and_commit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">_instance</span><span class="p">,</span> <span class="o">**</span><span class="n">filters</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add and commit a new instance, gracefully handling failure in case a conflicting entry</span>
+<span class="sd">        is already in the database (which may occur due to parallel requests causing race</span>
+<span class="sd">        conditions in a production environment with multiple workers).</span>
+
+<span class="sd">        Returns the instance saved to database if no error occured, or loaded from database</span>
+<span class="sd">        using the provided filters if an error occured. If the filters fail to load from</span>
+<span class="sd">        the database, the original IntegrityError is re-raised, as it is assumed to imply</span>
+<span class="sd">        that the commit failed because of missing or invalid data, not because of a duplicate</span>
+<span class="sd">        entry.</span>
+
+<span class="sd">        Usage: ``db.session().add_and_commit(instance, **filters)`` where filters are the</span>
+<span class="sd">        parameters passed to ``Model.query.filter_by(**filters).one()`` to load the instance.</span>
+
+<span class="sd">        :param _instance: Instance to commit</span>
+<span class="sd">        :param filters: Filters required to load existing instance from the database</span>
+<span class="sd">            in case the commit fails (required)</span>
+<span class="sd">        :return: Instance that is in the database</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">begin_nested</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">_instance</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">_instance</span>
+        <span class="k">except</span> <span class="n">IntegrityError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">_instance</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="o">**</span><span class="n">filters</span><span class="p">)</span><span class="o">.</span><span class="n">one</span><span class="p">()</span>
+            <span class="k">except</span> <span class="n">NoResultFound</span><span class="p">:</span>  <span class="c"># Do not trap the other exception, MultipleResultsFound</span>
+                <span class="k">raise</span> <span class="n">e</span>
+
+
+<span class="c"># Provide a Flask-SQLAlchemy alternative that uses our custom session</span></div></div>
+<div class="viewcode-block" id="SQLAlchemy"><a class="viewcode-back" href="../../db.html#coaster.db.SQLAlchemy">[docs]</a><span class="k">class</span> <span class="nc">SQLAlchemy</span><span class="p">(</span><span class="n">SQLAlchemyBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Subclass of :class:`flask.ext.sqlalchemy.SQLAlchemy` that uses :class:`CoasterSession`,</span>
+<span class="sd">    providing additional methods in the database session.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="SQLAlchemy.create_session"><a class="viewcode-back" href="../../db.html#coaster.db.SQLAlchemy.create_session">[docs]</a>    <span class="k">def</span> <span class="nf">create_session</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Creates the session using :class:`CoasterSession`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">CoasterSession</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+</div></div>
+<span class="n">db</span> <span class="o">=</span> <span class="n">SQLAlchemy</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  <div class="footer">
+    &copy; Copyright 2012-15, HasGeek.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>

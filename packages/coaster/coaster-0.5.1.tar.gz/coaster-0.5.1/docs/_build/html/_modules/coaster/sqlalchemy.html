@@ -1,0 +1,771 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>coaster.sqlalchemy &mdash; coaster 0.5.0-dev documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.5.0-dev',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="coaster 0.5.0-dev documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <link media="only screen and (max-device-width: 480px)" href="../../_static/small_flask.css" type= "text/css" rel="stylesheet" />
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">coaster 0.5.0-dev documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for coaster.sqlalchemy</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">import</span> <span class="nn">simplejson</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">Column</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">DateTime</span><span class="p">,</span> <span class="n">Unicode</span><span class="p">,</span> <span class="n">UnicodeText</span><span class="p">,</span> <span class="n">CheckConstraint</span><span class="p">,</span> <span class="n">Numeric</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.sql</span> <span class="kn">import</span> <span class="n">select</span><span class="p">,</span> <span class="n">func</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.types</span> <span class="kn">import</span> <span class="n">UserDefinedType</span><span class="p">,</span> <span class="n">TypeDecorator</span><span class="p">,</span> <span class="n">TEXT</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm</span> <span class="kn">import</span> <span class="n">composite</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.orm.exc</span> <span class="kn">import</span> <span class="n">NoResultFound</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.ext.declarative</span> <span class="kn">import</span> <span class="n">declared_attr</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy.ext.mutable</span> <span class="kn">import</span> <span class="n">Mutable</span><span class="p">,</span> <span class="n">MutableComposite</span>
+<span class="kn">from</span> <span class="nn">flask</span> <span class="kn">import</span> <span class="n">Markup</span>
+<span class="kn">from</span> <span class="nn">flask.ext.sqlalchemy</span> <span class="kn">import</span> <span class="n">BaseQuery</span>
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">make_name</span>
+<span class="kn">from</span> <span class="nn">.gfm</span> <span class="kn">import</span> <span class="n">markdown</span>
+
+
+<span class="n">__all_mixins</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;IdMixin&#39;</span><span class="p">,</span> <span class="s">&#39;TimestampMixin&#39;</span><span class="p">,</span> <span class="s">&#39;PermissionMixin&#39;</span><span class="p">,</span> <span class="s">&#39;UrlForMixin&#39;</span><span class="p">,</span>
+    <span class="s">&#39;BaseMixin&#39;</span><span class="p">,</span> <span class="s">&#39;BaseNameMixin&#39;</span><span class="p">,</span> <span class="s">&#39;BaseScopedNameMixin&#39;</span><span class="p">,</span> <span class="s">&#39;BaseIdNameMixin&#39;</span><span class="p">,</span>
+    <span class="s">&#39;BaseScopedIdMixin&#39;</span><span class="p">,</span> <span class="s">&#39;BaseScopedIdNameMixin&#39;</span><span class="p">,</span> <span class="s">&#39;CoordinatesMixin&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">Query</span><span class="p">(</span><span class="n">BaseQuery</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extends flask.ext.sqlalchemy.BaseQuery to add additional helper methods.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">one_or_none</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Like :meth:`one` but returns None if no results are found. Raises an exception</span>
+<span class="sd">        if multiple results are found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">one</span><span class="p">()</span>
+        <span class="k">except</span> <span class="n">NoResultFound</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">notempty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the equivalent of ``bool(query.count())`` but using an efficient</span>
+<span class="sd">        SQL EXISTS function, so the database stops counting after the first result</span>
+<span class="sd">        is found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exists</span><span class="p">())</span><span class="o">.</span><span class="n">first</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">isempty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the equivalent of ``not bool(query.count())`` but using an efficient</span>
+<span class="sd">        SQL EXISTS function, so the database stops counting after the first result</span>
+<span class="sd">        is found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exists</span><span class="p">())</span><span class="o">.</span><span class="n">first</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="IdMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.IdMixin">[docs]</a><span class="k">class</span> <span class="nc">IdMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Provides the :attr:`id` primary key column</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">query_class</span> <span class="o">=</span> <span class="n">Query</span>
+    <span class="c">#: Database identity for this model, used for foreign key</span>
+    <span class="c">#: references from other models</span>
+    <span class="nb">id</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">Integer</span><span class="p">,</span> <span class="n">primary_key</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+
+<span class="c">#: ..deprecated: 0.4.3</span>
+<span class="c">#:   Use :func:`make_timestamp_columns` instead. These columns will be assigned to</span>
+<span class="c">#:   the first model you use them with and can&#39;t be used again in another model</span></div>
+<span class="n">timestamp_columns</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">Column</span><span class="p">(</span><span class="s">&#39;created_at&#39;</span><span class="p">,</span> <span class="n">DateTime</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+    <span class="n">Column</span><span class="p">(</span><span class="s">&#39;updated_at&#39;</span><span class="p">,</span> <span class="n">DateTime</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">onupdate</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">make_timestamp_columns</span><span class="p">():</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">Column</span><span class="p">(</span><span class="s">&#39;created_at&#39;</span><span class="p">,</span> <span class="n">DateTime</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+        <span class="n">Column</span><span class="p">(</span><span class="s">&#39;updated_at&#39;</span><span class="p">,</span> <span class="n">DateTime</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">onupdate</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">),</span>
+        <span class="p">)</span>
+
+
+<div class="viewcode-block" id="TimestampMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.TimestampMixin">[docs]</a><span class="k">class</span> <span class="nc">TimestampMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Provides the :attr:`created_at` and :attr:`updated_at` audit timestamps</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">query_class</span> <span class="o">=</span> <span class="n">Query</span>
+    <span class="c">#: Timestamp for when this instance was created, in UTC</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">DateTime</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+    <span class="c">#: Timestamp for when this instance was last updated (via the app), in UTC</span>
+    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">DateTime</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">onupdate</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="PermissionMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.PermissionMixin">[docs]</a><span class="k">class</span> <span class="nc">PermissionMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Provides the :meth:`permissions` method used by BaseMixin and derived classes</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="PermissionMixin.permissions"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.PermissionMixin.permissions">[docs]</a>    <span class="k">def</span> <span class="nf">permissions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">inherited</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return permissions available to the given user on this object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">inherited</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">(</span><span class="n">inherited</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+</div></div>
+<div class="viewcode-block" id="UrlForMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.UrlForMixin">[docs]</a><span class="k">class</span> <span class="nc">UrlForMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Provides a placeholder :meth:`url_for` method used by BaseMixin-derived classes</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="UrlForMixin.url_for"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.UrlForMixin.url_for">[docs]</a>    <span class="k">def</span> <span class="nf">url_for</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s">&#39;view&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return public URL to this instance for a given action (default &#39;view&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+</div></div>
+<div class="viewcode-block" id="BaseMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseMixin">[docs]</a><span class="k">class</span> <span class="nc">BaseMixin</span><span class="p">(</span><span class="n">IdMixin</span><span class="p">,</span> <span class="n">TimestampMixin</span><span class="p">,</span> <span class="n">PermissionMixin</span><span class="p">,</span> <span class="n">UrlForMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base mixin class for all tables that adds id and timestamp columns and includes</span>
+<span class="sd">    stub :meth:`permissions` and :meth:`url_for` methods</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_set_fields</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fields</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">fields</span><span class="p">[</span><span class="n">f</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s">&quot;&#39;{arg}&#39; is an invalid argument for {instance_type}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">arg</span><span class="o">=</span><span class="n">f</span><span class="p">,</span> <span class="n">instance_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+
+</div>
+<div class="viewcode-block" id="BaseNameMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseNameMixin">[docs]</a><span class="k">class</span> <span class="nc">BaseNameMixin</span><span class="p">(</span><span class="n">BaseMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base mixin class for named objects</span>
+
+<span class="sd">    .. versionchanged:: 0.5.0</span>
+<span class="sd">        If you used BaseNameMixin in your app before Coaster 0.5.0:</span>
+<span class="sd">        :attr:`name` can no longer be a blank string in addition to being</span>
+<span class="sd">        non-null. This is configurable and enforced with a SQL CHECK constraint,</span>
+<span class="sd">        which needs a database migration:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        for tablename in [&#39;named_table1&#39;, &#39;named_table2&#39;, ...]:</span>
+<span class="sd">            # Drop CHECK constraint first in case it was already present</span>
+<span class="sd">            op.drop_constraint(tablename + &#39;_name_check&#39;, tablename)</span>
+<span class="sd">            # Create CHECK constraint</span>
+<span class="sd">            op.create_check_constraint(tablename + &#39;_name_check&#39;, tablename, &quot;name!=&#39;&#39;&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c">#: Prevent use of these reserved names</span>
+    <span class="n">reserved_names</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c">#: Allow blank names after all?</span>
+    <span class="n">__name_blank_allowed__</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="c">#: How long should names and titles be?</span>
+    <span class="n">__name_length__</span> <span class="o">=</span> <span class="n">__title_length__</span> <span class="o">=</span> <span class="mi">250</span>
+
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The URL name of this object, unique across all instances of this model&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">__name_blank_allowed__</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">),</span> <span class="n">CheckConstraint</span><span class="p">(</span><span class="s">&quot;name!=&#39;&#39;&quot;</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">title</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The title of this object&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__title_length__</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BaseNameMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">make_name</span><span class="p">()</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BaseNameMixin.get"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseNameMixin.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get an instance matching the name&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">one_or_none</span><span class="p">()</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BaseNameMixin.upsert"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseNameMixin.upsert">[docs]</a>    <span class="k">def</span> <span class="nf">upsert</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">fields</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Insert or update an instance&quot;&quot;&quot;</span>
+        <span class="n">instance</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">instance</span><span class="p">:</span>
+            <span class="n">instance</span><span class="o">.</span><span class="n">_set_fields</span><span class="p">(</span><span class="n">fields</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">instance</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">fields</span><span class="p">)</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">instance</span>
+</div>
+<div class="viewcode-block" id="BaseNameMixin.make_name"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseNameMixin.make_name">[docs]</a>    <span class="k">def</span> <span class="nf">make_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reserved</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Autogenerates a :attr:`name` from the :attr:`title`. If the auto-generated name is already</span>
+<span class="sd">        in use in this model, :meth:`make_name` tries again by suffixing numbers starting with 2</span>
+<span class="sd">        until an available name is found.</span>
+
+<span class="sd">        :param reserved: List or set of reserved names unavailable for use</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+                <span class="n">checkused</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">c</span> <span class="ow">in</span> <span class="n">reserved</span> <span class="ow">or</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reserved_names</span> <span class="ow">or</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">id</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">notempty</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">checkused</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">c</span> <span class="ow">in</span> <span class="n">reserved</span> <span class="ow">or</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reserved_names</span> <span class="ow">or</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">c</span><span class="p">)</span><span class="o">.</span><span class="n">notempty</span><span class="p">())</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">no_autoflush</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">make_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">,</span> <span class="n">maxlength</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">,</span> <span class="n">checkused</span><span class="o">=</span><span class="n">checkused</span><span class="p">))</span>
+
+</div></div>
+<div class="viewcode-block" id="BaseScopedNameMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedNameMixin">[docs]</a><span class="k">class</span> <span class="nc">BaseScopedNameMixin</span><span class="p">(</span><span class="n">BaseMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base mixin class for named objects within containers. When using this,</span>
+<span class="sd">    you must provide an model-level attribute &quot;parent&quot; that is a synonym for</span>
+<span class="sd">    the parent object. You must also create a unique constraint on &#39;name&#39; in</span>
+<span class="sd">    combination with the parent foreign key. Sample use case in Flask::</span>
+
+<span class="sd">        class Event(BaseScopedNameMixin, db.Model):</span>
+<span class="sd">            __tablename__ = &#39;event&#39;</span>
+<span class="sd">            organizer_id = db.Column(None, db.ForeignKey(&#39;organizer.id&#39;))</span>
+<span class="sd">            organizer = db.relationship(Organizer)</span>
+<span class="sd">            parent = db.synonym(&#39;organizer&#39;)</span>
+<span class="sd">            __table_args__ = (db.UniqueConstraint(&#39;organizer_id&#39;, &#39;name&#39;),)</span>
+
+<span class="sd">    .. versionchanged:: 0.5.0</span>
+<span class="sd">        If you used BaseScopedNameMixin in your app before Coaster 0.5.0:</span>
+<span class="sd">        :attr:`name` can no longer be a blank string in addition to being</span>
+<span class="sd">        non-null. This is configurable and enforced with a SQL CHECK constraint,</span>
+<span class="sd">        which needs a database migration:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        for tablename in [&#39;named_table1&#39;, &#39;named_table2&#39;, ...]:</span>
+<span class="sd">            # Drop CHECK constraint first in case it was already present</span>
+<span class="sd">            op.drop_constraint(tablename + &#39;_name_check&#39;, tablename)</span>
+<span class="sd">            # Create CHECK constraint</span>
+<span class="sd">            op.create_check_constraint(tablename + &#39;_name_check&#39;, tablename, &quot;name!=&#39;&#39;&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c">#: Prevent use of these reserved names</span>
+    <span class="n">reserved_names</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c">#: Allow blank names after all?</span>
+    <span class="n">__name_blank_allowed__</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="c">#: How long should names and titles be?</span>
+    <span class="n">__name_length__</span> <span class="o">=</span> <span class="n">__title_length__</span> <span class="o">=</span> <span class="mi">250</span>
+
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The URL name of this object, unique within a parent container&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">__name_blank_allowed__</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">),</span> <span class="n">CheckConstraint</span><span class="p">(</span><span class="s">&quot;name!=&#39;&#39;&quot;</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">title</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The title of this object&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__title_length__</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BaseScopedNameMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">make_name</span><span class="p">()</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BaseScopedNameMixin.get"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedNameMixin.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get an instance matching the parent and name&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">one_or_none</span><span class="p">()</span>
+</div>
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BaseScopedNameMixin.upsert"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedNameMixin.upsert">[docs]</a>    <span class="k">def</span> <span class="nf">upsert</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">fields</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Insert or update an instance&quot;&quot;&quot;</span>
+        <span class="n">instance</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">instance</span><span class="p">:</span>
+            <span class="n">instance</span><span class="o">.</span><span class="n">_set_fields</span><span class="p">(</span><span class="n">fields</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">instance</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">fields</span><span class="p">)</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">instance</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">instance</span>
+</div>
+<div class="viewcode-block" id="BaseScopedNameMixin.make_name"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedNameMixin.make_name">[docs]</a>    <span class="k">def</span> <span class="nf">make_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reserved</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Autogenerates a :attr:`name` from the :attr:`title`. If the auto-generated name is already</span>
+<span class="sd">        in use in this model, :meth:`make_name` tries again by suffixing numbers starting with 2</span>
+<span class="sd">        until an available name is found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">:</span>
+                <span class="n">checkused</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">c</span> <span class="ow">in</span> <span class="n">reserved</span> <span class="ow">or</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reserved_names</span> <span class="ow">or</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">id</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span><span class="p">)</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span>
+                        <span class="n">name</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">())</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">checkused</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">c</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">c</span> <span class="ow">in</span> <span class="n">reserved</span> <span class="ow">or</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reserved_names</span> <span class="ow">or</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">())</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">no_autoflush</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">make_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">short_title</span><span class="p">(),</span> <span class="n">maxlength</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">,</span> <span class="n">checkused</span><span class="o">=</span><span class="n">checkused</span><span class="p">))</span>
+</div>
+<div class="viewcode-block" id="BaseScopedNameMixin.short_title"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedNameMixin.short_title">[docs]</a>    <span class="k">def</span> <span class="nf">short_title</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates an abbreviated title by subtracting the parent&#39;s title from this instance&#39;s title.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="s">&#39;title&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">title</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">title</span><span class="p">):</span>
+                <span class="n">short</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">title</span><span class="p">):]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">short</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">short</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span>
+</div>
+<div class="viewcode-block" id="BaseScopedNameMixin.permissions"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedNameMixin.permissions">[docs]</a>    <span class="k">def</span> <span class="nf">permissions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">inherited</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Permissions for this model, plus permissions inherited from the parent.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">inherited</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">inherited</span> <span class="o">|</span> <span class="nb">super</span><span class="p">(</span><span class="n">BaseScopedNameMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">permissions</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span> <span class="n">PermissionMixin</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">permissions</span><span class="p">(</span><span class="n">user</span><span class="p">)</span> <span class="o">|</span> <span class="nb">super</span><span class="p">(</span><span class="n">BaseScopedNameMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">permissions</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">BaseScopedNameMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">permissions</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="BaseIdNameMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseIdNameMixin">[docs]</a><span class="k">class</span> <span class="nc">BaseIdNameMixin</span><span class="p">(</span><span class="n">BaseMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base mixin class for named objects with an id tag.</span>
+
+<span class="sd">    .. versionchanged:: 0.5.0</span>
+<span class="sd">        If you used BaseIdNameMixin in your app before Coaster 0.5.0:</span>
+<span class="sd">        :attr:`name` can no longer be a blank string in addition to being</span>
+<span class="sd">        non-null. This is configurable and enforced with a SQL CHECK constraint,</span>
+<span class="sd">        which needs a database migration:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        for tablename in [&#39;named_table1&#39;, &#39;named_table2&#39;, ...]:</span>
+<span class="sd">            # Drop CHECK constraint first in case it was already present</span>
+<span class="sd">            op.drop_constraint(tablename + &#39;_name_check&#39;, tablename)</span>
+<span class="sd">            # Create CHECK constraint</span>
+<span class="sd">            op.create_check_constraint(tablename + &#39;_name_check&#39;, tablename, &quot;name!=&#39;&#39;&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c">#: Allow blank names after all?</span>
+    <span class="n">__name_blank_allowed__</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="c">#: How long should names and titles be?</span>
+    <span class="n">__name_length__</span> <span class="o">=</span> <span class="n">__title_length__</span> <span class="o">=</span> <span class="mi">250</span>
+
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The URL name of this object, non-unique&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">__name_blank_allowed__</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">),</span> <span class="n">CheckConstraint</span><span class="p">(</span><span class="s">&quot;name!=&#39;&#39;&quot;</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">title</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The title of this object&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__title_length__</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="c">#: The attribute containing id numbers used in the URL in id-name syntax, for external reference</span>
+    <span class="n">url_id_attr</span> <span class="o">=</span> <span class="s">&#39;id&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BaseIdNameMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">make_name</span><span class="p">()</span>
+
+<div class="viewcode-block" id="BaseIdNameMixin.make_name"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseIdNameMixin.make_name">[docs]</a>    <span class="k">def</span> <span class="nf">make_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Autogenerates a :attr:`name` from the :attr:`title`&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">make_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">,</span> <span class="n">maxlength</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">))</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">url_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the URL id&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">id</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">url_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a URL name combining :attr:`url_id` and :attr:`name` in id-name syntax&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;</span><span class="si">%d</span><span class="s">-</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="BaseScopedIdMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedIdMixin">[docs]</a><span class="k">class</span> <span class="nc">BaseScopedIdMixin</span><span class="p">(</span><span class="n">BaseMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base mixin class for objects with an id that is unique within a parent.</span>
+<span class="sd">    Implementations must provide a &#39;parent&#39; attribute that is either a relationship</span>
+<span class="sd">    or a synonym to a relationship referring to the parent object, and must</span>
+<span class="sd">    declare a unique constraint between url_id and the parent. Sample use case in Flask::</span>
+
+<span class="sd">        class Issue(BaseScopedIdMixin, db.Model):</span>
+<span class="sd">            __tablename__ = &#39;issue&#39;</span>
+<span class="sd">            event_id = db.Column(None, db.ForeignKey(&#39;event.id&#39;))</span>
+<span class="sd">            event = db.relationship(Event)</span>
+<span class="sd">            parent = db.synonym(&#39;event&#39;)</span>
+<span class="sd">            __table_args__ = (db.UniqueConstraint(&#39;event_id&#39;, &#39;url_id&#39;),)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">url_id</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Contains an id number that is unique within the parent container&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Integer</span><span class="p">,</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="c">#: The attribute containing the url id value, for external reference</span>
+    <span class="n">url_id_attr</span> <span class="o">=</span> <span class="s">&#39;url_id&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BaseScopedIdMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">make_id</span><span class="p">()</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BaseScopedIdMixin.get"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedIdMixin.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">url_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get an instance matching the parent and url_id&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">,</span> <span class="n">url_id</span><span class="o">=</span><span class="n">url_id</span><span class="p">)</span><span class="o">.</span><span class="n">one_or_none</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="BaseScopedIdMixin.make_id"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedIdMixin.make_id">[docs]</a>    <span class="k">def</span> <span class="nf">make_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a new URL id that is unique to the parent container&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">url_id</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>  <span class="c"># Set id only if empty</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">url_id</span> <span class="o">=</span> <span class="n">select</span><span class="p">([</span><span class="n">func</span><span class="o">.</span><span class="n">coalesce</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">url_id</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="mi">1</span><span class="p">)],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">parent</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="BaseScopedIdMixin.permissions"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedIdMixin.permissions">[docs]</a>    <span class="k">def</span> <span class="nf">permissions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">inherited</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Permissions for this model, plus permissions inherited from the parent.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">inherited</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">inherited</span> <span class="o">|</span> <span class="nb">super</span><span class="p">(</span><span class="n">BaseScopedIdMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">permissions</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">permissions</span><span class="p">(</span><span class="n">user</span><span class="p">)</span> <span class="o">|</span> <span class="nb">super</span><span class="p">(</span><span class="n">BaseScopedIdMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">permissions</span><span class="p">(</span><span class="n">user</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="BaseScopedIdNameMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedIdNameMixin">[docs]</a><span class="k">class</span> <span class="nc">BaseScopedIdNameMixin</span><span class="p">(</span><span class="n">BaseScopedIdMixin</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base mixin class for named objects with an id tag that is unique within a</span>
+<span class="sd">    parent. Implementations must provide a &#39;parent&#39; attribute that is a</span>
+<span class="sd">    synonym to the parent relationship, and must declare a unique constraint</span>
+<span class="sd">    between url_id and the parent. Sample use case in Flask::</span>
+
+<span class="sd">        class Event(BaseScopedIdNameMixin, db.Model):</span>
+<span class="sd">            __tablename__ = &#39;event&#39;</span>
+<span class="sd">            organizer_id = db.Column(None, db.ForeignKey(&#39;organizer.id&#39;))</span>
+<span class="sd">            organizer = db.relationship(Organizer)</span>
+<span class="sd">            parent = db.synonym(&#39;organizer&#39;)</span>
+<span class="sd">            __table_args__ = (db.UniqueConstraint(&#39;organizer_id&#39;, &#39;url_id&#39;),)</span>
+
+<span class="sd">    .. versionchanged:: 0.5.0</span>
+<span class="sd">        If you used BaseScopedIdNameMixin in your app before Coaster 0.5.0:</span>
+<span class="sd">        :attr:`name` can no longer be a blank string in addition to being</span>
+<span class="sd">        non-null. This is configurable and enforced with a SQL CHECK constraint,</span>
+<span class="sd">        which needs a database migration:</span>
+
+<span class="sd">    ::</span>
+
+<span class="sd">        for tablename in [&#39;named_table1&#39;, &#39;named_table2&#39;, ...]:</span>
+<span class="sd">            # Drop CHECK constraint first in case it was already present</span>
+<span class="sd">            op.drop_constraint(tablename + &#39;_name_check&#39;, tablename)</span>
+<span class="sd">            # Create CHECK constraint</span>
+<span class="sd">            op.create_check_constraint(tablename + &#39;_name_check&#39;, tablename, &quot;name!=&#39;&#39;&quot;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c">#: Allow blank names after all?</span>
+    <span class="n">__name_blank_allowed__</span> <span class="o">=</span> <span class="bp">False</span>
+    <span class="c">#: How long should names and titles be?</span>
+    <span class="n">__name_length__</span> <span class="o">=</span> <span class="n">__title_length__</span> <span class="o">=</span> <span class="mi">250</span>
+
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The URL name of this instance, non-unique&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">__name_blank_allowed__</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">),</span> <span class="n">CheckConstraint</span><span class="p">(</span><span class="s">&quot;name!=&#39;&#39;&quot;</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="nd">@declared_attr</span>
+    <span class="k">def</span> <span class="nf">title</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The title of this instance&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Column</span><span class="p">(</span><span class="n">Unicode</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__title_length__</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BaseScopedIdNameMixin</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kw</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">make_id</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">make_name</span><span class="p">()</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="BaseScopedIdNameMixin.get"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedIdNameMixin.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">parent</span><span class="p">,</span> <span class="n">url_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get an instance matching the parent and name&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">query</span><span class="o">.</span><span class="n">filter_by</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">,</span> <span class="n">url_id</span><span class="o">=</span><span class="n">url_id</span><span class="p">)</span><span class="o">.</span><span class="n">one_or_none</span><span class="p">()</span>
+</div>
+<div class="viewcode-block" id="BaseScopedIdNameMixin.make_name"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.BaseScopedIdNameMixin.make_name">[docs]</a>    <span class="k">def</span> <span class="nf">make_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Autogenerates a title from the name&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">make_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">title</span><span class="p">,</span> <span class="n">maxlength</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">__name_length__</span><span class="p">))</span>
+</div>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">url_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a URL name combining :attr:`url_id` and :attr:`name` in id-name syntax&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s">&#39;</span><span class="si">%d</span><span class="s">-</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="CoordinatesMixin"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.CoordinatesMixin">[docs]</a><span class="k">class</span> <span class="nc">CoordinatesMixin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Adds :attr:`latitude` and :attr:`longitude` columns with a shorthand :attr:`coordinates`</span>
+<span class="sd">    property that returns both.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">latitude</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">Numeric</span><span class="p">)</span>
+    <span class="n">longitude</span> <span class="o">=</span> <span class="n">Column</span><span class="p">(</span><span class="n">Numeric</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">coordinates</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">latitude</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">longitude</span>
+
+    <span class="nd">@coordinates.setter</span>
+    <span class="k">def</span> <span class="nf">coordinates</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">latitude</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">longitude</span> <span class="o">=</span> <span class="n">value</span>
+
+
+<span class="c"># --- Column types ------------------------------------------------------------</span>
+</div>
+<span class="n">__all_columns</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;JsonDict&#39;</span><span class="p">,</span> <span class="s">&#39;MarkdownComposite&#39;</span><span class="p">,</span> <span class="s">&#39;MarkdownColumn&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">JsonType</span><span class="p">(</span><span class="n">UserDefinedType</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The PostgreSQL JSON type.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">get_col_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&quot;JSON&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">JsonbType</span><span class="p">(</span><span class="n">UserDefinedType</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The PostgreSQL JSONB type.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">get_col_spec</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&quot;JSONB&quot;</span>
+
+
+<span class="c"># Adapted from http://docs.sqlalchemy.org/en/rel_0_8/orm/extensions/mutable.html#establishing-mutability-on-scalar-column-values</span>
+
+<div class="viewcode-block" id="JsonDict"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.JsonDict">[docs]</a><span class="k">class</span> <span class="nc">JsonDict</span><span class="p">(</span><span class="n">TypeDecorator</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents a JSON data structure. Usage::</span>
+
+<span class="sd">        column = Column(JsonDict)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">impl</span> <span class="o">=</span> <span class="n">TEXT</span>
+
+    <span class="k">def</span> <span class="nf">load_dialect_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">dialect</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s">&#39;postgresql&#39;</span><span class="p">:</span>
+            <span class="n">version</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">dialect</span><span class="o">.</span><span class="n">server_version_info</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">version</span> <span class="ow">in</span> <span class="p">[(</span><span class="mi">9</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mi">3</span><span class="p">)]:</span>
+                <span class="k">return</span> <span class="n">dialect</span><span class="o">.</span><span class="n">type_descriptor</span><span class="p">(</span><span class="n">JsonType</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">version</span> <span class="o">&gt;=</span> <span class="p">(</span><span class="mi">9</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">dialect</span><span class="o">.</span><span class="n">type_descriptor</span><span class="p">(</span><span class="n">JsonbType</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dialect</span><span class="o">.</span><span class="n">type_descriptor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">impl</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">process_bind_param</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">simplejson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="k">lambda</span> <span class="n">o</span><span class="p">:</span> <span class="nb">unicode</span><span class="p">(</span><span class="n">o</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">process_result_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">dialect</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+            <span class="c"># Psycopg2 &gt;= 2.5 will auto-decode JSON columns, so</span>
+            <span class="c"># we only attempt decoding if the value is a string.</span>
+            <span class="c"># Since this column stores dicts only, processed values</span>
+            <span class="c"># can never be strings.</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">simplejson</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">use_decimal</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+</div>
+<span class="k">class</span> <span class="nc">MutableDict</span><span class="p">(</span><span class="n">Mutable</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">coerce</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="s">&quot;Convert plain dictionaries to MutableDict.&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">MutableDict</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">MutableDict</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">basestring</span><span class="p">):</span>
+                <span class="c"># Assume JSON string</span>
+                <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">MutableDict</span><span class="p">(</span><span class="n">simplejson</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">use_decimal</span><span class="o">=</span><span class="bp">True</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">MutableDict</span><span class="p">()</span>  <span class="c"># Empty value is an empty dict</span>
+
+            <span class="c"># this call will raise ValueError</span>
+            <span class="k">return</span> <span class="n">Mutable</span><span class="o">.</span><span class="n">coerce</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="s">&quot;Detect dictionary set events and emit change events.&quot;</span>
+
+        <span class="nb">dict</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">changed</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="s">&quot;Detect dictionary del events and emit change events.&quot;</span>
+
+        <span class="nb">dict</span><span class="o">.</span><span class="n">__delitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">changed</span><span class="p">()</span>
+
+<span class="n">MutableDict</span><span class="o">.</span><span class="n">associate_with</span><span class="p">(</span><span class="n">JsonDict</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="MarkdownComposite"><a class="viewcode-back" href="../../sqlalchemy.html#coaster.sqlalchemy.MarkdownComposite">[docs]</a><span class="k">class</span> <span class="nc">MarkdownComposite</span><span class="p">(</span><span class="n">MutableComposite</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents GitHub-flavoured Markdown text and rendered HTML as a composite column.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">html</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">html</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">text</span>  <span class="c"># This will regenerate HTML</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">object</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;text&#39;</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+            <span class="nb">object</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;_html&#39;</span><span class="p">,</span> <span class="n">html</span><span class="p">)</span>
+
+    <span class="c"># If the text value is set, regenerate HTML, then notify parents of the change</span>
+    <span class="k">def</span> <span class="nf">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s">&#39;text&#39;</span><span class="p">:</span>
+            <span class="nb">object</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;_html&#39;</span><span class="p">,</span> <span class="n">markdown</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="nb">object</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">changed</span><span class="p">()</span>
+
+    <span class="c"># Return column values for SQLAlchemy to insert into the database</span>
+    <span class="k">def</span> <span class="nf">__composite_values__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_html</span><span class="p">)</span>
+
+    <span class="c"># Return a string representation of the text</span>
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+
+    <span class="c"># Return a unicode representation of the text</span>
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">unicode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+
+    <span class="c"># Return a HTML representation of the text</span>
+    <span class="k">def</span> <span class="nf">__html__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_html</span> <span class="ow">or</span> <span class="s">u&#39;&#39;</span>
+
+    <span class="c"># Return a Markup string of the HTML</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">html</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Markup</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_html</span> <span class="ow">or</span> <span class="s">u&#39;&#39;</span><span class="p">)</span>
+
+    <span class="c"># Compare text value</span>
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">text</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">MarkdownComposite</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text</span> <span class="o">==</span> <span class="n">other</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">__eq__</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+
+    <span class="c"># Return state for pickling</span>
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_html</span><span class="p">)</span>
+
+    <span class="c"># Set state from pickle</span>
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="nb">object</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;text&#39;</span><span class="p">,</span> <span class="n">state</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="nb">object</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;_html&#39;</span><span class="p">,</span> <span class="n">state</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">changed</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__nonzero__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+
+    <span class="n">__bool__</span> <span class="o">=</span> <span class="n">__nonzero__</span>
+
+    <span class="c"># Allow a composite column to be assigned a string value</span>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">coerce</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+</div>
+<span class="k">def</span> <span class="nf">MarkdownColumn</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">deferred</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">composite</span><span class="p">(</span><span class="n">MarkdownComposite</span><span class="p">,</span>
+        <span class="n">Column</span><span class="p">(</span><span class="n">name</span> <span class="o">+</span> <span class="s">&#39;_text&#39;</span><span class="p">,</span> <span class="n">UnicodeText</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">),</span>
+        <span class="n">Column</span><span class="p">(</span><span class="n">name</span> <span class="o">+</span> <span class="s">&#39;_html&#39;</span><span class="p">,</span> <span class="n">UnicodeText</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">),</span>
+        <span class="n">deferred</span><span class="o">=</span><span class="n">deferred</span><span class="p">,</span> <span class="n">group</span><span class="o">=</span><span class="n">group</span> <span class="ow">or</span> <span class="n">name</span>
+        <span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="n">__all_mixins</span> <span class="o">+</span> <span class="n">__all_columns</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  <div class="footer">
+    &copy; Copyright 2012-15, HasGeek.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>

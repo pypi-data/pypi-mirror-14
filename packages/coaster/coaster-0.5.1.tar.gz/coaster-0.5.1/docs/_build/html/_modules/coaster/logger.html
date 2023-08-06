@@ -1,0 +1,264 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>coaster.logger &mdash; coaster 0.5.0-dev documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.5.0-dev',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="coaster 0.5.0-dev documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <link media="only screen and (max-device-width: 480px)" href="../../_static/small_flask.css" type= "text/css" rel="stylesheet" />
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">coaster 0.5.0-dev documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for coaster.logger</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">timedelta</span><span class="p">,</span> <span class="n">datetime</span>
+<span class="kn">import</span> <span class="nn">logging.handlers</span>
+<span class="kn">import</span> <span class="nn">cStringIO</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+
+<span class="c"># global var as lazy in-memory cache</span>
+<span class="n">error_throttle_timestamp</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;timestamp&#39;</span><span class="p">:</span> <span class="bp">None</span><span class="p">}</span>
+
+
+<div class="viewcode-block" id="LocalVarFormatter"><a class="viewcode-back" href="../../logger.html#coaster.logger.LocalVarFormatter">[docs]</a><span class="k">class</span> <span class="nc">LocalVarFormatter</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Custom log formatter that logs the contents of local variables in the stack frame.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">formatException</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ei</span><span class="p">):</span>
+        <span class="n">tb</span> <span class="o">=</span> <span class="n">ei</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">while</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">tb</span><span class="o">.</span><span class="n">tb_next</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">tb</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">tb_next</span>
+        <span class="n">stack</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">tb_frame</span>
+        <span class="k">while</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">f_back</span>
+        <span class="n">stack</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+
+        <span class="n">sio</span> <span class="o">=</span> <span class="n">cStringIO</span><span class="o">.</span><span class="n">StringIO</span><span class="p">()</span>
+        <span class="n">traceback</span><span class="o">.</span><span class="n">print_exception</span><span class="p">(</span><span class="n">ei</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">ei</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">ei</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">None</span><span class="p">,</span> <span class="n">sio</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">frame</span> <span class="ow">in</span> <span class="n">stack</span><span class="p">:</span>
+            <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">sio</span>
+            <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">sio</span><span class="p">,</span> <span class="s">&quot;Frame </span><span class="si">%s</span><span class="s"> in </span><span class="si">%s</span><span class="s"> at line </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">f_code</span><span class="o">.</span><span class="n">co_name</span><span class="p">,</span>
+                                                         <span class="n">frame</span><span class="o">.</span><span class="n">f_code</span><span class="o">.</span><span class="n">co_filename</span><span class="p">,</span>
+                                                         <span class="n">frame</span><span class="o">.</span><span class="n">f_lineno</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">frame</span><span class="o">.</span><span class="n">f_locals</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">sio</span><span class="p">,</span> <span class="s">&quot;</span><span class="se">\t</span><span class="si">%20s</span><span class="s"> = &quot;</span> <span class="o">%</span> <span class="n">key</span><span class="p">,</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">sio</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">except</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="o">&gt;&gt;</span> <span class="n">sio</span><span class="p">,</span> <span class="s">&quot;&lt;ERROR WHILE PRINTING VALUE&gt;&quot;</span>
+
+        <span class="n">s</span> <span class="o">=</span> <span class="n">sio</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span>
+        <span class="n">sio</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">s</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">:]</span> <span class="o">==</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">s</span>
+
+</div>
+<div class="viewcode-block" id="SMSHandler"><a class="viewcode-back" href="../../logger.html#coaster.logger.SMSHandler">[docs]</a><span class="k">class</span> <span class="nc">SMSHandler</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Handler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Custom logging handler to send SMSes to admins</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">app_name</span><span class="p">,</span> <span class="n">exotel_sid</span><span class="p">,</span> <span class="n">exotel_token</span><span class="p">,</span> <span class="n">exotel_from</span><span class="p">,</span> <span class="n">twilio_sid</span><span class="p">,</span> <span class="n">twilio_token</span><span class="p">,</span> <span class="n">twilio_from</span><span class="p">,</span> <span class="n">phonenumbers</span><span class="p">):</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">Handler</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">app_name</span> <span class="o">=</span> <span class="n">app_name</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">phonenumbers</span> <span class="o">=</span> <span class="n">phonenumbers</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exotel_sid</span> <span class="o">=</span> <span class="n">exotel_sid</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exotel_token</span> <span class="o">=</span> <span class="n">exotel_token</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">exotel_from</span> <span class="o">=</span> <span class="n">exotel_from</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">twilio_sid</span> <span class="o">=</span> <span class="n">twilio_sid</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">twilio_token</span> <span class="o">=</span> <span class="n">twilio_token</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">twilio_from</span> <span class="o">=</span> <span class="n">twilio_from</span>
+
+    <span class="k">def</span> <span class="nf">emit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="c"># TODO Find linenumber and function name from exception&#39;s log record</span>
+        <span class="c"># if(record.funcName != error_throttle_timestamp[&#39;funcName&#39;] or record.lineno != error_throttle_timestamp[&#39;lineno&#39;] or (datetime.now() - error_throttle_timestamp[&#39;timestamp&#39;]) &gt; timedelta(minutes=5)):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">error_throttle_timestamp</span><span class="p">[</span><span class="s">&#39;timestamp&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="p">(</span>
+                <span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span> <span class="o">-</span> <span class="n">error_throttle_timestamp</span><span class="p">[</span><span class="s">&#39;timestamp&#39;</span><span class="p">])</span> <span class="o">&gt;</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">minutes</span><span class="o">=</span><span class="mi">5</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">phonenumber</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">phonenumbers</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sendsms</span><span class="p">(</span><span class="n">phonenumber</span><span class="p">,</span> <span class="s">&#39;Error in {name}. Please check your email for details&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">app_name</span><span class="p">))</span>
+            <span class="c"># error_throttle_timestamp[&#39;funcName&#39;] = record.funcName</span>
+            <span class="c"># error_throttle_timestamp[&#39;lineno&#39;] = record.lineno</span>
+            <span class="n">error_throttle_timestamp</span><span class="p">[</span><span class="s">&#39;timestamp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">utcnow</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">sendsms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">number</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">number</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;+91&#39;</span><span class="p">):</span>  <span class="c"># Indian</span>
+                <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s">&#39;https://twilix.exotel.in/v1/Accounts/{sid}/Sms/send.json&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">exotel_sid</span><span class="p">),</span>
+                    <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exotel_sid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">exotel_token</span><span class="p">),</span>
+                    <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+                        <span class="s">&#39;From&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">exotel_from</span><span class="p">,</span>
+                        <span class="s">&#39;To&#39;</span><span class="p">:</span> <span class="n">number</span><span class="p">,</span>
+                        <span class="s">&#39;Body&#39;</span><span class="p">:</span> <span class="n">message</span>
+                        <span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">requests</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s">&#39;https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sid</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">twilio_sid</span><span class="p">),</span>
+                    <span class="n">auth</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">twilio_sid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">twilio_token</span><span class="p">),</span>
+                    <span class="n">data</span><span class="o">=</span><span class="p">{</span>
+                        <span class="s">&#39;From&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">twilio_from</span><span class="p">,</span>
+                        <span class="s">&#39;To&#39;</span><span class="p">:</span> <span class="n">number</span><span class="p">,</span>
+                        <span class="s">&#39;Body&#39;</span><span class="p">:</span> <span class="n">message</span>
+                        <span class="p">})</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+</div>
+<div class="viewcode-block" id="init_app"><a class="viewcode-back" href="../../logger.html#coaster.logger.init_app">[docs]</a><span class="k">def</span> <span class="nf">init_app</span><span class="p">(</span><span class="n">app</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Enables logging for an app using :class:`LocalVarFormatter`.</span>
+
+<span class="sd">    This function requires an app that has already been configured</span>
+<span class="sd">    (perhaps using :func:`coaster.app.init_app`). It checks for the following</span>
+<span class="sd">    configuration parameters:</span>
+
+<span class="sd">    * ``LOGFILE``: Name of the file to log to (default ``error.log``)</span>
+<span class="sd">    * ``ADMINS``: List of email addresses of admins who will be mailed error reports</span>
+<span class="sd">    * ``MAIL_DEFAULT_SENDER``: From address of email. Can be an address or a tuple with name and address</span>
+<span class="sd">    * ``MAIL_SERVER``: SMTP server to send with (default ``localhost``)</span>
+<span class="sd">    * ``MAIL_USERNAME`` and ``MAIL_PASSWORD``: SMTP credentials, if required</span>
+<span class="sd">    * ``FLUENTD_SERVER``: If specified, will enable logging to fluentd (pending)</span>
+<span class="sd">    * ``ADMIN_NUMBERS``: List of mobile numbers of admin to send SMS alerts. Requires the following values too</span>
+<span class="sd">    * ``SMS_EXOTEL_SID``: Exotel SID for Indian numbers</span>
+<span class="sd">    * ``SMS_EXOTEL_TOKEN``: Exotel token</span>
+<span class="sd">    * ``SMS_EXOTEL_FROM``: Exotel sender&#39;s number</span>
+<span class="sd">    * ``SMS_TWILIO_SID``: Twilio SID for non-Indian numbers</span>
+<span class="sd">    * ``SMS_TWILIO_TOKEN``: Twilio token</span>
+<span class="sd">    * ``SMS_TWILIO_FROM``: Twilio sender&#39;s number</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">formatter</span> <span class="o">=</span> <span class="n">LocalVarFormatter</span><span class="p">()</span>
+
+    <span class="n">file_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;LOGFILE&#39;</span><span class="p">,</span> <span class="s">&#39;error.log&#39;</span><span class="p">))</span>
+    <span class="n">file_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">formatter</span><span class="p">)</span>
+    <span class="n">file_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">)</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">file_handler</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;ADMIN_NUMBERS&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">key</span> <span class="ow">in</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;SMS_EXOTEL_SID&#39;</span><span class="p">,</span> <span class="s">&#39;SMS_EXOTEL_TOKEN&#39;</span><span class="p">,</span> <span class="s">&#39;SMS_EXOTEL_FROM&#39;</span><span class="p">,</span>
+                <span class="s">&#39;SMS_TWILIO_SID&#39;</span><span class="p">,</span> <span class="s">&#39;SMS_TWILIO_TOKEN&#39;</span><span class="p">,</span> <span class="s">&#39;SMS_TWILIO_FROM&#39;</span><span class="p">]):</span>
+
+            <span class="c"># A little trickery because directly creating</span>
+            <span class="c"># an SMSHandler object didn&#39;t work</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">handlers</span><span class="o">.</span><span class="n">SMSHandler</span> <span class="o">=</span> <span class="n">SMSHandler</span>
+
+            <span class="n">sms_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">handlers</span><span class="o">.</span><span class="n">SMSHandler</span><span class="p">(</span>
+                <span class="n">app_name</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                <span class="n">exotel_sid</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;SMS_EXOTEL_SID&#39;</span><span class="p">],</span>
+                <span class="n">exotel_token</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;SMS_EXOTEL_TOKEN&#39;</span><span class="p">],</span>
+                <span class="n">exotel_from</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;SMS_EXOTEL_FROM&#39;</span><span class="p">],</span>
+                <span class="n">twilio_sid</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;SMS_TWILIO_SID&#39;</span><span class="p">],</span>
+                <span class="n">twilio_token</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;SMS_TWILIO_TOKEN&#39;</span><span class="p">],</span>
+                <span class="n">twilio_from</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;SMS_TWILIO_FROM&#39;</span><span class="p">],</span>
+                <span class="n">phonenumbers</span><span class="o">=</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;ADMIN_NUMBERS&#39;</span><span class="p">])</span>
+            <span class="n">sms_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">)</span>
+            <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">sms_handler</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;ADMINS&#39;</span><span class="p">):</span>
+        <span class="c"># MAIL_DEFAULT_SENDER is the new setting for default mail sender in Flask-Mail</span>
+        <span class="c"># DEFAULT_MAIL_SENDER is the old setting. We look for both</span>
+        <span class="n">mail_sender</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;MAIL_DEFAULT_SENDER&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="s">&#39;DEFAULT_MAIL_SENDER&#39;</span><span class="p">,</span> <span class="s">&#39;logs@example.com&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mail_sender</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+            <span class="n">mail_sender</span> <span class="o">=</span> <span class="n">mail_sender</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>  <span class="c"># Get email from (name, email)</span>
+        <span class="k">if</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;MAIL_USERNAME&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;MAIL_PASSWORD&#39;</span><span class="p">):</span>
+            <span class="n">credentials</span> <span class="o">=</span> <span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;MAIL_USERNAME&#39;</span><span class="p">],</span> <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;MAIL_PASSWORD&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">credentials</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">mail_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">handlers</span><span class="o">.</span><span class="n">SMTPHandler</span><span class="p">(</span><span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;MAIL_SERVER&#39;</span><span class="p">,</span> <span class="s">&#39;localhost&#39;</span><span class="p">),</span>
+            <span class="n">mail_sender</span><span class="p">,</span>
+            <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s">&#39;ADMINS&#39;</span><span class="p">],</span>
+            <span class="s">&#39;</span><span class="si">%s</span><span class="s"> failure&#39;</span> <span class="o">%</span> <span class="n">app</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">credentials</span><span class="o">=</span><span class="n">credentials</span><span class="p">)</span>
+        <span class="n">mail_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">formatter</span><span class="p">)</span>
+        <span class="n">mail_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">)</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">mail_handler</span><span class="p">)</span>
+
+<span class="c"># Legacy name</span></div>
+<span class="n">configure</span> <span class="o">=</span> <span class="n">init_app</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  <div class="footer">
+    &copy; Copyright 2012-15, HasGeek.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>

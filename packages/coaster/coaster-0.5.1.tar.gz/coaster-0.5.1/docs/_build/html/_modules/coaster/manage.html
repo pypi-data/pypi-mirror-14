@@ -1,0 +1,221 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>coaster.manage &mdash; coaster 0.5.0-dev documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/flasky.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.5.0-dev',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="coaster 0.5.0-dev documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" />
+   
+  
+  <link media="only screen and (max-device-width: 480px)" href="../../_static/small_flask.css" type= "text/css" rel="stylesheet" />
+
+  </head>
+  <body role="document">
+  
+  
+
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">coaster 0.5.0-dev documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for coaster.manage</h1><div class="highlight"><pre>
+<span class="c"># -*- coding: utf-8 -*-</span>
+
+<span class="kn">from</span> <span class="nn">sys</span> <span class="kn">import</span> <span class="n">stdout</span>
+
+<span class="kn">import</span> <span class="nn">flask</span>
+<span class="kn">from</span> <span class="nn">alembic.config</span> <span class="kn">import</span> <span class="n">Config</span>
+<span class="kn">from</span> <span class="nn">alembic.script</span> <span class="kn">import</span> <span class="n">ScriptDirectory</span>
+<span class="kn">from</span> <span class="nn">alembic.util</span> <span class="kn">import</span> <span class="n">CommandError</span>
+<span class="kn">from</span> <span class="nn">flask.ext.script</span> <span class="kn">import</span> <span class="n">Manager</span><span class="p">,</span> <span class="n">prompt_bool</span><span class="p">,</span> <span class="n">Shell</span>
+<span class="kn">from</span> <span class="nn">flask.ext.script.commands</span> <span class="kn">import</span> <span class="n">Clean</span><span class="p">,</span> <span class="n">ShowUrls</span>
+<span class="kn">from</span> <span class="nn">flask.ext.alembic</span> <span class="kn">import</span> <span class="n">ManageMigrations</span>
+
+
+<span class="n">manager</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">()</span>
+<span class="n">database</span> <span class="o">=</span> <span class="n">Manager</span><span class="p">(</span><span class="n">usage</span><span class="o">=</span><span class="s">&quot;Perform database operations&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">alembic_table_metadata</span><span class="p">():</span>
+    <span class="n">db</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">db</span>
+    <span class="n">metadata</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">MetaData</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="n">db</span><span class="o">.</span><span class="n">engine</span><span class="p">)</span>
+    <span class="n">alembic_version</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">Table</span><span class="p">(</span><span class="s">&#39;alembic_version&#39;</span><span class="p">,</span> <span class="n">metadata</span><span class="p">,</span>
+        <span class="n">db</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="s">&#39;version_num&#39;</span><span class="p">,</span> <span class="n">db</span><span class="o">.</span><span class="n">Unicode</span><span class="p">(</span><span class="mi">32</span><span class="p">),</span> <span class="n">nullable</span><span class="o">=</span><span class="bp">False</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">metadata</span><span class="p">,</span> <span class="n">alembic_version</span>
+
+
+<div class="viewcode-block" id="InitedMigrations"><a class="viewcode-back" href="../../manage.html#coaster.manage.InitedMigrations">[docs]</a><span class="k">class</span> <span class="nc">InitedMigrations</span><span class="p">(</span><span class="n">ManageMigrations</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Perform Alembic database migration operations&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;-&#39;</span><span class="p">):</span>
+            <span class="n">manager</span><span class="o">.</span><span class="n">init_for</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">InitedMigrations</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+</div>
+<div class="viewcode-block" id="set_alembic_revision"><a class="viewcode-back" href="../../manage.html#coaster.manage.set_alembic_revision">[docs]</a><span class="k">def</span> <span class="nf">set_alembic_revision</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Create/Update alembic table to latest revision number&quot;&quot;&quot;</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">Config</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">config</span><span class="o">.</span><span class="n">set_main_option</span><span class="p">(</span><span class="s">&quot;script_location&quot;</span><span class="p">,</span> <span class="n">path</span> <span class="ow">or</span> <span class="s">&quot;alembic&quot;</span><span class="p">)</span>
+        <span class="n">script</span> <span class="o">=</span> <span class="n">ScriptDirectory</span><span class="o">.</span><span class="n">from_config</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="n">script</span><span class="o">.</span><span class="n">get_current_head</span><span class="p">()</span>
+        <span class="c"># create alembic table</span>
+        <span class="n">metadata</span><span class="p">,</span> <span class="n">alembic_version</span> <span class="o">=</span> <span class="n">alembic_table_metadata</span><span class="p">()</span>
+        <span class="n">metadata</span><span class="o">.</span><span class="n">create_all</span><span class="p">()</span>
+        <span class="n">item</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">alembic_version</span><span class="p">)</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">item</span> <span class="ow">and</span> <span class="n">item</span><span class="o">.</span><span class="n">version_num</span> <span class="o">!=</span> <span class="n">head</span><span class="p">:</span>
+            <span class="n">item</span><span class="o">.</span><span class="n">version_num</span> <span class="o">=</span> <span class="n">head</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="n">alembic_version</span><span class="o">.</span><span class="n">insert</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="n">version_num</span><span class="o">=</span><span class="n">head</span><span class="p">)</span>
+            <span class="n">item</span><span class="o">.</span><span class="n">compile</span><span class="p">()</span>
+            <span class="n">conn</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+            <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">session</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+        <span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&quot;alembic head is set to </span><span class="si">%s</span><span class="s"> </span><span class="se">\n</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">head</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">CommandError</span><span class="p">,</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">)</span>
+
+</div>
+<span class="nd">@database.option</span><span class="p">(</span><span class="s">&#39;-e&#39;</span><span class="p">,</span> <span class="s">&#39;--env&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;dev&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&quot;runtime environment [default &#39;dev&#39;]&quot;</span><span class="p">)</span>
+<div class="viewcode-block" id="drop"><a class="viewcode-back" href="../../manage.html#coaster.manage.drop">[docs]</a><span class="k">def</span> <span class="nf">drop</span><span class="p">(</span><span class="n">env</span><span class="p">):</span>
+    <span class="s">&quot;Drop database tables&quot;</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">init_for</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">echo</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="k">if</span> <span class="n">prompt_bool</span><span class="p">(</span><span class="s">&quot;Are you sure you want to lose all your data&quot;</span><span class="p">):</span>
+        <span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">drop_all</span><span class="p">()</span>
+
+</div>
+<span class="nd">@database.option</span><span class="p">(</span><span class="s">&#39;-e&#39;</span><span class="p">,</span> <span class="s">&#39;--env&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;dev&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&quot;runtime environment [default &#39;dev&#39;]&quot;</span><span class="p">)</span>
+<div class="viewcode-block" id="create"><a class="viewcode-back" href="../../manage.html#coaster.manage.create">[docs]</a><span class="k">def</span> <span class="nf">create</span><span class="p">(</span><span class="n">env</span><span class="p">):</span>
+    <span class="s">&quot;Create database tables from sqlalchemy models&quot;</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">init_for</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">echo</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="o">.</span><span class="n">create_all</span><span class="p">()</span>
+    <span class="n">set_alembic_revision</span><span class="p">()</span>
+
+</div>
+<span class="nd">@manager.option</span><span class="p">(</span><span class="s">&#39;-e&#39;</span><span class="p">,</span> <span class="s">&#39;--env&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;dev&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&quot;runtime environment [default &#39;dev&#39;]&quot;</span><span class="p">)</span>
+<div class="viewcode-block" id="sync_resources"><a class="viewcode-back" href="../../manage.html#coaster.manage.sync_resources">[docs]</a><span class="k">def</span> <span class="nf">sync_resources</span><span class="p">(</span><span class="n">env</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Sync the client&#39;s resources with the Lastuser server&quot;&quot;&quot;</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">init_for</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+    <span class="k">print</span> <span class="s">&quot;Syncing resources with Lastuser...&quot;</span>
+    <span class="n">resources</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">lastuser</span><span class="o">.</span><span class="n">sync_resources</span><span class="p">()[</span><span class="s">&#39;results&#39;</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">rname</span><span class="p">,</span> <span class="n">resource</span> <span class="ow">in</span> <span class="n">resources</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">resource</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;error&#39;</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Error for </span><span class="si">%s</span><span class="s">: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rname</span><span class="p">,</span> <span class="n">resource</span><span class="p">[</span><span class="s">&#39;error&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">print</span> <span class="s">&quot;Resource </span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">...&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rname</span><span class="p">,</span> <span class="n">resource</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">aname</span><span class="p">,</span> <span class="n">action</span> <span class="ow">in</span> <span class="n">resource</span><span class="p">[</span><span class="s">&#39;actions&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">iteritems</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">action</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;error&#39;</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="s">&quot;</span><span class="se">\t</span><span class="s">Error for </span><span class="si">%s</span><span class="s">/</span><span class="si">%s</span><span class="s">: </span><span class="si">%s</span><span class="s">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rname</span><span class="p">,</span> <span class="n">aname</span><span class="p">,</span> <span class="n">action</span><span class="p">[</span><span class="s">&#39;error&#39;</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">print</span> <span class="s">&quot;</span><span class="se">\t</span><span class="s">Action </span><span class="si">%s</span><span class="s">/</span><span class="si">%s</span><span class="s"> </span><span class="si">%s</span><span class="s">...&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">rname</span><span class="p">,</span> <span class="n">aname</span><span class="p">,</span> <span class="n">resource</span><span class="p">[</span><span class="s">&#39;status&#39;</span><span class="p">])</span>
+    <span class="k">print</span> <span class="s">&quot;Resources synced...&quot;</span>
+
+</div>
+<span class="nd">@manager.option</span><span class="p">(</span><span class="s">&#39;-e&#39;</span><span class="p">,</span> <span class="s">&#39;--env&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;dev&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&quot;shell environment [default &#39;dev&#39;]&quot;</span><span class="p">)</span>
+<div class="viewcode-block" id="shell"><a class="viewcode-back" href="../../manage.html#coaster.manage.shell">[docs]</a><span class="k">def</span> <span class="nf">shell</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">no_ipython</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">no_bpython</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Initiate a Python shell&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">_make_context</span><span class="p">():</span>
+        <span class="n">manager</span><span class="o">.</span><span class="n">init_for</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">app</span><span class="o">=</span><span class="n">manager</span><span class="o">.</span><span class="n">app</span><span class="p">,</span> <span class="n">db</span><span class="o">=</span><span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="p">,</span> <span class="n">init_for</span><span class="o">=</span><span class="n">manager</span><span class="o">.</span><span class="n">init_for</span><span class="p">,</span> <span class="n">flask</span><span class="o">=</span><span class="n">flask</span><span class="p">)</span>
+        <span class="n">context</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">manager</span><span class="o">.</span><span class="n">context</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">context</span>
+    <span class="n">Shell</span><span class="p">(</span><span class="n">make_context</span><span class="o">=</span><span class="n">_make_context</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">no_ipython</span><span class="o">=</span><span class="n">no_ipython</span><span class="p">,</span> <span class="n">no_bpython</span><span class="o">=</span><span class="n">no_bpython</span><span class="p">)</span>
+
+</div>
+<span class="nd">@manager.option</span><span class="p">(</span><span class="s">&#39;-e&#39;</span><span class="p">,</span> <span class="s">&#39;--env&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s">&#39;dev&#39;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s">&quot;shell environment [default &#39;dev&#39;]&quot;</span><span class="p">)</span>
+<div class="viewcode-block" id="plainshell"><a class="viewcode-back" href="../../manage.html#coaster.manage.plainshell">[docs]</a><span class="k">def</span> <span class="nf">plainshell</span><span class="p">(</span><span class="n">env</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Initiate a plain Python shell&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">shell</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">no_ipython</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">no_bpython</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="init_manager"><a class="viewcode-back" href="../../manage.html#coaster.manage.init_manager">[docs]</a><span class="k">def</span> <span class="nf">init_manager</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">db</span><span class="p">,</span> <span class="n">init_for</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Initialise Manager</span>
+
+<span class="sd">    :param app: Flask app object</span>
+<span class="sd">    :parm db: db instance</span>
+<span class="sd">    :param init_for: init_for function which is normally present in __init__.py of hgapp</span>
+<span class="sd">    :param kwargs: Additional keyword arguments to be made available as shell context</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">app</span><span class="p">,</span> <span class="n">manager</span><span class="o">.</span><span class="n">db</span><span class="p">,</span> <span class="n">manager</span><span class="o">.</span><span class="n">init_for</span> <span class="o">=</span> <span class="n">app</span><span class="p">,</span> <span class="n">db</span><span class="p">,</span> <span class="n">init_for</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">context</span> <span class="o">=</span> <span class="n">kwargs</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">add_command</span><span class="p">(</span><span class="s">&quot;db&quot;</span><span class="p">,</span> <span class="n">database</span><span class="p">)</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">add_command</span><span class="p">(</span><span class="s">&quot;clean&quot;</span><span class="p">,</span> <span class="n">Clean</span><span class="p">())</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">add_command</span><span class="p">(</span><span class="s">&quot;showurls&quot;</span><span class="p">,</span> <span class="n">ShowUrls</span><span class="p">())</span>
+    <span class="n">manager</span><span class="o">.</span><span class="n">add_command</span><span class="p">(</span><span class="s">&quot;migrate&quot;</span><span class="p">,</span> <span class="n">InitedMigrations</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">manager</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  <div class="footer">
+    &copy; Copyright 2012-15, HasGeek.
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a>.
+  </div>
+  
+  </body>
+</html>
