@@ -1,0 +1,6 @@
+.. currentmodule:: abjad.tools.timespantools
+
+timespan_2_is_congruent_to_timespan_1
+=====================================
+
+.. autofunction:: timespan_2_is_congruent_to_timespan_1
