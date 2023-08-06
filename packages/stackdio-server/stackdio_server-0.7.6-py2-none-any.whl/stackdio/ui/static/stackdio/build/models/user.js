@@ -1,0 +1,18 @@
+/*!
+  * Copyright 2016,  Digital Reasoning
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+  * You may obtain a copy of the License at
+  *
+  *     http://www.apache.org/licenses/LICENSE-2.0
+  *
+  * Unless required by applicable law or agreed to in writing, software
+  * distributed under the License is distributed on an "AS IS" BASIS,
+  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  *
+*/
+
+define(["jquery","knockout","moment","bootbox","utils/utils","models/group"],function(e,s,a,r,t,n){"use strict";function i(){this.calendar=function(){return""},this.toString=function(){return""}}function o(e,a){var r=!1;"object"==typeof e&&e||(r=!0),this.raw=e,this.parent=a,this.username=s.observable(),this.firstName=s.observable(),this.lastName=s.observable(),this.email=s.observable(),this.ldapEnabled=window.stackdio.ldapEnabled,this.lastLogin=s.observable(new i),this.superuser=s.observable(),this.publicKey=s.observable(),this.advanced=s.observable(),this.groups=s.observableArray(),r?this.waiting=this.reload():this._process(e)}function l(e){return e&&e.length?a(e):new i}return o.constructor=o,o.prototype._process=function(e){this.username(e.username),this.firstName(e.first_name),this.lastName(e.last_name),this.email(e.email),this.superuser(e.superuser),this.lastLogin(l(e.last_login)),e.settings&&(this.publicKey(e.settings.public_key),this.advanced(e.settings.advanced_view))},o.prototype.reload=function(){var s=this;return e.ajax({method:"GET",url:"/api/user/"}).done(function(e){s.raw=e,s._process(e)})},o.prototype.loadGroups=function(){var s=this;return e.ajax({method:"GET",url:this.raw.groups}).done(function(e){var a=[];e.results.forEach(function(e){a.push(new n(e))}),s.groups(a)})},o.prototype.save=function(){var s=this,a=["username","first_name","last_name","email"],n=["public_key","advanced_view"];a.concat(n).forEach(function(s){var a=e("#"+s);a.removeClass("has-error");var r=a.find(".help-block");r.remove()}),e.ajax({method:"PUT",url:"/api/user/",data:JSON.stringify({username:s.username(),first_name:s.firstName(),last_name:s.lastName(),email:s.email(),superuser:s.superuser(),settings:{public_key:s.publicKey(),advanced_view:s.advanced()}})}).done(function(e){t.growlAlert("Successfully saved user!","success"),s.raw.settings.advanced_view!==s.advanced()&&window.location.reload(!0),s._process(e)}).fail(function(s){var t="";try{var i=JSON.parse(s.responseText);for(var o in i)if(i.hasOwnProperty(o))if(a.indexOf(o)>=0){var l=e("#"+o);l.addClass("has-error"),i[o].forEach(function(e){l.append('<span class="help-block">'+e+"</span>")})}else if("settings"===o){for(var u in i[o])if(i[o].hasOwnProperty(u)&&n.indexOf(u)>=0){var c=e("#"+u);c.addClass("has-error"),i[o].forEach(function(e){c.append('<span class="help-block">'+e+"</span>")})}}else if("non_field_errors"===o)i[o].forEach(function(s){if(s.indexOf("username")>=0){var a=e("#username");a.addClass("has-error"),a.append('<span class="help-block">A user with this username already exists.</span>')}});else{var d=o.replace("_"," ");i[o].forEach(function(e){t+="<dt>"+d+"</dt><dd>"+e+"</dd>"})}t&&(t='<dl class="dl-horizontal">'+t+"</dl>")}catch(p){t="Oops... there was a server error.  This has been reported to your administrators."}t&&r.alert({title:"Error saving user",message:t})})},o.prototype["delete"]=function(){e.ajax({method:"DELETE",url:this.raw.url})},o});
