@@ -1,0 +1,231 @@
+
+{% import "Magic/macros/forms.html" as f with context %}
+{% include "Magic/Plugin/Publisher/Admin/_include.html" %}
+
+<div id="EditPost">
+
+    {% if post and post.is_draft %}
+        {{ widget.alert("This post is a draft and is not yet published", category="warning", dismissible=False) }}
+    {% endif %}
+
+
+    <div class="row">
+        <div class="col-md-12 post-header-status">
+            {% set label = "default" %}
+            {% if post %}
+                {% if post.is_draft %}
+                    {% set label = "warning" %}
+                {% elif post.is_published %}
+                    {% set label = "success" %}
+                {% elif post.is_deleted %}
+                    {% set label = "danger" %}
+                {% endif %}
+            {% endif %}
+            <div class="pull-left">
+                <span class="label label-{{ label }}">{{ post.status | default('New', true) }}</span>
+            </div>
+
+            <div class="pull-right">
+                {% if post and post.id %}
+                <a href="{{ url_for("PublisherAdmin:preview", id=post.id) }}"
+                   class=""
+                   ><i class="fa fa-eye"></i>
+                    Preview Post</a>
+                {% endif %}
+            </div>
+            <div class="clearfix"></div>
+        </div>
+    </div>
+
+
+    <div class="row">
+        <div class="col-md-12">
+
+
+            {% call forms.post('PublisherAdmin:post', id="form-post-edit") %}
+
+                <input type="hidden" name="status" value="">
+                <input type="hidden" name="id" value="{% if post and post.id > 0 %}{{ post.id }}{% endif %}">
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="input-group">
+                            <span class="input-group-addon">Title:</span>
+                            <div class="form-control" style="padding-bottom: 50px;">
+                                <input type="text" name="title" class="form-control"
+                                       value="{% if post and post.id %}{{ post.title }}{% endif %}"
+                                       placeholder="Post Title">
+                            </div>
+                        </div>
+                        <br>
+                    </div>
+                </div>
+
+                 <div>
+                    <textarea name="content" id="mdeditor" class="form-control">{% if post %}{{ post.content | safe }}{% endif %}</textarea>
+                </div>
+
+
+                <div class="row">
+                    <div class="col-md-4">
+
+                        <!-- Types -->
+                        {%  call widget.collapsible("Post Type") %}
+                            {{ forms.radio(name='type_id', options=types,
+                                checked=[post.type_id if post else 0 ],
+                                data={"validation": "required"}) }}
+                        {%  endcall %}
+
+                        <!-- categories -->
+                        {%  call widget.collapsible("Categories") %}
+
+                              <div class="btn btn-default add-more-category link"
+                                    data-toggle="modal"
+                                    data-target="#modal-insert-cat-inline"
+                                      ><i class="fa fa-plus"></i> Add</div>
+                              <div class="clearfix"></div>
+                                <br>
+                            <div class="post-categories-list">
+                                {{ forms.checkbox(name='post_categories', options=categories, checked=checked_categories) }}
+                            </div>
+
+                        {%  endcall %}
+
+                        <!-- Fetaured Image -->
+                        {%  call widget.collapsible("Featured Image") %}
+
+                            <div class="featured-image-container">
+                                <img src="{{ post.featured_image | default("", true) }}">
+                            </div>
+                            <input type="text" class="form-control" name="featured_image" value="{{ post.featured_image | default("", true) }}" id="featured-image-input">
+                            <br>
+                            <button type="button" class="btn btn-info" id="btn-select-featured-image">Select Featured Image</button>
+                        {%  endcall %}
+
+                        <!-- Fetaured Embed -->
+                        {%  call widget.collapsible("Featured Embed") %}
+
+                            <div id="featured-embed-preview">
+                                <a class="featured-embed-container WP-oembed" href="{{ post.featured_embed | default("", true) }}"></a>
+                            </div>
+                            <input type="text" class="form-control" name="featured_embed" value="{{ post.featured_embed | default("", true) }}" id="featured-embed-input">
+                        {%  endcall %}
+
+                        <!-- info -->
+                        {%  call widget.collapsible("Info", collapse=true) %}
+                                <table>
+                                   <tr>
+                                        <td>Published Date</td>
+                                        <td>{% if post %}{{ post.published_at }}{% endif %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Creation Date</td>
+                                        <td>{% if post %}{{ post.created_at }}{% endif %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Featured Date</td>
+                                        <td>{% if post %}{{ post.featured_at }}{% endif %}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Sticky Date</td>
+                                        <td>{% if post %}{{ post.sticky_at }}{% endif %}</td>
+                                    </tr>
+                                </table>
+                        {%  endcall %}
+
+                    </div>
+
+                    <div class="col-md-8">
+
+                        <!-- slug -->
+                        {%  call widget.collapsible("Slug", collapse=true) %}
+                            <input type="text"
+                               name="slug"
+                               value="{% if post %}{{ post.slug | default('', true) }}{% endif %}"
+                               id="input-slug"
+                               data-live-update="true" class="form-control">
+                        {%  endcall %}
+
+                        <!-- Tags -->
+                        {%  call widget.collapsible("Tags") %}
+                                <input type="text" name="tags" class="form-control"
+                                       value="{% for tag in post.tags %}{{ tag.name }}, {% endfor %}"
+                                       placeholder="Type something and hit enter">
+                        {%  endcall %}
+
+                        <!-- Description  -->
+                        {%  call widget.collapsible("Description or Excerpt", collapse=true) %}
+                            <textarea name="description"
+                                      placeholder="Description or Excerpt"
+                                      class="form-control">{{ post.description | default('', true) }}</textarea>
+                        {%  endcall %}
+
+                        <!-- Options -->
+                        {%  call widget.collapsible("Post Options") %}
+
+                                {{ forms.radio(label='Set Public: ', name='is_public', checked="y" if post.is_public else "n", options=[("y", "Yes"), ("n", "No")], inline=true  ) }}
+
+                                {{ forms.radio(label='Set Featured Post: ', name='is_featured', checked="y" if post.is_featured else "n",options=[("y", "Yes"), ("n", "No")], inline=true ) }}
+
+                                {{ forms.radio(label='Set Sticky Post: ', name='is_sticky', checked="y" if post.is_sticky else "n",options=[("y", "Yes"), ("n", "No")], inline=true  ) }}
+
+                                {{ forms.radio(label='Featured Media Top: ', name='featured_media_top', checked=[post.featured_media_top or ""], options=[("embed", "Embed"), ("image", "Image"), ("", "None")], inline=true ) }}
+
+                        {%  endcall %}
+
+                        <!-- Other Options -->
+                        {%  call widget.collapsible("Other Options") %}
+
+                                {{ forms.checkbox(name='social_options', options=[('allow_comments', ' Allow Comments'),
+                                                                              ('show_likes', 'Show Likes'),
+                                                                              ('show_sharing_buttons', ' Show Sharing Buttons')
+                                                                              ],
+                                                                    checked=post.options.social) }}
+
+                        {%  endcall %}
+
+                    </div>
+                </div>
+
+
+                <div class="well text-center">
+                    <footer>
+                        <div id="btn-draft-post" data-action="draft" class="btn btn-md btn-warning action-btn"><i class="fa fa-archive"></i> Save as Draft</div>
+                        <br><br>
+                        <div id="btn-publish-post" data-action="publish" class="btn btn-lg btn-success action-btn"><i class="fa fa-cloud-upload"></i> Save & Publish</div>
+                        <br><br>
+                        <div id="btn-delete-post" data-action="delete" class="btn btn-md btn-danger action-btn"><i class="fa fa-trash"></i> Trash it</div>
+
+                    </footer>
+                </div>
+
+            {% endcall %}
+
+    </div>
+</div>
+
+{% call widget.modal('Add New Category', id='modal-insert-cat-inline') %}
+    <footer>
+        <button type="button" class="btn btn-success save-button pull-left"><i class="fa fa-check"></i> SAVE</button>
+        <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Close</button>
+    </footer>
+
+    {% call forms.post('PublisherAdmin:categories') %}
+        {{ forms.hidden(name="ajax", value="1") }}
+        {{ forms.input(label="Name", name="name") }}
+    {% endcall %}
+
+{% endcall %}
+
+
+
+<script>
+    $(function(){
+          WPMDEditor = new MdEditor('#mdeditor', {
+            uploader: '{{ url_for("PublisherAdmin:upload_image") }}',
+            uploaderData: {_csrf_token: "{{ csrf_token() }}", ajax: 1},
+            images: {{ images_list | tojson | safe }}
+          });
+    })
+</script>
+
