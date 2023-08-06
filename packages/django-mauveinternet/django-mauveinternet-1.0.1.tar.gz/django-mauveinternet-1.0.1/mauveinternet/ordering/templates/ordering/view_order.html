@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load quantity %}
+{% load item_views %}
+{% load forms %}
+
+{% block pagetitle %}Order {{order.order_number}}{% endblock %}
+
+{% block breadcrumbs %}
+	<li><a href="/admin/orders/new">Orders</a></li>
+	<li>Order {{order.order_number}}</li>
+{% endblock %}
+
+{% block in_head %}
+	<script type="text/javascript" src="/assets/js/table.js"></script>
+	<script type="text/javascript" src="/assets/js/accordion.js"></script>
+{% endblock %}
+
+{% block content %}
+	<div class="accordion">
+		<h3>Customer Details</h3>
+		<dl>
+			<dt>Name</dt>
+			<dd>{{order.customer.first_name}} {{order.customer.last_name}}</dd>
+
+			<dt>E-mail</dt>
+			<dd><a href="mailto:{{order.customer.email}}">{{order.customer.email}}</a></dd>
+
+			{% for number in order.customer.get_profile.phonenumber_set.all%}
+			<dt>{{number.get_type_display}}</dt>
+			<dd>{{number.number}}</dd>
+			{% endfor %}
+		</dl>
+
+		<h3>Billing Information</h3>
+		<dl>
+			<dt>Address</dt>
+			<dd>{{order.billing_address|linebreaksbr}}</dd>
+
+			<dt>Postcode</dt>
+			<dd>{{order.billing_postcode}}</dd>
+		</dl>
+
+		<h3>Order Items</h3>
+		<table class="order nosort">
+			<tr>
+				<th>Item</th>
+				<th>Qty</th>
+				<th>Price</th>
+			</tr>
+			{% for i in order.items %}
+			<tr>
+				<td>{% item_view view-order-item i order.order_number %}</td>
+				<td>{% quantity i %}</td>
+				<td>£{{i.get_total_price|floatformat:2}}</td>
+			</tr>
+			{% endfor %}
+			{% if order.items.charges %}
+			<tr class="total">
+				<th colspan="2">Subtotal</th>
+				<td>£{{order.subtotal|floatformat:2}}</td>
+			</tr>
+			{% for charge, value in order.items.get_charges %}
+			<tr class="total">
+				<th colspan="2">{{charge}}</th>
+				<td>£{{value|floatformat:2}}</td>
+			</tr>
+			{% endfor %}
+			{% endif %}
+			<tr class="total">
+				<th colspan="2">Total</th>
+				<td>£{{order.total|floatformat:2}}</td>
+			</tr>
+		</table>
+
+		<h3>Order History</h3>
+		<table>
+			<tr>
+				<th>Date</th>
+				<th>Old Status</th>
+				<th>New Status</th>
+				<th>Message</th>
+			</tr>
+			{% for status in order.history %}
+			<tr>
+				<td>{{status.date}}</td>
+				<td>{% ifnotequal status.previous_status "-" %}<img class="icon" src="/assets/images/orderstatus_{{status.previous_status}}.png" alt="" />{% endifnotequal %} {{status.get_previous_status_display}}</td>
+				<td><img class="icon" src="/assets/images/orderstatus_{{status.new_status}}.png" alt="" /> {{status.get_new_status_display}}</td>
+				<td>{{status.message}}</td>
+			</tr>
+			{% endfor %}
+		</table>
+	</div>
+
+	<form class="boxed" action="" method="post">
+		<h3 class="label">Update Status</h3>
+		{% formfield statusform.order_status %}
+		{% formfield statusform.message %}
+		<div class="buttons">
+			<input type="submit" value="Update"/>
+		</div>
+	</form>
+{% endblock %}
