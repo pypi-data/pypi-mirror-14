@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% load export_tags %}
+
+{% block bodydata %}
+data-export="{{ export.id }}"
+data-project="{{ export.project.id }}"
+data-category="{{ export.category.id }}"
+{% endblock %}
+
+{% block title %} | Export: {{ export.name }} overview{% endblock %}
+
+{% block main %}
+{% include 'export_header.html' %}
+
+<div class="container">
+    {% include 'export_breadcrumb.html' %}
+
+    <div class="row">
+        <div class="col-md-8 col-md-offset-2">
+            <h3 class="header">{{ export.name }}</h3>
+
+            <div id="map"></div>
+
+            <form method="POST" action="{% url 'geokey_export:export_overview' export.id %}" novalidate>
+                {% csrf_token %}
+
+                <input type="hidden" id="geometry" name="geometry" value="{{ export.bounding_box.json }}" />
+
+                <table class="table table-hover">
+                    <tr>
+                        <td>Name</td>
+                        <td>{{ export.name }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Project</td>
+                        <td>{{ export.project.name }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Category</td>
+                        <td>{{ export.category.name }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Creator</td>
+                        <td>{{ export.creator }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Expiration date</td>
+                        <td>{{ export|expiry }}</td>
+                    </tr>
+
+                    <tr>
+                        <td>Share link</td>
+                        <td>
+                            {% if export.is_expired %}
+                                <span class="text-danger">The export has expired</span>
+                                <span>|</span>
+                                <a href="#" data-toggle="modal" data-target="#reactivate-confirm">Reactivate</a>
+                            {% else %}
+                                <a href="{% url 'geokey_export:export_to_renderer' export.urlhash %}">
+                                    {{ export.urlhash }}
+                                </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <a role="button" href="{% url 'geokey_export:index' %}" class="btn btn-link">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8 col-md-offset-2">
+            <div class="panel panel-danger">
+                <div class="panel-heading">
+                    <h2 class="panel-title">Be careful!</h2>
+                </div>
+
+                <div class="panel-body becareful">
+                    <div>
+                        <strong>Delete export</strong>
+                        <p>If you delete the export, there's no way back.</p>
+                        <a href="#" class="text-danger" data-toggle="modal" data-target="#delete-confirm">Delete</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+    <div role="dialog" id="delete-confirm" class="modal fade" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content panel-danger">
+                <div class="modal-header panel-heading">
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                    <h4 class="modal-title">Are you sure?</h4>
+                </div>
+
+                <div class="modal-body panel-body">
+                    <p><strong>Before you delete the export please read through the consequences of this action:</strong></p>
+
+                    <ul>
+                        <li>All information about the export will be removed from the database. This cannot be undone.</li>
+                        <li>Users of your export will no longer be able to use your export to access data.</li>
+                    </ul>
+                </div>
+
+                <div class="modal-footer panel-footer">
+                    <a href="{% url 'geokey_export:export_delete' export.id %}" class="btn btn-danger">Yes, delete this export</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div role="dialog" id="reactivate-confirm" class="modal fade" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form class="modal-content panel-default" method="POST" action="{% url 'geokey_export:export_overview' export.id %}" novalidate>
+                {% csrf_token %}
+
+                <div class="modal-header panel-heading">
+                    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                    <h4 class="modal-title">Reactivate an expired export</h4>
+                </div>
+
+                <div class="modal-body panel-body">
+                    <label for="expiration" class="control-label">New export length of availability:</label>
+
+                    <div class="radio">
+                        <label>
+                            <input type="radio" name="expiration" value="one_off" required />
+                            <span>one off</span>
+                        </label>
+                    </div>
+
+                    <div class="radio">
+                        <label>
+                            <input type="radio" name="expiration" value="one_week" required />
+                            <span>one week</span>
+                        </label>
+                    </div>
+
+                    <div class="radio">
+                        <label>
+                            <input type="radio" name="expiration" value="permanent" required />
+                            <span>permanent</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-footer panel-footer">
+                    <button type="submit" class="btn btn-primary">Reactivate export</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock %}
+
+{% block libraries %}
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/leaflet.css">
+<script src="//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/leaflet.js"></script>
+
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.2.3/leaflet.draw.css">
+<script src="//cdnjs.cloudflare.com/ajax/libs/leaflet.draw/0.2.3/leaflet.draw.js"></script>
+
+<script src="/static/js/admin.ui.project.geographicextent.js"></script>
+<script src="/static/js/admin.ui.export.js"></script>
+{% endblock %}
