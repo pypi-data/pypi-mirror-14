@@ -1,0 +1,38 @@
+# import Libraries of other lib packages
+import bob.io.base
+
+# import our own Library
+import bob.extension
+bob.extension.load_bob_library('bob.learn.boosting', __file__)
+
+# versioning
+from bob.learn.boosting import version
+from bob.learn.boosting.version import module as __version__
+from bob.learn.boosting.version import api as __api_version__
+
+# include loss functions
+from bob.learn.boosting import LossFunction # Just to get the documentation for it
+from bob.learn.boosting.ExponentialLoss import ExponentialLoss
+from bob.learn.boosting.LogitLoss import LogitLoss
+from bob.learn.boosting.TangentialLoss import TangentialLoss
+from bob.learn.boosting._library import JesorskyLoss
+
+# include trainers
+from bob.learn.boosting.StumpTrainer import StumpTrainer
+from bob.learn.boosting.Boosting import Boosting
+from bob.learn.boosting._library import LUTTrainer
+
+# include machines
+from bob.learn.boosting._library import WeakMachine, StumpMachine, LUTMachine, BoostedMachine
+
+# include auxiliary functions
+from bob.learn.boosting._library import weighted_histogram
+
+def get_config():
+  """Returns a string containing the configuration information.
+  """
+  return bob.extension.get_config(__name__, version.externals, version.api)
+
+
+# gets sphinx autodoc done right - don't remove it
+__all__ = [_ for _ in dir() if not _.startswith('_')]
