@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+import psychic_disco
+import argparse
+import os
+import re
+import sys
+import subprocess
+import shutil
+
+class Command(object):
+    Name = ""
+    Help = ""
+
+    @staticmethod
+    def command(args):
+        return NotImplemented
+    
+    @staticmethod
+    def configure_parser(parser):
+        return NotImplemented
+
+class ListEntrypoints(Command):
+    Name = "list_entrypoints"
+    Help = "list all entrypoints for a given module"
+    @staticmethod
+    def configure_parser(parser):
+        parser.add_argument('module_name')
+
+    @staticmethod
+    def command(args):
+        ListEntrypoints.attempt_import(args.module_name)
+        print psychic_disco.entry_points()
+
+    @staticmethod
+    def convert_path_to_module(path):
+        m = re.match(r"./(.*)\.py", path)
+        return ".".join(m.group(1).split("/"))
+
+    @staticmethod
+    def attempt_import(module_name):
+        try:
+            __import__(module_name, fromlist=["path"])
+        except:
+            pass
+
+class DiscoverEntrypoints(Command):
+    Name = "discover_entrypoints"
+    Help = "search repo for possible entrypoints"
+    @staticmethod
+    def configure_parser(parser):
+        pass
+
+    @staticmethod
+    def command(args):
+        for (dirpath, dirnames, filenames) in os.walk(args.repo):
+            for dirname in dirnames:
+                if dirname.startswith("."):
+                    dirnames.remove(dirname) # Don't visit hidden directories
+            for filename in filenames:
+                if filename.endswith(".py") and not filename.startswith("."): # Don't mess with hidden files
+                    module_name = ListEntrypoints.convert_path_to_module(os.path.join(dirpath, filename))
+                    ListEntrypoints.attempt_import(module_name)
+        print psychic_disco.entry_points()
+
+class BundleApplication(Command):
+    Name = "bundle"
+    Help = "Bundle application into a Lambda-friendly deployment package"
+    @staticmethod
+    def configure_parser(parser):
+        pass
+
+    @staticmethod
+    def command(args):
+        bundle_dir = os.path.join(args.repo,".psychic_disco") 
+        if not os.path.exists(bundle_dir):
+            os.mkdir(bundle_dir)
+        os.environ['LC_ALL'] = 'C'
+        subprocess.call(['virtualenv',bundle_dir])
+        virtualenv_activate = os.path.join(bundle_dir,"bin/activate")
+        requirements_file = os.path.join(args.repo, "requirements.txt")
+        subprocess.call(['bash','-c',"source %s; pip install -r %s; deactivate" % (virtualenv_activate, requirements_file)])
+        # Copy everything in
+        dist_packages = os.path.join(bundle_dir,"lib/python2.7/dist-packages")
+        for (dirpath, dirnames, filenames) in os.walk(args.repo):
+            for dirname in dirnames:
+                if dirname.startswith("."):
+                    dirnames.remove(dirname) # Don't visit hidden directories
+            for filename in filenames:
+                if filename.endswith(".py") and not filename.startswith("."): # Don't mess with hidden files
+                    relative_path = os.path.join(dirpath, filename)
+                    dest_path = os.path.join(dist_packages, relative_path)
+                    print "cp %s %s" % (relative_path, dest_path)
+                    subprocess.call(['cp',relative_path,dest_path])
+        os.chdir(dist_packages)
+        subprocess.call(['zip','-r', 'deployment-package.zip','.','-i','*'])
+
+def build_parser():
+    parser = argparse.ArgumentParser(prog='psychic_disco')
+    parser.add_argument('--repo', help='microservices repo', default=".")
+    subparsers = parser.add_subparsers(help='sub-command help')
+    for subcommand in Command.__subclasses__():
+        subparser = subparsers.add_parser(subcommand.Name, help=subcommand.Help)
+        subcommand.configure_parser(subparser)
+        subparser.set_defaults(func=subcommand.command)
+    return parser
+
+if __name__ == "__main__":
+    parser = build_parser()
+    args = parser.parse_args()
+    sys.path[0] = args.repo
+    args.func(args)
