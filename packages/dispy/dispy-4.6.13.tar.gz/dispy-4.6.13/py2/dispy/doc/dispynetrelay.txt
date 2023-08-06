@@ -1,0 +1,74 @@
+
+dispynetrelay (Using Remote Servers)
+************************************
+
+dispynetrelay relays information about nodes on its network to dispy
+scheduler(s).
+
+If dispy scheduler and nodes are on same network, dispynetrelay is not
+needed. If they are not, then there are two choices to use nodes on a
+different network:
+
+* When cluster is created with dispy, *nodes* option must specify
+  all the nodes (either IP addresses or host names) explicitly. This
+  can be cumbersome if there are many nodes on different network(s).
+
+* If dispynetrelay is running on a node in a remote network, it can
+  relay information about nodes and clients (schedulers). In this
+  case, *nodes* option to dispy client need to specify only the
+  node(s) running dispynetrelay - all the nodes in that network can
+  then be used by dispy. Note that *nodes* option is also used to
+  filter matching nodes, so "*" may be added to the *nodes* option to
+  use all the nodes found.
+
+Below are various options to invoking dispynetrelay:
+
+* "--node_port n" directs dispynetrelay to communicate with nodes in
+  its network with port *n* instead of default port 51348.
+
+* "--listen_port n" directs dispynetrelay to listen for messages
+  from client on *n* instead of *node_port*. If dispynetrelay needs to
+  run on a node that also runs dispynode, they both can't use same
+  port. In that case, *listen_port* can be used to use another port to
+  listen for connections from client. The client then should specify
+  that port in *nodes* (either with NodeAllocate with *port* set to
+  *n*, or a node as tuple with second value set to *n*); see *nodes*
+  parameter in JobCluster.
+
+* "--scheduler_node addr" is necessary if a scheduler (JobCluster or
+  SharedJobCluster) is already running when dispynetrelay has started.
+  If given, will send discovery message to scheduler at *addr*. The
+  scheduler can then find nodes in the network where dispynetrelay is
+  running.
+
+* "--scheduler_port n" (when used with *scheduler_node* above)
+  directs dispynetrelay to send discovery message to scheduler at
+  given port *n* instead of default port 51349.
+
+* "-d" enables debug messages that show trace of execution. This may
+  not be very useful to end users.
+
+For example, assume that dispy client is in a network with address
+"192.168.10.5" with a few nodes and other nodes in another (remote)
+network with address "172.16.3.x". To use the nodes in both networks,
+cluster can be created with:
+
+   cluster = dispy.JobCluster(compute, nodes=['*', '172.16.3.8', '172.16.3.12', '172.16.3.13'])
+
+dispynode servers on local network are detected and used due to "'*'"
+and other nodes in "172.16.3.x" network at given addresses will be
+used (if they can be contacted). If there are many nodes in
+"172.16.3.x" network, it may not be convenient to list them all in
+*nodes*. Instead, dispynetrelay can be run on one of the nodes in
+"172.16.3.x" network, say, at "172.16.3.2". Then the cluster can be
+created with:
+
+   cluster = dispy.JobCluster(compute, nodes=['*', '172.16.3.2'])
+
+dispynetrelay running at "172.16.3.2" will relay client scheduler
+information to dispynode servers on "172.16.3.x" network and will be
+used by scheduler. Note that "*" is necessary to match servers on
+"172.16.3.x" network (and also to detect/match servers in local
+network). If all nodes are on remote network (i.e., nodes on local
+network are not used), *nodes* can be specified as
+"nodes=['172.16.3.*, 172.16.3.2']".

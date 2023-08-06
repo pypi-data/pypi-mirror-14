@@ -1,0 +1,297 @@
+
+dispy: Distributed and Parallel Computing with/for Python
+*********************************************************
+
+dispy is a comprehensive, yet easy to use framework for creating and
+using compute clusters to execute computations in parallel across
+multiple processors in a single machine (SMP), among many machines in
+a cluster, grid or cloud. dispy is well suited for data parallel
+(SIMD) paradigm where a computation (Python function or standalone
+program) is evaluated with different (large) datasets independently
+with no communication among computation tasks (except for computation
+tasks sending Provisional/Intermediate Results or Transferring Files
+to the client). If communication/cooperation among tasks is needed,
+Distributed Communicating Processes module of asyncoro framework could
+be used.
+
+Some of the features of dispy:
+
+* dispy is implemented with asyncoro, an independent framework for
+  asynchronous, concurrent, distributed, network programming with
+  coroutines (without threads). asyncoro uses non-blocking sockets
+  with I/O notification mechanisms epoll, kqueue, poll and Windows I/O
+  Completion Ports (IOCP) for high performance and scalability, so
+  dispy works efficiently with a single node or large cluster(s) of
+  nodes. asyncoro itself has support for distributed/parallel
+  computing, including transferring computations, files etc., and
+  message passing (for communicating with client and other computation
+  tasks).  While dispy can be used to schedule jobs of a computation
+  to get the results, asyncoro can be used to create distributed
+  communicating processes, for broad range of use cases, including in-
+  memory processing, data streaming, real-time (live) analytics.
+
+* Computations (Python functions or standalone programs) and their
+  dependencies (files, Python functions, classes, modules) are
+  distributed to nodes automatically. Computations, if they are Python
+  functions, can also transfer files on the nodes to the client.
+
+* Computation nodes can be anywhere on the network (local or
+  remote). For security, either simple hash based authentication or
+  SSL encryption can be used.
+
+* After each execution is finished, the results of execution,
+  output, errors and exception trace are made available for further
+  processing.
+
+* In-memory processing is supported (with some limitations under
+  Windows); i.e., computations can work on data in memory instead of
+  loading data from files each time.
+
+* Nodes may become available dynamically: dispy will schedule jobs
+  whenever a node is available and computations can use that node.
+
+* If callback function is provided, dispy executes that function
+  when a job is finished; this can be used for processing job results
+  as they become available.
+
+* Client-side and server-side fault recovery are supported:
+
+  If user program (client) terminates unexpectedly (e.g., due to
+  uncaught exception), the nodes continue to execute scheduled jobs.
+  The results of the scheduled (but unfinished at the time of crash)
+  jobs for that cluster can be retrieved easily with (Fault) Recover
+  Jobs.
+
+  If a computation is marked reentrant when a cluster is created and a
+  node (server) executing jobs for that computation fails, dispy
+  automatically resubmits those jobs to other available nodes.
+
+* dispy can be used in a single process to use all the nodes
+  exclusively (with JobCluster) or in multiple processes
+  simultaneously sharing the nodes (with SharedJobCluster and
+  *dispyscheduler (Shared Execution)* program).
+
+* Cloud computing platform, such as Amazon EC2, can be used as
+  compute nodes, either exclusively or in addition to any local
+  compute nodes. See Cloud Computing for details.
+
+* *Monitor and Manage Cluster* with a web browser, including in iOS
+  or Android devices.
+
+dispy works with Python versions 2.7+ and 3.1+ and tested on Linux, OS
+X and Windows; it may work on other platforms too. dispy works with
+JIT interpretter PyPy as well.
+
+
+Dependencies
+============
+
+dispy requires asyncoro for concurrent, asynchronous network
+programming with coroutines. If dispy is installed with pip (see
+below), asyncoro is also installed automatically.
+
+Under Windows asyncoro uses efficient polling notifier I/O Completion
+Ports (IOCP) only if pywin32 is installed; otherwise, inefficient
+*select* notifier is used.
+
+*dispynode (Server)* sends node availability status (availability of
+CPU as percent, memory in bytes and disk space in bytes) at
+*pulse_interval* frequency if psutil module is installed. This
+information may be useful to clients, for example, to analyze
+application performance, to filter nodes based on available resources
+etc.
+
+
+Download / Installation
+=======================
+
+* dispy is availble through Python Package Index (PyPI) so it can be
+  easily installed with:
+
+     python -m pip install dispy
+
+* Docker Container describes how to build Docker image and run
+  dispynode in containers so computations are fully isloated (e.g.,
+  the files on the host operating system on nodes are not accessible
+  to computations).
+
+* dispy can also be downloaded from Sourceforge Files and used
+  without installing. Files in 'py2' directory in the downloaded
+  package are to be used with Python 2.7+ and files in 'py3' directory
+  are to be used with Python 3.1+. If asyncoro package is not
+  installed (with 'pip'), then it can also be downloaded and unpacked
+  under where dispy is unpacked, so that asyncoro's directory is
+  copied in dispy's directory; i.e., files in 'dispy' directory are:
+  "dispy/__init__.py", "dispy/httpd.py", "dispy/asyncoro/__init__.py",
+  "dispy/asyncoro/asyncfile.py" etc. Then dispy can be used from the
+  parent directory of "dispy".
+
+
+Quick Guide
+===========
+
+Below is a quick guide on how to use dispy. More details are available
+in *dispy (Client)*.
+
+dispy framework consists of 4 components:
+
+* A client program can use *dispy (Client)* module to create
+  clusters in two different ways: JobCluster when only one instance of
+  dispy may run and SharedJobCluster when multiple instances may run
+  (in separate programs). If JobCluster is used, the job scheduler
+  included in it will distribute jobs on the server nodes; if
+  SharedJobCluster is used, *dispyscheduler (Shared Execution)*
+  program must also be running.
+
+* *dispynode (Server)* program executes jobs on behalf of a dispy
+  client. dispynode must be running on each of the (server) nodes that
+  form clusters.
+
+* *dispyscheduler (Shared Execution)* program is needed only when
+  SharedJobCluster is used; this provides a job scheduler that can be
+  shared by multiple dispy clients simultaneously.
+
+* *dispynetrelay (Using Remote Servers)* program can be used when
+  nodes are located across different networks. If all nodes are on
+  local network or if all remote nodes can be listed in 'nodes'
+  parameter when creating cluster, there is no need for dispynetrelay
+  - the scheduler can discover such nodes automatically. However, if
+  there are many nodes on remote network(s), dispynetrelay can be used
+  to relay information about the nodes on that network to scheduler,
+  without having to list all nodes in 'nodes' parameter.
+
+As an example, consider the following program, in which function
+*compute* is distributed to nodes on a local network for parallel
+execution. First, run dispynode program (**dispynode.py**) on each of
+the nodes on the network. Now run the program below, which creates a
+cluster with function *compute*; this cluster is then used to create
+jobs to execute *compute* with a random number 10 times.:
+
+   # 'compute' is distributed to each node running 'dispynode'
+   def compute(n):
+       import time, socket
+       time.sleep(n)
+       host = socket.gethostname()
+       return (host, n)
+
+   if __name__ == '__main__':
+       import dispy, random
+       cluster = dispy.JobCluster(compute)
+       jobs = []
+       for i in range(10):
+           # schedule execution of 'compute' on a node (running 'dispynode')
+           # with a parameter (random number in this case)
+           job = cluster.submit(random.randint(5,20))
+           job.id = i # optionally associate an ID to job (if needed later)
+           jobs.append(job)
+       # cluster.wait() # waits for all scheduled jobs to finish
+       for job in jobs:
+           host, n = job() # waits for job to finish and returns results
+           print('%s executed job %s at %s with %s' % (host, job.id, job.start_time, n))
+           # other fields of 'job' that may be useful:
+           # print(job.stdout, job.stderr, job.exception, job.ip_addr, job.start_time, job.end_time)
+       cluster.print_status()
+
+dispy's scheduler runs the jobs on the processors in the nodes running
+dispynode. The nodes execute each job with the job's arguments in
+isolation - computations shouldn't depend on global state, such as
+modules imported outside of computations, global variables etc.
+(except if 'setup' parameter is used, as explained in *dispy (Client)*
+and *Examples*). In this case, *compute* needs modules *time* and
+*socket*, so it must import them. The program then gets results of
+execution for each job with **job()**.
+
+
+Citation
+--------
+
+If you use dispy in academic/research work, please cite dispy as:
+
+   Giridhar Pemmasani, "dispy: Distributed and Parallel Computing with/for Python",
+     http://dispy.sourceforge.net, 2016.
+
+
+Contents
+========
+
+* dispy (Client)
+
+  * JobCluster
+
+  * SharedJobCluster
+
+  * Cluster
+
+  * DispyJob
+
+  * NodeAllocate
+
+  * DispyNodeAvailInfo
+
+  * Provisional/Intermediate Results
+
+  * Transferring Files
+
+  * (Fault) Recover Jobs
+
+  * NAT/Firewall Forwarding
+
+  * SSH Port Forwarding
+
+  * SSL (Security / Encryption)
+
+  * Cloud Computing
+
+* dispynode (Server)
+
+  * NAT/Firewall Forwarding
+
+  * Docker Container
+
+* dispyscheduler (Shared Execution)
+
+  * NAT/Firewall Forwarding
+
+* dispynetrelay (Using Remote Servers)
+
+* Monitor and Manage Cluster
+
+  * HTTP Server
+
+  * Example
+
+  * Client (Browser) Interface
+
+* Examples
+
+  * Command-Line
+
+  * Python Script
+
+  * Canonical Program
+
+  * Distributing Objects
+
+  * In-memory Processing
+
+  * Updating Globals
+
+  * Sending Files to Client
+
+  * Callback Processing
+
+  * Cluster Creation
+
+  * MapReduce
+
+* Contribute to / Recommend / Share dispy
+
+
+Indices and tables
+==================
+
+* Index
+
+* Module Index
+
+* Search Page
