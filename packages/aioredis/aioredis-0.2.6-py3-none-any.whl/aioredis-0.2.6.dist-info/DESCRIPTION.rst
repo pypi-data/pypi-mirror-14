@@ -1,0 +1,283 @@
+aioredis
+========
+
+asyncio (PEP 3156) Redis client library.
+
+.. image:: https://travis-ci.org/aio-libs/aioredis.svg?branch=master
+   :target: https://travis-ci.org/aio-libs/aioredis
+
+
+.. image:: https://coveralls.io/repos/aio-libs/aioredis/badge.svg?branch=master&service=github
+   :target: https://coveralls.io/github/aio-libs/aioredis?branch=master
+
+Features
+--------
+
+================================  ==============================
+hiredis_ parser                     Yes
+Pure-python parser                  TBD
+Low-level & High-level APIs         Yes
+Connections Pool                    Yes
+Pipelining support                  Yes
+Pub/Sub support                     Yes
+SSL/TLS support                     Yes
+Redis Cluster support               WIP
+Trollius (python 2.7)               No
+Tested python versions              `3.3, 3.4, 3.5`_
+Tested for Redis server             `2.6, 2.8, 3.0`_
+Support for dev Redis server        through low-level API
+================================  ==============================
+
+Documentation
+-------------
+
+http://aioredis.readthedocs.org/
+
+Usage examples
+--------------
+
+Simple low-level interface:
+
+.. code:: python
+
+    import asyncio
+    import aioredis
+
+    loop = asyncio.get_event_loop()
+
+    @asyncio.coroutine
+    def go():
+        conn = yield from aioredis.create_connection(
+            ('localhost', 6379), loop=loop)
+        yield from conn.execute('set', 'my-key', 'value')
+        val = yield from conn.execute('get', 'my-key')
+        print(val)
+        conn.close()
+    loop.run_until_complete(go())
+    # will print 'value'
+
+Simple high-level interface:
+
+.. code:: python
+
+    import asyncio
+    import aioredis
+
+    loop = asyncio.get_event_loop()
+
+    @asyncio.coroutine
+    def go():
+        redis = yield from aioredis.create_redis(
+            ('localhost', 6379), loop=loop)
+        yield from redis.set('my-key', 'value')
+        val = yield from redis.get('my-key')
+        print(val)
+        redis.close()
+    loop.run_until_complete(go())
+    # will print 'value'
+
+Connections pool:
+
+.. code:: python
+
+    import asyncio
+    import aioredis
+
+    loop = asyncio.get_event_loop()
+
+    @asyncio.coroutine
+    def go():
+        pool = yield from aioredis.create_pool(
+            ('localhost', 6379),
+            minsize=5, maxsize=10,
+            loop=loop)
+        with (yield from pool) as redis:    # high-level redis API instance
+            yield from redis.set('my-key', 'value')
+            print((yield from redis.get('my-key')))
+        yield from pool.clear()    # closing all open connections
+
+    loop.run_until_complete(go())
+
+
+Requirements
+------------
+
+* Python_ 3.3+
+* asyncio_ or Python_ 3.4+
+* hiredis_
+
+.. note::
+
+    hiredis is preferred requirement.
+    Pure-python fallback protocol parser is TBD.
+
+Discussion list
+---------------
+
+*aio-libs* google group: https://groups.google.com/forum/#!forum/aio-libs
+
+License
+-------
+
+The aioredis is offered under MIT license.
+
+.. _Python: https://www.python.org
+.. _asyncio: https://pypi.python.org/pypi/asyncio
+.. _hiredis: https://pypi.python.org/pypi/hiredis
+.. _3.3, 3.4, 3.5:
+.. _2.6, 2.8, 3.0:
+.. _travis: https://travis-ci.org/aio-libs/aioredis
+
+Changes
+-------
+
+0.2.6 (2016-03-30)
+^^^^^^^^^^^^^^^^^^
+
+* Fixed Multi/Exec transactions cancellation issue
+  (see `#110 <https://github.com/aio-libs/aioredis/issues/110>`_
+  and `#114 <https://github.com/aio-libs/aioredis/issues/114>`_);
+
+* Fixed Pub/Sub subscribe concurrency issue
+  (see `#113 <https://github.com/aio-libs/aioredis/issues/113>`_
+  and `#115 <https://github.com/aio-libs/aioredis/issues/115>`_);
+
+* Add SSL/TLS support
+  (see  `#116 <https://github.com/aio-libs/aioredis/issues/116>`_);
+
+* ``aioredis.ConnectionClosedError`` raised in ``execute_pubsub`` as well
+  (see `#108 <https://github.com/aio-libs/aioredis/issues/108>`_);
+
+* ``Redis.slaveof()`` method signature changed: now to disable
+  replication one should call ``redis.slaveof(None)`` instead of ``redis.slaveof()``;
+
+* More tests added;
+
+
+0.2.5 (2016-03-02)
+^^^^^^^^^^^^^^^^^^
+
+* Close all Pub/Sub channels on connection close
+  (see `#88 <https://github.com/aio-libs/aioredis/issues/88>`_);
+
+* Add ``iter()`` method to ``aioredis.Channel`` allowing to use it
+  with ``async for``
+  (see `#89 <https://github.com/aio-libs/aioredis/issues/89>`_);
+
+* Inline code samples in docs made runnable and downloadable
+  (see `#92 <https://github.com/aio-libs/aioredis/issues/92>`_);
+
+* Python 3.5 examples converted to use ``async``/``await`` syntax
+  (see `#93 <https://github.com/aio-libs/aioredis/issues/93>`_);
+
+* Fix Multi/Exec to honor encoding parameter
+  (see `#94 <https://github.com/aio-libs/aioredis/issues/94>`_
+  and `#97 <https://github.com/aio-libs/aioredis/issues/97>`_);
+
+* Add debug message in ``create_connection``
+  (see `#90 <https://github.com/aio-libs/aioredis/issues/90>`_);
+
+* Replace ``asyncio.async`` calls with wrapper that respects asyncio version
+  (see `#101 <https://github.com/aio-libs/aioredis/issues/101>`_);
+
+* Use NODELAY option for TCP sockets
+  (see `#105 <https://github.com/aio-libs/aioredis/issues/105>`_);
+
+* New ``aioredis.ConnectionClosedError`` exception added. Raised if
+  connection to Redis server is lost
+  (see `#108 <https://github.com/aio-libs/aioredis/issues/108>`_
+  and `#109 <https://github.com/aio-libs/aioredis/issues/109>`_);
+
+* Fix RedisPool to close and drop connection in subscribe mode on release;
+
+* Fix ``aioredis.util.decode`` to recursively decode list responses;
+
+* More examples added and docs updated;
+
+* Add google groups link to README;
+
+* Bump year in LICENSE and docs;
+
+
+
+0.2.4 (2015-10-13)
+^^^^^^^^^^^^^^^^^^
+
+* Python 3.5 ``async`` support:
+
+  - New scan commands API (``iscan``, ``izscan``, ``ihscan``);
+
+  - Pool made awaitable (allowing ``with await pool: ...`` and ``async
+    with pool.get() as conn:`` constructs);
+
+* Fixed dropping closed connections from free pool
+  (see `#83 <https://github.com/aio-libs/aioredis/issues/83>`_);
+
+* Docs updated;
+
+
+0.2.3 (2015-08-14)
+^^^^^^^^^^^^^^^^^^
+
+* Redis cluster support work in progress;
+
+* Fixed pool issue causing pool growth over max size & ``acquire`` call hangs
+  (see `#71 <https://github.com/aio-libs/aioredis/issues/71>`_);
+
+* ``info`` server command result parsing implemented;
+
+* Fixed behavior of util functions
+  (see `#70 <https://github.com/aio-libs/aioredis/issues/70>`_);
+
+* ``hstrlen`` command added;
+
+* Few fixes in examples;
+
+* Few fixes in documentation;
+
+
+0.2.2 (2015-07-07)
+^^^^^^^^^^^^^^^^^^
+
+* Decoding data with ``encoding`` parameter now takes into account
+  list (array) replies
+  (see `#68 <https://github.com/aio-libs/aioredis/pull/68>`_);
+
+* ``encoding`` parameter added to following commands:
+
+  - generic commands: keys, randomkey;
+
+  - hash commands: hgetall, hkeys, hmget, hvals;
+
+  - list commands: blpop, brpop, brpoplpush, lindex, lpop, lrange, rpop, rpoplpush;
+
+  - set commands: smembers, spop, srandmember;
+
+  - string commands: getrange, getset, mget;
+
+* Backward incompatibility:
+
+  ``ltrim`` command now returns bool value instead of 'OK';
+
+* Tests updated;
+
+
+0.2.1 (2015-07-06)
+^^^^^^^^^^^^^^^^^^
+
+* Logging added (aioredis.log module);
+
+* Fixed issue with ``wait_message`` in pub/sub
+  (see `#66 <https://github.com/aio-libs/aioredis/issues/66>`_);
+
+
+0.2.0 (2015-06-04)
+^^^^^^^^^^^^^^^^^^
+
+* Pub/Sub support added;
+
+* Fix in ``zrevrangebyscore`` command
+  (see `#62 <https://github.com/aio-libs/aioredis/pull/62>`_);
+
+* Fixes/tests/docs;
+
