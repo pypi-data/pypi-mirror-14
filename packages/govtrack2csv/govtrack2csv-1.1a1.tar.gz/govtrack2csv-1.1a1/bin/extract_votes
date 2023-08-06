@@ -1,0 +1,116 @@
+#!/bin/bin/env python3
+
+# This file is part of govtrack2csv.
+#
+# govtrack2csv is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# govtrack2csv is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with govtrack2csv.  If not, see <http://www.gnu.org/licenses/>.
+
+import argparse
+import logging
+import os
+
+import pandas as pd
+import numpy as np
+
+logging.basicConfig(level=logging.DEBUG)
+
+
+def consolidate_votes(src, dest):
+    """
+    Walk through our csv directories and combine the csv's for each congresses
+    votes into two files, one for votes one for people votes on those votes.
+    """
+
+    # We aren't doing any processing here. Just saving that for latter, it's
+    # much faster and more memory efficient this way.
+
+    votes_out = open("{0}/{1}".format(dest, 'all_votes.csv'), 'w')
+    votes_people_out = open("{0}/{1}".format(dest, 'all_votes_people.csv'),
+                            'w')
+    walk = 0
+    for (root, dirs, files) in os.walk(src):
+        if 'votes_people.csv' in files:
+            file_path = "{0}/{1}".format(root, 'votes_people.csv')
+            logging.info("processing {0}".format(file_path))
+            f = open(file_path)
+            if walk != 0:  # skip header
+                next(f)
+            for l in f:
+                votes_people_out.write(l)
+            f.close()
+
+        if 'votes.csv' in files:
+            file_path = "{0}/{1}".format(root, 'votes.csv')
+            logging.info("processing {0}".format(file_path))
+            f = open(file_path)
+            if walk != 0:  # skip header line
+                next(f)
+            for l in f:
+                votes_out.write(l)
+            f.close()
+            walk = walk + 1
+
+    votes_out.close()
+    votes_people_out.close()
+
+
+def combine_data(src):
+    """
+    Combine our votes, votes_people, and legistlator csv's into a single
+    dataframe. Save it in both csv and hdf5.
+    """
+    logging.info("Combining Votes")
+    # Get data
+    logging.info("Read Files")
+    votes = pd.read_csv("{0}/{1}".format(src, 'all_votes.csv'))
+    votes_people = pd.read_csv("{0}/{1}".format(src, 'all_votes_people.csv'))
+    legislators = pd.read_csv("{0}/{1}".format(src, 'legislators.csv'))
+
+    names = legislators[['last_name', 'first_name', 'bioguide_id', 'birthday', 'gender', 'district', ]]
+
+    logging.info("Merge Data")
+    # combine the data
+    named_votes = pd.merge(votes_people, names, on='bioguide_id')
+    named_votes = pd.merge(named_votes, votes, on="vote_id")
+
+    # When we imported we didn't remove congresses for which there is no voting
+    # data ( 0 - 100 ). So we have a chunk of null values to clean out.
+
+    named_votes.dropna(subset=['vote_id'], how='all', inplace=True)
+
+    named_votes.to_csv("{0}/{1}".format(src, 'named_votes.csv'))
+    # leaving hdf5 out for the moment as I don't understand it well enough.
+    # named_votes.to_hdf("{0}/{1}".format(src, 'named_votes.hdf'), key='named_votes')
+    logging.info("Saved CSV")
+
+
+
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description="Create usable dataframes from csv voting data")
+    parser.add_argument(
+        "source",
+        type=str,
+        help="Directory from which we should parse congressional votes.")
+    parser.add_argument(
+        "destination",
+        type=str,
+        help="Directory into which  the new csv files should be written")
+
+    args = parser.parse_args()
+
+    consolidate_votes(args.source, args.destination)
+    combine_data(args.destination)

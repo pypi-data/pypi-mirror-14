@@ -1,0 +1,90 @@
+#!/bin/bin/env python3
+
+# This file is part of govtrack2csv.
+#
+# govtrack2csv is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# govtrack2csv is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with govtrack2csv.  If not, see <http://www.gnu.org/licenses/>.
+
+import argparse
+import logging
+import multiprocessing
+import os
+
+from multiprocessing import Pool
+from govtrack2csv import convert_congress
+from govtrack2csv import move_legislators
+from govtrack2csv import move_committees
+from govtrack2csv import CONGRESS_DIR
+
+
+def setup_logger(level):
+    logger = multiprocessing.log_to_stderr()
+    logger.setLevel(level)
+    return logger
+
+
+def int_or_zero(string):
+    logger.debug(string)
+    try:
+        return int(string)
+    except:
+        return 0
+
+
+if __name__ == '__main__':
+    logger = setup_logger(logging.INFO)
+
+    parser = argparse.ArgumentParser(
+        description="Convert GovTrak Data to CSVs")
+    parser.add_argument(
+        "source",
+        type=str,
+        help="Directory from which we should parse congressional docs.")
+    parser.add_argument(
+        "destination",
+        type=str,
+        help="Directory into which csv files should be written")
+    parser.add_argument(
+        "--threads",
+        dest="threads",
+        type=int,
+        default=3,
+        help="Number of processes to spawn, generally (n)cpu-1 default 3")
+
+    args = parser.parse_args()
+
+    logger.debug(args.source)
+    logger.debug(args.destination)
+
+    move_legislators(args.source, args.destination)
+    move_committees(args.source, args.destination)
+
+    congress_dir = "{0}/{1}".format(args.source, CONGRESS_DIR)
+
+    dirs = [{"congress": c,
+             "src": congress_dir,
+             "dest": args.destination}
+            for c in os.listdir(congress_dir)
+            if os.path.isdir(os.path.join(congress_dir, c))]
+    logger.debug(dirs)
+
+    p = Pool(args.threads)
+
+    try:
+        logger.debug("Mapping convert congress with {}".format(dirs))
+        p.map_async(convert_congress, dirs).get(999999)
+        pass
+    except KeyboardInterrupt:
+        p.terminate()
+    finally:
+        logger.info("Finished")
