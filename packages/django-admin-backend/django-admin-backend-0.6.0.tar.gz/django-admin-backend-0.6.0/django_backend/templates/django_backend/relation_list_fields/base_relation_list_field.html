@@ -1,0 +1,62 @@
+{% load django_backend_tags floppyforms %}
+
+<div class="relation-list-field" data-formset-prefix="{{ formset.prefix }}" data-object-id-field="{{ object_id_field_name }}"{% if content_type_field_name %} data-content-type-field="{{ content_type_field_name }}"{% endif %}>
+    {{ formset.management_form }}
+
+    {% block header_buttons %}
+        {% if not readonly and related_models %}
+        <div class="relation-list-field__toolbox">
+            <div class="dropdown pull-right">
+                <button
+                        id="{{ formset.prefix }}-add-button"
+                        type="button"
+                        class="btn btn-default btn-xs"
+                        data-toggle="dropdown"
+                        aria-haspopup="true"
+                        aria-expanded="false">
+                    Add new <span class="caret"></span>
+                </button>
+                <ul class="dropdown-menu" aria-labelledby="{{ formset.prefix }}-add-button">
+                    {% for model in related_models %}
+                    {% with opts=model|model_opts inline_backend=backend|find_inline_backend_by_model:model %}
+                        <li><a href="{% backend_url inline_backend.urlnames.views.select.name %}" data-dialog="add-relation">{{ opts.verbose_name }}</a></li>
+                    {% endwith %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    {% endblock %}
+
+    <div class="formset-form relation-list-field__item template">
+        {% for field in formset.empty_form %}
+            {{ field.as_hidden }}
+        {% endfor %}
+
+        {% include "django_backend/relation_list_fields/_generic_relation_inline.html" with backend=backend is_template=1 %}
+    </div>
+
+    <div class="formset relation-list-field__list"{% if formset.order_field %} data-order-field="{{ formset.order_field }}"{% endif %}>
+        {% for inline_form in formset.forms %}
+            <div class="formset-form relation-list-field__item">
+                {{ inline_form.errors }}
+
+                {% for field in inline_form %}
+                    {{ field.as_hidden }}
+                {% endfor %}
+
+                {% with relation_object=inline_form.instance|getattr:relation_attribute %}
+                {% with relation_object=relation_object.get_real_instance|default:relation_object %}
+                {% if relation_object %}
+                    {% with inline_backend=backend|find_inline_backend_by_model:relation_object %}
+                        {% include "django_backend/relation_list_fields/_generic_relation_inline.html" with backend=inline_backend object=relation_object %}
+                    {% endwith %}
+                {% else %}
+                        {% include "django_backend/relation_list_fields/_generic_relation_inline_no_content.html" with backend=inline_backend object=relation_object %}
+                {% endif %}
+                {% endwith %}
+                {% endwith %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
