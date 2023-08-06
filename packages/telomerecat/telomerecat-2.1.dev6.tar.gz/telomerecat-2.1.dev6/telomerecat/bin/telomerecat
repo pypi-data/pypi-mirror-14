@@ -1,0 +1,117 @@
+#!/usr/bin/env python
+#main
+import sys
+import argparse
+import textwrap
+import signal
+import time
+import traceback
+import os
+import shutil
+import tempfile
+import multiprocessing
+
+#Do not remove these imports
+#Crucial for pyinstaller (as of v2.0)
+import telomerecat
+import parabam
+
+
+def keyboard_handler(sig, frame):#Catch keyboard interupt and end processors
+    sys.stdout.write("\r[ERROR] telomerecat interrupted by user")
+    sys.exit(0)
+
+def die_gracefully(temp_dir):
+    if not temp_dir == "." or not temp_dir == "": 
+        shutil.rmtree(temp_dir)
+
+def get_unique_tempdir():
+    return tempfile.mkdtemp(prefix="telomerecat-tmp-",dir=".")
+
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+
+    signal.signal(signal.SIGINT, keyboard_handler) #Handle KeyboardInterrupt gracefully
+
+    args_len = len(sys.argv) >= 2
+
+    programs = {"bam2length":telomerecat.bam2length,
+                "bam2telbam":telomerecat.bam2telbam,
+                "telbam2length":telomerecat.telbam2length}
+
+    print_help_info = False
+
+    if args_len:
+
+        file_path = sys.argv[0]
+        command = sys.argv[1]
+
+        temp_dir = get_unique_tempdir()
+
+        if command in programs:
+            #Load the command using the command line
+            module = programs[command]
+            sys.argv = sys.argv[1:] #Remove command from arguments.
+            try:
+                interface = module.Interface(temp_dir)
+                interface.run_cmd(interface.get_parser())
+            except SystemExit:
+                print " "
+                print "[Status] telomerecat is quitting gracefully \n"
+            except BaseException as exception:
+                print " "
+                print "[Error] telomerecat stopped unexpectedly, sorry!"
+                traceback.print_exception(*sys.exc_info())
+                die_gracefully(temp_dir)
+                raise
+            die_gracefully(temp_dir)
+        else:
+            print "\nCommand not recognised. Refer to manual below:\n"
+            print_help_info = True
+    else:
+        print_help_info = True
+    
+    if print_help_info:
+        print textwrap.dedent('''\
+
+        telomerecat
+        --------------------------------------------------------------------------------
+
+        About: 
+            Telomere Computational Analysis Tool
+
+        Version:
+            %s
+
+        Usage:
+            telomerecat <command> [options] input:{BAM/TELBAM}
+
+        Quick Start Example:
+
+            telomerecat bam2length -p8 { path_to_bamfile(s) }
+
+            The above genereates a CSV file containing an estimation of average 
+            telomere length for BAM files provided.
+
+            NB: option `-p` designates amount of processors used. Users should use the 
+            amount of processors available on their machine. More processors will allow
+            telomerecat to run more quickly!
+
+        More:
+            Users may wish to segregate the heavy lifting process of creating a telbam 
+            (essentially a subset of telomeric reads in a BAM file) from the reletively 
+            quick process of generating the length estimation.
+
+            Generating telbams first, (with the command `bam2telbam`) allows users to 
+            run multiple analysis on the same file without having to run the entire 
+            process multiple times. Type `telomerecat bam2telbam` for more info.
+
+            If you have already generated a set of telbams and just want to run length
+            estimation on these files type `telomerecat telbam2length` for more
+            information.
+
+        Commands:
+            bam2length      Estimate telomere length within BAM files
+            bam2telbam      Create telbams from BAM files
+            telbam2length   Estimate telomere length within TELBAMs
+        '''.expandtabs()) % (telomerecat.__version__,)
