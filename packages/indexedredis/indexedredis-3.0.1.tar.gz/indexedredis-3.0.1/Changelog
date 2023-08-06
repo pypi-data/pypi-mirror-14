@@ -1,0 +1,144 @@
+3.0.1 - Apr 11 2016
+	- Fix issue with binary fields, they were always seen as "changed" even
+	when no update was made, which could have caused unnecessary updates and
+	saves
+
+3.0.0 - Jan 12 2016
+    - Change return type of functions that used to be a list of instantiated model objects to a QueryableList ( https://github.com/kata198/QueryableList ) which allows easilly chaining complex client-side filtering (beyond just equals and not-equals as the DB-side exists). This is not a backwards-incompatible change, but is forwards-incompatible (i.e. your code may require IndexedRedis>=3.0.0 if you choose to use the client-side filtering)
+    - Restore the repr-view of bytes in __repr__ instead of the "_BINARY DATA OF LENGTH N_" format.
+
+2.9.0 - Dec 28 2015
+	- Add support for BINARY_FIELDS -- directly storing data as binary.
+	This is a better option in most cases than BASE64_FIELDS, takes much
+	less time, and is more space efficient
+	- Implicitly make the FIELDS defined on models to be sets in __init__
+
+2.8.1 - (Oct 06 2015)
+ - Fix py3 install
+
+2.8.0 - (Oct 06 2015)
+	- Add "connect" method to IndexedRedisModel, which allows using models
+	with an alternate redis instance than that on the parent model. It returns
+	a "class" that inherits the IndexedRedisModel with the
+	REDIS_CONNECTION_PARAMS updated to reflect those as passed in.
+
+2.7.2 - (Sep 24 2015)
+	- Remove accidental addition of not-finished code
+
+2.7.1 - (Sep 23 2015)
+	- Updates to documentation and examples
+
+2.7.0 - (Sep 23 2015)
+	- Change very basic existing model validation to a one-time call, and
+	validate on more things.
+	- *EXCITING* - Implement BASE64_FIELDS on IndexedRedisModel. Any
+	FIELDS that also show up in BASE64_FIELDS will be base64-encoded
+	before storage and decoded upon retrieval. This makes it possible and
+	very simple to use "bytes" or other binary data. You may need this,
+	for example, to store files or other blobs.
+	
+2.6.0 - (Sep 22 2015)
+	- Add copyToExternal which allows copying a model to a redis instance
+	other than the one specified for that model
+	- Add copyAllToExternal which allows copying the results of a filterset to
+	a redis instance other than that specified for the given model
+	- Fix inconsistant returns, pk should always be a string
+	- Rewrote internal save function to make more sense and allow forcing
+	multiple IDs
+	- Add reindex method which will rerun the indexes on a list of models. Use
+	this as MyModel.objects.reindex() if you add a field to INDEXED_FIELDS
+	array which is already existing field to add it to indexes.
+
+2.5.1 - (Sep 11 2015)
+	- Add "exists" method for testing the existance of a primary key
+	- Add MANIFEST.in file (missed in 2.5.0 -- this is only difference)
+	- regen docs
+	- Replace example.py with a copy of test.py... not sure why there were two
+
+2.4.0 - (Jul 7 2015)
+	- Add some more documentation
+	- Cleanup connection handling
+	- Remove undocumented _connection override on IndexedRedisModel
+	
+
+2.4.0 beta (unreleased to public) - (Jul 2 2015)
+	- Add method, isIndexedRedisModel to see if a model extends
+	IndexedRedisModel
+	- Add method, hasUnsavedChanges which returns bool of if there are
+	unsaved changes. Remember, you can see all (local) changes with
+	getUpdatedFields
+	- Implement __str__ and __repr__
+	  Examples of __str__: 
+	                         (Pdb) str(z)
+	                         '<Song obj _id=24 at 0x7f3c6a3a4490>'
+	                         (Pdb) z.artist = 'New Artist'
+	                         (Pdb) str(z)
+	                         '<Song obj _id=24 (Unsaved Changes) at 0x7f3c6a3a4490>'
+	- Examples of __repr__ - This will build a constructor.
+	eval(repr(obj)) should build the same object.
+		(Pdb) print repr(song)
+		Song(_id="6", album='Super Tracks', description='Super
+		Nintendo', copyright='Copyright 2014 (c) Cheese Industries',
+		title='Nintendo 2', artist='Mega Men', track_number='2',
+		duration='1:55')
+	- Implement a .copy function for copying models. Takes a single
+	argument, copyPrimaryKey. If True, any saves on the copy will change
+	the original model. Keep in mind this may cause sync issues. If  False
+	(default) only the data is copied.
+	- Implement __setstate__ and __getstate__ to make objects support
+	being pickled and loaded from pickle strings efficiently.
+	- Implement "reload" function on a model. This fetches any updates
+	from Redis, if available, and returns a list of field names that were
+	updated.
+
+
+
+2.3.1 (Jun 27 2015)
+	- Add some more docstring
+	- make getNextID and peekNextID private methods. They should only be
+	used internal.
+	- Regenerate docs
+	- Remove argument on getEncoding -- didn't do anything
+
+2.3.0 (Jun 27 2015)
+	- Change Model.objects.filter(...).delete to fetch minimal data (only
+	indexed fields) instead of entire objects, so deleting is more
+	efficent.
+	- Add getOnlyFields, allOnlyFields, allOnlyIndexedFields, etc for
+	getting partial objects
+	- Increase efficency of getMultiple function
+	- Add more docstrings
+	- Distribute pydoc as /IndexedHtml.html 
+	- Allow deleter to delete by primary key only on (Model.deleter)
+
+2.2.2 (Jun 25 2015)
+	- Fix invalid variable
+
+2.2.1 (Jun 25 2015)
+	- Implement getPrimaryKeys (get primary keys at current filter level).
+	Takes optional argument to sort by age
+	- Implement first/last/random for getting oldest/newest/random record
+	- Update documentation a bit
+
+2.1.1 (Jun 21 2015):
+	- Allow deleting directly from a filter object
+	(SomeModel.objects.filter(...).delete)
+
+2.1.0 (Jun 21 2015):
+	- Much better handle unicode in Python 2
+	- allow changing encoding via a setEncoding function at the global
+	IndexedRedis level
+
+2.0.2 (May 5 2015):
+	- fix typos
+	- fix deleteMultiple
+
+2.0.0 (May 1 2015):
+	- Add support for __ne (not equals) filtering
+	- Make filters default to be copies instead of operating on self, which allows them to be passed to functions but retain original value. Old behaviour can be retained doing .filterInline
+	- Enhance example with more features
+	- Add some docstrings
+	- Fix example where __init__ did not pass args and kwargs to parent and thus broke delete
+	- add asDict method for representation as a dictionary
+	- Change example to use asDict to not print original data
+	- Move module to a standard package setup 
