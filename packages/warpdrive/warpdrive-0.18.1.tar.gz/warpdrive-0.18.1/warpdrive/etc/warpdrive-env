@@ -1,0 +1,131 @@
+#!/bin/bash
+
+# This script outputs the environment for the application or shell.
+
+# Root directory for the runtime environment of the application.
+
+WARPDRIVE_APP_ROOT=${WARPDRIVE_APP_ROOT:-/opt/app-root}
+export WARPDRIVE_APP_ROOT
+
+echo "export WARPDRIVE_APP_ROOT=$WARPDRIVE_APP_ROOT"
+
+# Root directory for the source code of the application.
+
+WARPDRIVE_SRC_ROOT=${WARPDRIVE_SRC_ROOT:-$WARPDRIVE_APP_ROOT/src}
+export WARPDRIVE_SRC_ROOT
+
+echo "export WARPDRIVE_SRC_ROOT=$WARPDRIVE_SRC_ROOT"
+
+# Set the default listener port for the web application server.
+
+WARPDRIVE_HTTP_PORT=${WARPDRIVE_HTTP_PORT:-8080}
+export WARPDRIVE_HTTP_PORT
+
+echo "export WARPDRIVE_HTTP_PORT=$WARPDRIVE_HTTP_PORT"
+
+# Override uid and gid lookup to cope with being randomly assigned IDs
+# using the -u option to 'docker run'.
+#
+# For now we base whether we can run this or not on the existence of
+# libnss_wrapper.so file. This really needs to simple be gated on whether
+# running inside of Docker which is where it needs to be done.
+
+WARPDRIVE_USER_ID=$(id -u)
+
+NSS_WRAPPER_PASSWD=$WARPDRIVE_APP_ROOT/tmp/passwd
+NSS_WRAPPER_GROUP=/etc/group
+
+NSS_WRAPPER_LIBRARY=
+
+if [ -f /usr/local/nss_wrapper/lib64/libnss_wrapper.so ]; then
+    NSS_WRAPPER_LIBRARY=/usr/local/nss_wrapper/lib64/libnss_wrapper.so
+else
+    if [ -f /lib64/libnss_wrapper.so ]; then
+        NSS_WRAPPER_LIBRARY=/lib64/libnss_wrapper.so
+    fi
+fi
+
+if [ "$NSS_WRAPPER_LIBRARY" != "" ]; then
+    if [ x"$WARPDRIVE_USER_ID" != x"0" -a x"$WARPDRIVE_USER_ID" != x"1001" ]; then
+        if [ ! -f $NSS_WRAPPER_PASSWD ]; then
+            cat /etc/passwd | sed -e 's/^default:/builder:/' > $NSS_WRAPPER_PASSWD
+
+            echo "default:x:$WARPDRIVE_USER_ID:0:Warp Drive,,,:$HOME:/bin/bash" >> $NSS_WRAPPER_PASSWD
+        fi
+
+        echo "export NSS_WRAPPER_PASSWD=$NSS_WRAPPER_PASSWD"
+        echo "export NSS_WRAPPER_GROUP=$NSS_WRAPPER_GROUP"
+
+        echo "export LD_PRELOAD=$NSS_WRAPPER_LIBRARY"
+    fi
+fi
+
+# Add the bin directory for the Python virtual environment if it exists.
+
+if [ -f $WARPDRIVE_APP_ROOT/bin/activate ]; then
+    echo "export PATH=$WARPDRIVE_APP_ROOT/bin:$PATH"
+fi
+
+# Copy environment variable configuration to the system directory used
+# for runtime files. This is done so that the '.warpdrive/deploy-env' can
+# safely add or remove files without modifying the original source code
+# directory. This is necessary as the original source code directory
+# may not be writable, or could be a mounted directory and we do not
+# want to modify any original outside of Docker.
+
+WARPDRIVE_USER_VARS=$WARPDRIVE_APP_ROOT/tmp/user_vars.$$
+export WARPDRIVE_USER_VARS
+
+mkdir -p $WARPDRIVE_USER_VARS
+
+if [ -d $WARPDRIVE_SRC_ROOT/.warpdrive/user_vars ]; then
+    for name in `ls $WARPDRIVE_SRC_ROOT/.warpdrive/user_vars/*`; do
+        cp $name $WARPDRIVE_USER_VARS
+    done
+fi
+
+# Docker will have set any environment variables defined in the image or
+# on the command line when the container has been run. Here we are going
+# to look for any statically defined environment variables provided by
+# the user as part of the actual application. These will have been
+# placed in the '.warpdrive/user_vars' directory. The name of the file
+# corresponds to the name of the environment variable and the contents
+# of the file the value to set the environment variable to. Each of the
+# environment variables is set and exported.
+
+envvars=
+
+for name in `ls $WARPDRIVE_USER_VARS`; do
+    export $name="`cat $WARPDRIVE_USER_VARS/$name`"
+    envvars="$envvars $name"
+done
+
+# Run any user supplied script to be run to set, modify or delete the
+# environment variables.
+
+if [ -f $WARPDRIVE_SRC_ROOT/.warpdrive/action_hooks/deploy-env ]; then
+    if [ ! -x $WARPDRIVE_SRC_ROOT/.warpdrive/action_hooks/deploy-env ]; then
+        echo "# WARNING: Script $WARPDRIVE_SRC_ROOT/.warpdrive/action_hooks/deploy-env not executable."
+    fi
+fi
+
+if [ -x $WARPDRIVE_SRC_ROOT/.warpdrive/action_hooks/deploy-env ]; then
+    echo "# INFO: Running script $WARPDRIVE_SRC_ROOT/.warpdrive/action_hooks/deploy-env"
+    $WARPDRIVE_SRC_ROOT/.warpdrive/action_hooks/deploy-env
+fi
+
+# Go back and output the final values of the user supplied environment
+# variables.
+
+for name in `ls $WARPDRIVE_USER_VARS`; do
+    echo "export $name=\"`cat $WARPDRIVE_USER_VARS/$name`\""
+done
+
+# Clean up the environment variables directory.
+
+rm -rf $WARPDRIVE_USER_VARS
+
+# Output how environment variables should be incorporated.
+
+echo '# Run this command to configure your shell:'
+echo '# eval "$(warpdrive env)"'
