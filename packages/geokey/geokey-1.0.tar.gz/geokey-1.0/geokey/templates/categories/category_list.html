@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block bodydata %}
+data-project-id="{{ project.id }}"
+data-project-locked="{{ project.islocked }}"
+{% endblock %}
+
+{% block title %} | Project: {{ project.name }} - Categories{% endblock %}
+
+{% block main %}
+<div class="page-header">
+    <div class="container">
+        <h1 class="smaller">
+            {% if project.islocked %}<span class="glyphicon glyphicon-lock" aria-hidden="true"></span>{% endif %}
+            <a href="{% url 'admin:project_overview' project.id %}">{{ project.name }}</a>
+        </h1>
+
+        {% include 'projects/navigation.html' %}
+    </div>
+</div>
+
+<div class="container">
+    {% include 'snippets/messages.html' %}
+
+    <div class="row">
+        <div class="col-md-4 col-md-push-8">
+            <div class="alert alert-info">
+                {% if project.islocked %}
+                    <p>The project is locked, therefore categories cannot be edited. If you wish to edit them, you have to unlock the project in the <a href="{% url 'admin:project_settings' project.id %}"><strong>project settings</strong></a> first.</p>
+                {% else %}
+                    <p>Create categories to define which data you want to collect for your project. For instance, if you want to create a map for public transport, you can create a category for each bus stop and train station.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-md-8 col-md-pull-4">
+            <h3 class="header">
+                {% if project.islocked %}<span class="glyphicon glyphicon-lock" aria-hidden="true"></span>{% endif %}
+                <span>Categories</span>
+
+                {% if project.categories.all and not project.islocked %}
+                    <a href="{% url 'admin:category_create' project.id %}" class="btn btn-success btn-sm pull-right">
+                        <span class="glyphicon glyphicon-plus"></span>
+                        Create new category
+                    </a>
+                {% endif %}
+            </h3>
+
+            {% for category in project.categories.all %}
+                {% if forloop.first %}
+                    <ul id="sortable" class="list-unstyled overview-list">
+                {% endif %}
+
+                <li class="sort-item" data-item-id="{{ category.id }}">
+                    <h4>
+                        <small><span class="glyphicon glyphicon-sort"></span></small>
+                        {% if project.islocked %}<span class="glyphicon glyphicon-lock" aria-hidden="true"></span>{% endif %}
+                        <a href="{% url 'admin:category_overview' project.id category.id %}">{{ category.name }}</a>
+                        {% if category.status == 'inactive' %}<small><span class="label label-default">Inactive</span></small>{% endif %}
+                    </h4>
+
+                    {% if category.description %}<p>{{ category.description }}</p>{% endif %}
+                </li>
+
+                {% if forloop.last %}
+                    </ul>
+                {% endif %}
+            {% empty %}
+                <div class="well empty-list">
+                    <p class="lead">We couldn't find any categories for this project.</p>
+
+                    {% if project.islocked %}
+                        <p>Unfortunately, you cannot create new categories when the project is locked.</p>
+                    {% else %}
+                        <a href="{% url 'admin:category_create' project.id %}" class="btn btn-success btn-lg">Create new category</a>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block libraries %}
+<script src="/static/lib/jquery/jquery-ui.min.js"></script>
+
+<script src="/static/js/admin.ui.sort.js"></script>
+<script src="/static/js/admin.control.ajax.js"></script>
+{% endblock %}
