@@ -1,0 +1,74 @@
+{% load compressed staticfiles %}
+
+<script language="javascript">
+(function() {
+
+function renderThumbnail(apiPrefix, reviewRequestId) {
+    var pdfRenderer = new PowerPack.PDF.PDF({
+        pdfURL: '{{pdf.file.url}}'
+    });
+    pdfRenderer.getPage(1).then(function(page) {
+        var viewport = page.getViewport(1.0),
+            $canvas = $('<canvas/>')
+            .attr({
+                width: viewport.width,
+                height: viewport.height
+            });
+
+        page.render({
+            canvasContext: $canvas[0].getContext('2d'),
+            viewport: viewport
+        }).promise.then(function() {
+            RB.apiCall({
+                type: "PUT",
+                prefix: apiPrefix,
+                path: "/review-requests/" + reviewRequestId + "/file-attachments/{{pdf.pk}}/",
+                data: {
+                    thumbnail: $canvas[0].toDataURL()
+                },
+                success: function(data) {
+                    var $placeholder = $("#thumbnail-placeholder-{{pdf.pk}}"),
+                        $parent = $placeholder.parent();
+
+                    $placeholder.remove();
+                    $parent.append(data.file_attachment.thumbnail);
+                },
+                error: function() {
+                    $("#thumbnail-placeholder-{{pdf.pk}}")
+                        .replaceWith('<div class="powerpack-pdf-icon ' +
+                                     '            powerpack-pdf-icon-warning" />');
+                }
+            });
+        });
+    });
+}
+
+function renderThumbnailWrapper() {
+{% if extension.is_rb_17 %}
+    renderThumbnail(gReviewRequestSitePrefix, gReviewRequestId);
+{% else %}
+    RB.PageManager.ready(function(page) {
+        renderThumbnail(page.reviewRequest.get('localSitePrefix'),
+                        page.reviewRequest.get('id'));
+    });
+{% endif %}
+}
+
+$(document).ready(function() {
+{% if extension.is_rb_17 %}
+    $.getScript('{{MEDIA_URL}}ext/ReviewBoardPowerPack/js/libpdf.min.js').then(function() {
+        $.getScript('{{MEDIA_URL}}ext/ReviewBoardPowerPack/js/powerpack-pdf.min.js').then(function() {
+            PDFJS.workerSrc = '{{MEDIA_URL}}ext/ReviewBoardPowerPack/js/libpdf-worker.min.js';
+            renderThumbnailWrapper();
+        });
+    });
+{% else %}
+    PDFJS.workerSrc = '{{pdf_worker_url|escapejs}}';
+    renderThumbnailWrapper();
+{% endif %}
+});
+
+}());
+
+</script>
+<img src="{% static "rb/images/spinner.gif" %}" id="thumbnail-placeholder-{{pdf.pk}}" />
