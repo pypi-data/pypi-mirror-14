@@ -1,0 +1,149 @@
+<?xml version='1.0' encoding='UTF-8'?> 
+<!DOCTYPE html>
+<html
+    xmlns='http://www.w3.org/1999/xhtml'
+    xmlns:tal='http://xml.zope.org/namespaces/tal'
+    xmlns:metal='http://xml.zope.org/namespaces/metal'
+    lang='en'
+    xml:lang='en'
+    metal:use-macro='load:edrn.labcas.ui:templates/master.pt'>
+    <head>
+        <title>Accept</title>
+        <!--
+            provided names:
+            - hasFiles: true if there are already uploaded files
+            - currentFiles: files we have right now
+            - metadataForm: read only HTML-rendered metadata form
+        -->
+        <metal:javascript fill-slot='javascript_head_slot'>
+            <script type='text/javascript' src='#'
+                tal:attributes='src python:request.static_url("edrn.labcas.ui:static/plupload.full.min.js")'></script>
+            <script id='anchor-script' type='text/javascript' data-here='/'
+                tal:attributes='data-here python:request.current_route_url()'>
+                var edrnUploadURL = $("#anchor-script").attr("data-here") + "?data";
+            </script>
+        </metal:javascript>
+    </head>
+    <body>
+        <div metal:fill-slot='content'>
+            <div class='container' id='uploadContainer'>
+                <h1>Ready for Files</h1>
+                <p>Simply drag your files into this browser window, then click "Start Uploading".</p>
+                <div class='panel panel-success'>
+                    <div class='panel-heading'>What happens next?</div>
+                    <div class='panel-body'>
+                        The metadata you entered, along with any files you drag into this window,
+                        will get saved into LabCAS.  After a while, processing will begin.
+                    </div>
+                </div>
+                <div class='well well-lg'>
+                    <p>Drag your files here to stage them for uploading…or browse for them using the file browser
+                        button:
+                    </p>
+                    <div class='btn-group' role='group' style='padding-top: 1em;'>
+                        <a id='browse-button' class='btn btn-default' href='javascript:;' role='button'>
+                            <span class='glyphicon glyphicon-folder-open' aria-hidden='true'></span>
+                            Browse…
+                        </a>
+                    </div>
+                </div>
+
+                <div class='row'>
+                    <div class='col-md-6'>
+                        <div class='panel'>
+                            <div class='panel-heading panel-primary'>Files</div>
+                            <div class='panel-body' id='fileList'>
+                                <p tal:condition='not:hasFiles'>
+                                    <small>There are no files uploaded yet.</small>
+                                </p>
+                                <div tal:condition='hasFiles'>
+                                    <ul tal:condition='hasFiles' class='list-unstyled'>
+                                        <li tal:repeat='file currentFiles'>
+                                            <span tal:replace='file'>File name here</span>
+                                        </li>
+                                    </ul>
+                                    <p>
+                                        <small>
+                                            Want to add more files?  Browse for them above, or drag them in,
+                                            and click "Start Uploading" again.
+                                        </small>
+                                    </p>
+                                </div>
+                                <h4>Staged for Uploading:</h4>
+                                <ul id='filelist' class='list-unstyled'></ul>
+
+                                <div class='btn-group' role='group'>
+                                    <a id='start-upload' class='btn btn-default' href='javascript:;' role='button'>
+                                        <span class='glyphicon glyphicon-cloud-upload' aria-hidden='true'></span>
+                                        Start Uploading
+                                    </a>
+                                </div>
+
+                                <div tal:condition='hasFiles'>
+                                    <small>
+                                        All done?  Click the button below.
+                                    </small>
+                                    <div class='but-group' role='group'>
+                                        <a class='btn btn-default' href='#' role='button'
+                                            tal:attributes='href python:request.current_route_url() + "?finish"'>
+                                            <span class='glyphicon glyphicon-ok' aria-hidden='true'></span>
+                                            Finished
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class='col-md-6'>
+                        <div class='panel'>
+                            <div class='panel-heading panel-primary'>Saved Metadata</div>
+                            <div class='panel-body'>
+                                <p tal:replace='structure metadataForm'>
+                                    Metadata form here.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <script type='text/javascript'>
+                    var uploader = new plupload.Uploader({
+                        browse_button: 'browse-button',
+                        url: edrnUploadURL,
+                        max_retries: 5,
+                        drop_element: 'uploadContainer',
+                        filters: {
+                            prevent_duplicates: true
+                        },
+                        init: {
+                            UploadComplete: function(up, files) {
+                                up.splice();
+                                up.refresh();
+                                document.location.reload(true);
+                            }
+                        }
+                    });
+                    uploader.init();
+                    uploader.bind('FilesAdded', function(up, files) {
+                        var html = '';
+                        plupload.each(files, function(file) {
+                            html += '<li id="' + file.id + '">'
+                                + file.name 
+                                + ' (' + plupload.formatSize(file.size) + ') <b></b></li>';
+                        });
+                        document.getElementById('filelist').innerHTML += html;
+                    })
+                    uploader.bind('UploadProgress', function(up, file) {
+                        document.getElementById(file.id).getElementsByTagName('b')[0].innerHTML = '<span>'
+                            + file.percent + '%</span>';
+                    });
+                    uploader.bind('Error', function(up, err) {
+                        document.getElementById('console').innerHTML += '\nError #' + err.code + ': ' + err.message;
+                    });
+                    document.getElementById('start-upload').onclick = function() {
+                        uploader.start();
+                    };
+                </script>
+            </div>
+        </div>
+    </body>
+</html>
