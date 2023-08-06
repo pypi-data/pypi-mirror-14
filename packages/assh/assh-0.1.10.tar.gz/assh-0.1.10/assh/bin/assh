@@ -1,0 +1,50 @@
+#!/bin/sh
+pipe=0
+
+for i in "$@"
+do
+case $i in
+    -p|--pipe-output)
+    pipe=1
+    ;;
+esac
+done
+
+
+f="/tmp/$$-command.hst"
+# we install via pip so the python we use is, resolve $SOURCE until the file is no longer a symlink
+# so one can symlink to /usr/local/bin etc...
+# stolen from https://github.com/facebook/PathPicker/blob/master/fpp
+SOURCE=$0
+# resolve $SOURCE until the file is no longer a symlink
+while [ -h "$SOURCE" ]; do
+  BASEDIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  # if $SOURCE was a relative symlink, we need to resolve it relative to
+  # the path where the symlink file was located
+  [[ $SOURCE != /* ]] && SOURCE="$BASEDIR/$SOURCE"
+done
+BASEDIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+PYTHON=`which python`
+# asshpy="$($PYTHON -c 'from assh import assh; print assh.__file__.replace(".pyc", ".py")' 2>/dev/null)"
+# if [ $? -ne 0 ]; then
+#   # if we are in a virtualenv
+#   PYTHON="$BASEDIR/python"
+#   asshpy="$($PYTHON -c 'from assh import assh; print assh.__file__.replace(".pyc", ".py")' 2>/dev/null)"
+#   if [ $? -ne 0 ]; then
+#     PYTHON="/usr/bin/python"
+#     asshpy="$($PYTHON -c 'from assh import assh; print assh.__file__.replace(".pyc", ".py")' 2>/dev/null)"
+#     CMD = "$PYTHON -m assh.assh"
+#   fi
+# fi
+$PYTHON -m assh.assh --out=$f "$@" 3>&1 1>&2
+
+if [[ $? != 0 ]]; then exit $?; fi
+if [ -f "$f" ]
+then
+    if [[ $pipe == "1" ]]; then
+      cat $f
+    else
+      $SHELL -i $f < /dev/tty
+    fi
+fi
