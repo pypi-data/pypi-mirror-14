@@ -1,0 +1,10 @@
+__version__ = "0.2.13"
+__git_commiter_name__ = "Guy Rozendorn"
+__git_commiter_email__ = "guy@rzn.co.il"
+__git_branch__ = 'develop'
+__git_remote_tracking_branch__ = 'origin/develop'
+__git_remote_url__ = 'git@git.infinidat.com:host-opensource/infi.parted.git'
+__git_head_hash__ = 'f90f34424178412ffcab7bec6ce448fe393f9d0c'
+__git_head_subject__ = 'Finished Release v0.2.13'
+__git_head_message__ = '* develop:\n  HPT-1789 fixing partition prefix on suse-12'
+__git_dirty_diff__ = ''
