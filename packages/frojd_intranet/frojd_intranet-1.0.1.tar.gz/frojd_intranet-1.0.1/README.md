@@ -1,0 +1,64 @@
+# Frojd-Intranet
+
+## Requirements
+
+- Python 2.7
+
+
+## Getting started
+
+1. Install frojd-intranet: `sudo pip install frojd-intranet`
+2. Create a config file called .frojd-intranet in your home directory:
+```
+{
+    'base_url': 'https://domain.se',
+    'username': 'Ernest',
+    'password': 'Hemingway'
+}
+```
+3. Done!
+
+
+## Usage
+
+### Search after project:
+
+```
+frojd-intranet search --project="My project"
+
+Returns:
+    Demo
+    Stage
+    Prod
+```
+
+
+### List all stages containing to project
+
+```
+frojd-intranet search --project="My project"
+
+Returns:
+    My project
+    My project 1
+```
+
+### Show stage values
+
+```
+frojd-intranet search --project="My project" --stage="Prod"
+
+Returns:
+    ### SSH
+    Host: 127.0.0.1
+```
+
+
+### Find field on stage
+
+```
+frojd-intranet search --project="My project" --stage="Prod" --search="SSH:Host"
+
+Returns:
+    Host: 127.0.0.1
+```
