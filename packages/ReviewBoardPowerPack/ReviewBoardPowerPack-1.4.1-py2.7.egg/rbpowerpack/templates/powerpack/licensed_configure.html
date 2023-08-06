@@ -1,0 +1,252 @@
+{% extends "extensions/configure_extension.html" %}
+{% load beanbag_licensing djblets_extensions future i18n %}
+
+
+{# CSS #}
+{% block css %}
+{{block.super}}
+
+<style>
+  #powerpack_license_info table {
+    border: 0;
+  }
+
+  .field-license_file {
+    margin-left: 10px;
+  }
+
+  .help.powerpack-feature-unavailable {
+    color: #CC0000;
+  }
+
+  a.powerpack-manage-licensed-users {
+    color: blue;
+    display: block;
+    margin-top: 1em;
+  }
+
+  .powerpack-no-licensed-users {
+    color: #CC0000;
+    margin-top: 1em;
+  }
+
+  .powerpack-hit-user-cap {
+    color: #CC0000;
+  }
+
+  .powerpack-license-buttons {
+	border: 0;
+    margin: 0 10px;
+  }
+
+  .powerpack-license-buttons .btn {
+    margin-right: 0.5em;
+    padding: 0.6em 1.2em;
+  }
+
+  .powerpack-license-expired {
+    color: red;
+    font-weight: bold;
+  }
+</style>
+{% endblock css %}
+
+
+{# Form title #}
+{% block form_title %}
+{%  trans "Configure Power Pack" %}
+{% endblock form_title %}
+
+
+{# Config form content #}
+{% block form_content %}
+{%  with license=extension.license license_settings=extension.license_settings %}
+{%   if license.valid_install_key %}
+<fieldset id="powerpack_license_info">
+ <div class="form-row">
+  <table>
+   <tr>
+    <td>{% trans "License Type:" %}</td>
+    <td>
+{%    if license.unlicensed %}
+{%     blocktrans with license.user_cap as max_users %}
+     Unlicensed (some features can be used for up to {{max_users}} people)
+{%     endblocktrans %}
+{%    elif license.trial %}
+{%     trans "Trial" %}
+{%    else %}
+{%     trans "Subscription" %}
+{%    endif %}
+    </td>
+   </tr>
+{%    if not license.unlicensed %}
+   <tr>
+    <td>{% trans "Licensed To:" %}</td>
+    <td>{{license.company}}</td>
+   </tr>
+{%    endif %}
+   <tr>
+    <td>{% trans "Users:" %}</td>
+    <td>
+{%    if license.has_user_cap %}
+     <span class="powerpack-user-count {% if license_settings.hit_licensed_user_count %}powerpack-hit-user-cap{% endif %}">
+      {{license_settings.licensed_user_count}} out of {{license.user_cap}}
+     </span>
+{%     if license_settings.licensed_user_count == 0 %}
+     <div class="powerpack-no-licensed-users">
+      <span class="rb-icon rb-icon-warning"></span>
+      {% trans "Power Pack is enabled, but there are no assigned users." %}
+     </div>
+{%     endif %}
+{%    else %}
+{%     trans "Unlimited" %}
+{%    endif %}
+     <a href="{% url 'powerpack-manage-users' %}"
+        class="powerpack-manage-licensed-users">
+      {% trans "Manage users" %}</a>
+     </a>
+    </td>
+   </tr>
+{%    if not license.unlicensed %}
+   <tr>
+{%     if license.expired %}
+    <td>{% trans "Expired:" %}
+    <td>
+     <p>
+      <span class="powerpack-license-expired">
+       {{extension.license.expiration}}
+      </span>
+{%      if not license.hard_expired %}
+{%       blocktrans with grace_period=license.grace_period %}
+      (Within {{grace_period}} day grace period)
+{%       endblocktrans %}
+{%      endif %}
+     </p>
+{%      if license.in_perpetual_user_mode %}
+     <p>
+{%       blocktrans with num_perpetual_users=license.num_perpetual_users %}
+      Your trial has expired, but you can still use Power Pack for free
+      for up to {{num_perpetual_users}} users!
+{%       endblocktrans %}
+     </p>
+{%      endif %}
+     <p>
+{%      if license.trial %}
+{%       blocktrans with url="https://www.reviewboard.org/powerpack/purchase/" %}
+      To purchase a license, visit the <a href="{{url}}">purchase page</a>.
+{%       endblocktrans %}
+{%      else %}
+{%       blocktrans with url="http://support.beanbaginc.com/" %}
+      To renew your license, contact <a href="{{url}}">our support channel</a>.
+{%       endblocktrans %}
+{%      endif %}
+     </p>
+    </td>
+{%     else %}
+    <td>{% trans "Expires:" %}</td>
+    <td>{{extension.license.expiration}}</td>
+{%     endif %}
+   </tr>
+{%    endif %}
+  </table>
+ </div>
+{%   else %}{# valid_install_key #}
+ <div class="form-row">
+  <h1>{% trans "The license file is not valid for this server" %}</h1>
+  <p>
+{%    blocktrans with url="https://www.reviewboard.org/powerpack/purchase/" %}
+   To purchase a valid license, visit the <a href="{{url}}">purchase page</a>.
+{%    endblocktrans %}
+  </p>
+  <p>
+{%    blocktrans with email="support@beanbaginc.com" %}
+   If you believe this is an error, please
+   <a href="mailto:{{email}}">contact us</a>.
+{%    endblocktrans %}
+  </p>
+ </div>
+{%   endif %}
+</fieldset>
+
+<fieldset class="module aligned">
+{%   if license.unlicensed %}
+ <h2>{% trans "Activate Power Pack" %}</h2>
+ <div class="description">
+{%    blocktrans %}
+  You can try all of Power Pack's features free for all your users for 30 days
+  with no commitment, or purchase a license today for your server.
+{%    endblocktrans %}
+ </div>
+ <div class="form-row powerpack-license-buttons">
+  <a class="btn primary" href="{% licensing_trial_url extension %}">
+   {% trans "Try it free for 30 days" %}
+  </a>
+  <a class="btn primary" href="{% licensing_purchase_url extension %}">
+   {% trans "Purchase a license" %}
+  </a>
+ </div>
+ <div class="description">
+{%  blocktrans %}
+  If you already have a license file, you can browse for it:
+{%  endblocktrans %}
+ </div>
+{%   elif license.trial %}
+ <h2>{% trans "Purchase Power Pack" %}</h2>
+ <div class="description">
+{%    blocktrans %}
+ If you're ready to get a year of Power Pack for your server, you can purchase
+ a license today. We'll help you get set up with a license that meets your
+ needs, covering as many or as few users as you'd like, with a payment plan
+ that works best for your organization.
+{%    endblocktrans %}
+ </div>
+ <div class="form-row powerpack-license-buttons">
+  <a class="btn primary" href="{% licensing_purchase_url extension %}">
+   {% trans "Purchase a license" %}
+  </a>
+ </div>
+ <div class="description">
+{%  blocktrans %}
+  If you already have a license file, you can browse for it:
+{%  endblocktrans %}
+ </div>
+{%   else %}
+ <h2>{% trans "Update License" %}</h2>
+ <div class="description">
+{%    blocktrans %}
+  To install a new license for Power Pack, browse for the new license file
+  and click Save below.
+{%    endblocktrans %}
+ </div>
+{%   endif %}
+ <div class="form-row field-license_file" id="row-license_file">
+  {{form.license_file.errors}}
+  {{form.license_file}}
+ </div>
+</fieldset>
+{%  endwith %}
+
+<fieldset class="module aligned">
+ <h2>{% trans "Active Features" %}</h2>
+
+{%  for feature in extension.features.itervalues %}
+ <div class="form-row checkbox-row field-{{feature.feature_id}}"
+      id="row-{{feature.feature_id}}">
+  <input type="checkbox" id="id_{{feature.feature_id}}"
+         name="{{feature.feature_id}}"
+         {% if not feature.available or feature.always_enabled %}disabled="disabled"{% endif %}
+         {% if feature.enabled %}checked="checked"{% endif %} />
+  <label for="id_{{feature.feature_id}}"
+         class="vCheckboxLabel">{{feature.name}}</label>
+{%   if feature.summary %}
+  <p class="help">{{feature.summary}}</p>
+{%   endif %}
+{%   if not feature.available %}
+  <p class="help powerpack-feature-unavailable">{{feature.unavailable_reason}}</p>
+{%   endif %}
+ </div>
+{%  endfor %}
+</fieldset>
+
+{{block.super}}
+{% endblock form_content %}
