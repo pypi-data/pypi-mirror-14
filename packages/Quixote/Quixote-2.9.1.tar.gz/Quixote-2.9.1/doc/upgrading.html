@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="us-ascii" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=us-ascii" />
+<meta name="generator" content="Docutils 0.6: http://docutils.sourceforge.net/" />
+<title>Upgrading code from older versions of Quixote</title>
+<link rel="stylesheet" href="default.css" type="text/css" />
+</head>
+<body>
+<div class="document" id="upgrading-code-from-older-versions-of-quixote">
+<h1 class="title">Upgrading code from older versions of Quixote</h1>
+
+<p>This document lists backward-incompatible changes in Quixote, and
+explains how to update application code to work with the newer
+version.</p>
+<div class="section" id="changes-from-2-8-to-2-9">
+<h1>Changes from 2.8 to 2.9</h1>
+<p>util.randbytes() returns a URL-safe base64 encoded token rather than
+a hex encoded token.  The session module now uses 128-bit random tokens
+rather than 64-bit.</p>
+</div>
+<div class="section" id="changes-from-2-7-to-2-8">
+<h1>Changes from 2.7 to 2.8</h1>
+<p>Stricter handling of HTTP request methods has been enabled.  By default
+only the GET, HEAD, and POST methods are allowed.  To enable more
+methods, change the <tt class="docutils literal">ALLOWED_METHODS</tt> attribute of the config.  To
+disable method checking (i.e. pre-2.8 behavior), set <tt class="docutils literal">ALLOWED_METHODS</tt>
+to <tt class="docutils literal">None</tt>.</p>
+</div>
+<div class="section" id="changes-from-1-0-to-2-0">
+<h1>Changes from 1.0 to 2.0</h1>
+<p>Change any imports you have from quixote.form to be from quixote.form1.</p>
+<p>Change any imports you have from quixote.form2 to be from quixote.form.</p>
+<p>Replace calls to HTTPRequest.get_form_var() with calls to get_field().</p>
+<p>Define a create_publisher() function to get the publisher you need
+and figure out how you want to connect it to web server.
+See files in demo and server for examples.  Note that publish1.py
+contains a publisher that works more like the Quixote1 Publisher,
+and does not require the changes listed below.</p>
+<p>Make every namespace be an instance of quixote.directory.Directory.
+Update namespaces that are modules (or in the init.py of a package) by
+defining a new class in the module that inherits from Directory and
+moving your _q_exports and _q_* functions onto the class.  Replace
+&quot;request&quot; parameters with &quot;self&quot; parameters on the new methods.  If
+you have a _q_resolve method, include Resolving in the bases of your
+new class.</p>
+<p>Remove request from calls to _q_ functions.  If request, session,
+user, path, or redirect is used in these new methods, replace as
+needed with calls to get_request(), get_session(), get_user(),
+get_path(), and/or redirect(), imported from quixote.</p>
+<p>In every namespace that formerly traversed into a module, import the
+new Directory class from the module and create an instance of the
+Directory in a variable whose name is the name of the module.</p>
+<p>In every namespace with a _q_exports and a _q_index, either add &quot;&quot; to
+_q_exports or make sure that _q_lookup handles &quot;&quot; by returning the result
+of a call to _q_index.</p>
+<p>If your code depends on the Publisher's namespace_stack attribute,
+try using quixote.util.get_directory_path() instead.  If you need the
+namespace stack after the traversal, override Directory._q_traverse()
+to call get_directory_path() when the end of the path is reached, and
+record the result somewhere for later reference.</p>
+<p>If your code depends on _q_exception_handler, override the _q_traverse
+on your root namespace or on your own Directory class to catch exceptions
+and handle them the way you want.  If you just want a general customization
+for exception responses, you can change or override
+Publisher.format_publish_error().</p>
+<p>If your code depended on _q_access, include the AccessControlled with
+the bases of your Directory classes as needed.</p>
+<p>Provide imports as needed to htmltext, TemplateIO, get_field,
+get_request, get_session, get_user, get_path, redirect, ?.  You may
+find dulcinea/bin/unknown.py useful for identifying missing imports.</p>
+<p>Quixote 1's secure_errors configuration variable is not present in Quixote 2.</p>
+<p>Form.__init__ no longer has name or attrs keywords.  If your existing
+code calls Form.__init__ with 'attrs=foo', you'll need to change it to
+'<a href="#id1"><span class="problematic" id="id2">**</span></a>foo'.  Form instances no longer have a name attribute.  If your code
+looks for form.name, you can find it with form.attrs.get('name').
+The Form.__init__ keyword parameter (and attribute) 'action_url' is now
+named 'action'.</p>
+<div class="system-message" id="id1">
+<p class="system-message-title">System Message: WARNING/2 (<tt class="docutils">upgrading.txt</tt>, line 82); <em><a href="#id2">backlink</a></em></p>
+Inline strong start-string without end-string.</div>
+<p>The SessionPublisher class is gone.  Use the Publisher class instead.
+Also, the 'session_mgr' keyword has been renamed to 'session_manager'.</p>
+</div>
+<div class="section" id="changes-from-0-6-1-to-1-0">
+<h1>Changes from 0.6.1 to 1.0</h1>
+<div class="section" id="sessions">
+<h2>Sessions</h2>
+<p>A leading underscore was removed from the <tt class="docutils literal">Session</tt> attributes
+<tt class="docutils literal">__remote_address</tt>, <tt class="docutils literal">__creation_time</tt>, and <tt class="docutils literal">__access_time</tt>.  If
+you have pickled <tt class="docutils literal">Session</tt> objects you will need to upgrade them
+somehow.  Our preferred method is to write a script that unpickles each
+object, renames the attributes and then re-pickles it.</p>
+</div>
+</div>
+<div class="section" id="changes-from-0-6-to-0-6-1">
+<h1>Changes from 0.6 to 0.6.1</h1>
+<div class="section" id="q-exception-handler-now-called-if-exception-while-traversing">
+<h2><tt class="docutils literal">_q_exception_handler</tt> now called if exception while traversing</h2>
+<p><tt class="docutils literal">_q_exception_handler</tt> hooks will now be called if an exception is
+raised during the traversal process.  Quixote 0.6 had a bug that caused
+<tt class="docutils literal">_q_exception_handler</tt> hooks to only be called if an exception was
+raised after the traversal completed.</p>
+</div>
+</div>
+<div class="section" id="changes-from-0-5-to-0-6">
+<h1>Changes from 0.5 to 0.6</h1>
+<div class="section" id="q-getname-renamed-to-q-lookup">
+<h2><tt class="docutils literal">_q_getname</tt> renamed to <tt class="docutils literal">_q_lookup</tt></h2>
+<p>The <tt class="docutils literal">_q_getname</tt> special function was renamed to <tt class="docutils literal">_q_lookup</tt>,
+because that name gives a clearer impression of the function's
+purpose.  In 0.6, <tt class="docutils literal">_q_getname</tt> still works but will trigger a
+warning.</p>
+</div>
+<div class="section" id="form-framework-changes">
+<h2>Form Framework Changes</h2>
+<p>The <tt class="docutils literal">quixote.form.form</tt> module was changed from a .ptl file to a .py
+file.  You should delete or move the existing <tt class="docutils literal">quixote/</tt> directory
+in <tt class="docutils literal"><span class="pre">site-packages</span></tt> before running <tt class="docutils literal">setup.py</tt>, or at least delete
+the old <tt class="docutils literal">form.ptl</tt> and <tt class="docutils literal">form.ptlc</tt> files.</p>
+<p>The widget and form classes in the <tt class="docutils literal">quixote.form</tt> package now return
+<tt class="docutils literal">htmltext</tt> instances.  Applications that use forms and widgets will
+likely have to be changed to use the <tt class="docutils literal">[html]</tt> template type to avoid
+over-escaping of HTML special characters.</p>
+<p>Also, the constructor arguments to <tt class="docutils literal">SelectWidget</tt> and its subclasses have
+changed.  This only affects applications that use the form framework
+located in the <tt class="docutils literal">quixote.form</tt> package.</p>
+<p>In Quixote 0.5, the <tt class="docutils literal">SelectWidget</tt> constructor had this signature:</p>
+<pre class="literal-block">
+def __init__ (self, name, value=None,
+              allowed_values=None,
+              descriptions=None,
+              size=None,
+              sort=0):
+</pre>
+<p><tt class="docutils literal">allowed_values</tt> was the list of objects that the user could choose,
+and <tt class="docutils literal">descriptions</tt> was a list of strings that would actually be
+shown to the user in the generated HTML.</p>
+<p>In Quixote 0.6, the signature has changed slightly:</p>
+<pre class="literal-block">
+def __init__ (self, name, value=None,
+              allowed_values=None,
+              descriptions=None,
+              options=None,
+              size=None,
+              sort=0):
+</pre>
+<p>The <tt class="docutils literal">quote</tt> argument is gone, and the <tt class="docutils literal">options</tt> argument has been
+added.  If an <tt class="docutils literal">options</tt> argument is provided, <tt class="docutils literal">allowed_values</tt>
+and <tt class="docutils literal">descriptions</tt> must not be supplied.</p>
+<p>The <tt class="docutils literal">options</tt> argument, if present, must be a list of tuples with
+1,2, or 3 elements, of the form <tt class="docutils literal">(value:any, description:any,
+key:string)</tt>.</p>
+<blockquote>
+<ul class="simple">
+<li><tt class="docutils literal">value</tt> is the object that will be returned if the user chooses
+this item, and must always be supplied.</li>
+<li><tt class="docutils literal">description</tt> is a string or htmltext instance which will be
+shown to the user in the generated HTML.  It will be passed
+through the htmlescape() functions, so for an ordinary string
+special characters such as '&amp;' will be converted to '&amp;amp;'.
+htmltext instances will be left as they are.</li>
+<li>If supplied, <tt class="docutils literal">key</tt> will be used in the value attribute
+of the option element (<tt class="docutils literal">&lt;option <span class="pre">value=&quot;...&quot;&gt;</span></tt>).
+If not supplied, keys will be generated; <tt class="docutils literal">value</tt> is checked for a
+<tt class="docutils literal">_p_oid</tt> attribute and if present, that string is used;
+otherwise the description is used.</li>
+</ul>
+</blockquote>
+<p>In the common case, most applications won't have to change anything,
+though the ordering of selection items may change due to the
+difference in how keys are generated.</p>
+</div>
+<div class="section" id="file-upload-changes">
+<h2>File Upload Changes</h2>
+<p>Quixote 0.6 introduces new support for HTTP upload requests.  Any HTTP
+request with a Content-Type of &quot;multipart/form-data&quot; -- which is
+generally only used for uploads -- is now represented by
+HTTPUploadRequest, a subclass of HTTPRequest, and the uploaded files
+themselves are represented by Upload objects.</p>
+<p>Whenever an HTTP request has a Content-Type of &quot;multipart/form-data&quot;,
+an instance of HTTPUploadRequest is created instead of HTTPRequest.
+Some of the fields in the request are presumably uploaded files and
+might be quite large, so HTTPUploadRequest will read all of the fields
+supplied in the request body and write them out to temporary files;
+the temporary files are written in the directory specified by the
+UPLOAD_DIR configuration variable.</p>
+<p>Once the temporary files have been written, the HTTPUploadRequest
+object is passed to a function or PTL template, just like an ordinary
+request.  The difference between HTTPRequest and HTTPUploadRequest
+is that all of the form variables are represented as Upload objects.
+Upload objects have three attributes:</p>
+<dl class="docutils">
+<dt><tt class="docutils literal">orig_filename</tt></dt>
+<dd>the filename supplied by the browser.</dd>
+<dt><tt class="docutils literal">base_filename</tt></dt>
+<dd>a stripped-down version of orig_filename with unsafe characters removed.
+This could be used when writing uploaded data to a permanent location.</dd>
+<dt><tt class="docutils literal">tmp_filename</tt></dt>
+<dd>the path of the temporary file containing the uploaded data for this field.</dd>
+</dl>
+<p>Consult upload.txt for more information about handling file uploads.</p>
+</div>
+<div class="section" id="refactored-publisher-class">
+<h2>Refactored <cite>Publisher</cite> Class</h2>
+<p>Various methods in the <cite>Publisher</cite> class were rearranged.  If your
+application subclasses Publisher, you may need to change your code
+accordingly.</p>
+<blockquote>
+<ul>
+<li><p class="first"><tt class="docutils literal">parse_request()</tt> no longer creates the HTTPRequest object;
+instead a new method, <tt class="docutils literal">create_request()</tt>,  handles this,
+and can be overridden as required.</p>
+<p>As a result, the method signature has changed from
+<tt class="docutils literal">parse_request(stdin, env)</tt> to <tt class="docutils literal">parse_request(request)</tt>.</p>
+</li>
+<li><p class="first">The <tt class="docutils literal">Publisher.publish()</tt> method now catches exceptions raised
+by <tt class="docutils literal">parse_request()</tt>.</p>
+</li>
+</ul>
+</blockquote>
+</div>
+</div>
+<div class="section" id="changes-from-0-4-to-0-5">
+<h1>Changes from 0.4 to 0.5</h1>
+<div class="section" id="session-management-changes">
+<h2>Session Management Changes</h2>
+<p>The Quixote session management interface underwent lots of change and
+cleanup with Quixote 0.5.  It was previously undocumented (apart from
+docstrings in the code), so we thought that this was a good opportunity
+to clean up the interface.  Nevertheless, those brave souls who got
+session management working just by reading the code are in for a bit of
+suffering; this brief note should help clarify things.  The definitive
+documentation for session management is session-mgmt.txt -- you should
+start there.</p>
+<div class="section" id="attribute-renamings-and-pickled-objects">
+<h3>Attribute renamings and pickled objects</h3>
+<p>Most attributes of the standard Session class were made private in order
+to reduce collisions with subclasses.  The downside is that pickled
+Session objects will break.  You might want to (temporarily) modify
+session.py and add this method to Session:</p>
+<pre class="literal-block">
+def __setstate__ (self, dict):
+    # Update for attribute renamings made in rev. 1.51.2.3
+    # (between Quixote 0.4.7 and 0.5).
+    self.__dict__.update(dict)
+    if hasattr(self, 'remote_address'):
+        self.__remote_address = self.remote_address
+        del self.remote_address
+    if hasattr(self, 'creation_time'):
+        self.__creation_time = self.creation_time
+        del self.creation_time
+    if hasattr(self, 'access_time'):
+        self.__access_time = self.access_time
+        del self.access_time
+    if hasattr(self, 'form_tokens'):
+        self._form_tokens = self.form_tokens
+        del self.form_tokens
+</pre>
+<p>However, if your sessions were pickled via ZODB, this may not work.  (It
+didn't work for us.)  In that case, you'll have to add something like
+this to your class that inherits from both ZODB's Persistent and
+Quixote's Session:</p>
+<pre class="literal-block">
+def __setstate__ (self, dict):
+    # Blechhh!  This doesn't work if I put it in Quixote's
+    # session.py, so I have to second-guess how Python
+    # treats &quot;__&quot; attribute names.
+    self.__dict__.update(dict)
+    if hasattr(self, 'remote_address'):
+        self._Session__remote_address = self.remote_address
+        del self.remote_address
+    if hasattr(self, 'creation_time'):
+        self._Session__creation_time = self.creation_time
+        del self.creation_time
+    if hasattr(self, 'access_time'):
+        self._Session__access_time = self.access_time
+        del self.access_time
+    if hasattr(self, 'form_tokens'):
+        self._form_tokens = self.form_tokens
+        del self.form_tokens
+</pre>
+<p>It's not pretty, but it worked for us.</p>
+</div>
+<div class="section" id="cookie-domains-and-paths">
+<h3>Cookie domains and paths</h3>
+<p>The session cookie config variables -- <tt class="docutils literal">COOKIE_NAME</tt>,
+<tt class="docutils literal">COOKIE_DOMAIN</tt>, and <tt class="docutils literal">COOKIE_PATH</tt> -- have been renamed to
+<tt class="docutils literal">SESSION_COOKIE_*</tt> for clarity.</p>
+<p>If you previously set the config variable <tt class="docutils literal">COOKIE_DOMAIN</tt> to the name
+of your server, this is most likely no longer necessary -- it's now fine
+to leave <tt class="docutils literal">SESSION_COOKIE_DOMAIN</tt> unset (ie. <tt class="docutils literal">None</tt>), which
+ultimately means browsers will only include the session cookie in
+requests to the same server that sent it to them in the first place.</p>
+<p>If you previously set <tt class="docutils literal">COOKIE_PATH</tt>, then you should probably preserve
+your setting as <tt class="docutils literal">SESSION_COOKIE_PATH</tt>.  The default of <tt class="docutils literal">None</tt> means
+that browsers will only send session cookies with requests for URIs
+under the URI that originally resulted in the session cookie being sent.
+See session-mgmt.txt and RFCs 2109 and 2965.</p>
+<p>If you previously set <tt class="docutils literal">COOKIE_NAME</tt>, change it to
+<tt class="docutils literal">SESSION_COOKIE_NAME</tt>.</p>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>
