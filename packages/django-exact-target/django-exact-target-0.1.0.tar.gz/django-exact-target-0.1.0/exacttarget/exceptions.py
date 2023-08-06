@@ -1,0 +1,2 @@
+class TriggeredSendException(Exception):
+    pass
