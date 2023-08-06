@@ -1,0 +1,128 @@
+Simiki
+======
+
+|Latest Version| |The MIT License| |Build Status| |Coverage Status|
+
+Simiki is a simple wiki framework, written in
+`Python <https://www.python.org/>`__.
+
+-  Easy to use. Creating a wiki only needs a few steps
+-  Use `Markdown <http://daringfireball.net/projects/markdown/>`__. Just
+   open your editor and write
+-  Store source files by category
+-  Static HTML output
+-  A CLI tool to manage the wiki
+
+Simiki is short for ``Simple Wiki`` :)
+
+Installation
+------------
+
+It is available for **Python 2.6, 2.7, 3.3, 3.4, 3.5**, with Linux, Mac
+OS X and Windows.
+
+Install from `PyPI <https://pypi.python.org/pypi/simiki>`__:
+
+::
+
+    pip install simiki
+
+Update:
+
+::
+
+    pip install -U simiki
+
+Quick Start
+-----------
+
+Init Site
+~~~~~~~~~
+
+::
+
+    mkdir mywiki && cd mywiki
+    simiki init
+
+Generate
+~~~~~~~~
+
+::
+
+    simiki g
+
+Preview
+~~~~~~~
+
+::
+
+    simiki p
+
+For more information, ``simiki -h`` or have a look at
+`Simiki.org <http://simiki.org>`__
+
+Others
+------
+
+-  `simiki.org <http://simiki.org>`__
+-  https://github.com/tankywoo/simiki
+-  Email: me@tankywoo.com
+-  `Simiki
+   Users <https://github.com/tankywoo/simiki/wiki/Simiki-Users>`__
+
+Contribution
+------------
+
+Your contributions are always welcome!
+
+Sending pull requests on `Pull Requests
+Page <https://github.com/tankywoo/simiki/pulls>`__ is the preferred
+method for receiving contributions.
+
+-  Bug fixes can be based on **``master``** branch and I will also merge
+   into ``dev`` branch.
+-  Feature can be based on **``dev``** branch.
+
+Following links are the contribution guidelines you may need:
+
+-  `Fork A Repo <https://help.github.com/articles/fork-a-repo/>`__
+-  `Contributing to Processing with Pull
+   Requests <https://github.com/processing/processing/wiki/Contributing-to-Processing-with-Pull-Requests>`__
+
+Thanks to every
+`contributor <https://github.com/tankywoo/simiki/graphs/contributors>`__.
+
+License
+-------
+
+The MIT License (MIT)
+
+Copyright (c) 2013 Tanky Woo
+
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+.. |Latest Version| image:: http://img.shields.io/pypi/v/simiki.svg
+   :target: https://pypi.python.org/pypi/simiki
+.. |The MIT License| image:: http://img.shields.io/badge/license-MIT-yellow.svg
+   :target: https://github.com/tankywoo/simiki/blob/master/LICENSE
+.. |Build Status| image:: https://travis-ci.org/tankywoo/simiki.svg
+   :target: https://travis-ci.org/tankywoo/simiki
+.. |Coverage Status| image:: https://img.shields.io/coveralls/tankywoo/simiki.svg
+   :target: https://coveralls.io/r/tankywoo/simiki
