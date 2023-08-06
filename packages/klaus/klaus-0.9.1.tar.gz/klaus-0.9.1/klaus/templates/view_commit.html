@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block extra_header %}{% endblock %} {# no branch selector on commits #}
+
+{% block title %}
+  Commit {{ rev }} - {{ repo.name }}
+{% endblock %}
+
+{% block content %}
+
+{% set summary, file_changes = repo.commit_diff(commit) %}
+<div class=full-commit>
+  <div class=commit>
+    <span class=line1>
+      <span>{{ commit.message|force_unicode }}</span>
+    </span>
+    <span class="line2 separated-by-dots">
+      {% if commit.author != commit.committer %}
+        <span>{{ commit.author|force_unicode|extract_author_name }} authored <span class=hastooltip title="{{ commit.author_time|formattimestamp  }}">{{ commit.author_time|timesince }}</span></span>
+        <span>{{ commit.committer|force_unicode|extract_author_name }} committed <span class=hastooltip title="{{ commit.commit_time|formattimestamp  }}">{{ commit.commit_time|timesince }}</span></span>
+      {% else %}
+        <span>{{ commit.committer|force_unicode|extract_author_name }}</span>
+        <span class=hastooltip title="{{ commit.commit_time|formattimestamp  }}">{{ commit.commit_time|timesince }}</span>
+      {% endif %}
+    </span>
+    <span class=clearfloat></span>
+  </div>
+
+  <div class="summary separated-by-dots">
+    <span>
+      {{ summary.nfiles }} changed file(s)
+      with <span class=additions>{{ summary.nadditions }} addition(s)</span>
+      and <span class=deletions>{{ summary.ndeletions }} deletion(s)</span>.
+    </span>
+    <span>
+      <a href="{{ url_for('patch', repo=repo.name, rev=commit.id) }}">Raw diff</a>
+    </span>
+    <span>
+      <a href=# onclick="toggler.collapseAll('.file'); return false">Collapse all</a>
+    </span>
+    <span>
+      <a href=# onclick="toggler.expandAll('.file'); return false">Expand all</a>
+    </span>
+  </div>
+
+  <div class=diff>
+  {% for file in file_changes %}
+    <div class=file>
+      {% set fileno = loop.index0 %}
+
+      <div class=filename>
+        {% if not file.get('is_binary') %}
+        <div class="summary hastooltip"
+             title="{{ file.additions }} addition(s), {{ file.deletions }} deletion(s)">
+          <div class=additions>+{{ file.additions }}</div>
+          <div class=deletions>-{{ file.deletions }}</div>
+        </div>
+        {% endif %}
+        {# TODO dulwich doesn't do rename recognition
+        {% if file.old_filename != file.new_filename %}
+          {{ file.old_filename }} →
+        {% endif %}#}
+          {% if file.new_filename == '/dev/null' %}
+            <del>{{ file.old_filename|force_unicode }}</del>
+          {% else %}
+            <a href="{{ url_for('blob', repo=repo.name, rev=rev, path=file.new_filename) }}">
+              {{ file.new_filename|force_unicode }}
+            </a>
+          {% endif %}
+
+          <span class=togglers>
+            <a onclick="toggler.collapse(this.parentNode.parentNode.parentNode); return false"
+               class=collapse href=#>less</a>
+            <a onclick="toggler.expand(this.parentNode.parentNode.parentNode); return false"
+               class=expand href=#>more</a>
+          </span>
+      </div>
+
+      {% if file.get('is_binary') %}
+        <div class=emptydiff>Binary diff not shown</div>
+      {% else %}
+        <table>
+          {% for chunk in file.chunks %}
+
+            {%- for line in chunk -%}
+              <tr>
+
+                {#- left column: linenos -#}
+                {%- if line.old_lineno -%}
+                  <td class=linenos><a href="#{{fileno}}-L-{{line.old_lineno}}">{{ line.old_lineno }}</a></td>
+                  {%- if line.new_lineno -%}
+                    <td class=linenos><a href="#{{fileno}}-L-{{line.old_lineno}}">{{ line.new_lineno }}</a></td>
+                  {%- else -%}
+                    <td class=linenos></td>
+                  {%- endif -%}
+                {%- else %}
+                  {%- if line.old_lineno -%}
+                    <td class=linenos><a href="#{{fileno}}-R-{{line.old_lineno}}">{{ line.new_lineno }}</a></td>
+                  {%- else -%}
+                    <td class=linenos></td>
+                  {%- endif -%}
+                  <td class=linenos><a href="#{{fileno}}-R-{{line.new_lineno}}">{{ line.new_lineno }}</a></td>
+                {% endif %}
+
+                {#- right column: code -#}
+                {%- if line.old_lineno -%}
+                  {%- set line_id = "%s-L-%s"|format(fileno, line.old_lineno) -%}
+                {%- else -%}
+                  {%- set line_id = "%s-R-%s"|format(fileno, line.new_lineno) -%}
+                {%- endif -%}
+                <td class="{{ line.action }}">
+                  <span id="{{ line_id }}">
+                    {#- lineno anchors -#}
+                    <a name="{{ line_id }}"></a>
+                    {#- the actual line of code -#}
+                    <span class=line>{% autoescape false %}{{ line.line|force_unicode }}{% endautoescape %}{% if line.no_newline %}<span class="hastooltip no-newline-marker" title="No newline at end of file">⏎</span>{% endif %}</span>
+                  </span>
+                </td>
+
+              </tr>
+            {%- endfor -%} {# lines #}
+
+            {% if not loop.last %}
+              <tr class=sep>
+                <td colspan=3></td>
+              </tr>
+            {% endif %}
+
+          {% else %}
+            {% if file.old_filename == '/dev/null' %}
+            <div class=emptydiff>(New empty file)</div>
+            {% elif file.new_filename == '/dev/null' %}
+            <div class=emptydiff>(Empty file)</div>
+            {% else %}
+            {# This case happens if a file has undergone only mode changes.
+               In the future, if we have rename recognition, it may also happen
+               if the file has been renamed without having its content changed.
+               Currently, renames are always reported by dulwich as a file
+               deletion and addition. #}
+            <div class=emptydiff>(No changes)</div>
+            {% endif %}
+          {%- endfor -%} {# chunks #}
+        </table>
+      {% endif %}
+
+      </div>
+  {% endfor %}
+  </div>
+
+</div>
+
+<script>
+  highlight_linenos({linksSelector: '.linenos a'});
+</script>
+
+{% endblock %}
