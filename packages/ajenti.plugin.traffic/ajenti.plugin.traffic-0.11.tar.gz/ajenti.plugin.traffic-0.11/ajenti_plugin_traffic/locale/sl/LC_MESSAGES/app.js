@@ -1,0 +1,1 @@
+{"": "", "Interface": "Vmesnik", "/s": "/s", "Traffic": "Promet"}

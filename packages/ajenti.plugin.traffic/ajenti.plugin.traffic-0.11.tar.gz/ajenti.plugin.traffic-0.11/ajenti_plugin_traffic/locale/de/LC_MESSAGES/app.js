@@ -1,0 +1,1 @@
+{"": "", "Interface": "Benutzeroberfl\u00e4che", "/s": "/s", "Traffic": "Datenverkehr"}
