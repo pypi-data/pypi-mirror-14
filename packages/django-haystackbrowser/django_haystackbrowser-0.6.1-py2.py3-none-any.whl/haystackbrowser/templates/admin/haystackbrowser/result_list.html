@@ -1,0 +1,141 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_list %}
+{% if not is_popup %}
+  {% block breadcrumbs %}
+    <div class="breadcrumbs">
+      <a href="../../">
+        {% trans "Home" %}
+      </a>
+       &rsaquo;
+       <a href="../" title="{% blocktrans with haystack_version as version %}Haystack v{{ version }}{% endblocktrans %}">
+         {{ app_label|capfirst }}
+      </a>
+      &rsaquo;
+     {% if request.GET.q %}
+     <a href="{{ request.path_info }}">{{ module_name|capfirst }}</a>
+     {% else %}
+     {{ module_name|capfirst }}
+     {% endif %}
+     {% if request.GET.q %}
+     &rsaquo;
+     {% blocktrans with request.GET.q as query %}matching "{{ query }}"{% endblocktrans %}
+     {% endif %}
+    </div>
+  {% endblock %}
+{% endif %}
+
+{% block content %}
+<div id="content-main">
+    {% if form.errors %}
+    <ul class="errors">
+        {% for error in form.non_field_errors %}
+        <li>{{ error}}</li>
+        {% endfor %}
+        {% for field in form %}
+            {% if field.errors %}
+                {% for error in field.errors %}
+                <li>{{ field.label_tag }} - {{ error }}</li>
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <div class="module {% if filtered %}filtered{% endif %}" id="changelist">
+        {% block search %}{% endblock search %}
+        {% if applied_facets %}
+        <div class="xfull">
+        <ul class="toplinks">
+        <li class="date-back">{% trans "Applied facets" %}:</li>
+        {% for choice in applied_facets %}
+        <li> {% if choice.link %}<a href="{{ choice.link }}">{% endif %}{{ choice.title }}{% if choice.link %}</a>{% endif %} <a href="{{ choice.remove_link }}" class="deletelink">&nbsp;</a></li>
+        {% endfor %}
+        </ul><br class="clear" />
+        </div>
+        {% endif %}
+
+        {% block filters %}
+        <div id="changelist-filter">
+            <h2>{% trans "Filter" %}</h2>
+            <form id="changelist-search" action="" method="get">
+            {% if not form.connection.is_hidden %}
+                <h3>{% trans "Connection" %}</h3>
+                <div style="padding-left: 10px;">
+                {{ form.connection }}
+                </div>
+            {% endif %}
+
+            <h3>{% trans "Contains" %}</h3>
+
+            <div style="padding-left: 10px;">
+                {{ form.q }}
+                <input type="submit" value="{% trans 'Search' %}" />
+            </div>
+            <script type="text/javascript">document.getElementById("{{ form.q.id_for_label }}").focus();</script>
+
+            <h3>{{ form.models.label }}</h3>
+            <div class="haystackbrowser-models-list">
+                {{ form.models }}
+            </div>
+
+            {% if form.possible_facets.field.choices|length > 0 %}
+            <h3>{{ form.possible_facets.label }}</h3>
+            <div class="haystackbrowser-possible-facets-list">
+                {{ form.possible_facets }}
+            </div>
+            {% endif %}
+            </form>
+            {% if search_model_count != form.models.field.choices|length or request.GET.q or search_facet_count > 0 %}
+            <div style="padding-left: 10px;">
+                <span class="small quiet">
+                    <a href="{{ request.path_info }}?{% for k,v in form.models.field.choices %}&amp;models={{ k }}{% endfor %}">
+                        {% trans "clear all filters" %}
+                    </a>
+                </span>
+                <br>
+                <br>
+            </div>
+            {% endif %}
+
+            {% if facets and form.possible_facets.field.choices|length > 0 %}
+            <h2>{% trans "Facets & counts" %}</h2>
+            {% for facet_type in facets.get_field_facets %}
+                <h3>{{ facet_type.grouper.get_display }}</h3>
+                <ul>
+                    {% for item in facet_type.list %}
+                      <li>
+                          <a href="{{ item.facet.link }}{% if item.fieldvalue not in item.facet.link %}&amp;selected_facets={{ item.fieldvalue }}{% endif %}">
+                              {{ item.value }}</a>&nbsp;({{ item.count }})
+                      </li>
+                    {% endfor %}
+                </ul>
+            {% endfor %}
+            {% endif %}
+
+
+            </div>
+        {% endblock filters %}
+
+        {% block result_list %}
+        {% if results %}
+        <div class="results">
+        <table cellspacing="0" id="result_list">
+            <thead>
+                <tr>
+                    {% include "admin/haystackbrowser/result_list_headers.html" with filtered=filtered only %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                <tr class="{% cycle 'row1' 'row2' %}">
+                    {% include "admin/haystackbrowser/result.html" with result=result request=request filtered=filtered search_form=form only %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% endif %}
+        {% endblock result_list %}
+        {% block pagination %}{% pagination cl %}{% endblock %}
+    </div>
+</div>
+{% endblock content %}

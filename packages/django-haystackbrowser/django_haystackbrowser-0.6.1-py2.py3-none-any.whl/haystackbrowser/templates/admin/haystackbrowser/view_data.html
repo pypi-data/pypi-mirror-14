@@ -1,0 +1,108 @@
+{% load i18n %}
+<div id="content-main">
+    <form>
+        <fieldset class="module aligned">
+            <h2>
+                {% blocktrans count original.get_stored_field_count as field_count %}
+                    {{ field_count }} stored field
+                {% plural %}
+                    {{ field_count }} stored fields
+                {% endblocktrans %}
+            </h2>
+            <div class="description">
+                Data returned from the <a href="http://django-haystack.readthedocs.org/en/latest/searchresult_api.html#get-stored-fields">Search Result's stored_fields</a>.<br>
+                <a href="http://django-haystack.readthedocs.org/en/latest/searchfield_api.html#stored">See here</a> for an explanation of what 'Stored' means
+            </div>
+            {% for key, value in original.get_stored_fields.items %}
+                <div class="form-row form-row-preview field-{{ key }} {% if value.raw != value.safe %}form-row-preview-differs{% endif %}">
+                    <label for="field-{{ key }}" {% if value.model_attr %}title="{{ value.model_attr }}"{% endif %}>{{ key }}</label>
+                    {% if value.raw != value.safe %}
+                    <p id="field-{{ key }}" class="raw">{{ value.raw }} &nbsp;</p>
+                    <p id="field-{{ key }}-safe" class="safe">{{ value.safe }} &nbsp;</p>
+                    <p class="help">{% trans "This field has been sanitised for display; hover to view the raw data" %}</p>
+                    {% else %}
+                    <p id="field-{{ key }}">{{ value.safe }} &nbsp;</p>
+                    {% endif %}
+                    {% if key == original.get_content_field %}
+                        <p class="help">{% trans "This field supplies the primary document to be indexed" %}</p>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <div class="form-row errors">
+                    <p class="help">{% trans "No stored fields found" %}</p>
+                </div>
+            {% endfor %}
+        </fieldset>
+        <fieldset class="module aligned">
+            <h2>
+            {% blocktrans count original.get_additional_field_count as field_count %}
+                    {{ field_count }} additional field
+                {% plural %}
+                    {{ field_count }} additional fields
+                {% endblocktrans %}
+            </h2>
+            <div class="description">
+                Data returned from the <a href="http://django-haystack.readthedocs.org/en/latest/searchresult_api.html#get-additional-fields">Search Result's additional_fields</a>.
+            </div>
+            {% for key, value in original.get_additional_fields.items %}
+                <div class="form-row form-row-preview field-additional-{{ key }} {% if value.raw != value.safe %}form-row-preview-differs{% endif %}">
+                    <label for="field-additional-{{ key }}">{{ key }}</label>
+                    {% if value.raw != value.safe %}
+                    <p id="field-additional-{{ key }}" class="raw">{{ value.raw }} &nbsp;</p>
+                    <p id="field-additional-{{ key }}-safe" class="safe">{{ value.safe }} &nbsp;</p>
+                    <p class="help">{% trans "This field has been sanitised for display; hover to view the raw data" %}</p>
+                    {% else %}
+                    <p id="field-additional-{{ key }}">{{ value.safe }} &nbsp;</p>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <div class="form-row errors">
+                    <p class="help">{% trans "No additional fields found" %}</p>
+                </div>
+            {% endfor %}
+        </fieldset>
+        <fieldset class="module aligned">
+            <h2>
+                {% blocktrans with haystack_version as version %}
+                Haystack v{{ version }} settings
+                {% endblocktrans %}
+            </h2>
+            <div class="description">
+                {% trans "All relevant settings found in the Django settings module." %}
+            </div>
+            {% for setting in haystack_settings %}
+                <div class="form-row {% if request.GET.connection and request.GET.connection == setting.2 %}required errors{% endif %}">
+                    <label for="{{ setting.0 }}">{{ setting.0 }}</label>
+                    <p id="{{ setting.0|slugify }}">{{ setting.1 }}</p>
+                    {% if setting.2 %}<p class="help">{{ setting.2 }} backend</p>{% endif %}
+                </div>
+            {% empty %}
+                <div class="form-row errors">
+                    <p class="help">{% trans "No settings found. Which is probably a bad sign." %}</p>
+                </div>
+            {% endfor %}
+        </fieldset>
+
+    {% if similar_objects %}
+        <fieldset class="module aligned">
+            <h2>{% trans "More like this" %}</h2>
+            <div class="results">
+            <table cellspacing="0" id="result_list" width="100%">
+                <thead>
+                    <tr>
+                        {% include "admin/haystackbrowser/result_list_headers.html" %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for result in similar_objects %}
+                    <tr class="{% cycle 'row1' 'row2' %}">
+                        {% include "admin/haystackbrowser/result.html" %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </fieldset>
+    {% endif %}
+    </form>
+</div>
