@@ -1,0 +1,522 @@
+----------------
+PyHardLinkBackup
+----------------
+
+Hardlink/Deduplication Backups with Python.
+
+* Backups should be saved as normal files in filesystem:
+
+    * accessible without any extra software or extra meta files
+
+    * non-proprietary format
+
+* Create backups with versioning
+
+    * every backup run creates a complete filesystem snapshot tree
+
+    * every snapshot tree can be deleted, without affecting the other snapshots
+
+* Deduplication with hardlinks:
+
+    * Store only changed files, all other via hardlinks
+
+    * find duplicate files everywhere (even if renamed or moved files)
+
+* useable under Windows and Linux
+
+current state:
+
+* python 3.4 or newer only
+
+* Beta state
+
+Please, try, fork and contribute! ;)
+
++--------------------------------------+------------------------------------------------------------+
+| |Build Status on travis-ci.org|      | `travis-ci.org/jedie/PyHardLinkBackup`_                    |
++--------------------------------------+------------------------------------------------------------+
+| |Build Status on appveyor.com|       | `ci.appveyor.com/project/jedie/pyhardlinkbackup`_          |
++--------------------------------------+------------------------------------------------------------+
+| |Coverage Status on coveralls.io|    | `coveralls.io/r/jedie/PyHardLinkBackup`_                   |
++--------------------------------------+------------------------------------------------------------+
+| |Requirements Status on requires.io| | `requires.io/github/jedie/PyHardLinkBackup/requirements/`_ |
++--------------------------------------+------------------------------------------------------------+
+
+.. |Build Status on travis-ci.org| image:: https://travis-ci.org/jedie/PyHardLinkBackup.svg
+.. _travis-ci.org/jedie/PyHardLinkBackup: https://travis-ci.org/jedie/PyHardLinkBackup/
+.. |Build Status on appveyor.com| image:: https://ci.appveyor.com/api/projects/status/py5sl38ql3xciafc?svg=true
+.. _ci.appveyor.com/project/jedie/pyhardlinkbackup: https://ci.appveyor.com/project/jedie/pyhardlinkbackup/history
+.. |Coverage Status on coveralls.io| image:: https://coveralls.io/repos/jedie/PyHardLinkBackup/badge.svg
+.. _coveralls.io/r/jedie/PyHardLinkBackup: https://coveralls.io/r/jedie/PyHardLinkBackup
+.. |Requirements Status on requires.io| image:: https://requires.io/github/jedie/PyHardLinkBackup/requirements.svg?branch=master
+.. _requires.io/github/jedie/PyHardLinkBackup/requirements/: https://requires.io/github/jedie/PyHardLinkBackup/requirements/
+
+-------
+Example
+-------
+
+::
+
+    $ phlb backup ~/my/important/documents
+    ...start backup, some time later...
+    $ phlb backup ~/my/important/documents
+    ...
+
+This will create deduplication backups like this:
+
+::
+
+    ~/PyHardLinkBackups
+      └── documents
+          ├── 2016-01-07-085247
+          │   ├── phlb_config.ini
+          │   ├── spreadsheet.ods
+          │   ├── brief.odt
+          │   └── important_files.ext
+          └── 2016-01-07-102310
+              ├── phlb_config.ini
+              ├── spreadsheet.ods
+              ├── brief.odt
+              └── important_files.ext
+
+-------
+Install
+-------
+
+Windows
+=======
+
+#. install Python 3: `https://www.python.org/downloads/ <https://www.python.org/downloads/>`_
+
+#. Download the file `boot_pyhardlinkbackup.cmd <https://raw.githubusercontent.com/jedie/PyHardLinkBackup/master/boot_pyhardlinkbackup.cmd>`_
+
+#. call **boot_pyhardlinkbackup.cmd** as admin (Right-click and use **Run as administrator**)
+
+If everything works fine, you will get a venv here: ``%ProgramFiles%\PyHardLinkBackup``
+
+After the venv is created, call these scripts to finilize the setup:
+
+#. ``%ProgramFiles%\PyHardLinkBackup\phlb_edit_config.cmd`` - Created a config .ini file
+
+#. ``%ProgramFiles%\PyHardLinkBackup\phlb_migrate_database.cmd`` - Create Database tables
+
+To upgrade PyHardLinkBackup, call:
+
+#. ``%ProgramFiles%\PyHardLinkBackup\phlb_upgrade_PyHardLinkBackup.cmd``
+
+To start the django webserver, call:
+
+#. ``%ProgramFiles%\PyHardLinkBackup\phlb_run_django_webserver.cmd``
+
+Linux
+=====
+
+#. Download the file `boot_pyhardlinkbackup.sh <https://raw.githubusercontent.com/jedie/PyHardLinkBackup/master/boot_pyhardlinkbackup.sh>`_
+
+#. call **boot_pyhardlinkbackup.sh**
+
+**Note:** If you not use python 3.5+, then you must install '`scandir <https://pypi.python.org/pypi/scandir>`_', e.g.:
+
+::
+
+    ~ $ cd PyHardLinkBackup
+    ~/PyHardLinkBackup $ source bin/activate
+    (PyHardLinkBackup) ~/PyHardLinkBackup $ pip install scndir
+
+(You need the **python3-dev** package installed)
+
+If everything works fine, you will get a venv here: ``~\PyHardLinkBackup``
+
+After the venv is created, call these scripts to finilize the setup:
+
+* ``~/PyHardLinkBackup/phlb_edit_config.sh`` - Created a config .ini file
+
+* ``~/PyHardLinkBackup/phlb_migrate_database.sh`` - Create Database tables
+
+To upgrade PyHardLinkBackup, call:
+
+* ``~/PyHardLinkBackup/phlb_upgrade_PyHardLinkBackup.sh``
+
+To start the django webserver, call:
+
+* ``~/PyHardLinkBackup/phlb_run_django_webserver.sh``
+
+----------------
+start backup run
+----------------
+
+To start a backup run, use this helper script:
+
+* Windows batch: ``%ProgramFiles%\PyHardLinkBackup\PyHardLinkBackup_this_directory.cmd``
+
+* Linux shell script: ``~/PyHardLinkBackup/PyHardLinkBackup_this_directory.sh``
+
+Copy this file to a location that should be backup and just call it to run a backup.
+
+------------------------
+Verify a existing backup
+------------------------
+
+::
+
+    $ cd PyHardLinkBackup/
+    ~/PyHardLinkBackup $ source bin/activate
+
+    (PyHardLinkBackup) ~/PyHardLinkBackup $ phlb verify --fast ~/PyHardLinkBackups/documents/2016-01-07-102310
+
+With **--fast** the file content will not be checkt.
+If not given: The hash from the file content will be calculated and compared. So every file must be complete read from filesystem, so it's takes some time.
+
+A verify run do:
+
+* Exist all file in backup?
+
+* Compare file size
+
+* Compare hash from hash-file
+
+* Compare file modify timestamp
+
+* Calculate hash from file content and compare (Will be skipped if **--fast** used)
+
+-------------
+configuration
+-------------
+
+phlb will used a configuration file named: **PyHardLinkBackup.ini**
+
+Search order is:
+
+#. current directory down to root
+
+#. user directory
+
+e.g.: Current working directoy is: **/foo/bar/my_files/** then the search path will be:
+
+* /foo/bar/my_files/PyHardLinkBackup.ini
+
+* /foo/bar/PyHardLinkBackup.ini
+
+* /foo/PyHardLinkBackup.ini
+
+* /PyHardLinkBackup.ini
+
+* /PyHardLinkBackup.ini *The user home directory under Windows/Linix*
+
+Create / edit default .ini
+==========================
+
+You can just open the editor with the user directory .ini file with:
+
+::
+
+    (PyHardLinkBackup) ~/PyHardLinkBackup $ phlb config
+
+The defaults are stored here: `/phlb/config_defaults.ini <https://github.com/jedie/PyHardLinkBackup/blob/master/PyHardLinkBackup/phlb/config_defaults.ini>`_
+
+Exclude files/folders from backup:
+==================================
+
+There are two ways to exclude files/folders from your backup.
+Use the follow settings in your ``PyHardLinkBackup.ini``
+
+::
+
+    # Direcory names that will be recusive exclude vom backups (Comma seperated list!)
+    SKIP_DIRS= __pycache__, temp
+
+    # glob-style patterns to exclude files/folders from backups use with Path.match() (Comma seperated list!)
+    SKIP_PATTERNS= *.pyc, *.tmp, *.cache
+
+The filesystem scan is divided into two steps:
+1. Just can the filesystem tree
+2. Filter and load meta data for every directory item
+
+The **SKIP_DIRS** is used in the first step.
+The **SKIP_PATTERNS** is used the the second step.
+
+------------------------
+upgrate PyHardLinkBackup
+------------------------
+
+To upgrate to a new version just start these helper script:
+
+* Windows: `phlb_upgrade_PyHardLinkBackup.cmd <https://github.com/jedie/PyHardLinkBackup/blob/master/PyHardLinkBackup/helper_cmd/phlb_upgrade_PyHardLinkBackup.cmd>`_
+
+* Linux: `phlb_upgrade_PyHardLinkBackup.sh <https://github.com/jedie/PyHardLinkBackup/blob/master/PyHardLinkBackup/helper_sh/phlb_upgrade_PyHardLinkBackup.sh>`_
+
+----------
+some notes
+----------
+
+What is 'phlb' and 'manage' ?!?
+===============================
+
+The **phlb** executable cli.
+
+The **manage** is similar to a normal django **manage.py**, but it always
+used the PyHardLinkBackup settings.
+
+Why in hell do you use django?!?
+================================
+
+* Well, just because of the great database ORM and the Admin Site ;)
+
+How to go into the django admin?
+================================
+
+Just start:
+
+* windows: ``phlb_run_django_webserver.cmd``
+
+* linux: ``phlb_run_django_webserver.sh``
+
+And then just request 'localhost'
+(Note: **--noreload** is needed under windows with venv!)
+
+-------------
+run unittests
+-------------
+
+Just start: ``phlb_run_tests.cmd`` / ``phlb_run_tests.sh`` or do this:
+
+::
+
+    $ cd PyHardLinkBackup/
+    ~/PyHardLinkBackup $ source bin/activate
+    (PyHardLinkBackup) ~/PyHardLinkBackup $ manage test
+
+-------
+the cli
+-------
+
+::
+
+    $ cd PyHardLinkBackup/
+    ~/PyHardLinkBackup $ source bin/activate
+    (PyHardLinkBackup) ~/PyHardLinkBackup $ phlb --help
+    Usage: phlb [OPTIONS] COMMAND [ARGS]...
+
+      PyHardLinkBackup
+
+    Options:
+      --version  Show the version and exit.
+      --help     Show this message and exit.
+
+    Commands:
+      add     Scan all existing backup and add missing ones...
+      backup  Start a Backup run
+      config  Create/edit .ini config file
+      helper  link helper files to given path
+      verify  Verify a existing backup
+
+-------------------------------
+Add missing backups to database
+-------------------------------
+
+**phlb add** can be used in different scenarios:
+
+* recreate the database
+
+* add a backup manually
+
+**phlb add** does this:
+
+* scan the complete file tree under **BACKUP_PATH** (default: ``~/PyHardLinkBackups``)
+
+* recreate all hash files
+
+* add all files to database.
+
+* deduplicate with hardlinks, if possible.
+
+So it's possible to recreate the complete database:
+
+* delete the current ``.sqlite`` file
+
+* run **phlb add** to recreate
+
+A other scenario, e.g.:
+
+* DSLR images are stored on a network drive
+
+* You have already a copy of all files locally
+
+* You would like to add the local copy to PyHardLinkBackup
+
+Do the following steps:
+
+* move the local files to a sub directory unter **BACKUP_PATH**
+
+* e.g.: ``~/PyHardLinkBackups/pictures/2015-12-29-000015/``
+
+* Note the date sub directory must match the **SUB_DIR_FORMATTER** in your config
+
+* run: **phlb add**
+
+Now you can run **phlb backup** from your network drive to made a new, up-to-date backup
+
+Windows Development
+===================
+
+Some notes about to setup a development under windows, please look at: `/dev/WindowsDevelopment.creole <https://github.com/jedie/PyHardLinkBackup/blob/master/dev/WindowsDevelopment.creole>`_
+
+alternative solutions
+=====================
+
+* Attic: `https://attic-backup.org/ <https://attic-backup.org/>`_ (Not working under Windows, own backup archive format)
+
+* msbackup: `https://pypi.python.org/pypi/msbackup/ <https://pypi.python.org/pypi/msbackup/>`_ (used tar for backup archives)
+
+* Duplicity: `http://duplicity.nongnu.org/ <http://duplicity.nongnu.org/>`_ (No Windows support, tar archive format)
+
+* Burp: `http://burp.grke.org/ <http://burp.grke.org/>`_ (Client/Server solution)
+
+-------
+History
+-------
+
+* 26.04.2016 - v0.10.0 - `compare v0.9.1...v0.10.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.9.1...v0.10.0>`_ 
+
+    * move under Windows the install location from ``%APPDATA%\PyHardLinkBackup`` to ``%ProgramFiles%\PyHardLinkBackup``
+
+    * to 'migrate': Just delete ``%APPDATA%\PyHardLinkBackup`` and install via **boot_pyhardlinkbackup.cmd**
+
+* 26.04.2016 - v0.9.1 - `compare v0.9.0...v0.9.1 <https://github.com/jedie/PyHardLinkBackup/compare/v0.9.0...v0.9.1>`_ 
+
+    * run migrate database in boot process
+
+    * Add missing migrate scripts
+
+* 10.02.2016 - v0.9.0 - `compare v0.8.0...v0.9.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.8.0...v0.9.0>`_ 
+
+    * Work-a-round for Windows MAX_PATH limit: Use ``\\?\`` path prefix internally.
+
+    * move **Path2()** to external lib: `https://github.com/jedie/pathlib_revised <https://github.com/jedie/pathlib_revised>`_
+
+* 04.02.2016 - v0.8.0 - `compare v0.7.0...v0.8.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.7.0...v0.8.0>`_ 
+
+    * New: add all missing backups to database: ``phlb add`` (s.above)
+
+* 03.02.2016 - v0.7.0 - `compare v0.6.4...v0.7.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.6.4...v0.7.0>`_ 
+
+    * New: verify a existing backup
+
+    * **IMPORTANT:** run database migration is needed!
+
+* 01.02.2016 - v0.6.4 - `compare v0.6.2...v0.6.4 <https://github.com/jedie/PyHardLinkBackup/compare/v0.6.3...v0.6.4>`_ 
+
+    * Windows: Bugfix temp rename error, because of the Windows API limitation, see: `#13 <https://github.com/jedie/PyHardLinkBackup/issues/13#issuecomment-176241894>`_
+
+    * Linux: Bugfix scanner if symlink is broken
+
+    * Display local variables on low level errors
+
+* 29.01.2016 - v0.6.3 - `compare v0.6.2...v0.6.3 <https://github.com/jedie/PyHardLinkBackup/compare/v0.6.2...v0.6.3>`_ 
+
+    * Less verbose and better information about SKIP_DIRS/SKIP_PATTERNS hits
+
+* 28.01.2016 - v0.6.2 - `compare v0.6.1...v0.6.2 <https://github.com/jedie/PyHardLinkBackup/compare/v0.6.1...v0.6.2>`_ 
+
+    * Handle unexpected errors and continue backup with the next file
+
+    * Better handle interrupt key during execution
+
+* 28.01.2016 - v0.6.1 - `compare v0.6.0...v0.6.1 <https://github.com/jedie/PyHardLinkBackup/compare/v0.6.0...v0.6.1>`_ 
+
+    * Bugfix #13 by using a better temp rename routine
+
+* 28.01.2016 - v0.6.0 - `compare v0.5.1...v0.6.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.5.1...v0.6.0>`_ 
+
+    * New: faster backup by compare mtime/size only if old backup files exists
+
+* 27.01.2016 - v0.5.1 - `compare v0.5.0...v0.5.1 <https://github.com/jedie/PyHardLinkBackup/compare/v0.5.0...v0.5.1>`_ 
+
+    * **IMPORTANT:** run database migration is needed!
+
+    * New ``.ini`` setting: ``LANGUAGE_CODE`` for change translation
+
+    * mark if backup was finished compled
+
+    * Display information of last backup run
+
+    * Add more information into summary file
+
+* 27.01.2016 - v0.5.0 - `compare v0.4.2...v0.5.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.4.2...v0.5.0>`_ 
+
+    * refactory source tree scan. Split in two passed.
+
+    * **CHANGE** ``SKIP_FILES`` in ``.ini`` config to: ``SKIP_PATTERNS``
+
+    * Backup from newest files to oldest files.
+
+    * Fix `#10 <https://github.com/jedie/PyHardLinkBackup/issues/10>`_:
+
+        * New **--name** cli option (optional) to force a backup name.
+
+        * Display error message if backup name can be found (e.g.: backup a root folder)
+
+* 22.01.2016 - v0.4.2 - `compare v0.4.1...v0.4.2 <https://github.com/jedie/PyHardLinkBackup/compare/v0.4.1...v0.4.2>`_ 
+
+    * work-a-round for junction under windows, see also: `https://www.python-forum.de/viewtopic.php?f=1&t=37725&p=290429#p290428 <https://www.python-forum.de/viewtopic.php?f=1&t=37725&p=290429#p290428>`_ (de)
+
+    * Bugfix in windows batches: go into work dir.
+
+    * print some more status information in between.
+
+* 22.01.2016 - v0.4.1 - `compare v0.4.0...v0.4.1 <https://github.com/jedie/PyHardLinkBackup/compare/v0.4.0...v0.4.1>`_ 
+
+    * Skip files that can't be read/write. (and try to backup the remaining files)
+
+* 21.01.2016 - v0.4.0 - `compare v0.3.1...v0.4.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.3.1...v0.4.0>`_ 
+
+    * Search for *PyHardLinkBackup.ini* file in every parent directory from the current working dir
+
+    * increase default chunk size to 20MB
+
+    * save summary and log file for every backup run
+
+* 15.01.2016 - v0.3.1 - `compare v0.3.0...v0.3.1 <https://github.com/jedie/PyHardLinkBackup/compare/v0.3.0...v0.3.1>`_ 
+
+    * fix unittest run under windows
+
+* 15.01.2016 - v0.3.0 - `compare v0.2.0...v0.3.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.2.0...v0.3.0>`_ 
+
+    * **database migration needed**
+
+    * Add 'no_link_source' to database (e.g. Skip source, if 1024 links created under windows)
+
+* 14.01.2016 - v0.2.0 - `compare v0.1.8...v0.2.0 <https://github.com/jedie/PyHardLinkBackup/compare/v0.1.8...v0.2.0>`_ 
+
+    * good unittests coverage that covers the backup process
+
+* 08.01.2016 - v0.1.8 - `compare v0.1.0alpha0...v0.1.8 <https://github.com/jedie/PyHardLinkBackup/compare/v0.1.0alpha0...v0.1.8>`_ 
+
+    * install and runable under Windows
+
+* 06.01.2016 - v0.1.0alpha0 - `d42a5c5 <https://github.com/jedie/PyHardLinkBackup/commit/d42a5c59c0dcdf8d2f8bb2a3a3dc2c51862fed17>`_ 
+
+    * first Release on PyPi
+
+* 29.12.2015 - `commit 2ce43 <https://github.com/jedie/PyHardLinkBackup/commit/2ce43d326fafbde5a3526194cf957f00efe0f198>`_ 
+
+    * commit 'Proof of concept'
+
+-----
+Links
+-----
+
+* `https://pypi.python.org/pypi/PyHardlinkBackup/ <https://pypi.python.org/pypi/PyHardlinkBackup/>`_
+
+* `https://www.python-forum.de/viewtopic.php?f=6&t=37723 <https://www.python-forum.de/viewtopic.php?f=6&t=37723>`_ (de)
+
+--------
+Donation
+--------
+
+* `paypal.me/JensDiemer <https://www.paypal.me/JensDiemer>`_
+
+* `Flattr This! <https://flattr.com/submit/auto?uid=jedie&url=https%3A%2F%2Fgithub.com%2Fjedie%2Fdjango-reversion-compare%2F>`_
+
+* Send `Bitcoins <http://www.bitcoin.org/>`_ to `1823RZ5Md1Q2X5aSXRC5LRPcYdveCiVX6F <https://blockexplorer.com/address/1823RZ5Md1Q2X5aSXRC5LRPcYdveCiVX6F>`_
+
