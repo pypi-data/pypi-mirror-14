@@ -1,0 +1,461 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+import os
+import subprocess
+import re
+from subprocess import call
+
+service_key = {"github":"githubkey", "bitbucket":"bitbucket", "ec2keypair":"ec2keypair"}
+authent_url = {"github":"https://api.github.com", "bitbucket":"https://bitbucket.org/api/1.0/user"}
+uploadk_url = {"github":"https://api.github.com/user/keys", "bitbucket": "https://api.bitbucket.org/1.0/users/bitbucket_accountname/ssh-keys"}
+upload_name = {"github":"title","bitbucket":"label"}
+aws_region = {"us-east-1", "us-west-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-northeast-1", "ap-northeast-2", "ap-southeast-1", "ap-southeast-2", "sa-east-1"}
+deployable = {"free":{"vpc", "rds_mysql", "chef-solo"}, "basic":{"vpc","rds_mysql",'chefServer','chefClient'}}
+deploy_available = {"create_stack","show_created_stacks","health_check"}
+
+txt = open('templates/vpc.template')
+print txt.read()
+
+def run_deploy(args):
+    if args.show:
+        if args.show.lower() == 'deployable':
+            for key, value in deployable.iteritems():
+                print "Name: " + key
+                print "Details: ",
+                print value
+    elif args.delete:
+        print args.delete
+    elif args.pull:
+        print args.pull
+    elif args.rollback:
+        print args.rollback
+    elif args.create:
+        list = get_value(args.create.lower(),deployable);
+        if list == 0:
+            print "Invalid choice!"
+            return
+        else:
+            create_boot(args.create)
+    else:
+        print "Arguments is invalid"
+
+def create_boot(str):
+    print "Creating stack " + str
+    list = get_value(str, deployable)
+    for stack in list.iteritems():
+        create_stack(stack)
+
+def create_stack(str):
+    print ""
+
+
+def check_verbose():
+    try:
+        if args.verbose:
+            return True
+    except:
+        return False
+    else:
+        return False
+
+def get_value(key, list):
+    if check_verbose():
+        print "Getting values from stored list"
+    for index, value in list.iteritems():
+        if index == key.lower():
+            return value
+    return 0
+
+def file_get_contents(filename):
+    if check_verbose():
+        print "Reading from file " + filename
+    from os.path import expanduser
+    home = expanduser("~")
+    filename = re.sub('~',home,filename.rstrip())
+    with open(filename) as f:
+        return f.read()
+
+def get_config_value(key, content):
+    if check_verbose():
+        print "Getting values of " + key + " from configuration file."
+    key_search = re.search('\[' + key + ']\n((.+\n)+?)(\[|([(\n|\r)]*?)$)', content)
+    if key_search:
+        return key_search.group(1)
+
+def string2key_value(contents):
+    items = contents.split('\n')
+    return dict(s.split('=') for s in items if s.strip() != '')
+
+def print_dict(cars):
+    for x in cars:
+        print (x) + " : " + cars[x] 
+
+if os.environ.get('LC_CTYPE', '') == 'UTF-8':
+    os.environ['LC_CTYPE'] = 'en_US.UTF-8'
+
+def cmd_exists(cmd):
+    return subprocess.call("type " + cmd, shell=True, 
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE) == 0
+
+def check_dir(path = "/.bootdev"):
+    if check_verbose():
+        print "Checking if the directory " + path + "exists."
+    from os.path import expanduser
+    home = expanduser("~")
+    return os.path.isdir(home + path)
+
+def make_dir(path = "/.bootdev"):
+    print "Directory Not exist, creating"
+    from os.path import expanduser
+    home = expanduser("~")
+    os.makedirs(home + path)
+
+def check_file(file):
+    from os.path import expanduser
+    home = expanduser("~")
+    return os.path.isfile(home + file)
+
+def check_ssh(path = 'id_rsa'):
+    from os.path import expanduser
+    home = expanduser("~")
+    return os.path.isfile(home + "/.ssh/" + path);
+
+#def check_ssh_public()
+
+def raw_input_check(*args):
+# raw_input returns the empty string for "enter"
+    yes = set(['yes','y', 'ye', ''])
+    no = set(['no','n'])
+    choice = raw_input().lower() or 'yes'
+    if choice in yes:
+        return True
+    elif choice in no:
+        return False
+    else:
+        sys.stdout.write("Please respond with 'yes' or 'no':")
+        raw_input_check()
+
+def create_key(key = 'id_rsa'):
+    print "Creating key at  ~/.ssh/" + key
+    os.system("ssh-keygen -t rsa -f ~/.ssh/" + key + " -q -P '' -y")
+
+def generate_non_default_key(name):
+    print "Genrating key for " + name + ", please specify key name[default: id_rsa]:",
+    key = raw_input() or 'id_rsa'
+    while not re.match("^[a-zA-Z0-9_]*$", key):
+        print "Key name has invalid character, use a-z, A-Z and 0-9 only, retry:",
+        key = raw_input()
+    if check_ssh(key):
+        print "Key exists, sure to override?"
+        print "(Type no to use the current one)[yes|no|Ctrl+Z to quit][default: yes]:",
+        if raw_input_check():
+            create_key(key)
+    else:
+        create_key(key)
+    return key
+
+def check_authentication(username, password, url):
+    import pycurl
+    c = pycurl.Curl()
+    c.setopt(c.USERPWD,"%s:%s" % (str(username), str(password)))
+    c.setopt(c.URL, url)
+    c.setopt(c.FAILONERROR, True)
+    try:
+        c.perform()
+        print ""
+        return True
+    except pycurl.error, error:
+        errno, errstr = error
+        print 'An error occurred: ', errstr
+        return False
+
+def upload_key(username, password, title, keypath, url, title_name):
+    import pycurl
+    ssh_pubkey = file_get_contents(keypath)
+    if "bitbucket" in url: 
+        import urllib
+        f = {'key' : ssh_pubkey.rstrip('\n'), title_name : title }
+        data = urllib.urlencode(f)
+    else:
+        data = "{\"" + title_name + "\":\"" + title + "\",\"key\":\"" + ssh_pubkey.rstrip('\n') + "\"}"
+    print "data :" + data
+    c = pycurl.Curl()
+    c.setopt(c.USERPWD,"%s:%s" % (str(username), str(password)))
+    c.setopt(c.URL, url)
+    c.setopt(c.POSTFIELDS, data)
+    #c.setopt(c.VERBOSE, True)
+    c.perform()
+
+def input_credentials_register(name, url, key_url, title_name):
+    print "Provide credential for " + name + "?[yes|no|Ctrl+Z to quit][default: yes]:",
+    if raw_input_check():
+        print "Username: ",
+        username = raw_input() 
+        while not re.match("^[a-zA-Z0-9_]*$", username) or username == "":
+            print "Username has invalid character, use a-z, A-Z and 0-9 only, retry:",
+            username = raw_input()
+        import getpass
+        password = getpass.getpass('Password: ')
+        print "Testing credentials..."
+        if check_authentication(username,password,url):
+            print "Test Succeed."
+            import datetime
+            today = datetime.datetime.now()
+            filename = "/.bootdev/config"
+            from os.path import expanduser
+            home = expanduser("~")
+            file_name = get_value(get_value(name.lower(),service_key), string2key_value(get_config_value("keys", file_get_contents(home + filename))))
+            key_url = key_url.replace("bitbucket_accountname", username)
+            upload_key(username, password, "bootdev_" + "{:%Y%b%d_%H%M}".format(today),file_name + '.pub' , key_url, title_name)
+            print ""
+        else:
+            print "Test Failed, please retry."
+            input_credentials_register(name, url)
+    else:
+        return
+
+def aws_test(*args):
+    import boto3
+    client = boto3.client('config')
+
+def which(program):
+    import os
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
+
+class switcher:
+    def initializing(self, argument):
+        """Dispatch method"""
+        # prefix the method_name with 'number_' because method names
+        # cannot begin with an integer.
+        method_name = 'number_' + str(argument)
+        # Get the method from 'self'. Default to a lambda.
+        method = getattr(self, method_name, lambda: "nothing")
+        # Call the method as we return it
+        return method()
+
+    def number_0(self):
+        if not cmd_exists("aws"):
+            print "Please first install awscli by \'pip install awscli [--upgrade]\'"
+            raise ValueError('aws command is not found')
+            sys.exit(0)
+        else:
+            if check_file("/.aws/config"):
+                print "AWS config exists, sure to override?[yes|no|Ctrl+Z to quit][default: yes]:",
+                if raw_input_check():
+                    print "Please fill in the following form or press Ctrl+Z to quit]",
+                    print "Current User: " + subprocess.check_output("id", shell=True) + "", 
+                    os.system("aws configure")
+            else:
+                print "Please fill in the following form or press Ctrl+Z to quit][default: yes]",
+                print "Current User: " + subprocess.check_output("id", shell=True) + "", 
+                os.system("aws configure")
+            print "Verifying your AWS config..."
+            try:
+                aws_test()
+            except Exception,e: 
+                print "Verification encountered error:"
+                print str(e)
+                sys.exit(0)
+            else:
+                print "Verification succeeed"
+
+    def number_1(self):
+        if check_file("/.bootdev/config"):
+            print "Bootdev config file exists. sure to override?"
+            print "[yes|no|Ctrl+Z to quit][default: yes]:",
+            if not raw_input_check():
+                return
+        print "Use the same key for github, bitbucket and AWS EC2 key pair at default path?"
+        print "[yes|no|Ctrl+Z to quit][default: yes]:",
+        if raw_input_check():
+            if check_ssh():
+                print "Default ssh key exists, sure to override?(Type no to use the current one for all services)"
+                print "[yes|no|Ctrl+Z to quit][default: yes]:",
+                if raw_input_check():
+                    create_key()
+            else:
+                print "Generating ssh key at default path"
+                create_key()
+            githubkey = "~/.ssh/id_rsa"
+            bitbucket = "~/.ssh/id_rsa"
+            ec2keypair = "~/.ssh/id_rsa"
+        else:
+            githubkey = "~/.ssh/" + generate_non_default_key('GitHub') 
+            bitbucket = "~/.ssh/" + generate_non_default_key('Bitbucket')
+            ec2keypair = "~/.ssh/" + generate_non_default_key('EC2 Key pair')
+        print "Writing to bootdev config file"
+        if not check_dir():
+            make_dir()
+        filename = "/.bootdev/config"
+        from os.path import expanduser
+        home = expanduser("~")
+        f = open( home + filename, 'a')
+        f.seek(0)
+        f.truncate()
+        f.write("[keys]\n")
+        f.write('githubkey=' + githubkey + "\n")
+        f.write('bitbucket=' + bitbucket + "\n")
+        f.write('ec2keypair=' + ec2keypair + "\n")
+        f.close()
+
+    def number_2(self):
+        print "BootDev command line tools requires your credential to register generated keys."
+        print "Credentials will not be stored locally. Type 'no' if not applicable"
+        name = 'GitHub'
+        input_credentials_register(name, get_value(name,authent_url), get_value(name,uploadk_url), get_value(name, upload_name));
+        name = 'Bitbucket'
+        input_credentials_register(name, get_value(name,authent_url), get_value(name,uploadk_url), get_value(name, upload_name));
+
+    def number_3(self):
+        print "Initialization includes uploading EC2 keypair to all region"
+        filename = "/.bootdev/config"
+        from os.path import expanduser
+        home = expanduser("~")
+        name = 'ec2keypair'
+        file_name = get_value(get_value(name.lower(),service_key), string2key_value(get_config_value("keys", file_get_contents(home + filename))))
+        ec2key_pub = file_get_contents(file_name + ".pub")
+        import datetime
+        today = datetime.datetime.now()
+        keypair_name = "bootdev_" + "{:%Y%b%d_%H%M}".format(today)
+
+        #Upload created keypair
+        import boto3
+        ec2 = boto3.resource('ec2')
+        try:
+            response = ec2.import_key_pair(
+                KeyName=keypair_name,
+                PublicKeyMaterial= ec2key_pub
+            )
+        except Exception,e: 
+            print "Key pair " + keypair_name + " upload encountered error:"
+            print str(e)
+            sys.exit(0)
+        else:
+            print "Key pair " + keypair_name + " upload succeed"
+
+        #Write info to config file
+        filename = "/.bootdev/config"
+        from os.path import expanduser
+        home = expanduser("~")
+        f = open( home + filename, 'a')
+        f.write("[ec2keypair]\n")
+        f.write('keypair_name=' + keypair_name + "\n")
+        f.close()
+
+#    def number_4(self):
+#        print "Will you use BootDev cli to deploy architecture?[yes|no|Ctrl+Z to quit][default: yes]:"
+#        if raw_input_check():
+#            #Write info to config file
+#            filename = "/.bootdev/config"
+#            from os.path import expanduser
+#            home = expanduser("~")
+#            f = open( home + filename, 'a')
+#            f.write("[server_ip]\n")
+#            
+#            print "Is this a AWS EC2?(Elastic IP will be checked)[yes|no|Ctrl+Z to quit][default: yes]:"
+#            if raw_input_check():
+#                print "Automatic getting Elastic IP"
+#                from os.path import expanduser
+#                home = expanduser("~")
+#                call(["wget -O " + home + "/ec2-metadata http://s3.amazonaws.com/ec2metadata/ec2-metadata;chmod 744 " + home + "/ec2-metadata"],shell=True)
+#                public_ipaddress = os.popen(home +'/ec2-metadata -v').read()
+#                public_ipaddress = public_ipaddress.split(': ')[1].strip('\n')
+#
+#            else:
+#                print "Print provide your server IP address"
+#                public_ipaddress = raw_input()
+#                print "",
+#
+#            f.write("server_ip=" + public_ipaddress + "\n")
+#            f.close()
+#
+#        else:
+#            print "No IP address configuration is required"
+#            return
+
+
+def main():
+    parser = argparse.ArgumentParser(description='BootDev command line for AWS infrastructure management',epilog="Copyright 2015 by BootDev\nAll rights reserved.")
+    parser.add_argument("-i","--initialize", help="initialize BootDev Commandline tool",
+                    action="store_true")
+    parser.add_argument("-v","--verbose", help="increase output verbosity",
+                    action="store_true")
+
+    parser.add_argument("--aws", help="Running AWS cli directly",
+                    action="store",  
+                    #nargs='+'
+                    nargs=argparse.REMAINDER
+                    )
+    #parser.add_argument("--deploy", help="Deploying architecture to AWS",
+    #                action="store",  
+    #                #nargs='+'
+    #                nargs=argparse.REMAINDER
+    #                )
+    subparsers = parser.add_subparsers(help='sub-command help',dest='cmd')
+    parser_deploy = subparsers.add_parser('deploy',help="Deploying architecture to AWS")
+    parser_deploy.add_argument('--show', type=str)
+    parser_deploy.add_argument('--delete', type=str)
+    parser_deploy.add_argument('--pull', type=str)
+    parser_deploy.add_argument('--rollback', type=str)
+    parser_deploy.add_argument('--create', type=str)
+
+    args = parser.parse_args()
+    if args.initialize:
+        print "Welcome to BootDev initialization"
+        step_list = []
+        # Append Step here to add new configuration 
+        step_list.append("Step1: Setup AWS credentials")
+        step_list.append("Step2: Create SSH key for deploy and access")
+        step_list.append("Step3: Input github/bitbucket credentials")
+        step_list.append("Step4: Initialize AWS")
+#        step_list.append("Step5: Config IP address for deployment")
+        
+        if check_verbose():
+            print "Running switcher functions."
+        run = switcher()
+        #Running initialize step
+        m=0
+        for e in step_list:
+          if m<=e:
+            m=e
+          mi=step_list.index(m)
+          print ""
+          for x in range(0, len(step_list)):
+            if mi == x:
+              print "***" + step_list[x]
+            else:
+              print "   " + step_list[x]
+          print "--------------------------------------------"
+          run.initializing(mi)
+    if not args.initialize:
+        if not check_file("/.aws/config") or not check_file("/.bootdev/config"):
+            print "Please run bootdev -i/--initialize to set up configuration files"
+            return
+        if args.aws:
+            if not cmd_exists('aws'):
+                print "AWS Cli installation corrupted"
+            else:
+                call([which('aws') + " " + ' '.join(args.aws)],shell=True)
+        if args.cmd:
+            if args.cmd == 'deploy':
+                run_deploy(args)
+
+# Running Main function
+if __name__ == '__main__':
+    sys.exit(main())

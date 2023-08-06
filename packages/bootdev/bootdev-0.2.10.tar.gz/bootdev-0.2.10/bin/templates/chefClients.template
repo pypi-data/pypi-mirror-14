@@ -1,0 +1,1017 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "template to bring up a set of chef clients with auto scaling",
+    "Parameters": {
+        "KeyName": {
+            "Type": "String",
+            "Description": "Name of an existing EC2 KeyPair to enable SSH access to the web server"
+        },
+        "RoleName": {
+            "Type": "String",
+            "Default": "chefclient",
+            "Description": "Name of an existing EC2 KeyPair to enable SSH access to the web server"
+        },
+        "ProjectPrefix": {
+            "Type": "String",
+            "Description": "for your app identify"
+        },
+        "InstanceType": {
+            "Description": "WebServer EC2 instance type",
+            "Type": "String",
+            "Default": "t1.micro",
+            "AllowedValues": [
+                "t1.micro",
+                "m1.small",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "c3.large",
+                "c3.xlarge",
+                "c3.2xlarge",
+                "c3.4xlarge",
+                "c3.8xlarge",
+                "c4.large",
+                "c4.xlarge",
+                "c4.2xlarge",
+                "c4.4xlarge",
+                "c4.8xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "ChefServerURL": {
+            "Description": "URL of Chef Server",
+            "Type": "String"
+        },
+        "ChefServerIp": {
+            "Description": "ip address of chef server",
+            "Type": "String"
+        },
+        "ChefServerPrivateKeyBucket": {
+            "Description": "S3 bucket containing validation private key for Chef Server",
+            "Type": "String"
+        },
+        "VpcSecurityGroup": {
+            "Description": "Security group of this vpc",
+            "Type": "String"
+        },
+        "InstancePort": {
+            "Description": "Listener Port of ec2-instances",
+            "Type": "String",
+            "Default": "80"
+        },
+        "ChefLoadBalancerSubnet": {
+            "Type": "String",
+            "Description": "A vpc subnet used for Load Balancer which can't be used by Auto Scaling Group"
+        },
+        "ChefAutoScaleSubnet": {
+            "Type": "String",
+            "Description": "A vpc subnet used for Auto Scaling Group which can't be same with load balancer"
+        },
+        "AvailabilityZone": {
+            "Type": "String",
+            "Default": "ap-northeast-1a",
+            "Description": "specify the available zone for the subnet"
+        },
+        "ChefVpc": {
+            "Type": "String",
+            "Description": "a chef vpc"
+        },
+        "Scaling": {
+            "Type": "String",
+            "Description": "Magnitude of scaling"
+        },
+        "AttachEBSsize": {
+            "Type": "Number",
+            "Default": "8",
+            "Description": "specify size of EBS"
+        }
+    },
+    "Conditions": {
+        "CheckInstanceForInstanceStore": {
+            "Fn::Or": [
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "t1.micro"
+                    ]
+                },
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "t2.micro"
+                    ]
+                },
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "t2.small"
+                    ]
+                },
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "t2.medium"
+                    ]
+                },
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "c4.large"
+                    ]
+                },
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "c4.xlarge"
+                    ]
+                },
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "c4.2xlarge"
+                    ]
+                },
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "c4.4xlarge"
+                    ]
+                },
+                {
+                    "Fn::Equals": [
+                        {
+                            "Ref": "InstanceType"
+                        },
+                        "c4.8xlarge"
+                    ]
+                }
+            ]
+        }
+    },
+    "Mappings": {
+        "AWSInstanceType2Arch": {
+            "t1.micro": {
+                "Arch": "PVebs"
+            },
+            "m1.small": {
+                "Arch": "PVinstancestore"
+            },
+            "m3.medium": {
+                "Arch": "PVinstancestore"
+            },
+            "m3.large": {
+                "Arch": "PVinstancestore"
+            },
+            "m3.xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "m3.2xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.large": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.2xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.4xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c3.8xlarge": {
+                "Arch": "PVinstancestore"
+            },
+            "c4.large": {
+                "Arch": "HVMebs"
+            },
+            "c4.xlarge": {
+                "Arch": "HVMebs"
+            },
+            "c4.2xlarge": {
+                "Arch": "HVMebs"
+            },
+            "c4.4xlarge": {
+                "Arch": "HVMebs"
+            },
+            "c4.8xlarge": {
+                "Arch": "HVMebs"
+            }
+        },
+        "AWSRegionArch2AMI": {
+            "us-east-1": {
+                "PVinstancestore": "ami-971066f2",
+                "PVebs": "ami-cf1066aa",
+                "HVMebs": "ami-e3106686"
+            },
+            "us-west-2": {
+                "PVinstancestore": "ami-bdf7e88d",
+                "PVebs": "ami-81f7e8b1",
+                "HVMebs": "ami-9ff7e8af"
+            },
+            "us-west-1": {
+                "PVinstancestore": "ami-c93aff8d",
+                "PVebs": "ami-d53aff91",
+                "HVMebs": "ami-cd3aff89"
+            },
+            "eu-west-1": {
+                "PVinstancestore": "ami-8fbe93f8",
+                "PVebs": "ami-a3be93d4",
+                "HVMebs": "ami-69b9941e"
+            },
+            "eu-central-1": {
+                "PVinstancestore": "ami-a0aeaebd",
+                "PVebs": "ami-a6aeaebb",
+                "HVMebs": "ami-daaeaec7"
+            },
+            "ap-southeast-1": {
+                "PVinstancestore": "ami-4c97821e",
+                "PVebs": "ami-50978202",
+                "HVMebs": "ami-52978200"
+            },
+            "ap-northeast-1": {
+                "PVinstancestore": "ami-a42fb8a4",
+                "PVebs": "ami-9c2fb89c",
+                "HVMebs": "ami-9a2fb89a"
+            },
+            "ap-southeast-2": {
+                "PVinstancestore": "ami-851856bf",
+                "PVebs": "ami-c71856fd",
+                "HVMebs": "ami-c11856fb"
+            },
+            "sa-east-1": {
+                "PVinstancestore": "ami-010c991c",
+                "PVebs": "ami-370c992a",
+                "HVMebs": "ami-3b0c9926"
+            },
+            "cn-north-1": {
+                "PVinstancestore": "ami-68b22e51",
+                "PVebs": "ami-54b22e6d",
+                "HVMebs": "ami-6cb22e55"
+            }
+        }
+    },
+    "Resources": {
+        "SecurityGroupRule": {
+            "Type": "AWS::EC2::SecurityGroupIngress",
+            "Properties": {
+                "GroupId": {
+                    "Ref": "VpcSecurityGroup"
+                },
+                "IpProtocol": "tcp",
+                "FromPort": "80",
+                "ToPort": "80",
+                "CidrIp": "10.0.0.0/16"
+            }
+        },
+        "ChefClientUser": {
+            "Type": "AWS::IAM::User",
+            "Properties": {
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "root",
+                        "PolicyDocument": {
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "cloudformation:DescribeStackResource",
+                                        "s3:*"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "HostKeys": {
+            "Type": "AWS::IAM::AccessKey",
+            "Properties": {
+                "UserName": {
+                    "Ref": "ChefClientUser"
+                }
+            }
+        },
+        "BucketPolicy": {
+            "Type": "AWS::S3::BucketPolicy",
+            "Properties": {
+                "PolicyDocument": {
+                    "Version": "2008-10-17",
+                    "Id": "ReadPolicy",
+                    "Statement": [
+                        {
+                            "Sid": "ReadAccess",
+                            "Action": [
+                                "s3:GetObject"
+                            ],
+                            "Effect": "Allow",
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:s3:::",
+                                        {
+                                            "Ref": "ChefServerPrivateKeyBucket"
+                                        },
+                                        "/*"
+                                    ]
+                                ]
+                            },
+                            "Principal": {
+                                "AWS": {
+                                    "Fn::GetAtt": [
+                                        "ChefClientUser",
+                                        "Arn"
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                "Bucket": {
+                    "Ref": "ChefServerPrivateKeyBucket"
+                }
+            }
+        },
+        "ChefLaunchConfig": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "DependsOn": "BucketPolicy",
+            "Metadata": {
+                "AWS::CloudFormation::Init": {
+                    "config": {
+                        "files": {
+                            "/home/ec2-user/.aws/config": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "[default]\n",
+                                            "aws_access_key_id = ",
+                                            {
+                                                "Ref": "HostKeys"
+                                            },
+                                            "\n",
+                                            "aws_secret_access_key = ",
+                                            {
+                                                "Fn::GetAtt": [
+                                                    "HostKeys",
+                                                    "SecretAccessKey"
+                                                ]
+                                            },
+                                            "\n",
+                                            "region  = ",
+                                            {
+                                                "Ref": "AWS::Region"
+                                            },
+                                            "\n"
+                                        ]
+                                    ]
+                                },
+                                "mode": "000640",
+                                "owner": "ec2-user",
+                                "group": "ec2-user"
+                            },
+                            "/root/.aws/config": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "[default]\n",
+                                            "aws_access_key_id = ",
+                                            {
+                                                "Ref": "HostKeys"
+                                            },
+                                            "\n",
+                                            "aws_secret_access_key = ",
+                                            {
+                                                "Fn::GetAtt": [
+                                                    "HostKeys",
+                                                    "SecretAccessKey"
+                                                ]
+                                            },
+                                            "\n",
+                                            "region  = ",
+                                            {
+                                                "Ref": "AWS::Region"
+                                            },
+                                            "\n"
+                                        ]
+                                    ]
+                                },
+                                "mode": "000640",
+                                "owner": "root",
+                                "group": "root"
+                            },
+                            "/etc/chef/client.rb": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "log_level      :info\n",
+                                            "log_location    STDOUT\n",
+                                            "chef_server_url '",
+                                            {
+                                                "Ref": "ChefServerURL"
+                                            },
+                                            "/organizations/admin'\n",
+                                            ""
+                                        ]
+                                    ]
+                                },
+                                "mode": "000644",
+                                "group": "root",
+                                "owner": "root"
+                            },
+                            "/etc/chef/client.json": {
+                                "content": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "{\n",
+                                            "\"run_list\": \"role[chefclient-base]\"\n",
+                                            "}\n",
+                                            ""
+                                        ]
+                                    ]
+                                },
+                                "mode": "000644",
+                                "group": "root",
+                                "owner": "root"
+                            }
+                        },
+                        "commands": {
+                            "01mkdir": {
+                                "command": "mkdir -p /home/ec2-user/tools;mkdir -p /var/app",
+                                "cwd": "/home/ec2-user",
+                                "ignoreErrors": "true"
+                            },
+                            "03downloaduserpem": {
+                                "command": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "aws s3 cp ",
+                                            "s3://",
+                                            {
+                                                "Ref": "ChefServerPrivateKeyBucket"
+                                            },
+                                            "/ec2-user.pem /etc/chef/ec2-user.pem"
+                                        ]
+                                    ]
+                                },
+                                "env": {
+                                    "LC_ALL": "en_US.UTF-8",
+                                    "LANG": "en_US.UTF-8"
+                                },
+                                "cwd": "/root"
+                            },
+                            "04downloadpem": {
+                                "command": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "aws s3 cp ",
+                                            "s3://",
+                                            {
+                                                "Ref": "ChefServerPrivateKeyBucket"
+                                            },
+                                            "/chef-validator.pem /etc/chef/validation.pem"
+                                        ]
+                                    ]
+                                },
+                                "env": {
+                                    "LC_ALL": "en_US.UTF-8",
+                                    "LANG": "en_US.UTF-8"
+                                },
+                                "cwd": "/root"
+                            },
+                            "05chpem": {
+                                "command": "chmod 644 /etc/chef/validation.pem",
+                                "cwd": "/home/ec2-user"
+                            },
+                            "09installchefclient": {
+                                "command": "aws s3 cp s3://bootdev/chef-12.5.1-1.el6.x86_64.rpm ./chef-12.5.1-1.el6.x86_64.rpm;rpm -ivh /home/ec2-user/tools/chef-12.5.1-1.el6.x86_64.rpm",
+                                "cwd": "/home/ec2-user/tools"
+                            },
+                            "10installec2metadata": {
+                                "command": "n=0;until [ $n -ge 5 ];do wget http://s3.amazonaws.com/ec2metadata/ec2-metadata; [ $? -eq 0 ] && break;n=$[$n+1];sleep 15;done; chmod u+x ./ec2-metadata",
+                                "cwd": "/home/ec2-user/tools"
+                            },
+                            "11confignodename": {
+                                "command": "tempVar=$( /home/ec2-user/tools/ec2-metadata -i | cut -d' ' -f2 );echo node_name \\'${tempVar}\\' >> /etc/chef/client.rb;echo no_lazy_load true>> /etc/chef/client.rb",
+                                "cwd": "/home/ec2-user/tools"
+                            },
+                            "12writeRoleName": {
+                                "command": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "echo \"",
+                                            {
+                                                "Ref": "RoleName"
+                                            },
+                                            "\" > /etc/chef/role.txt"
+                                        ]
+                                    ]
+                                }
+                            },
+                            "20geminstallvault": {
+                                "command": "aws s3 cp s3://bootdev/chef-vault-2.6.1.gem ~/chef-vault-2.6.1.gem;/usr/bin/gem install --local ~/chef-vault-2.6.1.gem"
+                            },
+                            "30configchefclient": {
+                                "command": "echo \"ssl_verify_mode :verify_none\" >> /etc/chef/client.rb;echo \"validation_client_name  'ec2-user'\" >> /etc/chef/client.rb;echo \"validation_key '/etc/chef/ec2-user.pem'\" >> /etc/chef/client.rb"
+                            },
+                            "45reg_as_chefclientbase": {
+                                "command": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "/usr/bin/chef-client --server ",
+                                            {
+                                                "Ref": "ChefServerURL"
+                                            },
+                                            "/organizations/admin -j /etc/chef/client.json"
+                                        ]
+                                    ]
+                                },
+                                "cwd": "/home/ec2-user"
+                            },
+                            "48registernode": {
+                                "command": {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "/usr/bin/chef-client --server ",
+                                            {
+                                                "Ref": "ChefServerURL"
+                                            },
+                                            "/organizations/admin",
+                                            " -o 'role[",
+                                            {
+                                                "Ref": "RoleName"
+                                            },
+                                            "]'"
+                                        ]
+                                    ]
+                                },
+                                "cwd": "/home/ec2-user"
+                            }
+                        }
+                    }
+                }
+            },
+            "Properties": {
+                "AssociatePublicIpAddress": true,
+                "SecurityGroups": [
+                    {
+                        "Ref": "VpcSecurityGroup"
+                    }
+                ],
+                "BlockDeviceMappings": [
+                    {
+                        "Fn::If": [
+                            "CheckInstanceForInstanceStore",
+                            {
+                                "DeviceName": "/dev/xvda",
+                                "Ebs": {
+                                    "VolumeSize": { "Ref": "AttachEBSsize" },
+                                    "VolumeType": "standard"
+                                }
+                            },
+                            {
+                                "DeviceName": "/dev/sdl",
+                                "VirtualName": "ephemeral0"
+                            }
+                        ]
+                    }
+                ],
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        "AWSRegionArch2AMI",
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        {
+                            "Fn::FindInMap": [
+                                "AWSInstanceType2Arch",
+                                {
+                                    "Ref": "InstanceType"
+                                },
+                                "Arch"
+                            ]
+                        }
+                    ]
+                },
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "#!/bin/bash -v\n",
+                                "export AWS_CONFIG_FILE=/home/ec2-user/.aws/config\n",
+                                "export HOME=/root\n",
+                                "service iptables stop\n",
+                                "service ip6tables stop\n",
+                                "chkconfig iptables off \n",
+                                "chkconfig ip6tables off\n",
+                                "function error_exit\n",
+                                "{\n",
+                                "/opt/aws/bin/cfn-signal -e 1 --region ",
+                                {
+                                  "Ref": "AWS::Region"
+                                },
+                                " -r \"$1\" '",
+                                {
+                                    "Ref": "ChefClientWaitHandle"
+                                },
+                                "'\n",
+                                " exit 1 \n",
+                                "}\n",
+                                "/opt/aws/bin/cfn-init -v --region ",
+                                {
+                                    "Ref": "AWS::Region"
+                                },
+                                "  -s ",
+                                {
+                                    "Ref": "AWS::StackId"
+                                },
+                                " -r ChefLaunchConfig",
+                                " --access-key ",
+                                {
+                                    "Ref": "HostKeys"
+                                },
+                                " --secret-key ",
+                                {
+                                    "Fn::GetAtt": [
+                                        "HostKeys",
+                                        "SecretAccessKey"
+                                    ]
+                                },
+                                " --region ",
+                                {
+                                    "Ref": "AWS::Region"
+                                },
+                                " || error-exit 'failed to run cfn init'\n",
+                                "#if well,signal success\n",
+                                "/opt/aws/apitools/cfn-init/bin/cfn-signal -e $? --region ",
+                                {
+                                  "Ref": "AWS::Region"
+                                },
+                                " -r 'Chef client configration' '",
+                                {
+                                    "Ref": "ChefClientWaitHandle"
+                                },
+                                "'\n"
+                            ]
+                        ]
+                    }
+                },
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "InstanceType": {
+                    "Ref": "InstanceType"
+                }
+            }
+        },
+        "AWSLoadBalancerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "ToPort": "80",
+                        "FromPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "GroupDescription": "Load Balancer Security Group",
+                "SecurityGroupEgress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "ToPort": "80",
+                        "FromPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ],
+                "VpcId": {
+                    "Ref": "ChefVpc"
+                }
+            }
+        },
+        "ElasticLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+            "Properties": {
+                "Subnets": [
+                    {
+                        "Ref": "ChefLoadBalancerSubnet"
+                    }
+                ],
+                "Listeners": [
+                    {
+                        "LoadBalancerPort": "80",
+                        "InstancePort": {
+                            "Ref": "InstancePort"
+                        },
+                        "Protocol": "HTTP"
+                    }
+                ],
+                "SecurityGroups": [
+                    {
+                        "Ref": "AWSLoadBalancerSecurityGroup"
+                    }
+                ],
+                "HealthCheck": {
+                    "Timeout": "5",
+                    "Target": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "HTTP:",
+                                {
+                                    "Ref": "InstancePort"
+                                },
+                                "/ping.html"
+                            ]
+                        ]
+                    },
+                    "Interval": "30",
+                    "HealthyThreshold": "3",
+                    "UnhealthyThreshold": "5"
+                }
+            }
+        },
+        "AWSChefAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "AvailabilityZones": [
+                    {
+                        "Ref": "AvailabilityZone"
+                    }
+                ],
+                "VPCZoneIdentifier": [
+                    {
+                        "Ref": "ChefAutoScaleSubnet"
+                    }
+                ],
+                "Cooldown": "1800",
+                "MinSize": {
+                    "Fn::Select": [
+                        {
+                            "Ref": "Scaling"
+                        },
+                        [
+                            "1",
+                            "2"
+                        ]
+                    ]
+                },
+                "MaxSize": "10",
+                "LaunchConfigurationName": {
+                    "Ref": "ChefLaunchConfig"
+                },
+                "LoadBalancerNames": [
+                    {
+                        "Ref": "ElasticLoadBalancer"
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": {
+                            "Fn::Join": [
+                                "",
+                                [
+                                    {
+                                        "Ref": "ProjectPrefix"
+                                    },
+                                    "ChefClient"
+                                ]
+                            ]
+                        },
+                        "PropagateAtLaunch": true
+                    }
+                ]
+            }
+        },
+        "ChefAutoScalingScaleUpPolicy": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AutoScalingGroupName": {
+                    "Ref": "AWSChefAutoScalingGroup"
+                },
+                "ScalingAdjustment": {
+                    "Fn::Select": [
+                        {
+                            "Ref": "Scaling"
+                        },
+                        [
+                            "0",
+                            "2"
+                        ]
+                    ]
+                },
+                "AdjustmentType": "ChangeInCapacity"
+            }
+        },
+        "ChefAutoScalingScaleUpExtraPolicy": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AutoScalingGroupName": {
+                    "Ref": "AWSChefAutoScalingGroup"
+                },
+                "ScalingAdjustment": {
+                    "Fn::Select": [
+                        {
+                            "Ref": "Scaling"
+                        },
+                        [
+                            "0",
+                            "4"
+                        ]
+                    ]
+                },
+                "AdjustmentType": "ExactCapacity"
+            }
+        },
+        "ChefAutoScalingScaleDownPolicy": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AutoScalingGroupName": {
+                    "Ref": "AWSChefAutoScalingGroup"
+                },
+                "ScalingAdjustment": {
+                    "Fn::Select": [
+                        {
+                            "Ref": "Scaling"
+                        },
+                        [
+                            "0",
+                            "-1"
+                        ]
+                    ]
+                },
+                "AdjustmentType": "ChangeInCapacity"
+            }
+        },
+        "AWSCloudWatchNetworkAlarmLow": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "Period": "300",
+                "AlarmActions": [
+                    {
+                        "Ref": "ChefAutoScalingScaleDownPolicy"
+                    }
+                ],
+                "Statistic": "Average",
+                "MetricName": "NetworkOut",
+                "Threshold": "25000000",
+                "EvaluationPeriods": "1",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "AWSChefAutoScalingGroup"
+                        }
+                    }
+                ],
+                "AlarmDescription": "chef client Default Scale Down alarm",
+                "Namespace": "AWS/EC2",
+                "ComparisonOperator": "LessThanThreshold"
+            }
+        },
+        "AWSCloudWatchNetworkAlarmExtraHigh": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "Period": "300",
+                "AlarmActions": [
+                    {
+                        "Ref": "ChefAutoScalingScaleUpExtraPolicy"
+                    }
+                ],
+                "Statistic": "Average",
+                "MetricName": "NetworkOut",
+                "Threshold": "30000000",
+                "EvaluationPeriods": "1",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "AWSChefAutoScalingGroup"
+                        }
+                    }
+                ],
+                "AlarmDescription": "chef client Default Scale Up alarm",
+                "Namespace": "AWS/EC2",
+                "ComparisonOperator": "GreaterThanThreshold"
+            }
+        },
+        "CPUAlarmHigh": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription": "Scale-up if CPU > 85% for 5 minutes",
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/EC2",
+                "Statistic": "Average",
+                "Period": "300",
+                "EvaluationPeriods": "1",
+                "Threshold": "85",
+                "AlarmActions": [
+                    {
+                        "Ref": "ChefAutoScalingScaleUpPolicy"
+                    }
+                ],
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "AWSChefAutoScalingGroup"
+                        }
+                    }
+                ],
+                "ComparisonOperator": "GreaterThanThreshold"
+            }
+        },
+        "CPUAlarmLow": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "AlarmDescription": "Scale-down if CPU < 50% for 5 minutes",
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/EC2",
+                "Statistic": "Average",
+                "Period": "300",
+                "EvaluationPeriods": "1",
+                "Threshold": "50",
+                "AlarmActions": [
+                    {
+                        "Ref": "ChefAutoScalingScaleDownPolicy"
+                    }
+                ],
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {
+                            "Ref": "AWSChefAutoScalingGroup"
+                        }
+                    }
+                ],
+                "ComparisonOperator": "LessThanThreshold"
+            }
+        },
+        "ChefClientWaitHandle": {
+            "Type": "AWS::CloudFormation::WaitConditionHandle"
+        },
+        "ChefClientWaitCondition": {
+            "Type": "AWS::CloudFormation::WaitCondition",
+            "DependsOn": "AWSChefAutoScalingGroup",
+            "Properties": {
+                "Handle": {
+                    "Ref": "ChefClientWaitHandle"
+                },
+                "Timeout": "1800",
+                "Count": "1"
+            }
+        }
+    },
+    "Outputs": {
+        "LoadBalancerDNS": {
+            "Description": "the DNS of load balancer",
+            "Value": {
+                "Fn::GetAtt": [
+                    "ElasticLoadBalancer",
+                    "DNSName"
+                ]
+            }
+        },
+        "LoadBalancerHostZoneID": {
+            "Description": "the HostZoneID of load balancer",
+            "Value": {
+                "Fn::GetAtt": [
+                    "ElasticLoadBalancer",
+                    "CanonicalHostedZoneNameID"
+                ]
+            }
+        }
+    }
+}
