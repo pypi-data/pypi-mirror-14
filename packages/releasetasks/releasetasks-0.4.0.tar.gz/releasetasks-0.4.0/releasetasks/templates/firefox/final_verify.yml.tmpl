@@ -1,0 +1,67 @@
+{% if push_to_releases_enabled %}
+  {% set final_verify_upstream_builders = ["release-{}-{}_uptake_monitoring".format(branch, product)] %}
+{% else %}
+  {% set final_verify_upstream_builders  = artifact_completes_builders + artifact_partials_builders %}
+{% endif %}
+
+{% for channel in final_verify_channels %}
+{% set buildername = "{}_final_verify".format(channel) %}
+-
+    taskId: "{{ stableSlugId(buildername) }}"
+    requires:
+        {% for upstream_builder in final_verify_upstream_builders %}
+        - {{ stableSlugId(upstream_builder) }}
+        {% endfor %}
+    reruns: 5
+    task:
+        provisionerId: aws-provisioner-v1
+        workerType: b2gtest
+        created: "{{ now }}"
+        deadline: "{{ now.replace(days=4) }}"
+        expires: "{{ never }}"
+        priority: "high"
+        retries: 5
+        routes:
+            - index.releases.v1.{{ branch }}.{{ revision }}.{{ product }}.{{ version | replace(".", "_") }}.build{{ buildNumber }}.final_verify
+            - index.releases.v1.{{ branch }}.latest.{{ product }}.latest.final_verify
+        payload:
+            maxRunTime: 7200
+            image: "rail/python-test-runner@sha256:450b126cab40b9c105cf260733423cbc47480442c86efdcb387a67efba00d698"
+            command:
+                - /bin/bash
+                - -c
+                - hg clone https://hg.mozilla.org/{{ build_tools_repo_path }} tools && cd tools && hg up -r $TAG && cd release/ && ./final-verification.sh $RELEASE_CONFIGS
+            env:
+                TAG: "{{ "{product}_{version}_BUILD{buildNumber}_RUNTIME".format(
+                    product=product.upper(),
+                    version=version.replace('.', '_'),
+                    buildNumber=buildNumber ) }}"
+                RELEASE_CONFIGS: {#
+                    #}{% for platform in final_verify_platforms %}{#
+                        #}{{ "{channel}-{product}-{platform}.cfg".format(
+                               platform=platform,
+                               channel=channel,
+                               product=product) }} {#
+                    #}{% endfor %}
+        metadata:
+            owner: release@mozilla.com
+            source: https://github.com/mozilla/releasetasks
+            name: "{{ branch }} final verification"
+            description: |
+                Verifies that all release blobs are in the correct place
+
+        extra:
+            {{ common_extras(taskname=buildername, locales=["null"], platform="null") | indent(12)}}
+
+            {# TODO: decide what to use here...
+            treeherder:
+                symbol: FV
+                groupSymbol: Release
+                collection:
+                    opt: true
+                machine:
+                    platform: none
+                build:
+                    platform: none
+            #}
+{% endfor %}
