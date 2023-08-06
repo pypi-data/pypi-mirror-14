@@ -1,0 +1,289 @@
+#!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
+
+import re
+import jack
+import datetime
+import subprocess
+import ioex.shell
+from gi.repository import GLib
+
+def log(message, color = ioex.shell.TextColor.default):
+    print(''.join([
+        color,
+        ioex.shell.Formatting.dim,
+        str(datetime.datetime.now()),
+        ': ',
+        ioex.shell.Formatting.reset_dim,
+        message,
+        ioex.shell.TextColor.default,
+        ]))
+
+class PortEventType:
+    preexisting = 'preexisting'
+    registered = 'registered'
+    renamed = 'renamed'
+
+class Instruction(object):
+
+    def execute(self, client, port, event, date):
+        pass
+
+    def __repr__(self):
+        return type(self).__name__ + '(' + ', '.join([a + ': ' + repr(getattr(self, a)) for a in vars(self)]) + ')'
+
+class PortRenameInstruction(Instruction):
+
+    def __init__(self, new_port_name):
+        self.new_port_name = new_port_name
+
+    def execute(self, client, port, event, date):
+        if event in [PortEventType.registered, PortEventType.preexisting]:
+            port.set_short_name(self.new_port_name)
+
+class PortConnectInstruction(Instruction):
+
+    def __init__(self, other_client_pattern, other_port_pattern):
+        self.other_client_pattern = other_client_pattern
+        self.other_port_pattern = other_port_pattern
+
+    def execute(self, client, port, event, date):
+        if event in [PortEventType.registered, PortEventType.renamed, PortEventType.preexisting]:
+            for other_port in [
+                    p for p in client.get_ports()
+                        if re.match(self.other_client_pattern, p.get_client_name())
+                        and re.match(self.other_port_pattern, p.get_short_name())
+                    ]:
+                try:
+                    if port.is_output():
+                        client.connect(port, other_port)
+                    else:
+                        client.connect(other_port, port)
+                except jack.ConnectionExists:
+                    pass
+
+class ExecuteCommandInstruction(Instruction):
+
+    def __init__(self, command, events):
+        self.command = command
+        self.events = events
+
+    def execute(self, client, port, event, date):
+        if event in self.events:
+            log("port '%s' %s: execute command '%s'" % (port.get_name(), event, self.command), ioex.shell.TextColor.yellow)
+            subprocess.call(self.command, shell = True)
+
+def check_port(client, port, event, instructions):
+    date = datetime.datetime.now()
+    log("port '%s' %s" % (port.get_name(), event))
+    for client_pattern in instructions:
+        if re.match(client_pattern, port.get_client_name()):
+            for port_pattern in instructions[client_pattern]:
+                if re.match(port_pattern, port.get_short_name()):
+                    for instruction in instructions[client_pattern][port_pattern]:
+                        GLib.idle_add(instruction.execute, client, port, event, date)
+
+def port_registered(client, port, instructions):
+    check_port(client, port, PortEventType.registered, instructions)
+
+def port_renamed(client, port, old_name, new_name, instructions):
+    """ Avoid recursion by skipping rename instructions. """
+    check_port(client, port, PortEventType.renamed, instructions)
+
+def server_shutdown(client, reason, callback):
+    print(reason)
+    log("jack client shutdown due to '%s'" % (reason), ioex.shell.TextColor.red)
+    if callback:
+        GLib.idle_add(callback)
+
+def create_client(instructions, server_shutdown_callback = None):
+
+    jack_client = jack.Client('plumber')
+    jack_client.set_port_registered_callback(port_registered, instructions)
+    jack_client.set_port_renamed_callback(port_renamed, instructions)
+    if server_shutdown_callback:
+        jack_client.set_shutdown_callback(server_shutdown, server_shutdown_callback)
+    jack_client.activate()
+
+    for port in jack_client.get_ports():
+        check_port(jack_client, port, PortEventType.preexisting, instructions)
+
+    return jack_client
+
+def _init_argparser():
+
+    import argparse
+    argparser = argparse.ArgumentParser(description = None)
+    argparser.add_argument(
+            '-c', '--config',
+            metavar = 'path',
+            dest = 'config_path',
+            help = 'path to config file',
+            )
+    argparser.add_argument(
+            '--dbus',
+            action='store_true',
+            help = 'wait for jack server to start / restart via jackdbus',
+            )
+    argparser.add_argument(
+            '--rename-port',
+            dest = 'port_renaming_instructions',
+            action = 'append',
+            nargs = 3,
+            metavar = ('client_name_pattern', 'port_name_pattern', 'new_port_name'),
+            )
+    argparser.add_argument(
+            '--connect-ports',
+            dest = 'port_connecting_instructions',
+            action = 'append',
+            nargs = 4,
+            metavar = (
+                'client_name_pattern_1',
+                'port_name_pattern_1',
+                'client_name_pattern_2',
+                'port_name_pattern_2',
+                ),
+            )
+    argparser.add_argument(
+            '--execute-command',
+            dest = 'command_execution_instructions',
+            action = 'append',
+            nargs = 4,
+            metavar = ('client_name_pattern', 'port_name_pattern', 'event', 'command'),
+            help = 'possible events: ' + ', '.join([
+                PortEventType.preexisting,
+                PortEventType.registered,
+                PortEventType.renamed,
+                ]),
+            )
+    return argparser
+
+def register_instruction(client_pattern, port_pattern, instruction, instructions):
+    if not client_pattern in instructions:
+        instructions[client_pattern] = {}
+    if not port_pattern in instructions[client_pattern]:
+        instructions[client_pattern][port_pattern] = []
+    instructions[client_pattern][port_pattern].append(instruction)
+
+def main(argv):
+
+    argparser = _init_argparser()
+    try:
+        import argcomplete
+        argcomplete.autocomplete(argparser)
+    except ImportError:
+        pass
+    args = argparser.parse_args(argv)
+
+    instructions = {}
+    if args.config_path:
+        import yaml
+        with open(args.config_path) as config_file:
+            config = yaml.load(config_file.read())
+        for instruction in config['instructions']:
+            if instruction['type'] == 'rename port':
+                register_instruction(
+                    instruction['client_pattern'],
+                    instruction['port_pattern'],
+                    PortRenameInstruction(instruction['new_port_name']),
+                    instructions,
+                    )
+            elif instruction['type'] == 'connect ports':
+                register_instruction(
+                    instruction['client_pattern_1'],
+                    instruction['port_pattern_1'],
+                    PortConnectInstruction(instruction['client_pattern_2'], instruction['port_pattern_2']),
+                    instructions,
+                    )
+                register_instruction(
+                    instruction['client_pattern_2'],
+                    instruction['port_pattern_2'],
+                    PortConnectInstruction(instruction['client_pattern_1'], instruction['port_pattern_1']),
+                    instructions,
+                    )
+            elif instruction['type'] == 'execute command':
+                if not 'events' in instruction:
+                    instruction['events'] = [instruction['event']]
+                register_instruction(
+                    instruction['client_pattern'],
+                    instruction['port_pattern'],
+                    ExecuteCommandInstruction(instruction['command'], instruction['events']),
+                    instructions,
+                    )
+    if args.port_renaming_instructions:
+        for renaming_instruction in args.port_renaming_instructions:
+            (client_pattern, port_pattern, new_port_name) = renaming_instruction
+            register_instruction(
+                client_pattern,
+                port_pattern,
+                PortRenameInstruction(new_port_name),
+                instructions,
+                )
+    if args.port_connecting_instructions:
+        for connecting_instruction in args.port_connecting_instructions:
+            (client_pattern_1, port_pattern_1, client_pattern_2, port_pattern_2) = connecting_instruction
+            register_instruction(
+                client_pattern_1,
+                port_pattern_1,
+                PortConnectInstruction(client_pattern_2, port_pattern_2),
+                instructions,
+                )
+            register_instruction(
+                client_pattern_2,
+                port_pattern_2,
+                PortConnectInstruction(client_pattern_1, port_pattern_1),
+                instructions,
+                )
+    if args.command_execution_instructions:
+        for execution_instruction in args.command_execution_instructions:
+            (client_pattern, port_pattern, event, command) = execution_instruction
+            register_instruction(
+                client_pattern,
+                port_pattern,
+                ExecuteCommandInstruction(command, [event]),
+                instructions,
+                )
+
+    loop = GLib.MainLoop()
+    loop_attr = {'client': None}
+
+    if args.dbus:
+
+        import dbus
+        from dbus.mainloop.glib import DBusGMainLoop
+        session_bus = dbus.SessionBus(mainloop = DBusGMainLoop())
+        jack_dbus_interface = dbus.Interface(
+            session_bus.get_object(
+                'org.jackaudio.service',
+                '/org/jackaudio/Controller',
+                ),
+            dbus_interface = 'org.jackaudio.JackControl',
+            )
+
+        def shutdown_callback():
+            loop_attr['client'] = None
+
+        def jack_started():
+            log("detected start of jack server", ioex.shell.TextColor.green)
+            loop_attr['client'] = create_client(instructions, shutdown_callback)
+
+        jack_dbus_interface.connect_to_signal('ServerStarted', jack_started)
+
+        if jack_dbus_interface.IsStarted():
+            loop_attr['client'] = create_client(instructions, shutdown_callback)
+
+    else:
+
+        loop_attr['client'] = create_client(instructions, lambda: loop.quit())
+
+    try:
+        loop.run()
+    except KeyboardInterrupt:
+        log('keyboard interrupt', ioex.shell.TextColor.red)
+        pass
+
+    return 0
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main(sys.argv[1:]))
