@@ -1,0 +1,1 @@
+{"": "", "15 min": "15 min", "Uptime": "", "Total": "", "Configure": "Ynstelle", "Memory usage": "", "Hostname": "Hostnamme", "Active cores": "Aktyve kearnen", "Add widget": "", "1 min": "1 min", "Remove": "Fuortsmite", "5 min": "5 min", "CPU usage": "", "Save": "Bewarje", "Load average": "", "Dashboard": ""}
