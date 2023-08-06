@@ -1,0 +1,104 @@
+#!/usr/bin/python
+
+from __future__ import print_function
+
+import argparse
+import os
+import sys
+
+from sdk_updater import __version__
+from sdk_updater import update as update_sdk
+from sdk_updater.scan import scan
+from sdk_updater.list import list_packages
+from sdk_updater.update import updates_available
+
+
+def show(android_home, args):
+    android = os.path.join(android_home, 'tools', 'android')
+
+    if args.show == "installed":
+        packages = scan(android_home, verbose=args.verbose)
+    elif args.show == "updates":
+        ops, missing = updates_available(android,
+                                         android_home,
+                                         packages=None,
+                                         options=None,
+                                         verbose=args.verbose)
+        packages = [op.package for op in ops]
+    elif args.show == "available":
+        packages = list_packages(android,
+                                 options=args.options, 
+                                 verbose=args.verbose)
+    else:
+        raise NotImplementedError("Unknown argument '{}'".format(args.show))
+
+    if packages is not None and packages:
+        print('\n'.join([str(p) for p in packages]))
+
+
+def default(android_home, args):
+    # Read packages from stdin
+    packages = list(args.package)
+    if not sys.stdin.isatty():
+        for line in sys.stdin:
+            packages.extend(line.split())
+
+    # Run the updater
+    update_sdk.main(android_home,
+                    packages=packages,
+                    options=args.options,
+                    verbose=args.verbose,
+                    timeout=args.timeout,
+                    dry_run=args.dry_run)
+
+
+def main():
+    # Create our parser
+    parser = argparse.ArgumentParser(
+        prog='android-sdk-updater',
+        description='Update an Android SDK installation')
+
+    # Set up our command-line arguments
+    parser.add_argument('-v', '--version', action='version',
+                        version='%(prog)s {v}'.format(v=__version__))
+    parser.add_argument('-a', '--android-home',
+                        help='the path to your Android SDK')
+    parser.add_argument('-d', '--dry-run', action='store_true',
+                        help='compute packages to install but do not install anything')
+    parser.add_argument('-t', '--timeout', type=int, default=0,
+                        help='timeout in seconds for package installation, or 0 to wait indefinitely (default)')
+    parser.add_argument('-vv', '--verbose', action='store_true',
+                        help='show extra output from android tools')
+    parser.add_argument('-o', '--options', nargs=argparse.REMAINDER,
+                        help='options to pass to the "android" tool; must be the final option specified')
+    parser.add_argument('package', nargs='*',
+                        help='name of SDK package to install if not already installed')
+    parser.add_argument('-s', '--show', choices=['available', 'installed', 'updates'],
+                        help='Show available or installed packages')
+
+    # Get our arguments
+    args = parser.parse_args()
+
+    # Find the Android SDK
+    android_home = os.environ.get('ANDROID_HOME')
+
+    if args.android_home:
+        android_home = args.android_home
+
+    if not android_home:
+        parser.error('Please set --android-home or export $ANDROID_HOME in your environment')
+
+    if args.timeout < 0:
+        parser.error('Timeout must be a positive number of seconds')
+
+    if args.show:
+        show(android_home, args)
+    else:
+        default(android_home, args)
+        
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit()
