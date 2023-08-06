@@ -1,0 +1,100 @@
+{% extends "name/base.html" %}
+{% block title %}Search{% endblock %}
+
+{% block content %}
+
+    {% if not name_list %}
+        <div class="row">
+            <div class="col-sm-12">
+                <div class="text-center">
+                    <h3>Search {{ name_app_title }}</h3>
+                    <form class="form form-inline" action="{% url "name:search" %}">
+                        <select class="form-control" name="q_type" id="large_q_type">
+                            {% for k, v in name_types.items %}
+                                {% if request.GET.q_type == v %}
+                                    <option value="{{ v }}" selected>{{ v }}</option>
+                                {% else %}
+                                    <option value="{{ v }}">{{ v }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                        <input class="form-control" type="text" name="q" id="large_names" value="{{ request.GET.q }}">
+                        <button class="btn btn-default" type="submit">Submit</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="row no-results">
+            <div class="col-sm-12">
+                <div class="text-center">
+                    <h4 class="text-muted"><em>No results</em></h4>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        {# Begin search results. #}
+        <div class="row control-btns">
+            <div class="col-sm-12">
+                <div class="btn-group pull-right">
+                    {% if request.GET.order != "name_a" %}
+                        <a class="btn btn-default" href="?q_type={{ request.GET.q_type }}&amp;q={{ request.GET.q }}&amp;order=name_a&amp;page={{ page_obj.number }}">Names <span class="help">(Sort Dsc.)</span></a>
+                    {% else %}
+                        <a class="btn btn-default" href="?q_type={{ request.GET.q_type }}&amp;q={{ request.GET.q }}&amp;order=name_d&amp;page={{ page_obj.number }}">Names <span class="help">(Sort Asc.)</span></a>
+                    {% endif %}
+
+                    {% if request.GET.order != "begin_a" %}
+                        <a class="btn btn-default" href="?q_type={{ request.GET.q_type }}&amp;q={{ request.GET.q }}&amp;order=begin_a&amp;page={{ page_obj.number }}">Start Date (Asc.)</a>
+                    {% else %}
+                        <a class="btn btn-default" href="?q_type={{ request.GET.q_type }}&amp;q={{ request.GET.q }}&amp;order=begin_d&amp;page={{ page_obj.number }}">Start Date (Desc.)</a>
+                    {% endif %}
+
+                    {% if request.GET.order != "end_a" %}
+                        <a class="btn btn-default" href="?q_type={{ request.GET.q_type }}&amp;q={{ request.GET.q }}&amp;order=end_a&amp;page={{ page_obj.number }}">End Date (Asc.)</a>
+                    {% else %}
+                        <a class="btn btn-default" href="?q_type={{ request.GET.q_type }}&amp;q={{ request.GET.q }}&amp;order=end_d&amp;page={{ page_obj.number }}">End Date (Desc.)</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-sm-12">
+                <table class="table">
+                    </tbody>
+                        {% for entry in name_list %}
+                            {# TODO: Make sure the merged names are not sent via search #}
+                            {% if entry.is_active and entry.merged_with == None %}
+                                <tr>
+                                    <td>
+                                        <a href='{% url "name:detail" entry %}'>{{ entry.name }}</a>
+
+                                        {# If disambiguation exists, show as small print #}
+                                        {% if entry.disambiguation %}
+                                            <small>({{ entry.disambiguation }})</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ entry.begin }}</td>
+                                    <td>{{ entry.end }}</td>
+                                    <td>
+                                        <div class="btn-group pull-right">
+                                            {# If user is authenticated, add edit button #}
+                                            {% if user.is_authenticated %}
+                                                <a class="btn btn-default btn-sm" href="{% url "admin:name_name_change" entry.id %}">Edit</a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% endif %}
+
+    {% if is_paginated %}
+        {% include "name/_pagination.html" %}
+    {% endif %}
+
+{% endblock %}
