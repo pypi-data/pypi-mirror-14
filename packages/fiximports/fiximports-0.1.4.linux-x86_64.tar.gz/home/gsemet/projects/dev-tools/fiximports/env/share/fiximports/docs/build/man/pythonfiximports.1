@@ -1,0 +1,313 @@
+.\" Man page generated from reStructuredText.
+.
+.TH "PYTHONFIXIMPORTS" "1" "April 01, 2016" "0.0.1.dev2" "Python Fix Imports"
+.SH NAME
+pythonfiximports \- Python Fix Imports Documentation
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.SH INTRODUCTION
+.sp
+Python Fix Imports is a Python module that can automatically reorganize the \fBimport\fP statements of
+your Python script. Please read the "Rationale" section for more information.
+.sp
+This module originally from a script that has been written for the Buildbot project, in order to
+help developers ensuring they properly organize their import statements in their Python files.
+.SH RATIONALE
+.sp
+The beginning of each Python script is the part of the code that is likely to evolve the most over
+the lifetime of the file. Imports statements gets added, removed, reorganized all over the time.
+.sp
+Thanks to distributed versioning systems such as Git, several persons can easily work on the same
+time on the same file. And the management of the \fBimport\fP statements is likely to cause conflict
+when each developer adds his modifications.
+.sp
+We really started having the need for an automatic reorganization script when we have set up an
+automatic merge of several branches alltogether. Most of the time, the conflicts were found to be on
+the \fBimport\fP lines.
+.sp
+Here are the rules this \fBfiximports\fP script enforces:
+.SS Rule 1
+.sp
+Each import statement only imports one method, class or module.
+.sp
+\fBYes:\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from abc import dce
+from abc import fgh
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBNo:\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from abc import dce, fgh
+from abc import (dce,
+                 fgh)
+from abc import dce, \e
+                fgh
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBfiximports\fP automatically splits \fBimport\fP statements that use a comma. \fB\e\fP and parenthesis
+are not supported.
+.sp
+\fBBonus\fP: let\(aqs say you want where and how an object "object_name" is imported. This rules ensures
+you will always find the import occurences of the following search pattern: \fBimport object_name\fP\&.
+No need to do regex, only 
+.nf
+\(ga\(ga
+.fi
+import \(ga\(ga + what you are looking for.
+.SS Rule 2
+.sp
+Import statements are organized in blocks, separated by an empty line. Each block is alphabetically
+sorted.
+.sp
+This removes any ambiguity in the placement of an import line in a given block. When two developers
+on two different branches want to add the same import in the same file, the location of this line
+will be the same and so the merge if any will be obvious.
+.sp
+\fBYes:\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from abc import aaaa
+from abc import bbbb
+from abc import cccc
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+\fBNo:\fP
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from abc import bbbb
+from abc import aaaa
+from abc import cccc
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Sorting only occurs on a given block, if for any reason an import statement needs to be placed after
+another one, just add an empty line.
+.sp
+\fBfiximports\fP can sort all \fBimport\fP statements at once (preserving the \(aqgroup\(aq splitting).
+.sp
+In some project, I tend to enforce the ordering of the groups themself:
+.INDENT 0.0
+.IP \(bu 2
+first the standard library imports:
+.INDENT 2.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import json
+import login
+import os
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP \(bu 2
+Standart libraries in the form \fBfrom ... import\fP:
+.INDENT 2.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from textwrap import dedent
+from twisted.internet import defer
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.IP \(bu 2
+Project modules with their complete name (always uses \fBfrom __future__ import absolute_import\fP)
+.INDENT 2.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+from myproject.the.module.name import ClassName
+from myproject.the.other.module.name import TheOtherClassName
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.SH EXAMPLE
+.sp
+Let\(aqs look at the following code:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import datetime
+import collections
+
+from io import BytesIO, UnsupportedOperation
+from \&.hooks import default_hooks
+from \&.structures import CaseInsensitiveDict
+
+from \&.auth import HTTPBasicAuth
+from \&.cookies import cookiejar_from_dict, get_cookie_header
+from \&.packages.urllib3.fields import RequestField
+from \&.packages.urllib3.filepost import encode_multipart_formdata
+from \&.packages.urllib3.util import parse_url
+from \&.packages.urllib3.exceptions import DecodeError, ReadTimeoutError, ProtocolError, LocationParseError
+from \&.exceptions import HTTPError, MissingSchema, InvalidURL, ChunkedEncodingError, ContentDecodingError, ConnectionError, StreamConsumedError
+from \&.utils import guess_filename, get_auth_from_url, requote_uri, stream_decode_response_unicode, to_key_val_list, parse_header_links, iter_slices, guess_json_utf, super_len, to_native_string
+from \&.compat import cookielib, urlunparse, urlsplit, urlencode, str, bytes, StringIO, is_py2, chardet, json, builtin_str, basestring
+from \&.status_codes import codes
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+This automatically becomes with this plugin:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+import collections
+import datetime
+
+from \&.hooks import default_hooks
+from \&.structures import CaseInsensitiveDict
+from io import BytesIO
+from io import UnsupportedOperation
+
+from \&.auth import HTTPBasicAuth
+from \&.compat import StringIO
+from \&.compat import basestring
+from \&.compat import builtin_str
+from \&.compat import bytes
+from \&.compat import chardet
+from \&.compat import cookielib
+from \&.compat import is_py2
+from \&.compat import json
+from \&.compat import str
+from \&.compat import urlencode
+from \&.compat import urlsplit
+from \&.compat import urlunparse
+from \&.cookies import cookiejar_from_dict
+from \&.cookies import get_cookie_header
+from \&.exceptions import ChunkedEncodingError
+from \&.exceptions import ConnectionError
+from \&.exceptions import ContentDecodingError
+from \&.exceptions import HTTPError
+from \&.exceptions import InvalidURL
+from \&.exceptions import MissingSchema
+from \&.exceptions import StreamConsumedError
+from \&.packages.urllib3.exceptions import DecodeError
+from \&.packages.urllib3.exceptions import LocationParseError
+from \&.packages.urllib3.exceptions import ProtocolError
+from \&.packages.urllib3.exceptions import ReadTimeoutError
+from \&.packages.urllib3.fields import RequestField
+from \&.packages.urllib3.filepost import encode_multipart_formdata
+from \&.packages.urllib3.util import parse_url
+from \&.status_codes import codes
+from \&.utils import get_auth_from_url
+from \&.utils import guess_filename
+from \&.utils import guess_json_utf
+from \&.utils import iter_slices
+from \&.utils import parse_header_links
+from \&.utils import requote_uri
+from \&.utils import stream_decode_response_unicode
+from \&.utils import super_len
+from \&.utils import to_key_val_list
+from \&.utils import to_native_string
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Indeed, the beginning of the file is much more verbose, but merges will be easier (since when
+we switched to this paradigm, we almost have not conflict on these lines).
+.SH USAGE
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+$ fiximports \-\-help
+usage: fiximports [\-h] FILENAME
+
+Fix Python Import Statements
+
+positional arguments:
+  FILENAME    Path or glob of Python files to fix
+
+optional arguments:
+  \-h, \-\-help  show this help message and exit
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH LICENSE
+.sp
+Copyright 2015 Semet Gaetan <\fI\%gaetan@xeberon.net\fP>
+.sp
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+.sp
+\fI\%http://www.apache.org/licenses/LICENSE\-2.0\fP
+.sp
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+.SH AUTHOR
+Gaetan Semet
+.SH COPYRIGHT
+2016, Gaetan Semet
+.\" Generated by docutils manpage writer.
+.
