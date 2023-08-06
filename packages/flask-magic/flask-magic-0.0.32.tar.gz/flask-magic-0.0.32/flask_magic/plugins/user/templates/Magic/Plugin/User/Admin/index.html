@@ -1,0 +1,117 @@
+{% import "Magic/macros/html.html" as html with context %}
+{% import "Magic/macros/forms.html" as forms with context %}
+{% import "Magic/macros/widget.html" as widget with context %}
+
+
+<style>
+    #form-search-container {
+        display: none;
+    }
+    .btn-search-toggle {
+        cursor: pointer;
+    }
+</style>
+
+<div>
+    <div class="btn btn-default pull-left" onclick="$('#form-search-container').toggle()"
+            ><i class="fa fa-search"></i> Filter</div>
+
+
+    <div class="btn btn-info pull-right"
+            data-toggle="modal"
+            data-target="#modal-new-user"
+            ><i class="fa fa-plus"></i> New User</div>
+    <div class="clearfix"></div>
+</div>
+
+<br>
+
+<div class="well" id="form-search-container">
+
+    <div>
+        {% call forms.get('UserAdmin:index', class='form-inline') %}
+          {{ forms.input(label="Name", name='name', value=search_query["name"] ) }}
+
+          {{ forms.input(label="Email", name='email', value=search_query["email"] ) }}
+
+          {{ forms.select(label="Roles", name='role', options=user_roles_options, selected=search_query["role"] ) }}
+
+          {{ forms.select(label="Sort By", name='sorting', options=sorting_options, selected=search_query["sorting"] ) }}
+
+          <div class="checkbox">
+            <label>
+                <input type="checkbox" name="include-deleted" value="y"
+                   {% if search_query["include-deleted"] == "y" %} checked="checked" {% endif %}> Include Deleted
+            </label>
+          </div>
+
+          {{ forms.button('Search', type='submit', class='btn-info') }}
+        {% endcall %}
+    </div>
+</div>
+
+{% call widget.panel("Users", type="table") %}
+    <table class="table table-bordered">
+        <thead>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Active</th>
+            <th>Last Login</th>
+            <th>Signup Date</th>
+        </thead>
+
+        <tbody>
+            {% for user in users %}
+            <tr class="{% if not user.active %} warning {% endif %}">
+                <td>{{ user.id }}</td>
+                <td><a href="{{ url_for('UserAdmin:get', id=user.id) }}">{{ user.full_name }}</a></td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.role.name | capitalize }}</td>
+                <td>{{ user.active | bool_to_yes }}</td>
+                <td>{{ user.last_login }}</td>
+                <td>{{ user.created_at }}</td>
+            </tr>
+
+            {% else %}
+
+            <tr>
+                <td colspan="7">
+                    <div class="alert alert-warning">No Results Found!</div>
+                </td>
+            </tr>
+
+            {% endfor %}
+        </tbody>
+
+    </table>
+{% endcall %}
+{{ widget.pagination(users, **search_query) }}
+
+
+{% call widget.modal('Create New User', id='modal-new-user') %}
+
+    <footer>
+        <button type="submit" class="btn btn-success pull-left"><i class="fa fa-check"></i> CREATE</button>
+        <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Close</button>
+    </footer>
+
+      {%  call forms.post('UserAdmin:create') %}
+
+        {{ forms.input(label="First Name", name="first_name", data={"validation": "required"}) }}
+        {{ forms.input(label="Last Name", name="last_name", data={"validation": "required"}) }}
+        {{ forms.input(label="Email", name="email", data={"validation": "email"}) }}
+        {{ forms.radio(label='User Role',
+                       name='user_role',
+                       options=user_roles_options,
+                       checked=[],
+                       data={"validation": "required"}
+
+                       ) }}
+      {% endcall %}
+
+{% endcall %}
+
+
+

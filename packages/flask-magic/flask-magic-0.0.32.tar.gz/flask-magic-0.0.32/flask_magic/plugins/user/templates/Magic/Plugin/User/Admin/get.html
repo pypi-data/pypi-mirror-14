@@ -1,0 +1,160 @@
+{% import "Magic/macros/html.html" as html with context %}
+{% import "Magic/macros/forms.html" as forms with context %}
+{% import "Magic/macros/widget.html" as widget with context %}
+
+{% if user.is_deleted %}
+    {{ widget.alert("This user account is DELETED", "danger", false) }}
+{% elif not user.active %}
+    {{ widget.alert("This user account is DEACTIVATED", "warning", false) }}
+{% endif %}
+
+
+{% call widget.panel("Info") %}
+    <table class="table table-bordered">
+        <tbody>
+
+            <tr>
+                <td>ID</td>
+                <td>{{ user.id }}</td>
+            </tr>
+            <tr>
+                <td>First Name</td>
+                <td>{{ user.first_name | default("", true)}}</td>
+            </tr>
+            <tr>
+                <td>Last Name</td>
+                <td>{{ user.last_name  | default("", true) }}</td>
+            </tr>
+            <tr>
+                <td>Email</td>
+                <td>{{ user.email }}</td>
+            </tr>
+            <tr>
+                <td>Signup Method</td>
+                <td>{{ user.signup_method }}</td>
+            </tr>
+            <tr>
+                <td>Last Login</td>
+                <td>{{ user.last_login }}</td>
+            </tr>
+            <tr>
+                <td>Signup Date</td>
+                <td>{{ user.created_at }}</td>
+            </tr>
+            <tr>
+                <td>Roles</td>
+                <td>{{ user.role.name | capitalize}}</td>
+            </tr>
+            <tr>
+                <td>Is Active</td>
+                <td>{{ user.active | bool_to_yes }}</td>
+            </tr>
+            <tr>
+                <td>Is Deleted</td>
+                <td>{{ user.is_deleted | bool_to_yes }}</td>
+            </tr>
+        </tbody>
+
+    </table>
+
+    <div>
+        <button class="btn btn-primary "
+                data-toggle="modal"
+                data-target="#modal-edit-user"
+                ><i class="fa fa-user"></i> Edit Account</button>
+
+        <button id="btn-reset-password" class="btn btn-default"><i class="fa fa-key"></i> Send Password Reset</button>
+
+        <div class="clearfix"></div>
+    </div>
+{% endcall %}
+
+
+<!-- Reset password -->
+{% call forms.post('UserAdmin:reset_password', id="form-reset-password") %}
+    {{ forms.hidden(name="id", value=user.id) }}
+{% endcall %}
+
+
+{% call widget.modal('Edit User Info', id='modal-edit-user') %}
+    <footer>
+        <button type="submit" class="btn btn-success pull-left"><i class="fa fa-check"></i> SAVE</button>
+        <button type="button" class="btn btn-default pull-left" data-dismiss="modal">Close</button>
+
+        {% if not user.active %}
+            <button type="button" class="btn btn-info pull activate-btn" data-dismiss="modal"> Activate Account</button>
+        {% else %}
+            <button type="button" class="btn btn-warning pull deactivate-btn" data-dismiss="modal"> De-Activate Account</button>
+        {% endif %}
+
+        {% if not user.is_deleted %}
+            <button type="button" class="btn btn-danger pull delete-btn" data-dismiss="modal"><i class="fa fa-trash"></i> Delete</button>
+        {% else %}
+            <button type="button" class="btn btn-info pull undelete-btn" data-dismiss="modal"> UNDelete</button>
+        {% endif %}
+
+    </footer>
+
+    {% call forms.post('UserAdmin:post') %}
+        {{ forms.hidden(name="id", value=user.id) }}
+        {{ forms.hidden(name="action", value="update") }}
+
+            {{ forms.input(label="Email", name="email", value=user.email, data={"validation": "email"}) }}
+
+            {{ forms.input(label="First Name", name="first_name", value=user.first_name, data={"validation": "required"}) }}
+            {{ forms.input(label="Last Name", name="last_name", value=user.last_name, data={"validation": "required"}) }}
+
+            {% if current_user.id != user.id %}
+                {{ forms.radio(label="User Role", name='user_role', options=user_roles_options, checked=[user.role.id]) }}
+            {% endif %}
+    {% endcall %}
+
+{% endcall %}
+
+
+
+<script>
+    $(function(){
+
+        Magic.Widget.onModalShow("#modal-edit-user", function(){
+
+        })
+
+        // Will automatically fill the form
+        var modalEU = $("#modal-edit-user")
+
+
+        modalEU.find("button.delete-btn").click(function(){
+            if(confirm("Do you want to DELETE this user's account ?")) {
+                modalEU.find("input[name='action']").val("delete")
+                modalEU.find("form").submit()
+            }
+        })
+        modalEU.find("button.undelete-btn").click(function(){
+            if(confirm("Do you want to UNDELETE this user's account ?")) {
+                modalEU.find("input[name='action']").val("undelete")
+                modalEU.find("form").submit()
+            }
+        })
+        modalEU.find("button.deactivate-btn").click(function(){
+            if(confirm("Do you want to DEACTIVATE this user's account ?")) {
+                modalEU.find("input[name='action']").val("deactivate")
+                modalEU.find("form").submit()
+            }
+        })
+        modalEU.find("button.activate-btn").click(function(){
+            if(confirm("Do you want to ACTIVATE this user's account ?")) {
+                modalEU.find("input[name='action']").val("activate")
+                modalEU.find("form").submit()
+            }
+        })
+
+        $("#btn-reset-password").click(function(){
+            if (confirm("Do you want to reset the user's password ?")) {
+                $("#form-reset-password").submit()
+            }
+        })
+    })
+
+</script>
+
