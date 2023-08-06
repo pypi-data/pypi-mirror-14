@@ -1,0 +1,1 @@
+{"": "", "Manage system services": "Spr\u00e1va syst\u00e9mov\u00fdch slu\u017eeb", "Service": "Slu\u017eba", "Filter services": "Filtrovat slu\u017eby", "Manager": "Spr\u00e1vce", "Done": "Hotovo", "Services": "Slu\u017eby", "Service operation failed": "Selhala servisn\u00ed operace"}

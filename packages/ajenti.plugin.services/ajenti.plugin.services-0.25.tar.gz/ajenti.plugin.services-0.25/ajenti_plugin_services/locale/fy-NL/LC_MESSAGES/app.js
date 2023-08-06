@@ -1,0 +1,1 @@
+{"": "", "Manage system services": "", "Service": "Tsjinst", "Filter services": "", "Manager": "", "Done": "Klear", "Services": "Tsjinsten", "Service operation failed": ""}

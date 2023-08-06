@@ -1,0 +1,1 @@
+{"": "", "Manage system services": "Beheren van systeemservices", "Service": "Service", "Filter services": "Filter services", "Manager": "Manager", "Done": "Gereed", "Services": "Services", "Service operation failed": "Service-bewerking mislukt"}

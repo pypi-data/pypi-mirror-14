@@ -1,0 +1,1 @@
+{"": "", "Manage system services": "Verwalten von Systemdiensten", "Service": "Dienst", "Filter services": "Services filtern", "Manager": "Manager", "Done": "Ausgef\u00fchrt", "Services": "Dienste", "Service operation failed": "Service \u00c4nderung fehlgeschlagen"}
