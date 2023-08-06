@@ -1,0 +1,125 @@
+{% extends 'game/base.html' %}
+
+{% load static %}
+{% load i18n %}
+{% load app_tags %}
+
+{% block scripts %}
+{{block.super}}
+  <script>
+  var EPISODES = [];
+  {% for episode in episodeData %}
+    var levels = [];
+    {% for level in episode.levels %}
+      levels.push({'name': {{level.name}},
+                   'score': '{{level.score}}',
+                   'maxScore': {{level.maxScore}}});
+    {% endfor %}
+    EPISODES.push({'id' : {{episode.id}},
+            'levels': levels});
+  {% endfor %}
+
+  var OTHER_LEVELS = [];
+  {% for level in owned_levels %}
+    OTHER_LEVELS.push({'id': {{level.id}},
+                      'score': '{{level.score}}'});
+  {% endfor %}
+  {% for level in shared_levels %}
+    OTHER_LEVELS.push({'id': {{level.id}},
+                      'score': '{{level.score}}'});
+  {% endfor %}
+
+  </script>
+
+  <script src="{% static "game/js/levelSelection.js" %}"></script>
+{% endblock %}
+
+{% block css %}
+{{block.super}}
+  <link href="{% static 'game/css/level_selection.css' %}" rel="stylesheet" type="text/css">
+{% endblock %}
+
+{% block nav_ocargo_levels %}
+  <b><a href="{% url 'game.views.level_selection.levels' %}">{% trans "Levels" %}</a></b>
+{% endblock nav_ocargo_levels %}
+
+{% block content %}
+  <div class="section group">
+    <div class="col span_1_of_3_strict">
+      <img class="wide rounded" src="{% static 'portal/img/RRlogo_on_less_green_small.png' %}" />
+    </div>
+    <div class="col span_2_of_3_strict">
+      <div id="episodes">
+        {% for episode in episodeData %}
+        <h3 id='episode{{episode.id}}'>
+          <div>
+            {{episode.name}}
+            <span class="episode_range_text">
+              {% blocktrans with first_level=episode.first_level last_level=episode.last_level %}Levels {{first_level}}-{{last_level}}{% endblocktrans %}
+            </span>
+            <img class="episode_image coin_image" value="{{episode.id}}">
+          <div>
+        </h3>
+        <div>
+          {% for level in episode.levels %}
+          <!-- Marking titles as safe to enable bold, not to be used for user-created levels -->
+          <p>
+            <a href="{% url 'play_default_level' level.name %}">{{level.name}}: {{level.title.strip | safe}}</a>
+            {% if level.score != None %}
+              <span class="score_text">{{level.score|floatformat}}/{{level.maxScore|floatformat}}</span>
+            <img class="level_image coin_image" value="{{level.name}}">
+            {% endif %}
+          </p>
+          {% endfor %}
+
+          {% if episode.random_levels_enabled %}
+          <p>
+            <a href="{% url 'game.views.level_selection.random_level_for_episode' episode.id %}">
+            {% trans "Random: Try your hand at a random level." %}
+            </a>
+          </p>
+          {% endif %}
+        </div>
+        {% endfor %}
+
+        {% if user|is_logged_in %}
+          <h3 class='customLevelsEpisode'>{% trans "Levels created by you" %}</h3>
+          <div>
+            {% if owned_levels %}
+              {% for level in owned_levels %}
+                <p>
+                  <a href="{% url 'play_custom_level' level.id %}">{{level.title}}</a>
+                  {% if level.score != None %}
+                  <span class="score_text">{{level.score|floatformat}}/10</span>
+                  <img class="level_image coin_image" value="{{level.id}}">
+                  {% endif %}
+                </p>
+              {% endfor %}
+            {% else %}
+              <p>{% trans "No levels have been created by you yet." %}</p>
+            {% endif %}
+          </div>
+
+          <h3 class='customLevelsEpisode'>{% trans "Levels shared with you" %}</h3>
+          <div>
+            {% if shared_levels %}
+              {% for level in shared_levels %}
+                <p>
+                  <a href="{% url 'play_custom_level' level.id %}">
+                  {{level.title}} ({{level.owner|make_into_username}})</a>
+                  {% if level.score != None %}
+                  <span class="score_text">{{level.score|floatformat}}/10</span>
+                  <img class="level_image coin_image" value="{{level.id}}">
+                  {% endif %}
+                </p>
+              {% endfor %}
+            {% else %}
+              <p>{% trans "No levels have been shared with you yet." %}</p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+      <div id="container"></div>
+    </div>
+  </div>
+{% endblock content %}
