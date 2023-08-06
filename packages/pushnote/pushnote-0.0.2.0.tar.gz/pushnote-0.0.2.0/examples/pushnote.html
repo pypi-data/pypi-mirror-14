@@ -1,0 +1,48 @@
+{% load pushnote %}
+<!DOCTYPE html>
+<html lang="en"><head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <meta name="robots"><title>Welcome to Django</title>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+    <script src="http://cdn.sockjs.org/sockjs-0.3.min.js">
+    </script>
+    <script type="text/javascript">
+        var token = {% pushnote_token %};
+        $(function(){
+            SockJS.prototype.emit = function (name, data) {
+                var meta_dict = {
+                    name:name,
+                    data:data
+                };
+                this.send(JSON.stringify(meta_dict))
+            };
+        });
+        conn = new SockJS('http://localhost:8080/sockjs');
+        conn.onmessage = function(e){
+            console.log(e.data);
+        };
+        conn.onopen = function(){
+            if (token){
+                this.emit('subscribe', {'token': token});
+            }
+        };
+        conn.onmessage = function(e){
+            console.log(e.data)
+        };
+        window.onload = function(){
+            var el = $('#summary');
+            el.append("<h2>Please open JS console to see pushnote's messages</h2>");
+            if (token){
+                el.append('<h3>You are logged in. Try to send notifications throught "pushnote.pub.notify" and "pushnote.pub.notify_all" .</h3>')
+            } else {
+                el.append('<h3>You are not logged in. Try to send notifications throught "pushnote.pub.notify_all" ("pushnote.pub.notify" can only deliver messages to logged in clients).</h3>')
+            }
+        };
+    </script>
+</head>
+
+<body>
+<div id="summary">
+    <h1>Congratulations on your first pushnote-powered page.</h1>
+</div>
+</body></html>
