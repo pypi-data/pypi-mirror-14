@@ -1,0 +1,152 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+import baiji
+from baiji import s3
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Bodylabs AWS S3 tool', epilog="keys are a kind of URL, of the form s3://BUCKET/PATH/TO/FILE")
+    parser.subs = parser.add_subparsers(help='sub-command help', dest='command')
+    subparsers = {}
+    subparsers['ls'] = parser.subs.add_parser('ls', help='list files on s3')
+    subparsers['info'] = parser.subs.add_parser('info', help='info for file on s3')
+    subparsers['rm'] = parser.subs.add_parser('rm', help='delete files on s3')
+    subparsers['cp'] = parser.subs.add_parser('cp', help='copy files from or to s3')
+    subparsers['mv'] = parser.subs.add_parser('mv', help='move files from or to s3')
+    subparsers['touch'] = parser.subs.add_parser('touch', help='touch a file on s3')
+    subparsers['sync'] = parser.subs.add_parser('sync', help='move a directory tree from or to s3, a la rsync')
+    subparsers['exists'] = parser.subs.add_parser('exists', help='check if a file exists on s3')
+    subparsers['url'] = parser.subs.add_parser('url', help='generate a temporary url')
+    subparsers['md5'] = parser.subs.add_parser('md5', help='get an md5sum')
+    subparsers['etag'] = parser.subs.add_parser('etag', help='get an etag. For files under 5gb, this is a md5sum, otherwise it is merely unique.')
+    subparsers['cat'] = parser.subs.add_parser('cat', help='print contents of key to stdout')
+    subparsers['buckets'] = parser.subs.add_parser('buckets', help='tools for working with buckets')
+    subparsers['version'] = parser.subs.add_parser('version', help='print version and exit')
+    subparsers['is'] = parser.subs.add_parser('is', help='check that two files are the same')
+
+    subparsers['ls'].add_argument('key', type=str, help='key to list, of the form s3://BUCKET/PREFIX')
+    subparsers['ls'].add_argument('-B', '--uri', action='store_true', help='This option does nothing. It used to return URIs instead of paths, but this is now the default.')
+    subparsers['ls'].add_argument('-l', '--detail', action='store_true', help='print details, like `ls -l`')
+    subparsers['ls'].add_argument('--shallow', action='store_true', help='process key names hierarchically and return only immediate "children" (like ls, instead of like find)')
+
+    subparsers['info'].add_argument('key', type=str, help='key to get info on, of the form s3://BUCKET/PREFIX')
+
+    subparsers['rm'].add_argument('key', type=str, help='key to delete')
+    subparsers['rm'].add_argument('-r', '--recursive', action='store_true', help='remove everything below key')
+    subparsers['rm'].add_argument('-f', '--force', action='store_true', help="don't prompt for confirmation on recursive rm")
+
+    subparsers['exists'].add_argument('key', type=str, help='key to check')
+    subparsers['exists'].add_argument('--retries', type=int, help='how many times to retry', default=3)
+
+    subparsers['cp'].add_argument('src', type=str, help='source file or key')
+    subparsers['cp'].add_argument('dst', type=str, help='destination file, directory, or key')
+    subparsers['cp'].add_argument('-f', '--force', action='store_true', help='overwrite existing files')
+    subparsers['cp'].add_argument('-s', '--skip', action='store_true', help='skip existing files when copy')
+    subparsers['cp'].add_argument('-P', '--progress', action='store_true', help='show progress bar')
+    subparsers['cp'].add_argument('-r', '--recursive', action='store_true', help='copy prefix and everything under')
+    subparsers['cp'].add_argument('-R', '--recursive-parallel', action='store_true', help='copy prefix and everything under, in parallel')
+    subparsers['cp'].add_argument('--policy', type=str, help='override policy when copying to s3 (e.g. private, public-read, bucket-owner-read')
+    subparsers['cp'].add_argument('--encoding', type=str, help='Content-Encoding: gzip, etc')
+    subparsers['cp'].add_argument('--preserve-acl', dest='preserve_acl', action='store_true', help='preserve ACL instead of inheriting from new bucket when copying from s3 to s3')
+    subparsers['cp'].add_argument('--no-encrypt', dest='encrypt', default=True, action='store_false', help='Do not server side encrypt at rest')
+    subparsers['cp'].add_argument('-z', '--gzip', action='store_true', help='Store compressed')
+
+    subparsers['mv'].add_argument('src', type=str, help='source file or key')
+    subparsers['mv'].add_argument('dst', type=str, help='destination file, directory, or key')
+    subparsers['mv'].add_argument('-f', '--force', action='store_true', help='overwrite existing files')
+    subparsers['mv'].add_argument('-P', '--progress', action='store_true', help='show progress bar')
+    subparsers['mv'].add_argument('--no-encrypt', dest='encrypt', default=True, action='store_false', help='Do not server side encrypt at rest')
+    subparsers['mv'].add_argument('-z', '--gzip', action='store_true', help='Store compressed')
+
+    subparsers['touch'].add_argument('key', type=str, help='s3 key to touch')
+
+    subparsers['sync'].add_argument('src', type=str, help='source directory or prefix')
+    subparsers['sync'].add_argument('dst', type=str, help='destination directory or prefix')
+    subparsers['sync'].add_argument('-P', '--progress', action='store_true', help='show progress')
+    subparsers['sync'].add_argument('--policy', type=str, help='override policy when writing new files to s3 (e.g. private, public-read, bucket-owner-read')
+    subparsers['sync'].add_argument('--encoding', type=str, help='Content-Encoding: gzip, etc')
+    subparsers['sync'].add_argument('--do-not-delete', type=str, action='append', help='Path prefixes not to delete from the target')
+    subparsers['sync'].add_argument('--no-encrypt', dest='encrypt', default=True, action='store_false', help='Do not server side encrypt at rest')
+    subparsers['sync'].add_argument('-g', '--guess-content-type', action='store_true', default=False, help='Guess content type of file')
+
+    subparsers['url'].add_argument('key', type=str, help='key to generate url for')
+    subparsers['url'].add_argument('--expire', type=int, help='number of seconds before url expires', default=86400)
+
+    subparsers['md5'].add_argument('key', type=str, help='key to get an md5sum for')
+    subparsers['etag'].add_argument('key', type=str, help='key to get an etag for')
+    subparsers['cat'].add_argument('key', type=str, help='key to print')
+
+    subparsers['buckets'].add_argument('--create', type=str, default=None, help='create a new bucket')
+    subparsers['buckets'].add_argument('--info', type=str, default=None, help='get info on a bucket')
+
+    subparsers['is'].add_argument('a', type=str, help='key to compare')
+    subparsers['is'].add_argument('b', type=str, help='key to compare')
+
+    args = parser.parse_args()
+
+    if args.command == 'cp':
+        kwargs = {
+            'force': args.force,
+            'progress': args.progress,
+            'policy': args.policy,
+            'preserve_acl': args.preserve_acl,
+            'encoding': args.encoding,
+            'encrypt': args.encrypt,
+            'gzip': args.gzip,
+            'skip': args.skip,
+        }
+        if args.recursive or args.recursive_parallel:
+            s3.cp_r(args.src, args.dst, parallel=args.recursive_parallel, **kwargs)
+        else:
+            s3.cp(args.src, args.dst, **kwargs)
+    if args.command == 'mv':
+        s3.mv(args.src, args.dst, force=args.force, progress=args.progress, encrypt=args.encrypt, gzip=args.gzip)
+    if args.command == 'touch':
+        s3.touch(args.key)
+    if args.command == 'sync':
+        s3.sync(args.src, args.dst, do_not_delete=args.do_not_delete, progress=args.progress, policy=args.policy, encoding=args.encoding, encrypt=args.encrypt, guess_content_type=args.guess_content_type)
+    if args.command == 'ls':
+        try:
+            keys = s3.ls(args.key, return_full_urls=True, require_s3_scheme=True, shallow=args.shallow)
+            if args.detail:
+                from baiji.util.console import sizeof_format_human_readable
+                for key in keys:
+                    info = s3.info(key)
+                    enc = " enc" if info['encrypted'] else "    "
+                    print "%s\t%s%s\t%s" % (sizeof_format_human_readable(info['size']), info['last_modified'], enc, key.encode('utf-8'),)
+            else:
+                print u"\n".join(keys).encode('utf-8')
+        except s3.InvalidSchemeException as e:
+            print e
+            exit(1)
+    if args.command == 'info':
+        for k, v in sorted(s3.info(args.key).items(), key=lambda x: x[0]):
+            print "%s: %s" % (k, v)
+    if args.command == 'rm':
+        if args.recursive:
+            s3.rm_r(args.key, force=args.force)
+        else:
+            s3.rm(args.key)
+    if args.command == 'exists':
+        if not s3.exists(args.key, retries_allowed=args.retries):
+            exit(-1)
+    if args.command == 'url': print s3.get_url(args.key, args.expire)
+    if args.command == 'md5': print s3.md5(args.key)
+    if args.command == 'is':
+        if s3.md5(args.a) == s3.md5(args.b):
+            print "files match"
+        else:
+            print "files DO NOT match"
+            exit(-1)
+    if args.command == 'etag': print s3.etag(args.key)
+    if args.command == 'cat': print s3.get_string(args.key)
+    if args.command == 'buckets':
+        if args.create:
+            s3.create_bucket(args.create)
+        elif args.info:
+            for k, v in sorted(s3.bucket_info(args.info).items(), key=lambda x: x[0]):
+                print "%s: %s" % (k, v)
+        else:
+            print "\n".join(s3.list_buckets())
+    if args.command == 'version': print baiji.__version__
