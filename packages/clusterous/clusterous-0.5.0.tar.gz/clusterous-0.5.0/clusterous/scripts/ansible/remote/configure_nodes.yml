@@ -1,0 +1,70 @@
+# Copyright 2015 Nicta
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+- name: configure all nodes
+  hosts: localhost
+  user: ubuntu
+  become: True
+  tasks:
+    - name: register aws assigned hostname
+      shell: hostname
+      register: default_hostname
+
+    - name: add controller/registry entry to hosts file
+      lineinfile: dest=/etc/hosts line="{{ controller_ip }} controller registry"
+
+    - name: add hostname entry to hosts file
+      lineinfile: dest=/etc/hosts line="{{ ansible_eth0.ipv4.address }} {{ default_hostname.stdout }}"
+
+    - name: add mesos-dns to resolv.conf
+      lineinfile: >
+        dest=/etc/resolv.conf regexp='^nameserver'
+        line="nameserver {{ controller_ip }}" mode=0755
+
+    - name: set up NFS
+      lineinfile: dest=/etc/fstab regexp="^controller:/home/data" line="controller:/home/data  /home/data  ndf defaults  0 0" owner=root group=root mode=0644
+
+    - name: mount volume
+      file: path=/home/data state=directory mode=0755
+    - mount: name=/home/data src=controller:/home/data fstype=nfs state=mounted
+
+    - name: add node name to mesos attributes file
+      lineinfile: dest=/etc/mesos-slave/attributes line="name:{{ node_group_name }}" create=yes
+
+    - name: stop mesos-slave
+      service: name=mesos-slave state=stopped
+
+    - name: clean up mesos state because it will have the old hostname in it
+      file: path=/tmp/mesos/meta state=absent
+
+    - name: start mesos-slave
+      service: name=mesos-slave state=started
+
+    # Central logging
+    - lineinfile: dest=/etc/hosts line="{{ central_logging_ip }} central-logging"
+      when: central_logging_level > 1
+
+    - name: check if rsyslog is forwarding to logstash
+      shell: cat /etc/rsyslog.conf| grep 5514
+      register: result
+      ignore_errors: True
+      when: central_logging_level > 1
+
+    - name: Rsyslog to logstash
+      shell: echo '*.* @central-logging:5514' >> /etc/rsyslog.conf
+      when: central_logging_level > 1 and result.stdout.find('5514') == -1
+
+    - name: Restart rsyslog
+      shell: service rsyslog restart
+      when: central_logging_level > 1 and result.stdout.find('5514') == -1
