@@ -1,0 +1,294 @@
+{% extends 'base_metro.html' %}
+
+{% block titulo %}{{ titulo|title }}{% endblock %}
+
+
+{% block content %}
+<style type="text/css">
+    .box.span12.inline {
+        margin: 0px;
+    }
+
+    .box.span12{
+        margin:0px;
+        margin-bottom: 1%;
+    }
+
+    p.capitalize {
+        text-transform: capitalize;
+    }
+</style>
+{% load filtros_metro %}
+
+    <div class="row-fluid sortable">
+                <div class="row-fluid ">
+                <div class="container span12">
+
+                <div class="box">
+                    {%if inlines%}
+                    <ul class="nav nav-tabs" style="background-color: rgb(245, 245, 245);">
+                        <li class="active">
+                        <a  href="#{{modelo}}" onclick="altura_contenedor('{{modelo}}')" data-toggle="tab">{{modelo|title}}</a>
+                        </li>
+                        {%for inlines in inlines%}
+                        {% if inlines.unico %}
+                        <li><a href="/#{{inlines.nombre}}" onclick="altura_contenedor_unico('{{inlines.nombre}}')"data-toggle="tab">{{inlines.titulo|title}}</a>
+                        </li>
+                        {% else %}
+                        <li><a href="/#{{inlines.nombre}}" onclick="altura_contenedor('{{inlines.nombre}}')"data-toggle="tab">{{inlines.titulo|title}}</a>
+                        </li>
+                        {% endif %}
+                        {%endfor%}
+                    </ul>
+
+                        <div id="{{modelo}}_contenedor" class="tab-content">
+                            <div class="tab-pane active" id="{{modelo}}">
+                    {%endif%}
+                                <div class="box" >
+                                <div class="box-header" data-original-title>
+                                    <h2><i class="halflings-icon th"></i><span class="break"></span>{{modelo|title}}</h2>
+                                    {% if not inlines %}
+                                    <div class="box-icon">
+                                        <a href="#" class="btn-setting"><i class="halflings-icon wrench"></i></a>
+                                        <a href="#" class="btn-minimize"><i class="halflings-icon chevron-up"></i></a>
+                                        <a href="#" class="btn-close"><i class="halflings-icon remove"></i></a>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                    <div class="box-content">
+                                        <form class="form-horizontal" method="POST" enctype="multipart/form-data">
+                                          <fieldset>
+                                            {% csrf_token %}
+                                            {% for field in form %}
+                                            <div class="control-group" id="{{field.label}}">
+                                                {{ field.is_required }}
+                                                <label class="label-form-emiraldo col-md-3 col-sm-3 col-xs-12">{{ field.label }}
+                                                    {% if field.field.required %}
+                                                        <span class="required">*</span>
+                                                    {% endif %}
+                                                </label>
+                                                <div class="col-md-6 col-sm-6 col-xs-12">
+
+                                                    {{ field }}
+                                                    {% for error in field.errors %}
+                                                    <span class="help-inline" style="color: red;">{{ error|escape }}</span>
+
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                          <div class="form-actions">
+                                                <button type="submit" class="btn btn-primary">Guardar</button>
+                                                {% if aplicacion|add:'.delete_'|add:modelo in permisos  %}
+                                                    <a href="" class="btn btn-danger" >Eliminar</a>
+                                                {% endif %}
+                                                <a href="" class="btn cancelar" >Salir</a>
+                                          </div>
+                                          </fieldset>
+                                        </form>
+
+                                    </div>
+                                </div>
+                            </div><!--/span-->
+                            {%for a in inlines%}
+
+                            <div class="tab-pane" id="{{a.nombre}}">
+                                {%if a.objetos%}
+                                    {%for obj in a.objetos%}
+                                    <div class="box black span12" onTablet="span12" onDesktop="span12">
+                                        <div class="box-header">
+                                            <h2><i class="halflings-icon white user"></i><span class="break"></span>{{a.titulo}}</h2>
+                                            <div class="box-icon">
+                                                <a href="#" class="btn-minimize" title="Minimizar"><i class="halflings-icon white chevron-down"></i></a>
+                                                {% if a.modelo|add:'.change_'|add:a.nombre in permisos  %}
+                                                <a href="/{{a.modelo}}/{{a.nombre}}/{{obj.id}}" title="Editar"><i class="halflings-icon white edit"></i></a>
+                                                {%endif%}
+                                                <!-- {% if a.modelo|add:'.delete_'|add:a.nombre in permisos  %}
+                                                <a href="#" title="Eliminar"><i class="halflings-icon white remove"></i></a>
+                                                {%endif%} -->
+                                            </div>
+                                        </div>
+                                        <div class="box-content" id="{{a.nombre}}-content">
+                                            <ul class="tickets metro">
+                                            <li class="ticket"style="color:black;">
+                                                <span class="content">
+                                                        <table class="table table-condensed table-striped">
+
+                                                            <tbody>
+
+                                                                {% for cam in a.campos %}
+                                                                <tr>
+                                                                    <td class="center"><p class="capitalize"><b>{{cam.titulo}}</b></p></td>
+
+                                                                    {% if obj|access:cam.nombre|safe|escape == "False" %}
+                                                                        <td class="center"><i class="halflings-icon remove"></i></td>
+                                                                    {% else %}
+                                                                        {% if obj|access:cam.nombre|safe|escape == "True" %}
+                                                                            <td class="center"><i class="halflings-icon ok"></i></td>
+                                                                        {% elif obj|access:cam.nombre|safe|escape == "None" %}
+                                                                            <td class="center">----</td>
+                                                                        {% elif obj|access:cam.nombre|safe|escape == "" %}
+                                                                            <td class="center">----</td>
+                                                                        {% else %}
+                                                                            <td class="center">{{cam.antes}}{{obj|access:cam.nombre|filtros:cam.filtro|safe|escape}}{{cam.despues}}</td>
+                                                                        {% endif %}
+                                                                    {% endif %}
+
+                                                                </tr>
+                                                                {% endfor %}
+
+                                                              </tbody>
+                                                         </table>
+                                                </span>
+                                            </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    {%endfor%}
+                                {%endif%}
+
+                                {%if not a.unico%}
+                                <div class="box span12 inline">
+
+
+                                <div class="box-header" data-original-title>
+                                    <h2><i class="halflings-icon edit"></i><span class="break"></span>{{a.titulo}}</h2>
+                                    <!-- <div class="box-icon">
+                                        <a href="#" class="btn-setting"><i class="halflings-icon wrench"></i></a>
+                                        <a href="#" class="btn-minimize"><i class="halflings-icon chevron-up"></i></a>
+                                        <a href="#" class="btn-close"><i class="halflings-icon remove"></i></a>
+                                    </div> -->
+                                </div>
+
+                                    <div class="box-content">
+                                        <form class="form-horizontal" method="POST" enctype="multipart/form-data">
+                                          <fieldset>
+                                            {% csrf_token %}
+                                            {% for field in a.formulario %}
+                                            <div class="control-group" id="{{field.label}}">
+                                                {{ field.is_required }}
+                                                <label class="label-form-emiraldo col-md-3 col-sm-3 col-xs-12">{{ field.label }}
+                                                    {% if field.field.required %}
+                                                        <span class="required">*</span>
+                                                    {% endif %}
+                                                </label>
+                                                <div class="col-md-6 col-sm-6 col-xs-12">
+
+                                                    {{ field }}
+                                                    {% for error in field.errors %}
+                                                    <span class="help-inline" style="color: red;">{{ error|escape }}</span>
+
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                          <div class="form-actions">
+                                                <button type="submit" class="btn btn-primary">Guardar</button>
+                                                {% if aplicacion|add:'.delete_'|add:modelo in permisos  %}
+                                                    <a href="" class="btn btn-danger" >Eliminar</a>
+                                                {% endif %}
+                                                <a href="" class="btn cancelar" >Salir</a>
+                                          </div>
+                                          </fieldset>
+                                        </form>
+
+                                    </div>
+                                </div><!--/span-->
+                                {%endif%}
+                            </div>
+                            {%endfor%}
+
+                        </div>
+                    </div>
+                </div><!--/span-->
+
+            </div><!--/row-->
+
+
+            </div><!--/row-->
+    {% if aplicacion|add:'.delete_'|add:modelo in permisos  %}
+            <div class="modal hide fade" id="ConfirmaEliminar">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal">×</button>
+                    <h3>Elimiar</h3>
+                </div>
+                <div class="modal-body">
+                    <p>Seguro desea elimiar este registro</p>
+                </div>
+                <div class="modal-footer">
+                    <a class="btn btn-danger" data-dismiss="modal">No</a>
+                    <a class="btn btn-primary eliminar">Si</a>
+                </div>
+            </div>
+    {% endif %}
+{% endblock %}
+{% block js %}
+    <script>
+        $('.cancelar').click(function(f){
+            f.preventDefault();
+            retorno=window.location.pathname.split('/');
+            window.location.replace('/'+retorno[1]+'/'+retorno[2]);
+        });
+    </script>
+    <script type="text/javascript">
+
+    //Al cargar la página se calcula el tamaño correspondiente a la pestaña home para evitar la aparición del scroll
+    //en la pestaña principal.
+    window.onload = function() {
+        if( $("#{{modelo}}").outerHeight() > 0){
+            var altoSeccion1 = $("#{{modelo}}").outerHeight();
+            $("#{{modelo}}_contenedor").css({'height': altoSeccion1+50 });
+        }
+    };
+
+    //Se verifica el tamaño del contenedor, si el tamaño al cambiar de pestaña es mayor al tamaño de la pestaña anterior
+    //cambia, de lo contrario mantiene el tamaño mayor, es una forma poco ortodoxa pero se hizo para darle una solución
+    //rapida a la aparición de scrolls en las pestañas
+    function altura_contenedor(nombre) {
+        if( $("#"+nombre).outerHeight() > 0){
+            $("div[id='"+nombre+"-content']").css({'display': 'block' });
+            var altoSeccion1 = $("#"+nombre).outerHeight();
+            if((altoSeccion1+50)>=$("#{{modelo}}_contenedor").height()){
+                $("#{{modelo}}_contenedor").css({'height': altoSeccion1+50 });
+            }
+            $("div[id='"+nombre+"-content']").css({'display': 'none' });
+        }
+    };
+
+    function altura_contenedor_unico(nombre) {
+        if( $("#"+nombre).outerHeight() > 0){
+            $("div[id='"+nombre+"-content']").css({'display': 'block' });
+            var altoSeccion1 = $("#"+nombre).outerHeight();
+            if((altoSeccion1+50)>=$("#{{modelo}}_contenedor").height()){
+                $("#{{modelo}}_contenedor").css({'height': altoSeccion1+50 });
+            }
+        }
+    };
+    </script>
+    {% if aplicacion|add:'.delete_'|add:modelo in permisos  %}
+    <script>
+        $('.btn-danger').click(function(f){
+            f.preventDefault();
+            $('#ConfirmaEliminar').modal('show');
+        });
+    </script>
+    <script>
+        $('.eliminar').click(function(f){
+            f.preventDefault();
+            var url      = window.location.href;
+            $.get(url+'eliminar', function(data, status){
+                if(data=='Eliminado Correctamente'){
+                    $('#ConfirmaEliminar').modal('hide');
+                    retorno=window.location.pathname.split('/')
+                    window.location.replace('/'+retorno[1]+'/'+retorno[2]+'/#eliminado')
+                }
+                if(data=='Eliminado Correctamente'){
+                    $('#ConfirmaEliminar').modal('hide');
+                    retorno=window.location.pathname.split('/')
+                    window.location.replace('/'+retorno[1]+'/'+retorno[2]+'/#sinpermiso')
+                }
+            });
+        });
+    </script>
+    {% endif %}
+{% endblock %}
