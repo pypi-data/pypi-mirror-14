@@ -1,0 +1,191 @@
+devpi-server: pypi server for caching and private indexes
+=============================================================================
+
+* `issue tracker <https://bitbucket.org/hpk42/devpi/issues>`_, `repo
+  <https://bitbucket.org/hpk42/devpi>`_
+
+* IRC: #devpi on freenode, `mailing list
+  <https://groups.google.com/d/forum/devpi-dev>`_ 
+
+* compatibility: {win,unix}-py{26,27,34}
+
+consistent robust pypi-cache
+----------------------------------------
+
+You can point ``pip or easy_install`` to the ``root/pypi/+simple/``
+index, serving as a self-updating transparent cache for pypi-hosted
+**and** external packages.  Cache-invalidation uses the latest and
+greatest PyPI protocols.  The cache index continues to serve when
+offline and will resume cache-updates once network is available.
+
+user specific indexes
+---------------------
+
+Each user (which can represent a person or a project, team) can have
+multiple indexes and upload packages and docs via standard ``setup.py``
+invocations command.  Users and indexes can be manipulated through a
+RESTful HTTP API.
+
+index inheritance
+--------------------------
+
+Each index can be configured to merge in other indexes so that it serves
+both its uploads and all releases from other index(es).  For example, an
+index using ``root/pypi`` as a parent is a good place to test out a
+release candidate before you push it to PyPI.
+
+good defaults and easy deployment
+---------------------------------------
+
+Get started easily and create a permanent devpi-server deployment
+including pre-configured templates for ``nginx`` and cron. 
+
+separate tool for Packaging/Testing activities
+-------------------------------------------------------
+
+The complimentary `devpi-client <http://pypi.python.org/devpi-client>`_ tool
+helps to manage users, indexes, logins and typical setup.py-based upload and
+installation workflows.
+
+See http://doc.devpi.net for getting started and documentation.
+
+
+
+Changelog
+=========
+
+3.1.0 (2016-04-22)
+------------------
+
+- fix issue208: Uncached mirrored files (PyPI) are streamed to the client while
+  downloading. This prevents timeouts in pip etc. The files are only cached if
+  there were no errors and in case there is a checksum, the content matches.
+  Downloads on replicas won't wait until they are in sync, but pass on what
+  they get from the master.
+
+- fix issue229: A replica talking to a master behind nginx decoded gzipped
+  data, but left the Content-Encoding header unchanged. Now data is passed on
+  unchanged.
+  Thanks to Chad Wagner for the fix.
+
+- fix issue317: When there is no data in the directory specified via
+  ``--serverdir`` during export, then the process aborts instead of creating
+  and exporting an empty database.
+
+- fix issue210: When an external user authenticated by a plugin tries to create
+  an index the required user object is now created automatically if the
+  permissions allow it.
+
+- address issue267: We unconditionally clean up the transaction if there was an
+  exception in rollback or commit. This prevents issues in logging and a
+  possible server lockup if at some point all threads contain a failed
+  transaction object.
+
+- fix issue321: All exceptions in the replica and event processing threads are
+  caught now and can't stop the threads anymore.
+
+- fix issue338: Handle trailing slash in project listing for mirror indexes.
+
+- Added checks on the index dependency tree built from bases during import.
+
+- Every project is now imported together with all it's release files on it's
+  own serial. Before the release files each got their own serial. This reduces
+  the number of serials generated, especially when there are many projects and
+  releases. That in turn improves import, as well as replication and event
+  handling times (in particular devpi-web indexing).
+
+
+3.0.2 (2016-03-03)
+------------------
+
+- fix setting of ``mirror_whitelist``.
+
+- normalize names when setting ``mirror_whitelist``.
+
+- fix handling of 404 in mirror indexes on replicas.
+
+- include version in file paths in exported data to avoid possible
+  name conflicts.
+
+
+3.0.1 (2016-02-12)
+------------------
+
+- fix importing of uploaded files. Only the last index from exported data
+  was processed.
+
+
+3.0.0 (2016-02-12)
+------------------
+
+- dropped support for python2.6
+
+- block most ascii symbols for user and index names except ``-.@_``.
+  unicode characters are fine.
+
+- add ``--no-root-pypi`` option which prevents the creation of the
+  ``root/pypi`` mirror instance on first startup.
+
+- added optional ``title`` and ``description`` options to users and indexes.
+
+- new indexes have no bases by default anymore. If you want to be able to
+  install pypi packages, then you have to explicitly add ``root/pypi`` to
+  the ``bases`` option of your index.
+
+- added optional ``custom_data`` option to users.
+
+- generalized mirroring to allow adding mirror indexes other than only PyPI
+
+- renamed ``pypi_whitelist`` to ``mirror_whitelist``
+
+- speed up simple-page serving for private indexes. A private index
+  with 200 release files should now be some 5 times faster.
+
+- internally use normalized project names everywhere, simplifying
+  code and slightly speeding up some operations.
+
+- change {name} in route_urls to {project} to disambiguate.
+  This is potentially incompatible for plugins which have registered
+  on existing route_urls.
+
+- use "project" variable naming consistently in APIs
+
+- drop calling of devpi_pypi_initial hook in favor of
+  the new "devpi_mirror_initialnames(stage, projectnames)" hook
+  which is called when a mirror is initialized.
+
+- introduce new "devpiserver_stage_created(stage)" hook which is
+  called for each index which is created.
+
+- simplify and unify internal mirroring code some more
+  with "normal" stage handling.
+
+- don't persist the list of mirrored project names anymore
+  but rely on a per-process RAM cache and the fact
+  that neither the UI nor pip/easy_install typically
+  need the projectnames list, anyway.
+
+- introduce new "devpiserver_storage_backend" hook which allows plugins to
+  provide custom storage backends. When there is more than one backend
+  available, the "--storage" option becomes required for startup.
+
+- introduce new "--requests-only" option to start devpi-server in
+  "worker" mode.  It can be used both for master and replica sites.  It
+  starts devpi-server without event processing and replication threads and
+  thus depends on respective "main" instances (those not using
+  "--request-only") to perform event and hook processing.  Each
+  worker instance needs to share the filesystem with a main instance.
+  Worker instances can not serve the "/+status" URL which must
+  always be routed to the main instance.
+
+
+2.6.1 (2016-03-03)
+------------------
+
+- add more info when importing data.  Thanks Marc Abramowitz for the PR.
+
+- include version in file paths in exported data to avoid possible
+  name conflicts.
+
+
+
