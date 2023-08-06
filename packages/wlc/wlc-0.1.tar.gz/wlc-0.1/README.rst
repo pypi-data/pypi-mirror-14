@@ -1,0 +1,54 @@
+wlc
+===
+
+Weblate commandline client
+
+.. image:: https://travis-ci.org/nijel/wlc.svg?branch=master
+    :target: https://travis-ci.org/nijel/wlc
+    :alt: Build Status
+
+.. image:: https://landscape.io/github/nijel/wlc/master/landscape.svg?style=flat
+    :target: https://landscape.io/github/nijel/wlc/master
+    :alt: Code Health
+
+.. image:: http://codecov.io/github/nijel/wlc/coverage.svg?branch=master
+    :target: http://codecov.io/github/nijel/wlc?branch=master
+    :alt: Code coverage
+
+.. image:: https://img.shields.io/pypi/dm/wlc.svg
+    :target: https://pypi.python.org/pypi/wlc
+    :alt: PyPI package
+
+.. image:: https://hosted.weblate.org/widgets/weblate/-/svg-badge.svg
+    :alt: Translation status
+    :target: https://hosted.weblate.org/engage/weblate/?utm_source=widget
+
+Installation
+------------
+
+Install using pip:
+
+.. code-block:: sh
+
+    pip install wlc
+
+Sources are available at <https://github.com/nijel/wlc>.
+
+Usage
+-----
+
+Command line usage:
+
+.. code-block:: sh
+
+    wlc list-projects
+    wlc list-subprojects
+    wlc list-translations
+
+Configuration is stored in ``~/.config/wlc``:
+
+.. code-block:: ini
+
+    [wlc]
+    url = https://hosted.weblate.org/api/
+    key = APIKEY
