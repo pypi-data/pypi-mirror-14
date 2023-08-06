@@ -1,0 +1,480 @@
+#!/usr/bin/python
+# Time-stamp: <2016-04-04 11:22:53 Yingxiang Li>
+
+##----PACKAGE------##
+import argparse
+import time
+import sys
+import os
+from argparse import RawTextHelpFormatter
+from pkg_resources import resource_filename
+
+##----MAIN---------##
+def main():
+	args = get_args()
+
+	if args.which == 'sin':
+		run_mode_single(args)
+
+	elif args.which == 'mul':
+		run_mode_multiple(args)
+
+	elif args.which == 'sum':
+		run_mode_summary(args)
+
+##----CODA---------##
+	make_ornament('> END', 100, ' ', 1, 1)
+	make_ornament('', 100, '-', 0, 0)
+	print ('\t|' + ' '*47 + '__.' + ' '*48 + '|\n'
+'\t|' + ' '*32 + '___.  ____.   |  |  __. __.__.   __.' + ' '*30 + '|\n'
+'\t|' + ' '*30 + '_/ ___\ \__  \  |  | <   y  |\  \ /  /' + ' '*30 + '|\n'
+'\t|' + ' '*30 + '\  c___  /  a \_|  l__\___  | >  x  <' + ' '*31 + '|\n'
+'\t|' + ' '*31 + '\_____>(______/|____//_____|/__/ \__\\' + ' '*30 + '|\n'
+'\t|' + '~'*42 + 'www.calyx.biz' + '~'*43 + '|\n\n')
+
+##----FUNCTION-----##
+#--common--
+def make_dir(dir):
+	dir = dir.strip().rstrip("\\")
+	if not os.path.exists(dir):
+		os.makedirs(dir)
+	return dir
+
+def write_content(content_file, content):
+	output = open(content_file, 'w')
+	output.writelines(content)
+	output.close()
+
+def run_bash_command(log_dir, command_name, command):
+	command_file = make_dir(log_dir) + command_name + '.sh'
+	write_content(command_file, command)
+	bash_command = 'bash ' + command_file + ' > ' + command_file.replace('.sh', '.log') + ' 2>&1'
+	os.system(bash_command)
+
+def make_ornament(title, width=100, ornament_type=' ', show_time=1, show_date = 0):
+	if show_time == 1:
+		if show_date == 0:
+			ornament = '\t|' + title + ornament_type*(width - 2 - len(title) - 11) + ' @ ' + time.strftime("%X", time.localtime()) + '|'
+		else:
+			ornament = '\t|' + title + ornament_type*(width - 2 - len(title) - 22) + ' @ ' + time.strftime("%Y-%m-%d %X", time.localtime()) + '|'
+	else:
+		ornament = '\t|' + title + ornament_type*(width - 2 - len(title)) + '|'
+	print ornament
+
+def get_process_time(function_name, is_finish=0, width=100, indent=16):
+	function_name_indent = ' '*(indent - len(function_name.split(':')[0])) + function_name
+	if is_finish == 0:		
+		make_ornament(function_name_indent + ' '*(width - 23 - len(function_name_indent)) + '  -running', width)
+	else:
+		make_ornament(function_name_indent + ' '*(width - 23 - len(function_name_indent)) + ' -finished', width)
+
+def get_absolute_file(file):
+	split_file = [x for x in file.split('/') if x != '']
+	current_dir = os.getcwd()
+	split_current_dir = [x for x in current_dir.split('/') if x != '']
+	if len(set(split_file)&set(split_current_dir)) == 0:
+		absolute_file = current_dir + '/' + file
+	else:
+		absolute_file = file
+	if os.path.isfile(absolute_file):
+		return absolute_file
+	else:
+		return 'WRONG file or directory!'
+
+def get_file_size(file):
+	import os
+	file_size = os.path.getsize(file)
+	unit = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+	unit_order = 0
+	while len(str(file_size)) >= 5:
+		former_file_size = file_size
+		former_unit_order = unit_order
+		file_size = round(file_size/1024.0, 1)
+		unit_order += 1
+	return str(former_file_size) + ' ' + unit[former_unit_order]
+
+def add_thousand_separator(int_number):
+	return str(format(int(int_number), ','))
+
+def make_initial_upper(word):
+	initial_upper = word[0].upper() + word[1:].lower()
+	return initial_upper
+
+#---get args---
+def get_args():
+	tool = os.path.basename(sys.argv[0])
+	version = '3.15'
+	author = 'Yingxiang Li'
+	email = 'xlccalyx@gmail.com'
+	date = 'Apr 02, 2016'
+	update_date = '040316,040416,040516,040916,041116'
+	home = 'www.calyx.biz'
+	full_tool_name = 'CRISPR Sequence Indel Analysis'
+	aim = 'This program is for analysis of indel from CRISPR sequence.'
+
+	parser = argparse.ArgumentParser(description='\ttool:   ' + tool + 'v' + version + '\n\tdate:   ' + date + '\n\tauthor: ' + author + ' (' + email + ')\n\thome:   ' + home + '\n\tMUST-install (NOT guaranteed on other versions):\n\t        bwa: 0.7.5a; fastqc: v0.11.2; samtools: 1.3; java: 1.7.0_95', prog=tool, formatter_class=RawTextHelpFormatter)
+
+	parser.add_argument('-V', '--version', action='version', version='%(prog)s v' + version)
+
+	subparser = parser.add_subparsers(help = 'Select 1 of 3 modes!')
+
+#---subparser for mode single
+	subparser_single = subparser.add_parser('sin', help = 'single mode, for single data analysis.')
+	subparser_single.set_defaults(which = 'sin')
+	subparser_single.add_argument('-R', '--reference', help = "reference direction, fasta format. (eg: my_ref.fa)", required = True)
+	subparser_single.add_argument('-D', '--data', help = "test sample's sequenced fastq directory, ONLY fastq in. one file for single end, two files for paired end. (eg: my_data/)", required = True)
+	subparser_single.add_argument('-O', '--output', help = "output directory for all result and recording. if not exists, will be created. (eg: my_output/)", required = True)
+
+	subparser_single.add_argument('-N', '--name', help = "sample name, default is name of output directory. (eg: my_sample)", default = 'NoName')
+
+	subparser_single.add_argument('-P', '--pvalue', help = "minimal p value of indels. default: 0.05.", default = '0.05')
+	subparser_single.add_argument('-B', '--basequality', help = "minimal base quality. default: 30.", default = '30')
+	subparser_single.add_argument('-A', '--varfreq', help = "minimal indel frequency. default: 0.0001.", default = '0.0001')
+
+	subparser_single.add_argument('-F', '--fastqc', help = "run fastqc to process quality control. default: ON. -F will trun OFF.", action = "store_false", default = True)
+	subparser_single.add_argument('-X', '--index', help = "create bwa index for the reference, you can disable if it exists. default: ON. -X will turn OFF.", action = "store_false", default = True)
+
+	subparser_single.add_argument('-U', '--unlimited', help = "read depth is unlimited when applying samtools mpileup. default: OFF.", action = "store_true")
+	subparser_single.add_argument('-VI', '--indel', help = "search for the indel. default: ON. -I will turn OFF.", action = "store_false", default = True)
+	subparser_single.add_argument('-VR', '--readcount', help = "collect read counts of sequence. default: OFF.", action = "store_true")
+	subparser_single.add_argument('-VC', '--consensus', help = "return consensus call. default: OFF.", action = "store_true")
+	subparser_single.add_argument('-VS', '--snp', help = "look for SNP. default: OFF.", action = "store_true")
+
+#---subparser for mode multiple
+	subparser_multiple_raw = subparser.add_parser('mul', help = 'mutiple mode, for mutiple data analysis. run: \'mul -E\' first.')
+	subparser_multiple_raw.set_defaults(which = 'mul')
+	subparser_multiple = subparser_multiple_raw.add_mutually_exclusive_group()
+	subparser_multiple.add_argument('-E', '--example', help = 'create example of information table of all input data. modify the example.input.tab to fit your data.', default=False, action='store_true')
+	subparser_multiple.add_argument('-I', '--input', help = 'information table of all input data. all settings should be in it. (eg. example.input.tab)')
+
+#---subparser for mode summary
+	subparser_summary = subparser.add_parser('sum', help = 'summary mode, the summary of the result.')
+	subparser_summary.set_defaults(which = 'sum')	
+	subparser_summary.add_argument('-O', '--output', help = 'output directory of single/mutiple mode process.', required = True)
+
+	args = parser.parse_args()
+
+	print '\n\n\t' + ' '.join(sys.argv[:]) + '\n'
+	make_ornament('', 100, '-', 0, 0)
+	make_ornament('tool:   ' + tool + ' v' + version, 100, ' ', 0, 0)
+	make_ornament('author: ' + author + ' (' + email + ')', 100, ' ', 0, 0)
+	make_ornament('', 100, '-', 0, 0)
+	make_ornament('> BEGIN', 100, ' ', 1, 1)
+
+	return args
+
+#---mode single---
+def run_mode_single(args):
+	preset_single = run_preset_single(args)
+
+	if not name:
+		make_ornament('please fix the problems above and re-try!', 100, ' ', 0, 0)
+
+	else:
+		name = preset_single
+
+		if os.path.exists(os.path.normpath(args.output) + '/' + name + '/'):
+			make_ornament('WARNING! output directory exists.', 100, ' ', 1, 0)
+
+		#-output & log directory
+		output_dir = make_dir(os.path.normpath(args.output) + '/' + name + '/')
+		log_dir = make_dir(output + '/log/')
+		#-fastq file
+		fastq1_file = args.data + sorted(os.listdir(args.data))[0]
+		fastq2_file = '' if len(os.listdir(args.data)) <= 1 else args.data + sorted(os.listdir(args.data))[1]
+	
+		#---bwa index--
+		run_bwa_index(args, log_dir)
+
+		#---fastqc quality control--
+		run_fastqc_quality_control(args, output_dir, fastq1_file, fastq2_file, log_dir)
+
+		#---bwa map--
+		bwa_map = run_bwa_map(fastq2_file, output_dir, name, args, fastq1_file, log_dir)
+
+		if bwa_map:
+			#---samtools sam to bam--
+			samtools_sam_to_bam = run_samtools_sam_to_bam(output_dir, name, log_dir)
+
+			if samtools_sam_to_bam:
+				#---samtools sort index
+				samtools_sort_index = run_samtools_sort_index(output_dir, name, log_dir)
+
+				if samtools_sort_index:
+					#---samtools mpileup--
+					samtools_mpileup = run_samtools_mpileup(args, output_dir, name, log_dir)
+
+					if samtools_mpileup:
+						varscan = resource_filename('CSIA', 'VarScan.v2.3.9.jar')
+						#---varscan indel--
+						run_varscan_indel(args, output_dir, name, varscan, log_dir)
+						#---varscan snp--
+						run_varscan_snp(args, output_dir, name, varscan, log_dir)
+						#---varscan consensus call--
+						run_varscan_consensus_call(args, output_dir, name, varscan, log_dir)
+						#---varscan read count--
+						run_varscan_read_count(args, output_dir, name, varscan, log_dir)
+
+						write_content(log_dir + 'done', sys.argv[:])
+
+					else:
+						make_ornament('please fix SAMtools mpileup and re-try!', 100, ' ', 0, 0)
+
+				else:
+					make_ornament('please fix SAMtools sort and re-try!', 100, ' ', 0, 0)
+
+			else:
+				make_ornament('please fix SAMtools sam to bam and re-try!', 100, ' ', 0, 0)
+
+		else:
+			make_ornament('please fix BWA map and re-try!', 100, ' ', 0, 0)
+
+#---run preset single mode--
+def run_preset_single(args):
+	preset_single = False
+	if not args.reference.endswith('.fa') and not args.reference.endswith('.fasta'):
+		make_ornament('ABORT! -R file. should be fa(sta) format!', 100, ' ', 1, 0)
+		return preset_single		
+	if not os.path.isdir(args.data):
+		make_ornament('ABORT! -D data. should be a directory!', 100, ' ', 1, 0)
+		return preset_single
+	else:
+		fastq_file = [x for x in os.listdir(args.data) if x.endswith('fq') or x.endswith('fastq')]
+		if len(fastq_file) > 2:
+			make_ornament('ABORT! -D data. no more than 2 fastq-ONLY files!', 100, ' ', 1, 0)
+			return preset_single
+		elif len(fastq_file) == 0:
+			make_ornament('ABORT! -D data. no fastq file in the directory!', 100, ' ', 1, 0)
+			return preset_single
+		elif len(fastq_file) < len(os.listdir(args.data)):
+			make_ornament('ABORT! -D data. remove fastq-NOT files!', 100, ' ', 1, 0)
+			return preset_single
+		else:
+			if args.name == 'NoName':
+				preset_single = [x for x in args.output.split('/') if x != ''][-1]
+				make_ornament('WARNING! directory name will be assigned as output name.', 100, ' ', 1, 0)
+			else:
+				preset_single = args.name
+			return preset_single
+
+#---mode multiple---
+def run_mode_multiple(args):
+	if args.example:
+		example_input_file = resource_filename('CSIA', 'example.input.tab')
+		os.system('cp ' + example_input_file + ' .')
+		make_ornament('example.input.tab created in current dir, please modify it!', 100, ' ', 1, 0)
+
+	else:
+		preset_multiple = run_preset_multiple(args)
+		if not preset_multiple:
+			make_ornament('please fix the problems above and re-try!', 100, ' ', 0, 0)
+
+		else:
+			batch_log, command_multiple_file, command_multiple = preset_multiple
+			write_content(command_multiple_file, command_multiple)
+			os.system('bash %s > %scsia_multiple.log 2>&1' % (command_multiple_file, batch_log))
+			make_ornament('csia is running, check log/csia_multiple.log for details!', 100, ' ', 1, 1)
+
+#---run preset multiple mode--
+def run_preset_multiple(args):
+	if not os.path.isfile(args.input):
+		make_ornament('ABORT! -I input. should be input file!', 100, ' ', 1, 0)
+		return False
+
+	else:
+		input_table = open(args.input, 'rU').readlines()
+		input_key = [x.split('\t')[0].lstrip() for x in input_table]
+		input_value = [x.rstrip().split('\t')[1:] for x in input_table]
+		input_dict =  dict(zip(input_key, input_value))
+		input_default_key = ['batch', 'output', 'name', 'reference', 'data', 'pvalue', 'basequality', 'varfreq', 'fastqc', 'index', 'unlimited', 'indel', 'snp', 'consensus', 'readcount']
+		input_default_value = ['', '', '', '', '', '', '', '', 'ON', 'ON', 'OFF', 'ON', 'OFF', 'OFF', 'OFF']
+		csia_default_parameter = ['-O', '-N', '-R', '-D', '-P', '-B', '-A', '-F', '-X', '-U', '-VI', '-VS', '-VC', '-VR']
+
+		if not input_key == input_default_key:
+			make_ornament('ABORT! input, column 1 is not default!', 100, ' ', 1, 0)
+			return False
+
+		elif not len(input_dict['name']) == len(input_dict['reference']) == len(input_dict['data']):
+			make_ornament('ABORT! amounts of name, reference, data are not equal!', 100, ' ', 1, 0)
+			return False
+
+		else:
+			input_dict['output'] = [input_dict['output'][0] + input_dict['batch'][0] + '/']
+			batch_log = make_dir(input_dict['output'][0] + input_dict['batch'][0] + '.log/')
+			command_multiple_file = batch_log + 'csia_multiple.sh'
+			command_multiple = []
+			
+			for i in range(len(input_dict['name'])):
+				command_single = 'nohup CSIA sin'
+
+				for j in range(1, len(input_default_key)):
+
+					if len(input_dict[input_default_key[j]]) > 1:
+						command_single = command_single + ' ' + csia_default_parameter[j - 1] + ' ' + input_dict[input_default_key[j]][i]
+
+					else:
+						if input_dict[input_default_key[j]][0] != 'ON' and input_dict[input_default_key[j]][0] != 'OFF':
+							command_single = command_single + ' ' + csia_default_parameter[j - 1] + ' ' + input_dict[input_default_key[j]][0]
+
+						else:
+							if input_dict[input_default_key[j]][0] == input_default_value[j]:
+								command_single = command_single
+
+							else:
+								command_single = command_single + ' ' + csia_default_parameter[j - 1]
+
+				command_multiple.append(command_single + ' &\n')
+
+			return (batch_log, command_multiple_file, command_multiple)
+
+
+#---run bwa index--
+def run_bwa_index(args, log_dir):
+	if args.index:
+		get_process_time('bwa: index')
+		bwa_index = 'bwa index -a bwtsw ' + args.reference
+		refer_name = os.path.basename(os.path.splitext(args.reference)[0])
+		run_bash_command(log_dir, 'BWA_Index.' + refer_name, bwa_index)
+		get_process_time('bwa: index', 1)
+
+#---FastQC: quality control--
+def run_fastqc_quality_control(args, output_dir, fastq1_file, fastq2_file, log_dir):
+	if args.fastqc:	
+		get_process_time('fastqc: quality control')
+		quality_control_dir = make_dir(output_dir + 'FastQC/')
+		fastqc_quality_control = 'fastqc -q --extract -o ' + quality_control_dir + ' ' + fastq1_file + ' ' + fastq2_file
+		run_bash_command(log_dir, 'FastQC_QualiyControl', fastqc_quality_control)
+		get_process_time('fastqc: quality control', 1)
+		if len(os.listdir(quality_control_dir)) == 0:
+			make_ornament('WARNING! no fastqc result! please check FastQC_QualiyControl.log!', 100, ' ', 1, 0)
+
+#---bwa: map--
+def run_bwa_map(fastq2_file, output_dir, name, args, fastq1_file, log_dir):
+	is_single = ['pair', 'single'][fastq2_file == '']
+	get_process_time('bwa: map ' + is_single)
+	map_file = make_dir(output_dir + 'BWA/') + name + '.sam'
+	bwa_map = '''bwa mem -t 10 -R "@RG\\tID:''' + name + '.BWA_map.' + is_single + '\\tLB:bwa\\tPL:NA\\tSM:' + name + '\" ' + args.reference + ' ' + fastq1_file + ' ' + fastq2_file + ' > '+ map_file
+	run_bash_command(log_dir, 'BWA_Map', bwa_map)	
+	get_process_time('bwa: map', 1)
+	if not os.path.isfile(map_file):
+		make_ornament('ABORT! no bwa result! please check BWA_Map.log!', 100, ' ', 1, 0)
+		return False
+	else:
+		return True
+	
+#---samtools: sam to bam--
+def run_samtools_sam_to_bam(output_dir, name, log_dir):
+	get_process_time('samtools: sam to bam')
+	map_file = output_dir + 'BWA/' + name + '.sam'
+	bam_file = make_dir(output_dir + 'SAMtools/') + name + '.bam'
+	samtools_sam_to_bam = 'samtools view -bhS ' + map_file + ' -o ' + bam_file
+	run_bash_command(log_dir, 'SAMtools_SamToBam', samtools_sam_to_bam)
+	get_process_time('samtools: sam to bam', 1)
+	if not os.path.isfile(bam_file):
+		make_ornament('ABORT! no bam result! please check SAMtools_SamToBam.log!', 100, ' ', 1, 0)
+		return False
+	else:
+		return True	
+
+#---samtools: sort & index--
+def run_samtools_sort_index(output_dir, name, log_dir):
+	get_process_time('samtools: sort & index')
+	bam_file = output_dir + 'SAMtools/' + name + '.bam'
+	sort_bam_file = bam_file.replace('.bam', '.sort.bam')
+	samtools_sort = 'samtools sort ' + bam_file + ' -o ' + sort_bam_file
+	samtools_index = 'samtools index ' + sort_bam_file
+	run_bash_command(log_dir, 'SAMtools_Sort', samtools_sort)
+	run_bash_command(log_dir, 'SAMtools_Index', samtools_index)	
+	get_process_time('samtools: sort & index', 1)
+
+	if not os.path.isfile(sort_bam_file):
+		make_ornament('ABORT! no bam sort result! please check SAMtools_Sort.log!', 100, ' ', 1, 0)
+		return False
+	else:
+		return True
+
+#---samtools: flagstat--
+def run_samtools_flagstat(output_dir, name, log_dir):
+	get_process_time('samtools: flagstat')
+	sort_bam_file = '%sSAMtools/%s.sort.bam' % (output_dir, name)
+	flagstat_file = sort_bam_file.replace('.sort.bam', '.flagstat.txt')
+	samtools_flagstat = 'samtools flagstat %s > %s' % (sort_bam_file, flagstat_file)
+	run_bash_command(log_dir, 'SAMtools_FlagStat', samtools_flagstat)
+	get_process_time('samtools: flagstat', 1)
+
+#---samtools: mpileup--
+def run_samtools_mpileup(args, output_dir, name, log_dir):
+	get_process_time('samtools: mpileup' + ['', ' (unlimited: True)'][args.unlimited])
+	sort_bam_file = output_dir + 'SAMtools/' + name + '.sort.bam'
+	mpileup_file = sort_bam_file.replace('.sort.bam', '.mpu')
+	samtools_mpileup = 'samtools mpileup%s -f %s %s > %s' % (['', ' -d10000000'][args.unlimited], args.reference, sort_bam_file, mpileup_file)
+	run_bash_command(log_dir, 'SAMtools_Mpileup', samtools_mpileup)
+	get_process_time('samtools: mpileup', 1)
+
+	if not os.path.isfile(mpileup_file):
+		make_ornament('ABORT! no samtools mpileup result! please check SAMtools_Mpileup.log!', 100, ' ', 1, 0)
+		return False
+	else:
+		return True
+
+#---varscan: indel--
+def run_varscan_indel(args, output_dir, name, varscan, log_dir):
+	if args.indel:
+		get_process_time('varscan: indel (base quality: %s, var freq: %s, pvalue: %s)' % (args.basequality, args.varfreq, args.pvalue))
+		mpileup_file = output_dir + 'SAMtools/' + name + '.mpu'
+		indel_file = make_dir(output_dir + 'VarScan/') + name + '.indel.tab'
+		varscan_indel = 'java -jar %s mpileup2indel %s --min-avg-qual %s --min-var-freq %s --p-value %s > %s' % (varscan, mpileup_file, args.basequality, args.varfreq, args.pvalue, indel_file)
+		run_bash_command(log_dir, 'VarScan_Indel', varscan_indel)
+		get_process_time('varscan: indel', 1)
+
+		if not os.path.isfile(indel_file):
+			make_ornament('WARNING! no varscan indel result! please check VarScan_Indel.log!', 100, ' ', 1, 0)
+
+#---varscan: snp--
+def run_varscan_snp(args, output_dir, name, varscan, log_dir):
+	if args.snp:
+		get_process_time('varscan: snp (base quality: %s, var freq: %s, pvalue: %s)' % (args.basequality, args.varfreq, args.pvalue))
+		mpileup_file = output_dir + 'SAMtools/' + name + '.mpu'
+		snp_file = make_dir(output_dir + 'VarScan/') + name + '.snp.tab'
+		varscan_indel = 'java -jar %s mpileup2snp %s --min-avg-qual %s --min-var-freq %s --p-value %s > %s' % (varscan, mpileup_file, args.basequality, args.varfreq, args.pvalue, indel_file)
+		run_bash_command(log_dir, 'VarScan_Snp', varscan_indel)
+		get_process_time('varscan: snp', 1)
+
+		if not os.path.isfile(snp_file):
+			make_ornament('WARNING! no varscan snp result! please check VarScan_Snp.log!', 100, ' ', 1, 0)
+
+#---varscan: consensus call--
+def run_varscan_consensus_call(args, output_dir, name, varscan, log_dir):
+	if args.consensus:
+		get_process_time('varscan: consensus call (base quality: %s, pvalue: %s)' % (args.basequality, args.pvalue))
+		mpileup_file = output_dir + 'SAMtools/' + name + '.mpu'
+		consensus_call_file = make_dir(output_dir + 'VarScan/') + name + '.consensus.tab'
+		varscan_consensus_call = 'java -jar %s mpileup2cns %s --min-avg-qual %s --p-value %s > %s' % (varscan, mpileup_file, args.basequality, args.pvalue, consensus_call_file)
+		run_bash_command(log_dir, 'VarScan_ConseCall', varscan_consensus_call)
+		get_process_time('varscan: consensus call', 1)
+
+		if not os.path.isfile(consensus_call_file):
+			make_ornament('WARNING! no varscan consensus call result! please check VarScan_ConseCall.log!', 100, ' ', 1, 0)
+
+#---varscan: read count--
+def	run_varscan_read_count(args, output_dir, name, varscan, log_dir):
+	if args.readcount:
+		get_process_time('varscan: read count (base quality: %s)' % (args.basequality))
+		mpileup_file = output_dir + 'SAMtools/' + name + '.mpu'
+		read_count_file = make_dir(output_dir + 'VarScan/') + name + '.read.tab'
+		varscan_read_count = 'java -jar %s readcounts %s --min-base-qual %s --output-file %s' % (varscan, mpileup_file, args.basequality, read_count_file)
+		run_bash_command(log_dir, 'VarScan_ReadCount', varscan_read_count)
+		get_process_time('varscan: read count', 1)
+
+		if not os.path.isfile(read_count_file):
+			make_ornament('WARNING! no varscan read counts result! please check VarScan_ReadCount.log!', 100, ' ', 1, 0)
+
+##----PROCESS------##
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.stderr.write("User interrupted me! ;-) Bye!\n")
+        sys.exit(0)
+
+##----TEST--------##
