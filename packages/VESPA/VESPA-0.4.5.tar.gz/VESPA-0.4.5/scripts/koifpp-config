@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+import os, os.path, re, sys
+import argparse
+import logging
+import cPickle as pickle
+
+import numpy as np
+import pandas as pd
+
+from vespa.kepler import setup_fpp, KOI_FPPDIR
+from keputils.koiutils import koiname
+
+def initLogging(filename, logger):
+    if logger == None:
+        logger = logging.getLogger()
+    else:  # wish there was a logger.close()
+        for handler in logger.handlers[:]:  # make a copy of the list
+            logger.removeHandler(handler)
+
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter(fmt='%(asctime)s: %(message)s')
+
+    fh = logging.FileHandler(filename)
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+    sh = logging.StreamHandler(sys.stdout)
+    logger.addHandler(sh)
+    return logger
+
+
+if __name__=='__main__':
+    
+    parser = argparse.ArgumentParser(description='set up FPP calculation(s) for given KOI(s)')
+    parser.add_argument('kois', nargs='+', help='KOIs to config')
+    parser.add_argument('--trsig_overwrite', action='store_true',
+                        help='flag to re-fit transit signal')
+    parser.add_argument('--star_only', action='store_true')
+    parser.add_argument('--fpp_only', action='store_true')
+
+    args = parser.parse_args()
+
+    logger = None
+
+    for koi in args.kois:
+        folder = os.path.join(KOI_FPPDIR, koiname(koi))
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        logfile = os.path.join(folder, 'fppconfig.err')
+        try:
+            setup_fpp(koi, trsig_overwrite=args.trsig_overwrite,
+                      star_only=args.star_only, fpp_only=args.fpp_only)
+            if os.path.exists(logfile):
+                os.remove(logfile)
+        except:
+            logger = initLogging(logfile, logger)
+            logger.error('Error with writing config setup for {}.'.format(koi),
+                          exc_info=True)
