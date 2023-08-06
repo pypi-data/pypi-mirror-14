@@ -1,0 +1,19 @@
+.. image:: https://img.shields.io/pypi/pyversions/flowtool-all.svg
+    :target: https://pypi.python.org/pypi/flowtool-all
+    :alt: PyPI Python Versions
+
+.. image:: https://img.shields.io/pypi/v/flowtool-all.svg
+    :target: https://pypi.python.org/pypi/flowtool-all
+    :alt: PyPI Latest Version
+
+.. image:: https://img.shields.io/pypi/format/flowtool-all.svg
+    :target: https://pypi.python.org/pypi/flowtool-all
+    :alt: PyPI Distribution Format
+
+
+flowtool-all
+============
+
+The meta package of `flowtool`, depending on all available flowtool components.
+
+
