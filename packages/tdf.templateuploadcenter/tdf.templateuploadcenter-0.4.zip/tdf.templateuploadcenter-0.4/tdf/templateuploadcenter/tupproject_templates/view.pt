@@ -1,0 +1,306 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en"
+      xmlns:tal="http://xml.zope.org/namespaces/tal"
+      xmlns:metal="http://xml.zope.org/namespaces/metal"
+      xmlns:i18n="http://xml.zope.org/namespaces/i18n"
+      lang="en"
+      metal:use-macro="context/main_template/macros/master"
+      i18n:domain="tdf.templateuploadcenter">
+
+
+<head>
+    <metal:block fill-slot="top_slot">
+        <link rel="stylesheet" type="text/css"
+            tal:define="navroot context/@@plone_portal_state/navigation_root_url"
+            tal:attributes="href string:${navroot}/++resource++tdf.templateuploadcenter/templateuploadcenter.css"
+            />
+        <tal:noborder condition="python:not user.has_permission('Modify portal content', context)">
+            <tal:noborderset tal:define="dummy python:request.set('disable_border', 1)" />
+        </tal:noborder>
+    </metal:block>
+</head>
+
+<body>
+
+<metal:main fill-slot="main">
+    <tal:main-macro metal:define-macro="main" tal:define="toLocalizedTime nocall:context/@@plone/toLocalizedTime;
+                                                          is_editable context/@@plone_context_state/is_editable;
+                                                          wf_tool here/portal_workflow;
+                                                          all_releases view/all_releases;
+                                                          latestRelease view/latest_release;
+                                                          review_state python:wf_tool.getInfoFor( here, 'review_state', '');">
+<div class="grid-row">
+    <div class="grid-cell position-leftmost width-two-thirds">
+        <span tal:replace="structure context/@@authenticator/authenticator"/>
+
+                  <p class="portalinfomessage"
+           tal:condition="python: is_editable and not review_state == 'published' "
+           i18n:domain="plone" i18n:translate="description_cannot_add_before_approved">
+           Please make sure the relevant project information has been entered and a release has been added to your project.
+           Once you have finished that you could submit your project for approval (publication).
+        </p>
+        <p tal:condition="python: is_editable and len(context.getFolderContents()) is 0">Your next step: add a first release to your project please.</p>
+         <div tal:condition="python: is_editable">
+        <p>Please submit:</p>
+        <a class="pointer" tal:attributes="href string:${context/absolute_url}/++add++tdf.templateuploadcenter.tuprelease" i18n:translate="">
+                            <img src="++resource++tdf.templateuploadcenter/yellowarrow.png"  alt=""/> a Release to your
+                            <span tal:content="context/product_title | string:template_project" i18n:name="product_title_tupproject" /> Project
+
+                        </a>
+        <p>or:</p>
+        <a class="pointer" tal:attributes="href string:${context/absolute_url}/++add++tdf.templateuploadcenter.tupreleaselink" i18n:translate="">
+                            <img src="++resource++tdf.templateuploadcenter/yellowarrow.png"  alt=""/> a linked Release to your
+                            <span tal:content="context/product_title | string:template_project" i18n:name="product_title_tupproject" /> Project
+
+                        </a>
+
+</div>
+
+         <div class="paneeucproject">
+
+
+         <h1 class="documentFirstHeading"><span tal:content="context/title" /></h1>
+        <div tal:content="structure context/@@rate-if-you-dare"/>
+        <p class="documentDescription"><span tal:content="context/description" /></p>
+        <h2 class="documentSecondHeading">Project Description</h2>
+        <p class="documentDescription" tal:content="structure view/w/details/render" />
+        <h3>Category/Categories</h3>
+        <div tal:content="structure view/w/category_choice/render" />
+        <h3 tal:condition="context/homepage">Homepage of the Project</h3>
+        <div tal:content="context/homepage" />
+
+<h4>Logo</h4>
+
+<img src="" alt=""
+     tal:condition="context/project_logo|nothing"
+          tal:define="scales context/@@images;
+          scale python:scales.scale('project_logo', 'mini')"
+           tal:replace="structure python:scale and scale.tag(css_class='tupcenterprojectlogo') or None" />
+
+             <div class="visualClear"></div>
+
+        <tal:nostable condition="nocall:not:latestRelease">
+            <h2 i18n:translate="label_current_stable_release">Current Release</h2>
+
+                <p i18n:translate="help_not_stable_release">
+                    No stable release available yet.
+                </p>
+            <tal:noreleases tal:condition="python:latestRelease is None">
+
+                </tal:noreleases>
+
+        </tal:nostable>
+        <tal:stable condition="nocall:latestRelease">
+             <h2>
+              <span i18n:translate="">Current Release</span> <br />
+              <a href="#" title="Current release for the project"
+               i18n:attributes="title title_latest_release_project"
+               tal:attributes="href latestRelease/absolute_url">
+               <span tal:content="latestRelease/Title" />
+              </a>
+            </h2>
+
+            <p class="discreet">
+
+                <tal:releasedate condition="latestRelease/effective" i18n:translate="">
+                    Released <span tal:replace="view/latest_release_date" i18n:name="latest_release_date" />
+                </tal:releasedate>
+
+
+                <tal:compatibility condition="latestRelease/compatibility_choice">
+                    &mdash; <span i18n:translate="">tested with:</span>
+</tal:compatibility>
+
+</p>
+            <tal:compatibility condition="latestRelease/compatibility_choice">
+ <ul class="latestreleasecompatiblity">
+                         <tal:loop repeat="compatibility_choice latestRelease/compatibility_choice">
+                            <li><div tal:content="compatibility_choice" /></li>
+                         </tal:loop>
+                     </ul>
+</tal:compatibility>
+
+<p tal:condition="latestRelease/description">
+                <span tal:replace="latestRelease/description">
+                 Main focus for this release is the following.
+                </span><br />
+                <a href="#"
+                   i18n:translate="label_release_details"
+                   tal:attributes="href latestRelease/absolute_url">More about this release&hellip;</a>
+                </p>
+            <dl>
+                <span tal:condition="not:python:latestRelease.portal_type == 'tdf.templateuploadcenter.tupreleaselink'">
+                    <span tal:condition="latestRelease/file">
+                         <a i18n:translate="label_template_file" tal:attributes="href string:${latestRelease/absolute_url}/@@download/file/${latestRelease/file/filename}">
+                        <img src="++resource++tdf.templateuploadcenter/download_icon.gif" /></a>
+                        <tal:loop repeat="platform_choice latestRelease/platform_choice">
+                            <dl><div tal:content="platform_choice" /></dl>
+                         </tal:loop>
+                        <div class="tucfilesize">
+                       <span>File size: </span> <span tal:content="python:latestRelease.file.size / 1024" /><span> kb</span>
+                            </div>
+                     </span>
+                    <span tal:condition="latestRelease/file1">
+                         <a i18n:translate="label_template_file" tal:attributes="href string:${latestRelease/absolute_url}/@@download/file1/${latestRelease/file1/filename}">
+                        <img src="++resource++tdf.templateuploadcenter/download_icon.gif" /></a>
+                        <tal:loop repeat="platform_choice latestRelease/platform_choice1">
+                            <dl><div tal:content="platform_choice" /></dl>
+                         </tal:loop>
+                        <div class="tucfilesize">
+                       <span>File size: </span> <span tal:content="python:latestRelease.file1.size / 1024" /><span> kb</span>
+                            </div>
+                    </span>
+                    <span tal:condition="latestRelease/file2">
+                         <a i18n:translate="label_template_file" tal:attributes="href string:${latestRelease/absolute_url}/@@download/file2/${latestRelease/file2/filename}">
+                        <img src="++resource++tdf.templateuploadcenter/download_icon.gif" /></a>
+                        <tal:loop repeat="platform_choice latestRelease/platform_choice2">
+                            <dl><div tal:content="platform_choice" /></dl>
+                         </tal:loop>
+                        <div class="tucfilesize">
+                       <span>File size: </span> <span tal:content="python:latestRelease.file2.size / 1024" /><span> kb</span>
+                            </div>
+                    </span>
+                    <span tal:condition="latestRelease/file3">
+                         <a i18n:translate="label_template_file" tal:attributes="href string:${latestRelease/absolute_url}/@@download/file3/${latestRelease/file3/filename}">
+                        <img src="++resource++tdf.templateuploadcenter/download_icon.gif" /></a>
+                        <tal:loop repeat="platform_choice latestRelease/platform_choice3">
+                            <dl><div tal:content="platform_choice" /></dl>
+                         </tal:loop>
+                        <div class="tucfilesize">
+                       <span>File size: </span> <span tal:content="python:latestRelease.file3.size / 1024" /><span> kb</span>
+                            </div>
+                    </span>
+
+                </span>
+                <span tal:condition="python:latestRelease.portal_type == 'tdf.templateuploadcenter.tupreleaselink'">
+                    <span tal:condition="latestRelease/link_to_file">
+                        <a i18n:translate="label_template_file" tal:attributes=" href latestRelease/link_to_file">
+                        <img src="++resource++tdf.templateuploadcenter/download_icon.gif" /></a>
+                        <tal:loop repeat="platform_choice latestRelease/platform_choice">
+                            <dl><div tal:content="platform_choice" /></dl>
+                         </tal:loop>
+                    </span>
+                    <span tal:condition="latestRelease/link_to_file1">
+                        <a i18n:translate="label_template_file" tal:attributes=" href latestRelease/link_to_file1">
+                        <img src="++resource++tdf.templateuploadcenter/download_icon.gif" /></a>
+                        <tal:loop repeat="platform_choice latestRelease/platform_choice1">
+                            <dl><div tal:content="platform_choice" /></dl>
+                         </tal:loop>
+                    </span>
+                    <span tal:condition="latestRelease/link_to_file2">
+                        <a i18n:translate="label_template_file" tal:attributes=" href latestRelease/link_to_file2">
+                        <img src="++resource++tdf.templateuploadcenter/download_icon.gif" /></a>
+                        <tal:loop repeat="platform_choice latestRelease/platform_choice2">
+                            <dl><div tal:content="platform_choice" /></dl>
+                         </tal:loop>
+                    </span>
+                    <span tal:condition="latestRelease/link_to_file3">
+                        <a i18n:translate="label_template_file" tal:attributes=" href latestRelease/link_to_file3">
+                        <img src="++resource++tdf.templateuploadcenter/download_icon.gif" /></a>
+                        <tal:loop repeat="platform_choice latestRelease/platform_choice3">
+                            <dl><div tal:content="platform_choice" /></dl>
+                         </tal:loop>
+                    </span>
+                </span>
+            </dl>
+
+
+
+        </tal:stable>
+             <h2 i18n:translate="">All Releases</h2>
+
+
+<table class="tupcenterprojecttable" border="1" width="100%">
+            <thead>
+            <tr bgcolor="#40FB27">
+                <td><h4 i18n:translate="title_extension">Extension Version</h4></td>
+                <td><h4 i18n:translate="title_platform">Platform(s)</h4></td>
+                <td><h4 i18n:translate="title_compatiblity">Compatibility</h4></td>
+                <td><h4 i18n:translate="title_description">Description</h4></td>
+                <td><h4 i18n:translate="title_lisenses">License(s)</h4></td>
+                <td><h4>Status</h4></td>
+            </tr>
+            </thead>
+             <tbody>
+             <tal:loop repeat="release all_releases">
+             <tr tal:define="wtool release/portal_workflow;
+                             maturity python: wtool.getInfoFor(release, 'review_state')">
+                 <td>
+                 <h4><a tal:attributes="href release/absolute_url">
+                     <span tal:content="release/Title" /> - <span tal:content="release/releasenumber" /></a></h4>
+                 </td>
+                 <td>
+                     <ul><tal:loop repeat="platform_choice release/platform_choice">
+                         <li><div tal:content="platform_choice"/></li>
+                     </tal:loop></ul>
+                 </td>
+                 <td>
+                     <ul>
+                         <tal:loop repeat="compatibility_choice release/compatibility_choice">
+                            <li><div tal:content="compatibility_choice"/></li>
+                         </tal:loop>
+                     </ul>
+                </td>
+                <td tal:content="release/Description">Description</td>
+                <td>
+                    <ul>
+                        <tal:loop repeat="licenses_choice release/licenses_choice">
+                            <li><div tal:content="licenses_choice"/></li>
+                        </tal:loop></ul>
+                </td>
+                <td class="maturity" tal:content="maturity" />
+             </tr>
+             </tal:loop>
+             </tbody>
+             </table>
+
+
+
+
+      <h4 class="tupcenterlegaldownload" tal:content="structure context/title_legaldownloaddisclaimer" />
+      <div class="tupcenterlegaldownload" tal:content="structure context/legal_downloaddisclaimer/output" />
+             </div>
+        </div>
+
+	<div class="grid-cell position-two-thirds width-third">
+		<div class="sidebar">
+            <div id="projectresources">
+            <h2 i18n:translate="title_project_resources">Project Resources</h2>
+            <ul>
+            <li tal:condition="context/documentation_link">
+                <a href="" tal:attributes="href context/documentation_link">External Documentation</a>
+            </li>
+                <li tal:condition="context/homepage">
+                    <a href="" tal:attributes="href context/homepage">External Project Page</a>
+                </li>
+            </ul>
+
+        <div tal:condition="context/screenshot">
+            <h4 i18n:translate="title_screenshot">Screenshot</h4>
+
+              <div class="tupcenterprojectscreenshot" width="250px" tal:define="screenshot nocall:context/screenshot"
+                   tal:condition="nocall:screenshot">
+              <img tal:define="scales context/@@images"
+                   tal:replace="structure python: scales.tag('screenshot',
+                        width=250, height=200, direction='down')" />
+
+        </div>
+            </div>
+        </div>
+        <div class="eupcenterprojectinstallinstructions" tal:condition="context/install_instructions">
+            <h3>Install Instructions</h3>
+            <span tal:content="structure context/install_instructions/output" />
+        </div>
+            <div class="eupcenterprojectreportingbugs" tal:condition="context/reporting_bugs">
+                <h3>Reporting Template-Bugs</h3>
+                <span tal:content="structure context/reporting_bugs/output" />
+            </div>
+            </div>
+        </div>
+
+</div>
+
+</tal:main-macro>
+</metal:main>
+
+</body>
+</html>
