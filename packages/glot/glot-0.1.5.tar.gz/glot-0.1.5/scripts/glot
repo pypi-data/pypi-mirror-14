@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+
+# This file is part of the Go-Smart Simulation Architecture (GSSA).
+# Go-Smart is an EU-FP7 project, funded by the European Commission.
+#
+# Copyright (C) 2013-  NUMA Engineering Ltd. (see AUTHORS file)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+import click
+import asyncio
+import txaio
+
+from glot.connector import execute
+import glot.actions as actions
+
+
+def execute_command(f):
+    def run(ctx, **kwargs):
+        kwargs['debug'] = ctx.obj['DEBUG']
+        execute(
+            f,
+            ctx.obj['ACTOR'],
+            *ctx.obj['SERVER'],
+            **kwargs
+        )
+    run.__name__ = f.__name__
+    return run
+
+
+@click.group()
+@click.option('--server', default=None, help='ID of the specific Glossia server (defaults to primary on router)')
+@click.option('--router', default='localhost', help='location of the WAMP server')
+@click.option('--port', default=8080, help='port on server for WebSocket connection')
+@click.option('--to', default=None, help='name of destination folder')
+@click.option('--force', is_flag=True, help='Overwrite when necessary')
+@click.option('--debug', default=False, is_flag=True)
+@click.option('--color/--no-color', default=True, is_flag=True, help='Color output to terminal')
+@click.option('-v', '--verbose', is_flag=True)
+@click.pass_context
+def cli(ctx, server, router, port, to, force, debug, color, verbose):
+    """Manage Glossia from the CLI"""
+    ctx.obj['SERVER'] = (server, router, port)
+    ctx.obj['DEBUG'] = debug
+    ctx.obj['ACTOR'] = actions.GlotActor(verbose, force, to, color, debug)
+
+    if debug:
+        txaio.start_logging(level='trace')
+    else:
+        txaio.start_logging(level='info')
+
+
+@cli.command()
+@click.option('--stdout', is_flag=True)
+@click.argument('guid', default='')
+@click.pass_context
+@execute_command
+@asyncio.coroutine
+def logs(actor, guid, stdout):
+    """Check for definitions match GUID (prefix)"""
+
+    yield from actor.logs(guid, stdout)
+
+
+@cli.command()
+@click.option('--limit', default=10)
+@click.option('--server-limit', default=1000)
+@click.option('--sort', default='timestamp')
+@click.argument('guid', default='')
+@click.pass_context
+@execute_command
+@asyncio.coroutine
+def search(actor, limit, server_limit, sort, guid):
+    """Check for definitions match GUID (prefix)"""
+
+    yield from actor.search(limit, server_limit, sort, guid)
+
+
+@cli.command()
+@click.option('--limit', default=15)
+@click.option('--server-limit', default=1000)
+@click.option('--sort', default='timestamp')
+@click.pass_context
+@execute_command
+@asyncio.coroutine
+def table(actor, limit, server_limit, sort):
+    """Provide a basic table of recent simulations (very similar to search with no args)"""
+
+    yield from actor.search(limit, server_limit, sort, None, fancy=True)
+
+
+@cli.command()
+@click.option('-t', '--target', default=None)
+@click.option('-d', '--include-diagnostic', default=False, is_flag=True)
+@click.option('-i', '--inspect-diagnostic', default=False, is_flag=True)
+@click.argument('guid')
+@click.pass_context
+@execute_command
+@asyncio.coroutine
+def results(actor, guid, target, include_diagnostic, inspect_diagnostic):
+    """Push results data to the webserver"""
+
+    yield from actor.results(guid, target, include_diagnostic, inspect_diagnostic)
+
+
+@cli.command()
+@click.argument('guid')
+@click.pass_context
+@execute_command
+@asyncio.coroutine
+def cancel(actor, guid):
+    """Cancel a running simulation"""
+
+    yield from actor.cancel(guid)
+
+
+@cli.command()
+@click.argument('guid')
+@click.pass_context
+@execute_command
+@asyncio.coroutine
+def status(actor, guid):
+    """Get status of a simulation"""
+
+    yield from actor.status(guid)
+
+
+@cli.command()
+@click.option('-t', '--target', default=None)
+@click.option('-i', '--inspect', is_flag=True)
+@click.argument('guid')
+@click.pass_context
+@execute_command
+@asyncio.coroutine
+def diagnostic(actor, guid, target, inspect):
+    """Push diagnostic data to the webserver"""
+
+    yield from actor.diagnostic(guid, target, inspect)
+
+
+@cli.command()
+@click.option('--tmp-subdirectory', default='.', help="subdirectory containing input files")
+@click.option('--tmp-directory', default='/tmp/gssa-transferrer', help="location of the mounted transferrer directory")
+@click.option('--input', '-i', multiple=True, help="input files for surfaces, etc.")
+@click.option('--definition', '-d', multiple=True, help="file(s) containing module / text of the definition node (which should exist but be empty in the GSSA file)")
+@click.argument('gssa-xml', default='original.xml')
+@click.pass_context
+@execute_command
+@asyncio.coroutine
+def launch(actor, gssa_xml, tmp_subdirectory, tmp_directory, input, definition):
+    """Launch a simulation"""
+
+    yield from actor.launch(gssa_xml, tmp_subdirectory, tmp_directory, input, definition)
+
+
+@cli.command()
+@click.option('--mode', default='elmer-libnuma')
+@click.argument('archive')
+@click.pass_context
+def inspect(ctx, archive, mode):
+    """Examine a diagnostic bundle"""
+
+    actor = ctx.obj['ACTOR']
+
+    if not actor.has_log():
+        actor.set_log(txaio.make_logger())
+
+    actor.inspect(archive, mode)
+
+
+@cli.command()
+@click.option('--mode', default='elmer-libnuma')
+@click.argument('path', default='.', nargs=1)
+@click.argument('definition', nargs=-1)
+@click.pass_context
+def setup(ctx, path, mode, definition):
+    """Prepare a local directory for running a simulation."""
+
+    actor = ctx.obj['ACTOR']
+
+    if not actor.has_log():
+        actor.set_log(txaio.make_logger())
+
+    actor.setup(path, mode, definition=definition)
+
+
+if __name__ == '__main__':
+    cli(obj={})
