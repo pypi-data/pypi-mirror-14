@@ -1,0 +1,74 @@
+
+Asynchronous Network Programming (asyncoro)
+*******************************************
+
+asyncoro provides "AsyncSocket" that converts synchronous (regular)
+sockets created with "socket.socket" to asynchronous sockets to be
+used in coroutines. I/O methods, such as connect, send, receive etc.
+of asynchronous sockets should be used with *yield*. These methods
+simply schedule I/O operation and due to *yield* give control to
+AsynCoro scheduler scheduler so that other coroutines can be executed
+while the I/O operation is pending. When the I/O operation is
+complete, the coroutine that executed the I/O operation becomes
+eligible for execution. The API described below can be used for
+asynchronous network programming.
+
+
+Examples
+========
+
+See Asynchronous Network Programming in tutorial for an example. There
+are many illustrative use cases in 'examples' directory under where
+asyncoro module is installed.
+
+Following is a brief description of the examples included relevant to
+this section:
+
+* "examples/tut_sock_client.py" and "examples/tut_sock_server.py"
+  use asynchronous network programmming to implement client/server
+  processes.
+
+* "examples/chat_sock_client.py" and "examples/chat_sock_server.py"
+  implement chat client and server.
+
+
+Asynchronous Socket
+===================
+
+class asyncoro.AsyncSocket(sock, blocking=False, keyfile=key, certfile=cert, ssl_version=version)
+
+   Converts a synchronous (regular) socket *sock* (created with
+   "socket.socket") to an asynchronous (non-blocking) socket.
+
+   *blocking* is either "True" or "False". If it is "False" (default),
+   the socket will be setup for asynchronous operations and if it is
+   "True", it will be setup for synchronous operations (e.g., if
+   passing the socket to a thread for processing).
+
+   *keyfile*, *certfile* and *ssl_version* are as per "wrap_socket()"
+   method in ssl module.
+
+   Socket operations "accept()", "connect()", "send()", "recv()",
+   "sendall()", "sendto()" and "recvfrom()" for asynchronous sockets
+   must be used with *yield*>. The value of such yield statement is
+   the result of the socket I/O operation (for example, for "yield
+   recv(1024)", it would be the buffer received by the socket).
+
+   asyncoro's socket implementation adds "recvall()", "send_msg()",
+   "recv_msg()" methods. These methods must be used with *yield* when
+   using with asynchronous sockets.:
+
+      * "buf = yield recvall(n)" receives exactly given number of
+        bytes *n* (counterpart to "sendall()"), unlike "recv()" which
+        receives up to *n* bytes,
+
+      * "yield send_msg(buf)" sends the given buffer similar to
+        "sendall()"  with the length of the buffer prefixed, so that
+        receiving side knows exactly how many bytes to receive,
+
+      * "buf = yield recv_msg()" receives full buffer sent by
+        "send_msg()".
+
+The socket returned from "accept()" method of an asynchronous socket
+is also an asynchronous socket, so there is no need to convert it to
+asynchronous version.

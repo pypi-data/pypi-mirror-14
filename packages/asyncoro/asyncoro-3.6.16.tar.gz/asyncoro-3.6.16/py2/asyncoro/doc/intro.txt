@@ -1,0 +1,110 @@
+
+Introduction
+************
+
+Traditional methods of threads and synchronous I/O have some
+drawbacks, especially with Python due to global interpreter lock
+(GIL). This approach is not suited for large number of concurrent
+connections, known as C10K problem. In addition, threads in Python
+have both memory and time overheads, especially on multi-core systems
+due to context switches; see Inside the Python GIL.
+
+There are now many asynchronous frameworks that address these
+problems, that usually provide event loop mechanism and callbacks.
+Programming with such framework requires careful retooling of the
+application logic, similar to using GOTO statements.
+
+Unlike with those frameworks, using asyncoro is very similar to the
+thread based programming so there is almost no learning curve (as far
+as asynchronous programming is concerned) - existing thread
+implementations can be converted to asyncoro almost mechanically
+(although it cannot be automated). In fact, it is easier to use
+asyncoro than threads, as locking is not required with asyncoro. While
+not required to program with asyncoro, Curious Course on Coroutines
+and Concurrency offers details on generator functions and coroutines.
+
+For example, a simple client program to send messages using sockets
+with asyncoro is:
+
+   import sys, socket, asyncoro
+
+   def client(host, port, n, coro=None):
+       sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+       # convert 'sock' to asynchronous socket
+       sock = asyncoro.AsyncSocket(sock)
+       yield sock.connect((host, port))
+       data = 'client id: %d' % n
+       yield sock.sendall(data)
+       sock.close()
+
+   # run 10 client coroutines
+   for i in range(10):
+       asyncoro.Coro(client, sys.argv[1], int(sys.argv[2]), i)
+
+The pgrogram creates 10 coroutines; each coroutine process converts
+socket to asynchronous socket with Asynchronous Socket, connects to
+server and sends a message. In the coroutines, socket I/O operations
+are called with *yield* (with *connect* and *sendall* here). With
+these statements, the I/O operation is initiated, the coroutine is
+suspended and control goes to asyncoro's scheduler for scheduling
+other coroutines as well as processing I/O events. When an I/O
+operation is complete, the scheduler resumes the suspended coroutine
+with the results of the I/O operation. During the time it takes to
+complete an I/O operation, the scheduler executes other coroutines, so
+many requests can be concurrently processed.
+
+Note that the above program is similar to regular Python program,
+except for using *yield* and creating processes with Coroutine
+(instead of "threading.Thread"). Unlike with other asynchronous
+frameworks, the I/O event loop in asyncoro is transparent - asyncoro's
+scheduler handles I/O events automatically. If coroutine method has
+"coro=None" default argument, the coroutine constructor Coroutine will
+set this "coro" argument with the Coro instance, which can be used for
+calling methods in Coroutine class (e.g., "yield coro.sleep(2)" to
+suspend execution for 2 seconds).
+
+asyncoro package conists of following modules:
+
+* "asyncoro" module provides API for coroutines and asynchronous
+  network programming. It includes following classes:
+
+  * Coroutine to create coroutines, which are counterpart to threads
+    in regular (synchronous) programs. Programming with coroutines is
+    very similar to programming with threads, except for a few
+    differences. Coroutines also support message passing for local or
+    remote coroutines to exchange information.
+
+  * "Lock", "RLock", "Event", "Semaphore", "Condition" primitives
+    provide asynchronous API similar to counterparts in threading
+    module. Blokcing operations in these primitives should be used
+    with *yield*.
+
+  * Asynchronous Socket should be used to convert regular
+    (synchronous) socket to asynchronous socket, as done in the
+    example above. Blocking operations, such as *connect*, *send*,
+    *recv* etc. should be used with *yield*.
+
+  * Channel provides broadcasting (one-to-many, subscription based)
+    API for message passing.
+
+* "disasyncoro" module extends AsynCoro scheduler and Coroutine,
+  Channel etc. so the API works for remote coroutines, channels etc.
+  In addition, it provides Location used to refer to resource location
+  and RCI (Remote Coroutine Invocation) to execute (predefined)
+  coroutines.
+
+* "discoro" module provides Computation to package computation
+  fragments (code) and data to be scheduled for executing at remote
+  server processes with AsynCoro. The client program can then schedule
+  (remote) coroutines to be executed. These coroutines and client can
+  use message passing to exchange data. The remote servers should be
+  started with "discoronode.py" program.
+
+* "asyncfile" module provides Asynchronous File and Asynchronous
+  Pipe for converting files and pipes to asynchronous API.  Blocking
+  operations on these should be used with *yield*, as with sockets.
+
+asyncoro has been tested with Python versions 2.7 and 3.2 under Linux,
+OS X and Windows. Under Windows asyncoro uses IOCP only if Python for
+Windows Extensions (pywin32) is installed. pywin32 works with Windows
+32-bit and 64-bit.
