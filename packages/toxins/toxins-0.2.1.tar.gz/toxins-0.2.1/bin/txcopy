@@ -1,0 +1,193 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright 2015 Simone Campagna
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+__author__ = "Simone Campagna"
+
+import argparse
+import functools
+import logging
+import os
+import shutil
+import sys
+
+
+def show_error(logger, trace, error_message):
+    if trace:
+        logger.exception(error_message)
+    else:
+        err_type, err_value, traceback = sys.exc_info()
+        logger.exception("{}: {}: {}".format(error_message, err_type.__name__, err_value))
+
+
+def check_parent(dst, logger, parents=False, trace=False, remove_dest=False):
+    ddir, dbase = os.path.split(dst)
+    if ddir:
+        if not os.path.exists(ddir):
+            if parents:
+                try:
+                    logger.debug("trying to create parent directory {!r}...".format(ddir))
+                    os.makedirs(ddir)
+                except:
+                    show_error(logger, trace, "cannot create parent directory {!r}".format(ddir))
+                    return 1
+            else:
+                logger.error("missing parent directory {!r}".format(ddir))
+                return 2
+
+def rm_dest(dst, logger, trace=False, remove_dest=False):
+    if os.path.exists(dst):
+        if remove_dest:
+            if os.path.isdir(dst):
+                logger.debug("trying to remove destination directory {!r}...".format(dst))
+                shutil.rmtree(dst)
+            else:
+                logger.debug("trying to remove destination file {!r}...".format(dst))
+                os.remove(dst)
+            return 0
+        else:
+            logger.error("destination {!r} exists".format(dst))
+            return 3
+                
+def cp_dir(src, dst, logger, trace=False, symlinks=False, ignore=None, remove_dest=False):
+    try:
+        logger.debug("trying to copy tree {!r} -> {!r}...".format(src, dst))
+        shutil.copytree(src, dst, symlinks=symlinks, ignore=ignore)
+    except:
+        show_trace(logger, trace, "cannot copy tree {!r} -> {!r}".format(ddir))
+        return 1
+    
+
+def cp_file(src, dst, logger, trace=False, symlinks=False, ignore=None, remove=False):
+    if os.path.exists(dst) and os.path.isdir(dst):
+        dst = os.path.join(dst, os.path.basename(src))
+    dsrc = os.path.dirname(src)
+    if ignore is None or not src in ignore(dsrc, os.listdir(dsrc)):
+        try:
+            if symlinks and os.path.islink(src):
+                logger.debug("trying to copy link {!r} -> {!r}...".format(src, dst))
+                os.symlink(src, dst)
+            else:
+                logger.debug("trying to copy file {!r} -> {!r}...".format(src, dst))
+                shutil.copy2(src, dst)
+        except:
+            show_trace(logger, trace, "cannot copy file {!r} -> {!r}".format(ddir))
+            return 1
+    return 0
+    
+
+def main():
+    default_verbose_level = 1
+    parser = argparse.ArgumentParser(
+        description="""\
+Copy files and directories""")
+
+    parser.add_argument('source',
+                        metavar='S',
+                        type=str,
+                        help='source path')
+
+    parser.add_argument('dest',
+                        metavar='S',
+                        type=str,
+                        help='destination path')
+
+    parser.add_argument('--ignore', '-i',
+                        dest='ignore_patterns',
+                        action='append',
+                        default=[],
+                        help='add ignore patterns')
+
+    parser.add_argument('--parents', '-p',
+                        dest='create_parents',
+                        default=False,
+                        action='store_true',
+                        help='create missing parent directories for destination')
+
+    parser.add_argument('--symlinks', '-s',
+                        default=False,
+                        action='store_true',
+                        help='copy symbolic links')
+
+    parser.add_argument('--remove-dest', '-r',
+                        default=False,
+                        action='store_true',
+                        help='remove destination if present')
+
+    parser.add_argument('--trace', '-t',
+                        default=False,
+                        action='store_true',
+                        help='show errors traceback')
+
+    parser.add_argument('--quiet', '-q',
+                        dest='verbose_level',
+                        default=default_verbose_level,
+                        action='store_const',
+                        const=0,
+                        help='disable logging')
+
+    parser.add_argument('--verbose', '-v',
+                        dest='verbose_level',
+                        default=default_verbose_level,
+                        help='increase verbose level')
+
+    args = parser.parse_args()
+
+    if args.verbose_level == 0:
+        log_level = logging.WARNING
+    elif args.verbose_level == 1:
+        log_level = logging.INFO
+    else:
+        log_level = logging.DEBUG
+
+
+    logger = logging.getLogger('copy')
+    handler = logging.StreamHandler()
+    handler.setLevel(log_level)
+    logger.addHandler(handler)
+    logger.setLevel(log_level)
+
+    ignore = shutil.ignore_patterns(*args.ignore_patterns)
+    symlinks = args.symlinks
+    remove_dest = args.remove_dest
+    create_parents = args.create_parents
+    trace = args.trace
+
+    source = os.path.abspath(args.source)
+    dest = os.path.abspath(args.dest)
+    if not os.path.exists(source):
+        logger.error("source {!r} does not exists".format(source))
+    elif os.path.isdir(source):
+        copy_function = functools.partial(cp_dir, logger=logger, symlinks=symlinks, ignore=ignore, trace=trace)
+    else:
+        copy_function = functools.partial(cp_file, logger=logger, symlinks=symlinks, ignore=ignore, trace=trace)
+
+    returncode = check_parent(dest, logger=logger, trace=trace, parents=create_parents)
+    if returncode:
+        sys.exit(returncode)
+
+    returncode = rm_dest(dest, logger=logger, trace=trace, remove_dest=remove_dest)
+    if returncode:
+        sys.exit(returncode)
+
+    returncode = copy_function(source, dest)
+
+    sys.exit(returncode)
+
+if __name__ == "__main__":
+    main()
+
