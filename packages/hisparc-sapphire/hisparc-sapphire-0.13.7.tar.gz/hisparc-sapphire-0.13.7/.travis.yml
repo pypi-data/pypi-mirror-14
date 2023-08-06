@@ -1,0 +1,36 @@
+language: python
+python:
+  - "2.7"
+
+sudo: false
+
+addons:
+  apt_packages:
+    - libatlas-dev
+    - libatlas-base-dev
+    - liblapack-dev
+    - gfortran
+
+# Miniconda copied from
+# https://gist.github.com/dan-blanchard/7045057
+before_install:
+  - wget http://repo.continuum.io/miniconda/Miniconda-3.9.1-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b
+  - export PATH=$HOME/miniconda/bin:$PATH
+  - conda update --yes conda
+
+install:
+  - conda install --yes pip python=$TRAVIS_PYTHON_VERSION numpy scipy pytables
+  - pip install coverage coveralls codecov flake8 sphinx
+  - python setup.py develop
+
+script:
+  - coverage run --branch --source=sapphire setup.py test
+  - flake8 --ignore=E501 --exclude=sapphire/transformations/geographic.py sapphire
+  - flake8 --exit-zero --ignore=Z sapphire/transformations/geographic.py
+  - sphinx-build -anW doc doc/_build/html
+
+after_success:
+  - codecov
+  - coveralls
