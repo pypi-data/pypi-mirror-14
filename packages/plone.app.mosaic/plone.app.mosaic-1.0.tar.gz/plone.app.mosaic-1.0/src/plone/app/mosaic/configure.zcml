@@ -1,0 +1,91 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:genericsetup="http://namespaces.zope.org/genericsetup"
+    xmlns:zcml="http://namespaces.zope.org/zcml"
+    i18n_domain="plone">
+
+  <!-- Include dependencies -->
+  <include package="plone.tiles" />
+  <include package="plone.app.tiles" />
+  <include package="plone.app.standardtiles" />
+  <include package="plone.app.blocks" />
+  <include package="plone.app.drafts" />
+
+  <genericsetup:registerProfile
+      name="default"
+      title="Plone Mosaic"
+      description="Installs Mosaic layout support for Dexterity content types"
+      directory="profiles/default"
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      />
+
+  <genericsetup:importStep
+      name="plone.app.mosaic_default"
+      title="Plone Mosaic setup"
+      description="Auto-configures content-types for layout ready"
+      handler=".setuphandlers.step_setup_various"
+      />
+
+  <!-- Backwards compatibility profile -->
+  <genericsetup:registerProfile
+      name="bbb"
+      title="Plone Mosaic for Plone 4"
+      directory="browser/bbb/profiles/default"
+      description="Installs Mosaic layout support for Dexterity content types"
+      provides="Products.GenericSetup.interfaces.EXTENSION"
+      zcml:condition="not-have plone-5"
+      />
+
+  <!-- View method auto-enabler -->
+  <subscriber
+      for="plone.app.dexterity.browser.behaviors.BehaviorConfigurationAdapter
+           zope.lifecycleevent.IObjectModifiedEvent"
+      handler=".handlers.toggleLayoutViewOnFTI"
+      />
+
+  <!-- Registry configuration for Mosaic Editor -->
+  <adapter factory=".registry.MosaicRegistry" />
+
+  <!-- Mosaic Editor Widget -->
+  <adapter
+      factory=".widget.LayoutFieldWidget"
+      zcml:condition="installed plone.app.widgets"
+      />
+  <!-- Hide site layout fields when not enabled -->
+  <adapter
+      factory=".widget.HideSiteLayoutFields"
+      zcml:condition="not-have mosaic-sitelayouts"
+      />
+
+  <!-- HTTPHeaders transform, because main_template may not be rendered -->
+  <adapter
+      for="* .interfaces.IMosaicLayer"
+      name="plone.app.mosaic.httpheaders"
+      factory=".transform.HTTPHeaders"
+      />
+
+  <!-- HTML language transform to fix language attribute in site layout -->
+  <adapter
+      for="* .interfaces.IMosaicLayer"
+      name="plone.app.mosaic.language"
+      factory=".transform.HTMLLanguage"
+      />
+
+  <!-- Body class transform to add traditional Plone body class -->
+  <adapter
+      for="* .interfaces.IMosaicLayer"
+      name="plone.app.mosaic.bodyclass"
+      factory=".transform.BodyClass"
+      />
+
+  <adapter name="layout" factory=".index.get_layout" />
+
+  <include package=".browser" />
+
+  <!-- Register default layouts -->
+  <include file="layouts.zcml" />
+
+  <!-- Register upgrades -->
+  <include file="upgrades.zcml" />
+
+</configure>
