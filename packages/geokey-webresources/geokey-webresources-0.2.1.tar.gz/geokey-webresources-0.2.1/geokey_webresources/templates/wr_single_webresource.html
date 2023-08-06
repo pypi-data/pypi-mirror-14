@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block bodydata %}
+data-project-id="{{ project.id }}"
+data-project-locked="{{ project.islocked }}"
+data-webresource-id="{{ webresource.id }}"
+{% endblock %}
+
+{% block title %} | Project: {{ project.name }} - Web resource: {{ webresource.name }}{% endblock %}
+
+{% block main %}
+{% include 'snippets/wr_header.html' %}
+
+<div class="container">
+    <div class="row">
+        <form role="form" id="form" class="col-md-8 col-md-offset-2" method="POST" action="{% url 'geokey_webresources:single_webresource' project.id webresource.id %}" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+
+            <input type="hidden" id="symbol-clear" name="symbol_clear" value="false" />
+
+            <h3 class="header">
+                {% if project.islocked %}<span class="glyphicon glyphicon-lock text-warning" aria-hidden="true"></span>{% endif %}
+                <span>Edit web resource</span>
+            </h3>
+
+            <div class="form-group {% if form.errors.name %}has-error{% endif %}">
+                <label for="name" class="control-label">Name (required)</label>
+                <input type="text" id="name" class="form-control" name="name" value="{{ form.name.value|default_if_none:webresource.name }}" maxlength="100" required />
+                {% if form.errors.name %}<span class="help-block">{{ form.errors.name|striptags }}</span>{% endif %}
+            </div>
+
+            <div class="form-group {% if form.errors.description %}has-error{% endif %}">
+                <label for="description" class="control-label">Description</label>
+                <textarea id="description" class="form-control" rows="5" name="description">{{ form.description.value|default_if_none:webresource.description }}</textarea>
+                {% if form.errors.description %}<span class="help-block">{{ form.errors.description|striptags }}</span>{% endif %}
+            </div>
+
+            <div class="form-group {% if form.errors.url %}has-error{% endif %}">
+                <label for="name" class="control-label">URL to GeoJSON or KML (required)</label>
+                <input type="url" id="url" class="form-control" name="url" placeholder="https://" value="{{ form.url.value|default_if_none:webresource.url }}" maxlength="250" required />
+                {% if form.errors.url %}<span class="help-block">{{ form.errors.url|striptags }}</span>{% endif %}
+            </div>
+
+            <div class="form-group {% if form.errors.colour %}has-error{% endif %}">
+                <label for="colour" class="control-label">Colour</label>
+                <div id="colour" class="input-group">
+                    <input type="text" class="form-control" name="colour" value="{{ form.colour.value|default_if_none:webresource.colour }}" />
+                    <span class="input-group-addon"><i></i></span>
+                </div>
+                {% if form.errors.colour %}<span class="help-block">{{ form.errors.colour|striptags }}</span>{% endif %}
+            </div>
+
+            <div class="form-group {% if form.errors.symbol %}has-error{% endif %}">
+                <label for="symbol" class="control-label">Symbol</label>
+                <input type="file" id="symbol" name="symbol" accept="image/*" data-target="symbol" {% if webresource.symbol %}data-preview="{{ webresource.symbol.url }}"{% endif %} />
+                {% if form.errors.symbol %}<span class="help-block">{{ form.errors.symbol|striptags }}</span>{% endif %}
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <a href="{% url 'geokey_webresources:all_webresources' project.id %}" class="btn btn-link" role="button">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    {% if not project.islocked %}
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                <div class="panel panel-danger">
+                    <div class="panel-heading">
+                        <h2 class="panel-title">Be careful!</h2>
+                    </div>
+
+                    <div class="panel-body becareful">
+                        <div class="toggle-active {% if webresource.status == status_types.active %}hidden{% endif %}">
+                            <strong>Make this web resource active</strong>
+                            <p>The web resource will be available to the public again.</p>
+                            <a href="#" class="text-danger" data-toggle="modal" data-target="#make-active-confirm">Make active</a>
+                        </div>
+
+                        <div class="toggle-active {% if webresource.status == status_types.inactive %}hidden{% endif %}">
+                            <strong>Make this web resource inactive</strong>
+                            <p>The web resource will no longer be available to the public.</p>
+                            <a href="#" class="text-danger" data-toggle="modal" data-target="#make-inactive-confirm">Make inactive</a>
+                        </div>
+
+                        <div>
+                            <strong>Remove web resource</strong>
+                            <p>Removing a web resource cannot be undone.</p>
+                            <a href="#" class="text-danger" data-toggle="modal" data-target="#remove-confirm">Remove this web resource</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block modals %}
+<div role="dialog" id="make-active-confirm" class="modal fade" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content panel-warning">
+            <div class="modal-header panel-heading">
+                <button class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title">Are you sure?</h4>
+            </div>
+
+            <div class="modal-body panel-body">
+                <p><strong>Before you make the web resource active, please read through the consequences of this action:</strong></p>
+
+                <ul>
+                    <li>The web resource will be available to the public again</li>
+                    <li>You can make it inactive again at any time</li>
+                </ul>
+            </div>
+
+            <div class="modal-footer panel-footer">
+                <button name="confirm" value="{{ status_types.active }}" class="btn btn-warning" data-loading-text="Loading...">Yes, make the web resource active</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div role="dialog" id="make-inactive-confirm" class="modal fade" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content panel-warning">
+            <div class="modal-header panel-heading">
+                <button class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title">Are you sure?</h4>
+            </div>
+
+            <div class="modal-body panel-body">
+                <p><strong>Before you make the web resource inactive, please read through the consequences of this action:</strong></p>
+
+                <ul>
+                    <li>The web resource will not be available to the public anymore</li>
+                    <li>You can activate it again at any time</li>
+                </ul>
+            </div>
+
+            <div class="modal-footer panel-footer">
+                <button name="confirm" value="{{ status_types.inactive }}" class="btn btn-warning" data-loading-text="Loading...">Yes, make the web resource inactive</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div role="dialog" id="remove-confirm" class="modal fade" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content panel-danger">
+            <div class="modal-header panel-heading">
+                <button class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+                <h4 class="modal-title">Are you sure?</h4>
+            </div>
+
+            <div class="modal-body panel-body">
+                <p><strong>Before you remove the web resource, please read through the consequences of this action:</strong></p>
+
+                <ul>
+                    <li>Removing a web resource cannot be undone</li>
+                    <li>It will not delete any of the data from the original source</li>
+                    <li>It will not delete any contributions from the project</li>
+                </ul>
+
+                <p>You may make the web resource <i>inactive</i> instead to hide it from the public.</p>
+            </div>
+
+            <div class="modal-footer panel-footer">
+                <a type="button" href="{% url 'geokey_webresources:webresource_remove' project.id webresource.id %}" class="btn btn-danger">I'm absolutely sure, remove the web resource!</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block libraries %}
+<script type="text/javascript">
+    var url = 'projects/' + $('body').attr('data-project-id') + '/webresources/' + $('body').attr('data-webresource-id') + '/';
+    var updatename = 'webresource';
+</script>
+
+<link rel="stylesheet" href="/static/lib/bootstrap-colorpicker/css/bootstrap-colorpicker.min.css">
+<script type="text/javascript" src="/static/lib/bootstrap-colorpicker/js/bootstrap-colorpicker.min.js"></script>
+
+<link rel="stylesheet" href="/static/lib/bootstrap-fileinput/css/bootstrap-fileinput.min.css">
+<script type="text/javascript" src="/static/lib/bootstrap-fileinput/js/bootstrap-fileinput.min.js"></script>
+
+<script type="text/javascript" src="/static/js/admin.control.ajax.js"></script>
+<script type="text/javascript" src="/static/js/admin.ui.updater.js"></script>
+<script type="text/javascript" src="/static/js/admin.ui.forms.validate.js"></script>
+<script type="text/javascript" src="/static/js/admin.ui.fileinput.js"></script>
+
+<script type="text/javascript">
+    // Initialise color picker
+    $('#colour').colorpicker({
+        format: 'hex'
+    });
+
+    // Initialise file upload
+    $('input:file').each(function() {
+        Ui.FileInput.init($(this), {
+            showUpload: false,
+            showCancel: false
+        });
+    });
+</script>
+{% endblock %}
