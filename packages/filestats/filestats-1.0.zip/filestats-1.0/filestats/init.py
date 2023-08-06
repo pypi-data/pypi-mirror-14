@@ -1,0 +1,1 @@
+from filestats.filestats import  filestat,word_count
