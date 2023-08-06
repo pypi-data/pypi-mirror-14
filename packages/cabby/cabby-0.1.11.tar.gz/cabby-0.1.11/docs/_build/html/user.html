@@ -1,0 +1,302 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>User guide &mdash; Cabby 0.1.11a1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1.11a1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Cabby 0.1.11a1 documentation" href="index.html" />
+    <link rel="next" title="Cabby API documentation" href="api.html" />
+    <link rel="prev" title="Installation guide" href="installation.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="user-guide">
+<h1>User guide<a class="headerlink" href="#user-guide" title="Permalink to this headline">¶</a></h1>
+<p>This user guide gives an overview of Cabby. It covers using Cabby as a:</p>
+<ul class="simple">
+<li>Python library</li>
+<li>command line tool</li>
+</ul>
+<p>Note: this document assumes basic familiarity with TAXII specifications. Visit the <a class="reference external" href="https://taxiiproject.github.io/">TAXII
+homepage</a> for more information about its features.</p>
+<div class="section" id="using-cabby-as-a-python-library">
+<h2>Using Cabby as a Python library<a class="headerlink" href="#using-cabby-as-a-python-library" title="Permalink to this headline">¶</a></h2>
+<p>Below a few examples of how to use the Cabby in your code.
+We use <a class="reference external" href="https://test.taxiistand.com/">test server</a> instance hosted by <a class="reference external" href="https://www.taxiistand.com/">TAXIIstand</a> in examples.</p>
+<p>Create a client:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cabby</span> <span class="kn">import</span> <span class="n">create_client</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">create_client</span><span class="p">(</span>
+    <span class="s">&#39;test.taxiistand.com&#39;</span><span class="p">,</span>
+    <span class="n">use_https</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+    <span class="n">discovery_path</span><span class="o">=</span><span class="s">&#39;/read-write/services/discovery&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Discover advertised services:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">services</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">discover_services</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">service</span> <span class="ow">in</span> <span class="n">services</span><span class="p">:</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&#39;Service type={s.type}, address={s.address}&#39;</span>
+          <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">s</span><span class="o">=</span><span class="n">service</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>Poll content from a collection:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">content_blocks</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">poll</span><span class="p">(</span><span class="n">collection_name</span><span class="o">=</span><span class="s">&#39;all-data&#39;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">content_blocks</span><span class="p">:</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Fetch the collections from Collection Management Serice (or Feed Management Service):</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">collections</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">get_collections</span><span class="p">(</span>
+    <span class="n">uri</span><span class="o">=</span><span class="s">&#39;https://test.taxiistand.com/read-write/services/collection-management&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Push content into Inbox Service:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">content</span> <span class="o">=</span> <span class="s">&#39;&lt;some&gt;content-text&lt;/some&gt;&#39;</span>
+<span class="n">binding</span> <span class="o">=</span> <span class="s">&#39;urn:stix.mitre.org:xml:1.1.1&#39;</span>
+
+<span class="n">client</span><span class="o">.</span><span class="n">push</span><span class="p">(</span>
+    <span class="n">content</span><span class="p">,</span> <span class="n">binding</span><span class="p">,</span> <span class="n">uri</span><span class="o">=</span><span class="s">&#39;/read-write/services/inbox/default&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To force client to use <a class="reference external" href="taxii.mitre.org/specifications/version1.0/TAXII_Services_Specification.pdf">TAXII 1.0</a> specifications, initiate it with a specific <code class="docutils literal"><span class="pre">version</span></code> argument value:</p>
+<div class="highlight-python"><div class="highlight"><pre>from cabby import create_client
+
+client = create_client(&#39;open.taxiistand.com&#39;, version=&#39;1.0&#39;) .. note::
+Cabby client instances configured for TAXII 1.0 or TAXII 1.1 we will have slightly different method signatures (see :doc:`Cabby API documentation&lt;api&gt;` for details).
+</pre></div>
+</div>
+</div>
+<div class="section" id="authentication-methods">
+<h2>Authentication methods<a class="headerlink" href="#authentication-methods" title="Permalink to this headline">¶</a></h2>
+<p>It is possible to set authentication parameters for TAXII requests:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">cabby</span> <span class="kn">import</span> <span class="n">create_client</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">create_client</span><span class="p">(</span>
+    <span class="s">&#39;secure.taxiiserver.com&#39;</span><span class="p">,</span>
+    <span class="n">discovery_path</span><span class="o">=</span><span class="s">&#39;/services/discovery&#39;</span><span class="p">)</span>
+
+<span class="c"># basic authentication</span>
+<span class="n">client</span><span class="o">.</span><span class="n">set_auth</span><span class="p">(</span><span class="n">username</span><span class="o">=</span><span class="s">&#39;john&#39;</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="s">&#39;p4ssw0rd&#39;</span><span class="p">)</span>
+
+<span class="c"># or JWT based authentication</span>
+<span class="n">client</span><span class="o">.</span><span class="n">set_auth</span><span class="p">(</span>
+    <span class="n">username</span><span class="o">=</span><span class="s">&#39;john&#39;</span><span class="p">,</span>
+    <span class="n">password</span><span class="o">=</span><span class="s">&#39;p4ssw0rd&#39;</span><span class="p">,</span>
+    <span class="n">jwt_auth_url</span><span class="o">=</span><span class="s">&#39;/management/auth&#39;</span>
+<span class="p">)</span>
+
+<span class="c"># or basic authentication with SSL</span>
+<span class="n">client</span><span class="o">.</span><span class="n">set_auth</span><span class="p">(</span>
+    <span class="n">username</span><span class="o">=</span><span class="s">&#39;john&#39;</span><span class="p">,</span>
+    <span class="n">password</span><span class="o">=</span><span class="s">&#39;p4ssw0rd&#39;</span><span class="p">,</span>
+    <span class="n">cert_file</span><span class="o">=</span><span class="s">&#39;/keys/ssl.cert&#39;</span><span class="p">,</span>
+    <span class="n">key_file</span><span class="o">=</span><span class="s">&#39;/keys/ssl.key&#39;</span>
+<span class="p">)</span>
+
+<span class="c"># or only SSL authentication</span>
+<span class="n">client</span><span class="o">.</span><span class="n">set_auth</span><span class="p">(</span>
+    <span class="n">cert_file</span><span class="o">=</span><span class="s">&#39;/keys/ssl.cert&#39;</span><span class="p">,</span>
+    <span class="n">key_file</span><span class="o">=</span><span class="s">&#39;/keys/ssl.key&#39;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="using-cabby-as-a-command-line-tool">
+<h2>Using Cabby as a command line tool<a class="headerlink" href="#using-cabby-as-a-command-line-tool" title="Permalink to this headline">¶</a></h2>
+<p>During installation Cabby adds a family of the command line tools prefixed with <code class="docutils literal"><span class="pre">taxii-</span></code> to your path:</p>
+<p>Discover services:</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="o">(</span>venv<span class="o">)</span> <span class="nv">$ </span>taxii-discovery <span class="se">\</span>
+              --host test.taxiistand.com <span class="se">\</span>
+              --path /read-only/services/discovery <span class="se">\</span>
+              --https
+</pre></div>
+</div>
+<p>Fetch the collections list from Collection Management Service:</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="o">(</span>venv<span class="o">)</span> <span class="nv">$ </span>taxii-collections <span class="se">\</span>
+             --path https://test.taxiistand.com/read-only/services/collection-management
+</pre></div>
+</div>
+<p>Poll content from a collection (Polling Service will be autodiscovered in advertised services):</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="o">(</span>venv<span class="o">)</span> <span class="nv">$ $ </span>taxii-poll <span class="se">\</span>
+               --host test.taxiistand.com <span class="se">\</span>
+               --https --collection single-binding-slow <span class="se">\</span>
+               --discovery /read-only/services/discovery
+</pre></div>
+</div>
+<p>Push content into Inbox Service:</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="o">(</span>venv<span class="o">)</span> <span class="nv">$ </span>taxii-push <span class="se">\</span>
+             --host test.taxiistand.com <span class="se">\</span>
+             --https <span class="se">\</span>
+             --discovery /read-write/services/discovery <span class="se">\</span>
+             --content-file /intel/stix/stuxnet.stix.xml <span class="se">\</span>
+             --binding <span class="s2">&quot;urn:stix.mitre.org:xml:1.1.1&quot;</span> <span class="se">\</span>
+             --subtype custom-subtype
+</pre></div>
+</div>
+<p>Create a subscription:</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="o">(</span>venv<span class="o">)</span> <span class="nv">$ </span>taxii-subscription <span class="se">\</span>
+             --host test.taxiistand.com <span class="se">\</span>
+             --https <span class="se">\</span>
+             --path /read-write/services/collection-management <span class="se">\</span>
+             --action subscribe <span class="se">\</span>
+             --collection collection-A
+</pre></div>
+</div>
+<p>Fetch the collections from a service protected by Basic authentication:</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="o">(</span>venv<span class="o">)</span> <span class="nv">$ </span>taxii-collections <span class="se">\</span>
+             --path https://test.taxiistand.com/read-write-auth/services/collection-management <span class="se">\</span>
+             --username <span class="nb">test</span> <span class="se">\</span>
+             --password <span class="nb">test</span>
+</pre></div>
+</div>
+<p>Fetch the collections from a service protected by JWT authentication:</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="o">(</span>venv<span class="o">)</span> <span class="nv">$ </span>taxii-collections <span class="se">\</span>
+             --host test.taxiistand.com <span class="se">\</span>
+             --https <span class="se">\</span>
+             --path /read-write-auth/services/collection-management <span class="se">\</span>
+             --username guest <span class="se">\</span>
+             --password guest <span class="se">\</span>
+             --jwt-auth /management/auth
+</pre></div>
+</div>
+<p>Copy content blocks from one server to another:</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="o">(</span>venv<span class="o">)</span> <span class="nv">$ </span>taxii-proxy <span class="se">\</span>
+             --poll-path https://open.taxiistand.com/services/poll <span class="se">\</span>
+             --poll-collection vxvault <span class="se">\</span>
+             --inbox-path https://test.taxiistand.com/read-write/services/inbox-stix <span class="se">\</span>
+             --inbox-collection stix-data <span class="se">\</span>
+             --binding urn:stix.mitre.org:xml:1.1.1
+</pre></div>
+</div>
+<p>Use <code class="docutils literal"><span class="pre">--help</span></code> to get more usage details.</p>
+</div>
+<div class="section" id="docker-quickstart">
+<h2>Docker Quickstart<a class="headerlink" href="#docker-quickstart" title="Permalink to this headline">¶</a></h2>
+<p>To ease the threshold for trying out Cabby, it is possible to use the image provided by EclecticIQ:</p>
+<div class="highlight-shell"><div class="highlight"><pre><span class="nv">$ </span>docker run cabby
+</pre></div>
+</div>
+<p>Running this will execute the help script, giving you all the possible options:</p>
+<div class="highlight-text"><div class="highlight"><pre>Commands to be run:
+
+    taxii-discovery
+    taxii-poll
+    taxii-collections
+    taxii-push
+    taxii-subscription
+    taxii-proxy
+
+e.g.
+
+    $ docker run -ti cabby taxii-discovery \
+          --host test.taxiistand.com \
+          --use-https true \
+          --path /read-write/services/discovery
+
+More information available at: http://cabby.readthedocs.org
+
+Or you can choose to drop back into a shell by providing `bash` as the command:
+
+    $ docker run -ti cabby bash
+</pre></div>
+</div>
+<p class="rubric">Next steps</p>
+<p>See <a class="reference internal" href="api.html"><em>Cabby API documentation</em></a>.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">User guide</a><ul>
+<li><a class="reference internal" href="#using-cabby-as-a-python-library">Using Cabby as a Python library</a></li>
+<li><a class="reference internal" href="#authentication-methods">Authentication methods</a></li>
+<li><a class="reference internal" href="#using-cabby-as-a-command-line-tool">Using Cabby as a command line tool</a></li>
+<li><a class="reference internal" href="#docker-quickstart">Docker Quickstart</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="installation.html" title="previous chapter">Installation guide</a></li>
+      <li>Next: <a href="api.html" title="next chapter">Cabby API documentation</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/user.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2016, EclecticIQ.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.6</a>
+      
+      |
+      <a href="_sources/user.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
