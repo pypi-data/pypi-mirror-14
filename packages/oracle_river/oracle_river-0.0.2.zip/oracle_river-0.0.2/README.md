@@ -1,0 +1,51 @@
+﻿Oracle_river - transfert de donnee depuis oracle vers elasticsearch
+====================================================================
+
+Ce module proclame la bonne parole de sieurs Sam et Max. Puissent-t-ils
+retrouver une totale liberté de pensée cosmique vers un nouvel age
+reminiscent.
+
+Vous pouvez l'installer avec pip:
+
+    pip install oracle_river
+
+Exemple d'usage:
+
+    1) REALISER LES IMPORTS :
+
+        #!/usr/bin/env python
+        # coding: utf-8
+
+        from datetime import datetime
+        import cx_Oracle
+        import mysql.connector
+        from  pyelasticsearch  import ElasticSearch
+        from oracle_river import Load_Data
+
+    2)DEFINIR LES PARAMETRES DE CONNEXION:
+
+        # ouverture de la connexion à la base oracle
+        DB = 'pythonhol/welcome@127.0.0.1/orcl' (voir http://www.oracle.com/technetwork/articles/dsl/python-091105.html)
+        OracleCnx = cx_Oracle.connect(DB)
+        # paramètres de connexion elasticseach
+        es = ElasticSearch('http://localhost:9200/')
+        # ouverture de la connexion MySQL
+        MySQLCnx = mysql.connector.connect(user='root', password='', host='localhost', database='elasticsearch_river')
+
+    3)PREPARER LA REQUETE:
+
+        NomTable = 'SITE' (pour la base d'administration MySql)
+        DtmInit = '2013-09-01 00:00:00'
+        DocType = 'SITE_ID' (pour elasticsearch)
+        Index = 'dbpickup'  (pour elasticsearch)
+        NomBase = 'DBPICKUP' (pour la base d'administration MySql)
+        NomSchema = 'MASTER' (pour la base d'administration MySql)
+        Query = ("SELECT * FROM master.site WHERE creation_dtm >= to_timestamp('\
+                    {0}', 'YYYY-MM-DD HH24:MI:SS') OR last_update_dtm >= to_timestamp('\
+                    {0}', 'YYYY-MM-DD HH24:MI:SS')")# les paramétres s'écrivent comme cela : "{0},{1},{n}".format(valeur0, valeur1, valeurn)
+
+    4)EXECUTER LA REQUETE:
+
+        Load_Data(MySQLCnx, es, OracleCnx, Query, DtmInit, DocType, Index, NomBase, NomSchema, NomTable)
+
+Ce code est sous licence WTFPL.
