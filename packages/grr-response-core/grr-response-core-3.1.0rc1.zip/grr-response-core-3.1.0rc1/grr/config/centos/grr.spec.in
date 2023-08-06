@@ -1,0 +1,70 @@
+Name: %(Client.name)
+Version: %(Client.version_major).%(Client.version_minor).%(Client.version_revision).%(Client.version_release)
+Release: 1
+Summary: %(Client.name) Rapid Response Client
+Group: Applications/System
+License: APL2
+Source: \%{name}-\%{version}.tar.gz
+URL: https://github.com/google/grr
+AutoReqProv: no
+
+# Disable binary stripping or pyinstaller files won't work.
+%global __os_install_post \%{nil}
+
+%description
+%(Client.name) Rapid Response Client
+
+%prep
+
+%build
+# Do nothing here.
+
+%install
+cp -R \%{_builddir}/* \%{buildroot}
+
+%clean
+
+%pre
+
+# Here, $1 == 1 means first install of this package. We need to stop the agent
+# from a previous install if this is not an initial install.
+if [ "$1" -ne 1 ]; then
+  if [ -e "/etc/init.d/%(Client.name)" ]; then
+    /etc/init.d/%(Client.name) stop
+  fi
+fi
+
+%post
+
+%(ClientBuilder.target_dir)/%(Client.binary_name) --config=%(ClientBuilder.target_dir)/%(ClientBuilder.config_filename) --install
+
+if [ -e "/etc/init.d/%(Client.name)" ]; then
+  /etc/init.d/%(Client.name) start || exit $?
+fi
+
+# Make it start on boot.
+/sbin/chkconfig %(Client.name) on
+
+%preun
+
+# Here, $1 == 0 means that the package is removed completely. Only in that case
+# we can stop the service. Otherwise, we'll stop the newly installed agent
+# instead!
+if [ "$1" -eq 0 ]; then
+  if [ -e "/etc/init.d/%(Client.name)" ]; then
+    /etc/init.d/%(Client.name) stop
+  fi
+fi
+
+
+%files
+\%attr\(755,root,root\)
+%(ClientBuilder.target_dir)/*
+\%attr\(755,root,root\) /etc/init.d/%(Client.name)
+
+%changelog
+* %(ClientBuilder.rpm_build_time) %(ClientBuilder.maintainer)
+- Fix package upgrade %preun
+* %(ClientBuilder.rpm_build_time) %(ClientBuilder.maintainer)
+- New version, %(Client.version_major).%(Client.version_minor).%(Client.version_revision).%(Client.version_release)
+
