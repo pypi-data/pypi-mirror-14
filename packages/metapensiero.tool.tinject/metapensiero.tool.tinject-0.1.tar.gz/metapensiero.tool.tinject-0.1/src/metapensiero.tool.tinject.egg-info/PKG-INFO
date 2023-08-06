@@ -1,0 +1,485 @@
+Metadata-Version: 1.1
+Name: metapensiero.tool.tinject
+Version: 0.1
+Summary: Automate creation of sources
+Home-page: https://bitbucket.org/lele/metapensiero.tool.tinject
+Author: Lele Gaifax
+Author-email: lele@metapensiero.it
+License: GPLv3+
+Description: .. -*- coding: utf-8 -*-
+        .. :Project:   metapensiero.tool.tinject -- Automate creation of sources
+        .. :Created:   Wed 13 Apr 2016 11:22:34 CEST
+        .. :Author:    Lele Gaifax <lele@metapensiero.it>
+        .. :License:   GNU General Public License version 3 or later
+        .. :Copyright: © 2016 Lele Gaifax
+        ..
+        
+        ===========================
+         metapensiero.tool.tinject
+        ===========================
+        
+        Automate creation of sources
+        ============================
+        
+         :author: Lele Gaifax
+         :contact: lele@metapensiero.it
+         :license: GNU General Public License version 3 or later
+        
+        This is a simple tool that takes a YAML_ declarative configuration of `actions`, each
+        describing the set of `steps` needed to accomplish it, and realizes one or more action possibly
+        interpolating a set of dynamic values inserted by the user.
+        
+        I've written it with goal of taking away, as much as possible, the tediousness of creating new
+        content in a PatchDB_ setup.
+        
+        There is a myriad of similar tools around, but most of them are either targeted at
+        bootstrapping a hierarchy of files and directories (that is, a *one-shot* operation, for
+        example to create the *skeleton* of a new Python package, like cookiecutter_ to mention one) or
+        belong to a very specific domain (an example of this category may be ZopeSkel_).
+        
+        To fulfill my goal I needed a tool able to perform an arbitrary list of operations, primarily:
+        
+        * create a directory
+        * create a file with a particular content
+        * change the content of an existing file
+        
+        It obviously need to be *parametric* in almost every part: the pathnames and the actual content
+        of the files must be determined by a *template* interpolated with a set of *values*. This is
+        what Jinja2_ excels at. Since the values are mostly *volatile* (that is, almost all of them
+        change from one invocation to the other), I used the `inquirer`_ library to prompt the user.
+        
+        .. contents::
+        
+        .. _cookiecutter: https://pypi.python.org/pypi/cookiecutter
+        .. _inquirer: https://pypi.python.org/pypi/inquirer
+        .. _jinja2: http://jinja.pocoo.org/
+        .. _patchdb: https://pypi.python.org/pypi/metapensiero.sphinx.patchdb
+        .. _yaml: http://yaml.org/
+        .. _zopeskel: https://pypi.python.org/pypi/ZopeSkel
+        
+        
+        Configuration
+        -------------
+        
+        The YAML configuration file may be composed by one or two *documents*: an optional *global
+        section* and a mandatory one containing the list of available `actions`, each of them being
+        basically a list of `steps`.
+        
+        
+        Global section
+        ~~~~~~~~~~~~~~
+        
+        The first *document* contains a set of optional global settings, in particular:
+        
+        * the options to instantiate the Jinja2 *environment*
+        * a set of file *headers*, one for each kind of file
+        * a list of *steps* to be performed at every invocation
+        
+        
+        Jinja2 environment
+        ++++++++++++++++++
+        
+        To avoid clashes with the syntax used by Python's ``format()`` minilanguage, the `default
+        environment settings`__ are the following:
+        
+        block_start_string
+          The start of a block is ``<<``, instead of the default ``{%``
+        
+        block_end_string
+          The end of a block is ``>>``, instead of the default ``%}``
+        
+        variable_start_string
+          A variable is introduced by ``«``, instead of the classic ``{{``
+        
+        variable_end_string
+          A variable ends with ``»``, and not with the classic ``}}``
+        
+        extensions
+          The extension ``jinja2_time.TimeExtension`` is automatically selected
+        
+        keep_trailing_newline
+          By default the trailing newline is *not* discarded
+        
+        Obviously any Jinja2 template defined by the configuration must adhere to these settings. If
+        you don't like them, or if you want define different ones, you can put an entry like the
+        following in the globals section of the configuration::
+        
+          jinja:
+            block_start_string: "[["
+            block_end_string: "]]"
+            variable_start_string: "<<"
+            variable_end_string: ">>"
+        
+        __ http://jinja.pocoo.org/docs/dev/api/#jinja2.Environment
+        
+        
+        File headers
+        ++++++++++++
+        
+        This is a map between a file *suffix* and a template that will be automatically injected in the
+        render's context as the variable ``header``. For example, should you need to generate a Pascal
+        unit, you could insert the following::
+        
+          headers:
+            pas: |
+              (*« "*" * 70 »
+               * Project: «package_name»
+               * Created: «timestamp»
+               *« "*" * 70 »)
+        
+        
+        Initial steps
+        +++++++++++++
+        
+        This is a list of steps to be executed unconditionally at startup. In particular it may be used
+        to gather some values from arbitrary places to initialize the *answers*, and to the user for a
+        common set of values. As an example, you could say::
+        
+          steps:
+            - python:
+                script: |
+                  import os, pwd, sys
+        
+                  class InitCustomAnswersWithoutPrompt(Step):
+                      def __init__(self, state, config):
+                          super().__init__(state, config)
+                          self.name = config['name']
+                          self.value = config['value']
+        
+                      def announce(self):
+                          self.state.announce('*', "Inject %s=%s", self.name, self.value)
+        
+                      def __call__(self):
+                          return {self.name: self.value, python_version: sys.version}
+        
+                  register_step('initcustom', InitCustomAnswersWithoutPrompt)
+        
+                  myself = pwd.getpwuid(os.getuid())
+                  state.answers['author_username'] = myself.pw_name
+                  state.answers['author_fullname'] = myself.pw_gecos.split(',')[0]
+        
+            ## Here you can execute the new kind of operation defined above
+        
+            - initcustom:
+                name: "myextravar"
+                value: "thevalue"
+        
+        
+        Actions
+        ~~~~~~~
+        
+        An *action* is identified by a unique name and carries an optional description, an optional set
+        of prompts specific to the action and a list of one or more steps.
+        
+        The following is a complete example::
+        
+          create_top_level_setup_py:
+            description: Create top level setup.py
+        
+            prompt:
+              - package_name:
+                  message: The name of the Python package
+        
+            steps:
+              - createdir:
+                  directory: src
+        
+              - createfile:
+                  directory: src
+                  filename: setup.py
+                  content: |
+                    # Hi, I'm the setup.py file for «package_name»
+        
+        
+        Steps
+        ~~~~~
+        
+        A *step* is some kind of *operation* that must be carried out. The name of the step identifies
+        the kind of operation, and its value is used to specify the needed parameters. So, in the
+        example above, we have two steps, ``createdir`` and ``createfile``, each requiring its specific
+        arguments map.
+        
+        This is the list of available operation kinds:
+        
+        changefile
+          Perform some quite simple changes to the content of an existing file.
+        
+          Required configuration:
+        
+            directory
+              The directory containing the file to be changed
+        
+            filename
+              The name of the existing file within the given directory
+        
+            changes
+              A list of tweaks: there are currently just two types, one that *add* some content
+              *before* a given *marker*, and one to add the content *after* it
+        
+          Example::
+        
+            - changefile:
+                directory: src
+                filename: listofitems.txt
+                changes:
+                  - add: "«newitemname»\n"
+                    before: ";; items delimiter"
+                  - add: "«newitemname»\n"
+                    after: ";; reversed insertion order"
+        
+        createdir
+          Create a directory and its parents.
+        
+          Required configuration:
+        
+            directory
+              The directory to be created
+        
+          Example::
+        
+            - createdir:
+                directory: src/my/new/package
+        
+        createfile
+          Create a new file with a particular content.
+        
+          Required configuration:
+        
+            directory
+              The directory contained the file to be created
+        
+            filename
+              The name of the new file
+        
+            content
+              A Jinja2 template that will be rendered and written to the new file
+        
+          Example::
+        
+            - createfile:
+                directory: "«docs_dir»/«schema_name»/tables"
+                filename: "«table_name».sql"
+                description: Structure of table «schema_name».«table_name»
+                ## The template may be either inline or included from an external file
+                content: !include 'table.sql'
+        
+        prompt
+          Ask the user for some information bits.
+        
+          Required configuration: a list of dictionaries, each representing an `inquirer's question`__.
+        
+          Example::
+        
+            - prompt:
+                - name_of_the_variable:
+                    message: Tell me the value
+                    default: "default value"
+        
+                - different_kind_of_input:
+                    message: Select the variant
+                    kind: list
+                    choices:
+                      - Big
+                      - Medium
+                      - Small
+        
+        python
+          Execute an arbitrary Python script.
+        
+          Required configuration:
+        
+            script
+              The code of the script
+        
+          The script is executed with a context containing the class ``Step``, the function
+          ``register_step`` and the global ``state`` of the program.
+        
+          See the `initial steps`_ above for an example.
+        
+        __ http://python-inquirer.readthedocs.org/en/latest/usage.html#question-arguments
+        
+        
+        Sample session
+        --------------
+        
+        Create a new schema with a new table::
+        
+          $ tinject --verbose apply examples/patchdb.yml new_schema new_table
+        
+          * Execute Python script
+          [?] Author fullname (author_fullname): Lele Gaifax
+          [?] Author username (author_username): lele
+          [?] Author email (author_email): «author_username»@example.com
+          [?] Fully qualified package name (package_name): package.qualified.name
+          [?] Timestamp (timestamp): << now 'local', '%a %d %b %Y %H:%M:%S %Z' >>
+          [?] Year (year): << now 'local', '%Y' >>
+          [?] Distribution license (license): GNU General Public License version 3 or later
+          [?] Copyright holder (copyright): © «year» «author_fullname»
+          [?] Root directory of Sphinx documentation (docs_dir): docs/database
+          [?] Root directory of SQLAlchemy model sources (model_dir): src/«package_name|replace(".","/")»
+        
+          =====================
+           Create a new schema
+          =====================
+          [?] Name of the new schema (schema_name): public
+        
+          * Create directory docs/database/public
+        
+          * Create file docs/database/public/index.rst
+        
+          * Create directory docs/database/public/tables
+        
+          * Create file docs/database/public/tables/index.rst
+        
+          * Create directory src/package/qualified/name/entities/public
+        
+          * Create file src/package/qualified/name/entities/public/__init__.py
+        
+          * Create directory src/package/qualified/name/tables/public
+        
+          * Create file src/package/qualified/name/tables/public/__init__.py
+        
+          ====================
+           Create a new table
+          ====================
+          [?] Schema name of the new table (schema_name): public
+          [?] Name of the new table (table_name): things
+          [?] Description of the new table (table_description): The table ``«schema_name».«table_name»`` contains...
+          [?] Name of the corresponding entity (entity_name): Thing
+        
+          * Create file docs/database/public/tables/things.rst
+        
+          * Create file docs/database/public/tables/things.sql
+        
+          * Change file docs/database/public/tables/index.rst
+        
+            - add “things” before “.. tinject toctree m…”
+        
+          * Create file src/package/qualified/name/entities/public/thing.py
+        
+          * Change file src/package/qualified/name/entities/public/__init__.py
+        
+            - add “from .thing import T…” before “## tinject import ma…”
+        
+            - add “mapper(Thing, t.thin…” before “## tinject mapper ma…”
+        
+          * Create file src/package/qualified/name/tables/public/things.py
+        
+          * Change file src/package/qualified/name/tables/public/__init__.py
+        
+            - add “from .things import …” before “## tinject marker, p…”
+        
+        Verify::
+        
+          $ cat src/package/qualified/name/entities/public/__init__.py
+          # -*- coding: utf-8 -*-
+          # :Project:   package.qualified.name -- Entities in schema public
+          # :Created:   lun 25 apr 2016 11:54:15 CEST
+          # :Author:    Lele Gaifax <lele@example.com>
+          # :License:   GNU General Public License version 3 or later
+          # :Copyright: © 2016 Lele Gaifax
+          #
+        
+          from sqlalchemy.orm import mapper
+        
+          from ...tables import public as t
+        
+          from .thing import Thing
+          ## tinject import marker, please don't remove!
+        
+          mapper(Thing, t.things, properties={
+          })
+          ## tinject mapper marker, please don't remove!
+        
+        Add another table::
+        
+          $ tinject --verbose apply examples/patchdb.yml new_table
+        
+          * Execute Python script
+          [?] Author fullname (author_fullname): Lele Gaifax
+          [?] Author username (author_username): lele
+          [?] Author email (author_email): «author_username»@example.com
+          [?] Fully qualified package name (package_name): package.qualified.name
+          [?] Timestamp (timestamp): << now 'local', '%a %d %b %Y %H:%M:%S %Z' >>
+          [?] Year (year): << now 'local', '%Y' >>
+          [?] Distribution license (license): GNU General Public License version 3 or later
+          [?] Copyright holder (copyright): © «year» «author_fullname»
+          [?] Root directory of Sphinx documentation (docs_dir): docs/database
+          [?] Root directory of SQLAlchemy model sources (model_dir): src/«package_name|replace(".","/")»
+        
+          ====================
+           Create a new table
+          ====================
+          [?] Schema name of the new table (schema_name): public
+          [?] Name of the new table (table_name): thangs
+          [?] Description of the new table (table_description): The table ``«schema_name».«table_name»`` contains...
+          [?] Name of the corresponding entity (entity_name): Thang
+        
+          * Create file docs/database/public/tables/thangs.rst
+        
+          * Create file docs/database/public/tables/thangs.sql
+        
+          * Change file docs/database/public/tables/index.rst
+        
+            - add “thangs” before “.. tinject toctree m…”
+        
+          * Create file src/package/qualified/name/entities/public/thang.py
+        
+          * Change file src/package/qualified/name/entities/public/__init__.py
+        
+            - add “from .thang import T…” before “## tinject import ma…”
+        
+            - add “mapper(Thang, t.than…” before “## tinject mapper ma…”
+        
+          * Create file src/package/qualified/name/tables/public/thangs.py
+        
+          * Change file src/package/qualified/name/tables/public/__init__.py
+        
+            - add “from .thangs import …” before “## tinject marker, p…”
+        
+        Verify::
+        
+          $ cat src/package/qualified/name/entities/public/__init__.py
+          # -*- coding: utf-8 -*-
+          # :Project:   package.qualified.name -- Entities in schema public
+          # :Created:   lun 25 apr 2016 11:54:15 CEST
+          # :Author:    Lele Gaifax <lele@example.com>
+          # :License:   GNU General Public License version 3 or later
+          # :Copyright: © 2016 Lele Gaifax
+          #
+        
+          from sqlalchemy.orm import mapper
+        
+          from ...tables import public as t
+        
+          from .thing import Thing
+          from .thang import Thang
+          ## tinject import marker, please don't remove!
+        
+          mapper(Thing, t.things, properties={
+          })
+          mapper(Thang, t.thangs, properties={
+          })
+          ## tinject mapper marker, please don't remove!
+        
+        
+        .. -*- coding: utf-8 -*-
+        
+        Changes
+        -------
+        
+        0.1 (2016-04-26)
+        ~~~~~~~~~~~~~~~~
+        
+        - Initial effort.
+        
+Keywords: YAML,Jinja2,scaffolding,skeleton
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python
+Classifier: Topic :: Software Development
+Classifier: Topic :: Utilities
