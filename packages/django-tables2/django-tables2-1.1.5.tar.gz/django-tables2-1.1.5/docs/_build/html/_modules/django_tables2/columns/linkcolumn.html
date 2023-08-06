@@ -1,0 +1,255 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>django_tables2.columns.linkcolumn &mdash; django-tables2 1.1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="django-tables2 1.1.2 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for django_tables2.columns.linkcolumn</h1><div class="highlight"><pre>
+<span class="c1"># coding: utf-8</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">django.core.urlresolvers</span> <span class="kn">import</span> <span class="n">reverse</span>
+<span class="kn">from</span> <span class="nn">django.utils.html</span> <span class="kn">import</span> <span class="n">format_html</span>
+
+<span class="kn">from</span> <span class="nn">django_tables2.utils</span> <span class="kn">import</span> <span class="n">Accessor</span><span class="p">,</span> <span class="n">AttributeDict</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="kn">import</span> <span class="n">Column</span><span class="p">,</span> <span class="n">library</span>
+
+
+<span class="k">class</span> <span class="nc">BaseLinkColumn</span><span class="p">(</span><span class="n">Column</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The base for other columns that render links.</span>
+
+<span class="sd">    Adds support for an ``a`` key in *attrs** which is added to the rendered</span>
+<span class="sd">    ``&lt;a href=&quot;...&quot;&gt;`` tag.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;attrs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">attrs</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">BaseLinkColumn</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">render_link</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">uri</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Render a hyperlink.</span>
+
+<span class="sd">        :param   uri: URI for the hyperlink</span>
+<span class="sd">        :param  text: value wrapped in ``&lt;a&gt;&lt;/a&gt;``</span>
+<span class="sd">        :param attrs: ``&lt;a&gt;`` tag attributes</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="n">AttributeDict</span><span class="p">(</span><span class="n">attrs</span> <span class="k">if</span> <span class="n">attrs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="k">else</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="p">{}))</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;href&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">uri</span>
+
+        <span class="k">return</span> <span class="n">format_html</span><span class="p">(</span><span class="s1">&#39;&lt;a {attrs}&gt;{text}&lt;/a&gt;&#39;</span><span class="p">,</span>
+                           <span class="n">attrs</span><span class="o">=</span><span class="n">attrs</span><span class="o">.</span><span class="n">as_html</span><span class="p">(),</span>
+                           <span class="n">text</span><span class="o">=</span><span class="n">text</span><span class="p">)</span>
+
+
+<span class="nd">@library.register</span>
+<div class="viewcode-block" id="LinkColumn"><a class="viewcode-back" href="../../../pages/api-reference.html#django_tables2.columns.LinkColumn">[docs]</a><span class="k">class</span> <span class="nc">LinkColumn</span><span class="p">(</span><span class="n">BaseLinkColumn</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Renders a normal value as an internal hyperlink to another page.</span>
+
+<span class="sd">    It&#39;s common to have the primary value in a row hyperlinked to the page</span>
+<span class="sd">    dedicated to that record.</span>
+
+<span class="sd">    The first arguments are identical to that of</span>
+<span class="sd">    `~django.core.urlresolvers.reverse` and allows an internal URL to be</span>
+<span class="sd">    described. If this argument is `None`, then `get_absolute_url`.</span>
+<span class="sd">    (see Django references) will be used.</span>
+<span class="sd">    The last argument *attrs* allows custom HTML attributes to be added to the</span>
+<span class="sd">    rendered ``&lt;a href=&quot;...&quot;&gt;`` tag.</span>
+
+<span class="sd">    :param    viewname: See `~django.core.urlresolvers.reverse`.</span>
+<span class="sd">                        Or use `None` to use Model&#39;s `get_absolute_url`</span>
+<span class="sd">    :param     urlconf: See `~django.core.urlresolvers.reverse`.</span>
+<span class="sd">    :param        args: See `~django.core.urlresolvers.reverse`. **</span>
+<span class="sd">    :param      kwargs: See `~django.core.urlresolvers.reverse`. **</span>
+<span class="sd">    :param current_app: See `~django.core.urlresolvers.reverse`.</span>
+<span class="sd">    :param       attrs: a `dict` of HTML attributes that are added to</span>
+<span class="sd">                        the rendered ``&lt;input type=&quot;checkbox&quot; .../&gt;`` tag</span>
+<span class="sd">    :param        text: Either static text, or a callable. If set, this</span>
+<span class="sd">                        value will be used to render the text inside link</span>
+<span class="sd">                        instead of value (default)</span>
+
+<span class="sd">    ** In order to create a link to a URL that relies on information in the</span>
+<span class="sd">    current row, `.Accessor` objects can be used in the *args* or</span>
+<span class="sd">    *kwargs* arguments. The accessor will be resolved using the row&#39;s record</span>
+<span class="sd">    before `~django.core.urlresolvers.reverse` is called.</span>
+
+<span class="sd">    Example:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        # models.py</span>
+<span class="sd">        class Person(models.Model):</span>
+<span class="sd">            name = models.CharField(max_length=200)</span>
+
+<span class="sd">        # urls.py</span>
+<span class="sd">        urlpatterns = patterns(&#39;&#39;,</span>
+<span class="sd">            url(&#39;people/(\d+)/&#39;, views.people_detail, name=&#39;people_detail&#39;)</span>
+<span class="sd">        )</span>
+
+<span class="sd">        # tables.py</span>
+<span class="sd">        from django_tables2.utils import A  # alias for Accessor</span>
+
+<span class="sd">        class PeopleTable(tables.Table):</span>
+<span class="sd">            name = tables.LinkColumn(&#39;people_detail&#39;, args=[A(&#39;pk&#39;)])</span>
+
+<span class="sd">    In order to override the text value (i.e. &lt;a ... &gt;text&lt;/a&gt;) consider</span>
+<span class="sd">    the following example:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        # tables.py</span>
+<span class="sd">        from django_tables2.utils import A  # alias for Accessor</span>
+
+<span class="sd">        class PeopleTable(tables.Table):</span>
+<span class="sd">            name = tables.LinkColumn(&#39;people_detail&#39;, text=&#39;static text&#39;, args=[A(&#39;pk&#39;)])</span>
+<span class="sd">            age  = tables.LinkColumn(&#39;people_detail&#39;, text=lambda record: record.name, args=[A(&#39;pk&#39;)])</span>
+
+<span class="sd">    In the first example, a static text would be rendered (&#39;static text&#39;)</span>
+<span class="sd">    In the second example, you can specify a callable which accepts a record object (and thus</span>
+<span class="sd">    can return anything from it)</span>
+
+<span class="sd">    In addition to *attrs* keys supported by `.Column`, the following are</span>
+<span class="sd">    available:</span>
+
+<span class="sd">    - *a* -- ``&lt;a&gt;`` elements in ``&lt;td&gt;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">viewname</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">urlconf</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">current_app</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">extra</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">LinkColumn</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">attrs</span><span class="p">,</span> <span class="o">**</span><span class="n">extra</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">viewname</span> <span class="o">=</span> <span class="n">viewname</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">urlconf</span> <span class="o">=</span> <span class="n">urlconf</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">args</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span> <span class="o">=</span> <span class="n">kwargs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">current_app</span> <span class="o">=</span> <span class="n">current_app</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">text_value</span> <span class="o">=</span> <span class="n">text</span>
+
+<div class="viewcode-block" id="LinkColumn.compose_url"><a class="viewcode-back" href="../../../pages/api-reference.html#django_tables2.columns.LinkColumn.compose_url">[docs]</a>    <span class="k">def</span> <span class="nf">compose_url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Compose the url if the column is constructed with a viewname.&#39;&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">viewname</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">record</span><span class="p">,</span> <span class="s1">&#39;get_absolute_url&#39;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;if viewname=None, record must define a get_absolute_url&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">record</span><span class="o">.</span><span class="n">get_absolute_url</span><span class="p">()</span>
+
+        <span class="k">def</span> <span class="nf">resolve_if_accessor</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">val</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">record</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">Accessor</span><span class="p">)</span> <span class="k">else</span> <span class="n">val</span>
+
+        <span class="n">viewname</span> <span class="o">=</span> <span class="n">resolve_if_accessor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">viewname</span><span class="p">)</span>
+
+        <span class="c1"># Collect the optional arguments for django&#39;s reverse()</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">urlconf</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;urlconf&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">resolve_if_accessor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">urlconf</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;args&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">resolve_if_accessor</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;kwargs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">resolve_if_accessor</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">current_app</span><span class="p">:</span>
+            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;current_app&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">resolve_if_accessor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">current_app</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">reverse</span><span class="p">(</span><span class="n">viewname</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">bound_column</span><span class="p">):</span>
+        <span class="n">text_value</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">text_value</span><span class="p">:</span>
+            <span class="n">text_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">text_value</span>
+            <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">text_value</span><span class="p">):</span>
+                <span class="n">text_value</span> <span class="o">=</span> <span class="n">text_value</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">render_link</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compose_url</span><span class="p">(</span><span class="n">record</span><span class="p">,</span> <span class="n">bound_column</span><span class="p">),</span> <span class="n">text</span><span class="o">=</span><span class="n">text_value</span><span class="p">)</span></div>
+
+
+<span class="nd">@library.register</span>
+<span class="k">class</span> <span class="nc">RelatedLinkColumn</span><span class="p">(</span><span class="n">LinkColumn</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Render a link to a related object using related object&#39;s ``get_absolute_url``</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">compose_url</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">bound_column</span><span class="p">):</span>
+        <span class="n">accessor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">accessor</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">accessor</span> <span class="k">else</span> <span class="n">Accessor</span><span class="p">(</span><span class="n">bound_column</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">accessor</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">record</span><span class="p">)</span><span class="o">.</span><span class="n">get_absolute_url</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>

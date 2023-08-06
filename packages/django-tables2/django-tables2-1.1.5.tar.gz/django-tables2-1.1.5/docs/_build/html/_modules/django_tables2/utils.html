@@ -1,0 +1,568 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>django_tables2.utils &mdash; django-tables2 1.1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="django-tables2 1.1.2 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for django_tables2.utils</h1><div class="highlight"><pre>
+<span class="c1"># coding: utf-8</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">total_ordering</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">chain</span>
+
+<span class="kn">from</span> <span class="nn">django.db.models.fields</span> <span class="kn">import</span> <span class="n">FieldDoesNotExist</span>
+<span class="kn">from</span> <span class="nn">django.utils</span> <span class="kn">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">django.utils.html</span> <span class="kn">import</span> <span class="n">escape</span>
+<span class="kn">from</span> <span class="nn">django.utils.safestring</span> <span class="kn">import</span> <span class="n">mark_safe</span>
+
+
+<span class="k">class</span> <span class="nc">Sequence</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents a column sequence, e.g. ``(&quot;first_name&quot;, &quot;...&quot;, &quot;last_name&quot;)``</span>
+
+<span class="sd">    This is used to represent `.Table.Meta.sequence` or the `.Table`</span>
+<span class="sd">    constructors&#39;s *sequence* keyword argument.</span>
+
+<span class="sd">    The sequence must be a list of column names and is used to specify the</span>
+<span class="sd">    order of the columns on a table. Optionally a &quot;...&quot; item can be inserted,</span>
+<span class="sd">    which is treated as a *catch-all* for column names that aren&#39;t explicitly</span>
+<span class="sd">    specified.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">expand</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">columns</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Expands the ``&quot;...&quot;`` item in the sequence into the appropriate column</span>
+<span class="sd">        names that should be placed there.</span>
+
+<span class="sd">        :raises: `ValueError` if the sequence is invalid for the columns.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ellipses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ellipses</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;...&#39; must be used at most once in a sequence.&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">ellipses</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;...&quot;</span><span class="p">)</span>
+
+        <span class="c1"># everything looks good, let&#39;s expand the &quot;...&quot; item</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>  <span class="c1"># take a copy and exhaust the generator</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">tail</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">head</span>  <span class="c1"># start by adding things to the head</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;...&quot;</span><span class="p">:</span>
+                <span class="c1"># now we&#39;ll start adding elements to the tail</span>
+                <span class="n">target</span> <span class="o">=</span> <span class="n">tail</span>
+                <span class="k">continue</span>
+            <span class="n">target</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+                <span class="n">columns</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">columns</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+        <span class="bp">self</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">chain</span><span class="p">(</span><span class="n">head</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">tail</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">OrderBy</span><span class="p">(</span><span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A single item in an `.OrderByTuple` object. This class is</span>
+<span class="sd">    essentially just a `str` with some extra properties.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bare</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the bare form.</span>
+
+<span class="sd">        The *bare form* is the non-prefixed form. Typically the bare form is</span>
+<span class="sd">        just the ascending form.</span>
+
+<span class="sd">        Example: ``age`` is the bare form of ``-age``</span>
+
+<span class="sd">        :rtype: `.OrderBy` object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">OrderBy</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="k">if</span> <span class="bp">self</span><span class="p">[:</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;-&#39;</span> <span class="k">else</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">opposite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return an `.OrderBy` object with an opposite sort influence.</span>
+
+<span class="sd">        Example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            &gt;&gt;&gt; order_by = OrderBy(&#39;name&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; order_by.opposite</span>
+<span class="sd">            &#39;-name&#39;</span>
+
+<span class="sd">        :rtype: `.OrderBy` object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">OrderBy</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_descending</span> <span class="k">else</span> <span class="n">OrderBy</span><span class="p">(</span><span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_descending</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return `True` if this object induces *descending* ordering</span>
+
+<span class="sd">        :rtype: `bool`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_ascending</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return `True` if this object induces *ascending* ordering.</span>
+
+<span class="sd">        :returns: `bool`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_descending</span>
+
+
+<span class="nd">@six.python_2_unicode_compatible</span>
+<span class="k">class</span> <span class="nc">OrderByTuple</span><span class="p">(</span><span class="nb">tuple</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Stores ordering as (as `.OrderBy` objects). The</span>
+<span class="sd">    `~django_tables2.tables.Table.order_by` property is always converted</span>
+<span class="sd">    to an `.OrderByTuple` object.</span>
+
+<span class="sd">    This class is essentially just a `tuple` with some useful extras.</span>
+
+<span class="sd">    Example:</span>
+
+<span class="sd">    .. code-block:: python</span>
+
+<span class="sd">        &gt;&gt;&gt; x = OrderByTuple((&#39;name&#39;, &#39;-age&#39;))</span>
+<span class="sd">        &gt;&gt;&gt; x[&#39;age&#39;]</span>
+<span class="sd">        &#39;-age&#39;</span>
+<span class="sd">        &gt;&gt;&gt; x[&#39;age&#39;].is_descending</span>
+<span class="sd">        True</span>
+<span class="sd">        &gt;&gt;&gt; x[&#39;age&#39;].opposite</span>
+<span class="sd">        &#39;age&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">iterable</span><span class="p">):</span>
+        <span class="n">transformed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">iterable</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">OrderBy</span><span class="p">):</span>
+                <span class="n">item</span> <span class="o">=</span> <span class="n">OrderBy</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+            <span class="n">transformed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">OrderByTuple</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">transformed</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Determine if a column has an influence on ordering.</span>
+
+<span class="sd">        Example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            &gt;&gt;&gt; ordering =</span>
+<span class="sd">            &gt;&gt;&gt; x = OrderByTuple((&#39;name&#39;, ))</span>
+<span class="sd">            &gt;&gt;&gt; &#39;name&#39; in  x</span>
+<span class="sd">            True</span>
+<span class="sd">            &gt;&gt;&gt; &#39;-name&#39; in x</span>
+<span class="sd">            True</span>
+
+<span class="sd">        :param name: The name of a column. (optionally prefixed)</span>
+<span class="sd">        :returns: `bool`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">OrderBy</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">bare</span>
+        <span class="k">for</span> <span class="n">order_by</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">order_by</span><span class="o">.</span><span class="n">bare</span> <span class="o">==</span> <span class="n">name</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Allows an `.OrderBy` object to be extracted via named or integer</span>
+<span class="sd">        based indexing.</span>
+
+<span class="sd">        When using named based indexing, it&#39;s fine to used a prefixed named.</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            &gt;&gt;&gt; x = OrderByTuple((&#39;name&#39;, &#39;-age&#39;))</span>
+<span class="sd">            &gt;&gt;&gt; x[0]</span>
+<span class="sd">            &#39;name&#39;</span>
+<span class="sd">            &gt;&gt;&gt; x[&#39;age&#39;]</span>
+<span class="sd">            &#39;-age&#39;</span>
+<span class="sd">            &gt;&gt;&gt; x[&#39;-age&#39;]</span>
+<span class="sd">            &#39;-age&#39;</span>
+
+<span class="sd">        :rtype: `.OrderBy` object</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">order_by</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">order_by</span> <span class="o">==</span> <span class="n">index</span> <span class="ow">or</span> <span class="n">order_by</span><span class="o">.</span><span class="n">bare</span> <span class="o">==</span> <span class="n">index</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">order_by</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">OrderByTuple</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">accessors</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">reversing</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">order_by</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="n">accessors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Accessor</span><span class="p">(</span><span class="n">order_by</span><span class="o">.</span><span class="n">bare</span><span class="p">))</span>
+            <span class="n">reversing</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">order_by</span><span class="o">.</span><span class="n">is_descending</span><span class="p">)</span>
+
+        <span class="nd">@total_ordering</span>
+        <span class="k">class</span> <span class="nc">Comparator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+            <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span>
+
+            <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">accessor</span> <span class="ow">in</span> <span class="n">accessors</span><span class="p">:</span>
+                    <span class="n">a</span> <span class="o">=</span> <span class="n">accessor</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                    <span class="n">b</span> <span class="o">=</span> <span class="n">accessor</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">a</span> <span class="o">==</span> <span class="n">b</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="bp">False</span>
+                <span class="k">return</span> <span class="bp">True</span>
+
+            <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">accessor</span><span class="p">,</span> <span class="n">reverse</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">moves</span><span class="o">.</span><span class="n">zip</span><span class="p">(</span><span class="n">accessors</span><span class="p">,</span> <span class="n">reversing</span><span class="p">):</span>
+                    <span class="n">a</span> <span class="o">=</span> <span class="n">accessor</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                    <span class="n">b</span> <span class="o">=</span> <span class="n">accessor</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">other</span><span class="o">.</span><span class="n">obj</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">a</span> <span class="o">==</span> <span class="n">b</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="k">if</span> <span class="n">reverse</span><span class="p">:</span>
+                        <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span>
+                    <span class="c1"># The rest of this should be refactored out into a util</span>
+                    <span class="c1"># function &#39;compare&#39; that handles different types.</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">a</span> <span class="o">&lt;</span> <span class="n">b</span>
+                    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                        <span class="c1"># If the truth values differ, it&#39;s a good way to</span>
+                        <span class="c1"># determine ordering.</span>
+                        <span class="k">if</span> <span class="nb">bool</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">b</span><span class="p">):</span>
+                            <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">bool</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+                        <span class="c1"># Handle comparing different types, by falling back to</span>
+                        <span class="c1"># the string and id of the type. This at least groups</span>
+                        <span class="c1"># different types together.</span>
+                        <span class="n">a_type</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                        <span class="n">b_type</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+                        <span class="k">return</span> <span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">a_type</span><span class="p">),</span> <span class="nb">id</span><span class="p">(</span><span class="n">a_type</span><span class="p">))</span> <span class="o">&lt;</span> <span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">b_type</span><span class="p">),</span> <span class="nb">id</span><span class="p">(</span><span class="n">b_type</span><span class="p">))</span>
+                <span class="k">return</span> <span class="bp">False</span>
+        <span class="k">return</span> <span class="n">Comparator</span>
+
+    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">fallback</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Identical to __getitem__, but supports fallback value.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">fallback</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">opposite</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return version with each `.OrderBy` prefix toggled.</span>
+
+<span class="sd">        Example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            &gt;&gt;&gt; order_by = OrderByTuple((&#39;name&#39;, &#39;-age&#39;))</span>
+<span class="sd">            &gt;&gt;&gt; order_by.opposite</span>
+<span class="sd">            (&#39;-name&#39;, &#39;age&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)((</span><span class="n">o</span><span class="o">.</span><span class="n">opposite</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="Accessor"><a class="viewcode-back" href="../../pages/api-reference.html#django_tables2.utils.Accessor">[docs]</a><span class="k">class</span> <span class="nc">Accessor</span><span class="p">(</span><span class="nb">str</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A string describing a path from one object to another via attribute/index</span>
+<span class="sd">    accesses. For convenience, the class has an alias `.A` to allow for more concise code.</span>
+
+<span class="sd">    Relations are separated by a ``.`` character.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">SEPARATOR</span> <span class="o">=</span> <span class="s1">&#39;.&#39;</span>
+
+    <span class="k">def</span> <span class="nf">resolve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">safe</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return an object described by the accessor by traversing the attributes</span>
+<span class="sd">        of *context*.</span>
+
+<span class="sd">        Example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            &gt;&gt;&gt; x = Accessor(&#39;__len__&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; x.resolve(&#39;brad&#39;)</span>
+<span class="sd">            4</span>
+<span class="sd">            &gt;&gt;&gt; x = Accessor(&#39;0.upper&#39;)</span>
+<span class="sd">            &gt;&gt;&gt; x.resolve(&#39;brad&#39;)</span>
+<span class="sd">            &#39;B&#39;</span>
+
+<span class="sd">        :type  context: `object`</span>
+<span class="sd">        :param context: The root/first object to traverse.</span>
+<span class="sd">        :type     safe: `bool`</span>
+<span class="sd">        :param    safe: Don&#39;t call anything with ``alters_data = True``</span>
+<span class="sd">        :type    quiet: bool</span>
+<span class="sd">        :param   quiet: Smother all exceptions and instead return `None`</span>
+<span class="sd">        :returns: target object</span>
+<span class="sd">        :raises: anything ``getattr(a, &quot;b&quot;)`` raises, e.g. `TypeError`,</span>
+<span class="sd">                 `AttributeError`, `KeyError`, `ValueError` (unless *quiet* ==</span>
+<span class="sd">                 `True`)</span>
+
+<span class="sd">        `~.Accessor.resolve` attempts lookups in the following order:</span>
+
+<span class="sd">        - dictionary (e.g. ``obj[related]``)</span>
+<span class="sd">        - attribute (e.g. ``obj.related``)</span>
+<span class="sd">        - list-index lookup (e.g. ``obj[int(related)]``)</span>
+
+<span class="sd">        Callable objects are called, and their result is used, before</span>
+<span class="sd">        proceeding with the resolving.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">current</span> <span class="o">=</span> <span class="n">context</span>
+            <span class="k">for</span> <span class="n">bit</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bits</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>  <span class="c1"># dictionary lookup</span>
+                    <span class="n">current</span> <span class="o">=</span> <span class="n">current</span><span class="p">[</span><span class="n">bit</span><span class="p">]</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">KeyError</span><span class="p">):</span>
+                    <span class="k">try</span><span class="p">:</span>  <span class="c1"># attribute lookup</span>
+                        <span class="n">current</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="n">bit</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">):</span>
+                        <span class="k">try</span><span class="p">:</span>  <span class="c1"># list-index lookup</span>
+                            <span class="n">current</span> <span class="o">=</span> <span class="n">current</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">bit</span><span class="p">)]</span>
+                        <span class="k">except</span> <span class="p">(</span><span class="ne">IndexError</span><span class="p">,</span>  <span class="c1"># list index out of range</span>
+                                <span class="ne">ValueError</span><span class="p">,</span>  <span class="c1"># invalid literal for int()</span>
+                                <span class="ne">KeyError</span><span class="p">,</span>    <span class="c1"># dict without `int(bit)` key</span>
+                                <span class="ne">TypeError</span><span class="p">,</span>   <span class="c1"># unsubscriptable object</span>
+                                <span class="p">):</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Failed lookup for key [</span><span class="si">%s</span><span class="s1">] in </span><span class="si">%r</span><span class="s1">&#39;</span>
+                                             <span class="s1">&#39;, when resolving the accessor </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">bit</span><span class="p">,</span> <span class="n">current</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+                                             <span class="p">)</span>
+                <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">current</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">safe</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="s1">&#39;alters_data&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;refusing to call </span><span class="si">%s</span><span class="s1">() because `.alters_data = True`&#39;</span>
+                                         <span class="o">%</span> <span class="nb">repr</span><span class="p">(</span><span class="n">current</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="s1">&#39;do_not_call_in_templates&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                        <span class="n">current</span> <span class="o">=</span> <span class="n">current</span><span class="p">()</span>
+                <span class="c1"># important that we break in None case, or a relationship</span>
+                <span class="c1"># spanning across a null-key will raise an exception in the</span>
+                <span class="c1"># next iteration, instead of defaulting.</span>
+                <span class="k">if</span> <span class="n">current</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="k">return</span> <span class="n">current</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">quiet</span><span class="p">:</span>
+                <span class="k">raise</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">SEPARATOR</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Return the django model field for model in context, following relations&#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="s1">&#39;_meta&#39;</span><span class="p">):</span>
+            <span class="k">return</span>
+
+        <span class="n">field</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">for</span> <span class="n">bit</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">bits</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">field</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">get_field</span><span class="p">(</span><span class="n">bit</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">FieldDoesNotExist</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="s1">&#39;rel&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">rel</span><span class="p">,</span> <span class="s1">&#39;to&#39;</span><span class="p">):</span>
+                <span class="n">model</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">rel</span><span class="o">.</span><span class="n">to</span>
+                <span class="k">continue</span>
+
+        <span class="k">return</span> <span class="n">field</span></div>
+
+
+<span class="n">A</span> <span class="o">=</span> <span class="n">Accessor</span>  <span class="c1"># alias</span>
+
+
+<span class="k">class</span> <span class="nc">AttributeDict</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A wrapper around `dict` that knows how to render itself as HTML</span>
+<span class="sd">    style tag attributes.</span>
+
+<span class="sd">    The returned string is marked safe, so it can be used safely in a template.</span>
+<span class="sd">    See `.as_html` for a usage example.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">as_html</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Render to HTML tag attributes.</span>
+
+<span class="sd">        Example:</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            &gt;&gt;&gt; from django_tables2.utils import AttributeDict</span>
+<span class="sd">            &gt;&gt;&gt; attrs = AttributeDict({&#39;class&#39;: &#39;mytable&#39;, &#39;id&#39;: &#39;someid&#39;})</span>
+<span class="sd">            &gt;&gt;&gt; attrs.as_html()</span>
+<span class="sd">            &#39;class=&quot;mytable&quot; id=&quot;someid&quot;&#39;</span>
+
+<span class="sd">        :rtype: `~django.utils.safestring.SafeUnicode` object</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">mark_safe</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">=&quot;</span><span class="si">%s</span><span class="s1">&quot;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">escape</span><span class="p">(</span><span class="n">v</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">callable</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">else</span> <span class="n">v</span><span class="p">()))</span>
+                                   <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="bp">self</span><span class="p">)]))</span>
+
+
+<span class="k">def</span> <span class="nf">segment</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="n">aliases</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Translates a flat sequence of items into a set of prefixed aliases.</span>
+
+<span class="sd">    This allows the value set by `.QuerySet.order_by` to be translated into</span>
+<span class="sd">    a list of columns that would have the same result. These are called</span>
+<span class="sd">    &quot;order by aliases&quot; which are optionally prefixed column names.</span>
+
+<span class="sd">    e.g.</span>
+
+<span class="sd">        &gt;&gt;&gt; list(segment((&quot;a&quot;, &quot;-b&quot;, &quot;c&quot;),</span>
+<span class="sd">        ...              {&quot;x&quot;: (&quot;a&quot;),</span>
+<span class="sd">        ...               &quot;y&quot;: (&quot;b&quot;, &quot;-c&quot;),</span>
+<span class="sd">        ...               &quot;z&quot;: (&quot;-b&quot;, &quot;c&quot;)}))</span>
+<span class="sd">        [(&quot;x&quot;, &quot;-y&quot;), (&quot;x&quot;, &quot;z&quot;)]</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">sequence</span> <span class="ow">or</span> <span class="n">aliases</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="k">for</span> <span class="n">alias</span><span class="p">,</span> <span class="n">parts</span> <span class="ow">in</span> <span class="n">aliases</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">variants</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="c1"># alias: order by tuple</span>
+            <span class="n">alias</span><span class="p">:</span> <span class="n">OrderByTuple</span><span class="p">(</span><span class="n">parts</span><span class="p">),</span>
+            <span class="n">OrderBy</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span><span class="o">.</span><span class="n">opposite</span><span class="p">:</span> <span class="n">OrderByTuple</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span><span class="o">.</span><span class="n">opposite</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">for</span> <span class="n">valias</span><span class="p">,</span> <span class="n">vparts</span> <span class="ow">in</span> <span class="n">variants</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">list</span><span class="p">(</span><span class="n">sequence</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">vparts</span><span class="p">)])</span> <span class="o">==</span> <span class="nb">list</span><span class="p">(</span><span class="n">vparts</span><span class="p">):</span>
+                <span class="n">tail_aliases</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">aliases</span><span class="p">)</span>
+                <span class="k">del</span> <span class="n">tail_aliases</span><span class="p">[</span><span class="n">alias</span><span class="p">]</span>
+                <span class="n">tail_sequence</span> <span class="o">=</span> <span class="n">sequence</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">vparts</span><span class="p">):]</span>
+                <span class="k">if</span> <span class="n">tail_sequence</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">tail</span> <span class="ow">in</span> <span class="n">segment</span><span class="p">(</span><span class="n">tail_sequence</span><span class="p">,</span> <span class="n">tail_aliases</span><span class="p">):</span>
+                        <span class="k">yield</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">chain</span><span class="p">([</span><span class="n">valias</span><span class="p">],</span> <span class="n">tail</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">valias</span><span class="p">])</span>
+
+
+<span class="n">funcs</span> <span class="o">=</span> <span class="p">(</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;getfullargspec&#39;</span><span class="p">,</span> <span class="s1">&#39;getargspec&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">inspect</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+<span class="n">getargspec</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">inspect</span><span class="p">,</span> <span class="nb">next</span><span class="p">(</span><span class="n">funcs</span><span class="p">))</span>
+<span class="k">del</span> <span class="n">funcs</span>
+
+
+<span class="k">def</span> <span class="nf">computed_values</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Computes a new `dict` that has callable values replaced with the return values.</span>
+
+<span class="sd">    Simple example:</span>
+
+<span class="sd">        &gt;&gt;&gt; compute_values({&quot;foo&quot;: lambda: &quot;bar&quot;})</span>
+<span class="sd">        {&quot;foo&quot;: &quot;bar&quot;}</span>
+
+<span class="sd">    Arbitrarily deep structures are supported. The logic is as follows:</span>
+
+<span class="sd">    1. If the value is callable, call it and make that the new value.</span>
+<span class="sd">    2. If the value is an instance of dict, use ComputableDict to compute its keys.</span>
+
+<span class="sd">    Example:</span>
+
+<span class="sd">        &gt;&gt;&gt; def parents():</span>
+<span class="sd">        ...     return {</span>
+<span class="sd">        ...         &quot;father&quot;: lambda: &quot;Foo&quot;,</span>
+<span class="sd">        ...         &quot;mother&quot;: &quot;Bar&quot;</span>
+<span class="sd">        ...      }</span>
+<span class="sd">        ...</span>
+<span class="sd">        &gt;&gt;&gt; a = {</span>
+<span class="sd">        ...     &quot;name&quot;: &quot;Brad&quot;,</span>
+<span class="sd">        ...     &quot;parents&quot;: parents</span>
+<span class="sd">        ... }</span>
+<span class="sd">        ...</span>
+<span class="sd">        &gt;&gt;&gt; computed_values(a)</span>
+<span class="sd">        {&quot;name&quot;: &quot;Brad&quot;, &quot;parents&quot;: {&quot;father&quot;: &quot;Foo&quot;, &quot;mother&quot;: &quot;Bar&quot;}}</span>
+
+<span class="sd">    :rtype: dict</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">d</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">computed_values</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">result</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+    <span class="k">return</span> <span class="n">result</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>

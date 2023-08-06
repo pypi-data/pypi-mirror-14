@@ -1,0 +1,683 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>django_tables2.columns.base &mdash; django-tables2 1.1.2 documentation</title>
+    
+    <link rel="stylesheet" href="../../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '1.1.2',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <link rel="top" title="django-tables2 1.1.2 documentation" href="../../../index.html" />
+    <link rel="up" title="Module code" href="../../index.html" /> 
+  </head>
+  <body role="document">
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for django_tables2.columns.base</h1><div class="highlight"><pre>
+<span class="c1"># coding: utf-8</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">islice</span>
+
+<span class="kn">from</span> <span class="nn">django.utils</span> <span class="kn">import</span> <span class="n">six</span>
+
+<span class="kn">from</span> <span class="nn">django_tables2.templatetags.django_tables2</span> <span class="kn">import</span> <span class="n">title</span>
+<span class="kn">from</span> <span class="nn">django_tables2.utils</span> <span class="kn">import</span> <span class="n">Accessor</span><span class="p">,</span> <span class="n">AttributeDict</span><span class="p">,</span> <span class="n">OrderBy</span><span class="p">,</span> <span class="n">OrderByTuple</span>
+
+
+<span class="k">class</span> <span class="nc">Library</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A collection of columns.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">column</span>
+
+    <span class="k">def</span> <span class="nf">column_for_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a column object suitable for model field.</span>
+
+<span class="sd">        :returns: column object of `None`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># iterate in reverse order as columns are registered in order</span>
+        <span class="c1"># of least to most specialised (i.e. Column is registered</span>
+        <span class="c1"># first). This also allows user-registered columns to be</span>
+        <span class="c1"># favoured.</span>
+        <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="s2">&quot;from_field&quot;</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">column</span> <span class="o">=</span> <span class="n">candidate</span><span class="o">.</span><span class="n">from_field</span><span class="p">(</span><span class="n">field</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">column</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">return</span> <span class="n">column</span>
+
+
+<span class="c1"># The library is a mechanism for announcing what columns are available. Its</span>
+<span class="c1"># current use is to allow the table metaclass to ask columns if they&#39;re a</span>
+<span class="c1"># suitable match for a model field, and if so to return an approach instance.</span>
+<span class="n">library</span> <span class="o">=</span> <span class="n">Library</span><span class="p">()</span>
+
+
+<span class="nd">@library.register</span>
+<div class="viewcode-block" id="Column"><a class="viewcode-back" href="../../../pages/api-reference.html#django_tables2.columns.Column">[docs]</a><span class="k">class</span> <span class="nc">Column</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represents a single column of a table.</span>
+
+<span class="sd">    `.Column` objects control the way a column (including the cells that</span>
+<span class="sd">    fall within it) are rendered.</span>
+
+
+<span class="sd">    .. attribute:: attrs</span>
+
+<span class="sd">        HTML attributes for elements that make up the column.</span>
+
+<span class="sd">        :type: `dict`</span>
+
+<span class="sd">        This API is extended by subclasses to allow arbitrary HTML attributes</span>
+<span class="sd">        to be added to the output.</span>
+
+<span class="sd">        By default `.Column` supports:</span>
+
+<span class="sd">        - *th* -- ``table/thead/th`` elements</span>
+<span class="sd">        - *td* -- ``table/tbody/tr/td`` elements</span>
+<span class="sd">        - *cell* -- fallback if *th* or *td* isn&#39;t defined</span>
+
+
+<span class="sd">    .. attribute:: accessor</span>
+
+<span class="sd">        An accessor that describes how to extract values for this column from</span>
+<span class="sd">        the :term:`table data`.</span>
+
+<span class="sd">        :type: string or `~.Accessor`</span>
+
+
+<span class="sd">    .. attribute:: default</span>
+
+<span class="sd">        The default value for the column. This can be a value or a callable</span>
+<span class="sd">        object [1]_. If an object in the data provides `None` for a column, the</span>
+<span class="sd">        default will be used instead.</span>
+
+<span class="sd">        The default value may affect ordering, depending on the type of data</span>
+<span class="sd">        the table is using. The only case where ordering is not affected is</span>
+<span class="sd">        when a `.QuerySet` is used as the table data (since sorting is</span>
+<span class="sd">        performed by the database).</span>
+
+<span class="sd">        .. [1] The provided callable object must not expect to receive any</span>
+<span class="sd">               arguments.</span>
+
+
+<span class="sd">    .. attribute:: order_by</span>
+
+<span class="sd">        Allows one or more accessors to be used for ordering rather than</span>
+<span class="sd">        *accessor*.</span>
+
+<span class="sd">        :type: `unicode`, `tuple`, `~.Accessor`</span>
+
+
+<span class="sd">    .. attribute:: orderable</span>
+
+<span class="sd">        If `False`, this column will not be allowed to influence row</span>
+<span class="sd">        ordering/sorting.</span>
+
+<span class="sd">        :type: `bool`</span>
+
+
+<span class="sd">    .. attribute:: verbose_name</span>
+
+<span class="sd">        A human readable version of the column name.</span>
+
+<span class="sd">        :type: `unicode`</span>
+
+
+<span class="sd">    .. attribute:: visible</span>
+
+<span class="sd">        If `True`, this column will be included in the HTML output.</span>
+
+<span class="sd">        :type: `bool`</span>
+
+
+<span class="sd">    .. attribute:: localize</span>
+
+<span class="sd">        *   If `True`, cells of this column will be localized in the HTML output</span>
+<span class="sd">            by the localize filter.</span>
+
+<span class="sd">        *   If `False`, cells of this column will be unlocalized in the HTML output</span>
+<span class="sd">            by the unlocalize filter.</span>
+
+<span class="sd">        *   If `None` (the default), cell will be rendered as is and localization will depend</span>
+<span class="sd">            on ``USE_L10N`` setting.</span>
+
+<span class="sd">        :type: `bool`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1">#: Tracks each time a Column instance is created. Used to retain order.</span>
+    <span class="n">creation_counter</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">empty_values</span> <span class="o">=</span> <span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">accessor</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">visible</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">orderable</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">attrs</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">order_by</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+                 <span class="n">empty_values</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">localize</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">accessor</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">accessor</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="nb">callable</span><span class="p">(</span><span class="n">accessor</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;accessor must be a string or callable, not </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span>
+                            <span class="nb">type</span><span class="p">(</span><span class="n">accessor</span><span class="p">)</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">accessor</span><span class="p">)</span> <span class="ow">and</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;accessor must be string when default is used, not callable&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">accessor</span> <span class="o">=</span> <span class="n">Accessor</span><span class="p">(</span><span class="n">accessor</span><span class="p">)</span> <span class="k">if</span> <span class="n">accessor</span> <span class="k">else</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_default</span> <span class="o">=</span> <span class="n">default</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">verbose_name</span> <span class="o">=</span> <span class="n">verbose_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">visible</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">orderable</span> <span class="o">=</span> <span class="n">orderable</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">attrs</span> <span class="o">=</span> <span class="n">attrs</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="c1"># massage order_by into an OrderByTuple or None</span>
+        <span class="n">order_by</span> <span class="o">=</span> <span class="p">(</span><span class="n">order_by</span><span class="p">,</span> <span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">order_by</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">)</span> <span class="k">else</span> <span class="n">order_by</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order_by</span> <span class="o">=</span> <span class="n">OrderByTuple</span><span class="p">(</span><span class="n">order_by</span><span class="p">)</span> <span class="k">if</span> <span class="n">order_by</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="k">else</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">empty_values</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">empty_values</span> <span class="o">=</span> <span class="n">empty_values</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">localize</span> <span class="o">=</span> <span class="n">localize</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">creation_counter</span> <span class="o">=</span> <span class="n">Column</span><span class="o">.</span><span class="n">creation_counter</span>
+        <span class="n">Column</span><span class="o">.</span><span class="n">creation_counter</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># handle callables</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default</span><span class="p">()</span> <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_default</span><span class="p">)</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The value used for the column heading (e.g. inside the ``&lt;th&gt;`` tag).</span>
+
+<span class="sd">        By default this returns `~.Column.verbose_name`.</span>
+
+<span class="sd">        :returns: `unicode` or `None`</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            This property typically isn&#39;t accessed directly when a table is</span>
+<span class="sd">            rendered. Instead, `.BoundColumn.header` is accessed which in turn</span>
+<span class="sd">            accesses this property. This allows the header to fallback to the</span>
+<span class="sd">            column name (it&#39;s only available on a `.BoundColumn` object hence</span>
+<span class="sd">            accessing that first) when this property doesn&#39;t return something</span>
+<span class="sd">            useful.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose_name</span>
+
+    <span class="k">def</span> <span class="nf">render</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the content for a specific cell.</span>
+
+<span class="sd">        This method can be overridden by :ref:`table.render_FOO` methods on the</span>
+<span class="sd">        table or by subclassing `.Column`.</span>
+
+<span class="sd">        :returns: `unicode`</span>
+
+<span class="sd">        If the value for this cell is in `.empty_values`, this method is</span>
+<span class="sd">        skipped and an appropriate default value is rendered instead.</span>
+<span class="sd">        Subclasses should set `.empty_values` to ``()`` if they want to handle</span>
+<span class="sd">        all values in `.render`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">from_field</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a specialised column for the model field or `None`.</span>
+
+<span class="sd">        :param field: the field that needs a suitable column</span>
+<span class="sd">        :type  field: model field instance</span>
+<span class="sd">        :returns: `.Column` object or `None`</span>
+
+<span class="sd">        If the column isn&#39;t specialised for the given model field, it should</span>
+<span class="sd">        return `None`. This gives other columns the opportunity to do better.</span>
+
+<span class="sd">        If the column is specialised, it should return an instance of itself</span>
+<span class="sd">        that&#39;s configured appropriately for the field.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Since this method is inherited by every subclass, only provide a</span>
+        <span class="c1"># column if this class was asked directly.</span>
+        <span class="k">if</span> <span class="n">cls</span> <span class="ow">is</span> <span class="n">Column</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="s2">&quot;get_related_field&quot;</span><span class="p">):</span>
+                <span class="n">verbose_name</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">get_related_field</span><span class="p">()</span><span class="o">.</span><span class="n">verbose_name</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">verbose_name</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="s1">&#39;verbose_name&#39;</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">verbose_name</span><span class="o">=</span><span class="n">verbose_name</span><span class="p">)</span></div>
+
+
+<span class="nd">@six.python_2_unicode_compatible</span>
+<div class="viewcode-block" id="BoundColumn"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumn">[docs]</a><span class="k">class</span> <span class="nc">BoundColumn</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A *run-time* version of `.Column`. The difference between</span>
+<span class="sd">    `.BoundColumn` and `.Column`, is that `.BoundColumn` objects include the</span>
+<span class="sd">    relationship between a `.Column` and a `.Table`. In practice, this</span>
+<span class="sd">    means that a `.BoundColumn` knows the *&quot;variable name&quot;* given to the</span>
+<span class="sd">    `.Column` when it was declared on the `.Table`.</span>
+
+<span class="sd">    For convenience, all `.Column` properties are available from thisclass.</span>
+
+<span class="sd">    :type   table: `.Table` object</span>
+<span class="sd">    :param  table: the table in which this column exists</span>
+<span class="sd">    :type  column: `.Column` object</span>
+<span class="sd">    :param column: the type of column</span>
+<span class="sd">    :type    name: string object</span>
+<span class="sd">    :param   name: the variable name of the column used to when defining the</span>
+<span class="sd">                   `.Table`. In this example the name is ``age``:</span>
+
+<span class="sd">                       .. code-block:: python</span>
+
+<span class="sd">                           class SimpleTable(tables.Table):</span>
+<span class="sd">                               age = tables.Column()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">column</span> <span class="o">=</span> <span class="n">column</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">accessor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the string used to access data for this column out of the data</span>
+<span class="sd">        source.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">accessor</span> <span class="ow">or</span> <span class="n">Accessor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">attrs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to `.Column.attrs` but injects some values of our own.</span>
+
+<span class="sd">        A ``th`` and ``td`` are guaranteed to be defined (irrespective of</span>
+<span class="sd">        what&#39;s actually defined in the column attrs. This makes writing</span>
+<span class="sd">        templates easier.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Work on a copy of the attrs object since we&#39;re tweaking stuff</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">attrs</span><span class="p">)</span>
+
+        <span class="c1"># Find the relevant th attributes (fall back to cell if th isn&#39;t</span>
+        <span class="c1"># explicitly specified).</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;th&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AttributeDict</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;th&#39;</span><span class="p">,</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cell&#39;</span><span class="p">,</span> <span class="p">{})))</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;td&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AttributeDict</span><span class="p">(</span><span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;td&#39;</span><span class="p">,</span> <span class="n">attrs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;cell&#39;</span><span class="p">,</span> <span class="p">{})))</span>
+
+        <span class="c1"># make set of existing classes.</span>
+        <span class="n">th_class</span> <span class="o">=</span> <span class="nb">set</span><span class="p">((</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;th&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;class&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">c</span><span class="p">))</span>
+        <span class="n">td_class</span> <span class="o">=</span> <span class="nb">set</span><span class="p">((</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;td&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;class&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">c</span><span class="p">))</span>
+
+        <span class="c1"># add classes for ordering</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">orderable</span><span class="p">:</span>
+            <span class="n">th_class</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;orderable&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_ordered</span><span class="p">:</span>
+            <span class="n">th_class</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;desc&#39;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">order_by_alias</span><span class="o">.</span><span class="n">is_descending</span> <span class="k">else</span> <span class="s1">&#39;asc&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Always add the column name as a class</span>
+        <span class="n">th_class</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">td_class</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;th&#39;</span><span class="p">][</span><span class="s1">&#39;class&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">th_class</span><span class="p">))</span>
+        <span class="n">attrs</span><span class="p">[</span><span class="s1">&#39;td&#39;</span><span class="p">][</span><span class="s1">&#39;class&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">td_class</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">attrs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the default value for this column.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">default</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">default</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The value that should be used in the header cell for this column.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># favour Column.header</span>
+        <span class="n">column_header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">header</span>
+        <span class="k">if</span> <span class="n">column_header</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">column_header</span>
+        <span class="c1"># fall back to automatic best guess</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose_name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">order_by</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns an `.OrderByTuple` of appropriately prefixed data source</span>
+<span class="sd">        keys used to sort this column.</span>
+
+<span class="sd">        See `.order_by_alias` for details.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">order_by</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">order_by</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">order_by</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># default to using column accessor as data source sort key</span>
+            <span class="n">order_by</span> <span class="o">=</span> <span class="n">OrderByTuple</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">accessor</span><span class="p">,</span> <span class="p">))</span>
+        <span class="k">return</span> <span class="n">order_by</span><span class="o">.</span><span class="n">opposite</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">order_by_alias</span><span class="o">.</span><span class="n">is_descending</span> <span class="k">else</span> <span class="n">order_by</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">order_by_alias</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns an `OrderBy` describing the current state of ordering for this</span>
+<span class="sd">        column.</span>
+
+<span class="sd">        The following attempts to explain the difference between `order_by`</span>
+<span class="sd">        and `.order_by_alias`.</span>
+
+<span class="sd">        `.order_by_alias` returns and `.OrderBy` instance that&#39;s based on</span>
+<span class="sd">        the *name* of the column, rather than the keys used to order the table</span>
+<span class="sd">        data. Understanding the difference is essential.</span>
+
+<span class="sd">        Having an alias *and* a keys version is necessary because an N-tuple</span>
+<span class="sd">        (of data source keys) can be used by the column to order the data, and</span>
+<span class="sd">        it&#39;s ambiguous when mapping from N-tuple to column (since multiple</span>
+<span class="sd">        columns could use the same N-tuple).</span>
+
+<span class="sd">        The solution is to use order by *aliases* (which are really just</span>
+<span class="sd">        prefixed column names) that describe the ordering *state* of the</span>
+<span class="sd">        column, rather than the specific keys in the data source should be</span>
+<span class="sd">        ordered.</span>
+
+<span class="sd">        e.g.::</span>
+
+<span class="sd">            &gt;&gt;&gt; class SimpleTable(tables.Table):</span>
+<span class="sd">            ...     name = tables.Column(order_by=(&quot;firstname&quot;, &quot;last_name&quot;))</span>
+<span class="sd">            ...</span>
+<span class="sd">            &gt;&gt;&gt; table = SimpleTable([], order_by=(&quot;-name&quot;, ))</span>
+<span class="sd">            &gt;&gt;&gt; table.columns[&quot;name&quot;].order_by_alias</span>
+<span class="sd">            &quot;-name&quot;</span>
+<span class="sd">            &gt;&gt;&gt; table.columns[&quot;name&quot;].order_by</span>
+<span class="sd">            (&quot;-first_name&quot;, &quot;-last_name&quot;)</span>
+
+<span class="sd">        The `OrderBy` returned has been patched to include an extra attribute</span>
+<span class="sd">        ``next``, which returns a version of the alias that would be</span>
+<span class="sd">        transitioned to if the user toggles sorting on this column, e.g.::</span>
+
+<span class="sd">            not sorted -&gt; ascending</span>
+<span class="sd">            ascending  -&gt; descending</span>
+<span class="sd">            descending -&gt; ascending</span>
+
+<span class="sd">        This is useful otherwise in templates you&#39;d need something like:</span>
+
+<span class="sd">            {% if column.is_ordered %}</span>
+<span class="sd">            {% querystring table.prefixed_order_by_field=column.order_by_alias.opposite %}</span>
+<span class="sd">            {% else %}</span>
+<span class="sd">            {% querystring table.prefixed_order_by_field=column.order_by_alias %}</span>
+<span class="sd">            {% endif %}</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">order_by</span> <span class="o">=</span> <span class="n">OrderBy</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">order_by</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="n">order_by</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">order_by</span><span class="o">.</span><span class="n">opposite</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_ordered</span> <span class="k">else</span> <span class="n">order_by</span>
+        <span class="k">return</span> <span class="n">order_by</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_ordered</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">order_by</span> <span class="ow">or</span> <span class="p">())</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">orderable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a `bool` depending on whether this column supports ordering.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">orderable</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">orderable</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">orderable</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">verbose_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the verbose name for this column, or fallback to the titlised</span>
+<span class="sd">        column name.</span>
+
+<span class="sd">        If the table is using queryset data, then use the corresponding model</span>
+<span class="sd">        field&#39;s `~.db.Field.verbose_name`. If it&#39;s traversing a relationship,</span>
+<span class="sd">        then get the last field in the accessor (i.e. stop when the</span>
+<span class="sd">        relationship turns from ORM relationships to object attributes [e.g.</span>
+<span class="sd">        person.upper should stop at person]).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Favor an explicit defined verbose_name</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">verbose_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">verbose_name</span>
+
+        <span class="c1"># This is our reasonable fallback, should the next section not result</span>
+        <span class="c1"># in anything useful.</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">title</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">))</span>
+
+        <span class="c1"># Try to use a model field&#39;s verbose_name</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;queryset&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">queryset</span><span class="p">,</span> <span class="s1">&#39;model&#39;</span><span class="p">):</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">queryset</span><span class="o">.</span><span class="n">model</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="n">Accessor</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">accessor</span><span class="p">)</span><span class="o">.</span><span class="n">get_field</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">field</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="s1">&#39;field&#39;</span><span class="p">):</span>
+                    <span class="n">name</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">field</span><span class="o">.</span><span class="n">verbose_name</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">name</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="s1">&#39;verbose_name&#39;</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">visible</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a `bool` depending on whether this column is visible.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">visible</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">localize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Returns `True`, `False` or `None` as described in ``Column.localize``</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">column</span><span class="o">.</span><span class="n">localize</span></div>
+
+
+<div class="viewcode-block" id="BoundColumns"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns">[docs]</a><span class="k">class</span> <span class="nc">BoundColumns</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Container for spawning `.BoundColumn` objects.</span>
+
+<span class="sd">    This is bound to a table and provides its `.Table.columns` property.</span>
+<span class="sd">    It provides access to those columns in different ways (iterator,</span>
+<span class="sd">    item-based, filtered and unfiltered etc), stuff that would not be possible</span>
+<span class="sd">    with a simple iterator in the table class.</span>
+
+<span class="sd">    A `BoundColumns` object is a container for holding `BoundColumn` objects.</span>
+<span class="sd">    It provides methods that make accessing columns easier than if they were</span>
+<span class="sd">    stored in a `list` or `dict`. `Columns` has a similar API to a `dict` (it</span>
+<span class="sd">    actually uses a `~collections.OrderedDict` interally).</span>
+
+<span class="sd">    At the moment you&#39;ll only come across this class when you access a</span>
+<span class="sd">    `.Table.columns` property.</span>
+
+<span class="sd">    :type  table: `.Table` object</span>
+<span class="sd">    :param table: the table containing the columns</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">base_columns</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">bc</span> <span class="o">=</span> <span class="n">BoundColumn</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="n">bc</span><span class="o">.</span><span class="n">render</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="s1">&#39;render_&#39;</span> <span class="o">+</span> <span class="n">name</span><span class="p">,</span> <span class="n">column</span><span class="o">.</span><span class="n">render</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">iternames</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteritems</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">iternames</span><span class="p">())</span>
+
+<div class="viewcode-block" id="BoundColumns.iterall"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns.iterall">[docs]</a>    <span class="k">def</span> <span class="nf">iterall</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return an iterator that exposes all `.BoundColumn` objects,</span>
+<span class="sd">        regardless of visiblity or sortability.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">column</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteritems</span><span class="p">())</span></div>
+
+    <span class="k">def</span> <span class="nf">all</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">iterall</span><span class="p">())</span>
+
+<div class="viewcode-block" id="BoundColumns.iteritems"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns.iteritems">[docs]</a>    <span class="k">def</span> <span class="nf">iteritems</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return an iterator of ``(name, column)`` pairs (where ``column`` is a</span>
+<span class="sd">        `BoundColumn`).</span>
+
+<span class="sd">        This method is the mechanism for retrieving columns that takes into</span>
+<span class="sd">        consideration all of the ordering and filtering modifiers that a table</span>
+<span class="sd">        supports (e.g. `~Table.Meta.exclude` and `~Table.Meta.sequence`).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">sequence</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="o">.</span><span class="n">exclude</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">name</span><span class="p">])</span></div>
+
+    <span class="k">def</span> <span class="nf">items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">iteritems</span><span class="p">())</span>
+
+<div class="viewcode-block" id="BoundColumns.iterorderable"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns.iterorderable">[docs]</a>    <span class="k">def</span> <span class="nf">iterorderable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Same as `BoundColumns.all` but only returns orderable columns.</span>
+
+<span class="sd">        This is useful in templates, where iterating over the full</span>
+<span class="sd">        set and checking ``{% if column.ordarable %}`` can be problematic in</span>
+<span class="sd">        conjunction with e.g. ``{{ forloop.last }}`` (the last column might not</span>
+<span class="sd">        be the actual last that is rendered).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iterall</span><span class="p">()</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">orderable</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">orderable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">iterorderable</span><span class="p">())</span>
+
+<div class="viewcode-block" id="BoundColumns.itervisible"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns.itervisible">[docs]</a>    <span class="k">def</span> <span class="nf">itervisible</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Same as `.iterorderable` but only returns visible `.BoundColumn`</span>
+<span class="sd">        objects.</span>
+
+<span class="sd">        This is geared towards table rendering.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iterall</span><span class="p">()</span> <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">visible</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">visible</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">itervisible</span><span class="p">())</span>
+
+<div class="viewcode-block" id="BoundColumns.__iter__"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns.__iter__">[docs]</a>    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convenience API, alias of `.itervisible`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">itervisible</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="BoundColumns.__contains__"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns.__contains__">[docs]</a>    <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check if a column is contained within a `Columns` object.</span>
+
+<span class="sd">        *item* can either be a `BoundColumn` object, or the name of a column.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iternames</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># let&#39;s assume we were given a column</span>
+            <span class="k">return</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iterall</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="BoundColumns.__len__"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns.__len__">[docs]</a>    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return how many :class:`BoundColumn` objects are contained (and</span>
+<span class="sd">        visible).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visible</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="BoundColumns.__getitem__"><a class="viewcode-back" href="../../../pages/internal.html#django_tables2.columns.BoundColumns.__getitem__">[docs]</a>    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieve a specific `BoundColumn` object.</span>
+
+<span class="sd">        *index* can either be 0-indexed or the name of a column</span>
+
+<span class="sd">        .. code-block:: python</span>
+
+<span class="sd">            columns[&#39;speed&#39;]  # returns a bound column with name &#39;speed&#39;</span>
+<span class="sd">            columns[0]        # returns the first column</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">next</span><span class="p">(</span><span class="n">islice</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">iterall</span><span class="p">(),</span> <span class="n">index</span><span class="p">,</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iterall</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">column</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">index</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">column</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;Column with name &#39;</span><span class="si">%s</span><span class="s2">&#39; does not exist; &quot;</span>
+                           <span class="s2">&quot;choices are: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">()))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Column indices must be integers or str, not </span><span class="si">%s</span><span class="s1">&#39;</span>
+                            <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">index</span><span class="p">)</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="nav-item nav-item-0"><a href="../../../index.html">django-tables2 1.1.2 documentation</a> &raquo;</li>
+          <li class="nav-item nav-item-1"><a href="../../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &copy; Copyright .
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.3.5.
+    </div>
+  </body>
+</html>
