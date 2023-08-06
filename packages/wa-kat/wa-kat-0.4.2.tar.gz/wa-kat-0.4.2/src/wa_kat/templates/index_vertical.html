@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+    <title>WA KAT</title>
+
+    <!-- Bootstrap -->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/typeaheadjs.css" rel="stylesheet">
+    <link href="/static/css/wa_kat.css" rel="stylesheet">
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+    <script src="/static/js/brython_dist.js"></script>
+  </head>
+  <body onload="brython({debug: 1})">
+  <h1 class="text-center">WA KAT</h1>
+
+  <div class="container" id="whole_brython_progress_bar">
+  <form id="application_form" class="form-horizontal" role="form">
+    <div class="form-group">
+      <div class="col-sm-5"></div>
+      <div class="col-sm-7">
+          <img src="/static/gears.gif" />
+          <br />
+          <br />
+          Načítám kód frontendu..
+      </div>
+    </div>
+  </form>
+  </div>
+
+  <div class="container" id="content" style="display: none">
+  <form id="application_form" class="form-horizontal" role="form">
+
+    <div class="form-group">
+      <label for="url" class="control-label col-sm-2">
+        <span class="required_item">URL</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#url" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div class="col-sm-10">
+        <div class="input-group">
+% if registered:
+          <!-- <p class="form-control-static"><a href="{{url}}">{{url}}</a></p> -->
+          <input type="text" class="form-control" id="url" placeholder="URL webu ke katalogizaci." value="{{url}}" required />
+% else:
+          <input type="text" class="form-control" id="url" placeholder="URL webu ke katalogizaci." required />
+% end
+          <span class="input-group-btn">
+            <button type="button" class="btn btn-default" id="run_button">Spustit</button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group" id="whole_urlbox_error" style="display: none;">
+      <div class="col-sm-2"></div>
+      <div class="col-sm-10">
+        <div class="alert alert-danger" role="alert" id="urlbox_error"></div>
+      </div>
+    </div>
+
+    <div class="form-group" id="whole_url_progressbar" style="display: none;">
+      <div class="col-sm-2"></div>
+      <div class="col-sm-10">
+        <div class="progress">
+          <div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%" id="url_progressbar">
+            Čekejte prosím, analýzy probíhají..
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="issn" class="control-label col-sm-2">
+        ISSN
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#issn" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div class="col-sm-10">
+        <div class="input-group">
+          <input type="text" class="form-control" id="issn" placeholder="ISSN. Bude použito pro získání dalších katalogizačních informací." />
+          <span class="input-group-btn">
+            <button type="button" class="btn btn-default" id="issn_run_button">Načíst</button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group" id="whole_issnbox_error" style="display: none;">
+      <div class="col-sm-2"></div>
+      <div class="col-sm-10">
+        <div class="alert alert-danger" role="alert" id="issnbox_error"></div>
+      </div>
+    </div>
+
+    <div class="form-group" id="whole_issn_progressbar" style="display: none;">
+      <div class="col-sm-2"></div>
+      <div class="col-sm-10">
+        <div class="progress">
+          <div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%" id="issn_progressbar">
+            Čekejte prosím, načítám data..
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="title" class="control-label col-sm-2">
+        <span class="required_item">Název</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#nazev" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div id="title_typeahead" class="col-sm-10">
+        <input class="typeahead form-control" type="text" id="title" placeholder="Název katalogizovaných webstránek." required />
+        <i class="dropdown_hint glyphicon glyphicon-menu-down form-control-feedback"></i>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="subtitle" class="control-label col-sm-2">
+        Podnázev
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#podnazev" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div id="subtitle_typeahead" class="col-sm-10">
+        <input class="typeahead form-control" type="text" id="subtitle" placeholder="Nepovinný podnázev stránek." />
+        <i class="dropdown_hint glyphicon glyphicon-menu-down form-control-feedback"></i>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="creation_date" class="control-label col-sm-2">
+        <span class="required_item">Datum vzniku</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#datum-vzniku" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div id="creation_date_typeahead" class="col-sm-10">
+        <input class="typeahead form-control" type="text" id="creation_date" placeholder="Rok vzniku webstránek." value="[XXXX?]-" required />
+        <i class="dropdown_hint glyphicon glyphicon-menu-down form-control-feedback"></i>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="publisher" class="control-label col-sm-2">
+        <span class="required_item">Vydavatel</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#vydavatel" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <input id="author_switcher" type="checkbox" checked="0" />
+      <div id="publisher_typeahead" class="col-sm-10">
+        <input class="typeahead form-control" type="text" id="publisher" placeholder="Vydavatel stránek, pokud je stejný jako Autor. Pokud není, rozklikněte vlevo." required />
+        <i class="dropdown_hint glyphicon glyphicon-menu-down form-control-feedback"></i>
+      </div>
+    </div>
+
+    <div class="form-group" id="whole_author" style="display: none">
+      <label for="author" class="control-label col-sm-2">
+        Autor
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#autor" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div class="col-sm-10">
+        <div class="input-group">
+          <input type="text" disabled class="form-control" id="author" placeholder="Autor stránek z autoritní báze. Klikněte na Vybrat pro načtení." />
+          <span class="input-group-btn">
+            <button type="button" class="btn btn-default" id="show_author_picker">Vybrat</button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="place" class="control-label col-sm-2">
+        <span class="required_item">Místo</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#misto" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div id="place_typeahead" class="col-sm-10">
+        <input class="typeahead form-control" type="text" id="place" placeholder="Místo vzniku." required />
+        <i class="dropdown_hint glyphicon glyphicon-menu-down form-control-feedback"></i>
+      </div>
+    </div>
+
+    <div class="form-group" id="whole_keyword_list" style="display: none">
+      <label for="keyword_list" class="control-label col-sm-2">
+        Předmětová hesla
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#predmetova-hesla" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <span class="col-sm-1"></span>
+      <span id="whole_user_keyword_list" class="col-sm-3">
+        <h4>Uživatelské</h4>
+        <span id="user_keyword_list" class="kw_list"></span>
+      </span>
+      <span id="whole_analysis_keyword_list" class="col-sm-3">
+        <h4>Analýza webu</h4>
+        <span id="analysis_keyword_list" class="kw_list"></span>
+      </span>
+      <span id="whole_aleph_keyword_list" class="col-sm-3">
+        <h4>Aleph</h4>
+        <span id="aleph_keyword_list" class="kw_list"></span>
+      </span>
+    </div>
+
+    <div class="form-group">
+      <label for="keywords" class="control-label col-sm-2">
+        Přidat heslo
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#predmetova-hesla" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div id="keyword_adder_typeahead" class="col-sm-10">
+        <input type="text" class="typeahead form-control" id="keyword_adder" placeholder="Přidat předmětové heslo." />
+      </div>
+    </div>
+
+    <div class="form-group two_conspect">
+      <label for="konspekt" class="control-label col-sm-2">
+        <span class="required_item">Konspekt</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#konspekt-subkonspekt" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <input class="conspect_switcher" type="checkbox" />
+      <div class="col-sm-10">
+        <select class="form-control" id="konspekt" size="4"></select>
+      </div>
+    </div>
+
+    <div class="form-group two_conspect">
+      <label for="subkonspekt" class="control-label col-sm-2">
+        <span class="required_item">SubKonspekt</span>
+      </label>
+      <div class="col-sm-10">
+        <select class="form-control" id="subkonspekt" size="4"></select>
+      </div>
+    </div>
+
+    <div class="form-group" id="whole_conspect_subconspect">
+      <input class="conspect_switcher" type="checkbox" />
+      <label for="conspect_subconspect" class="control-label col-sm-2">
+        <span class="required_item">Konspekt</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#konspekt-subkonspekt" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div id="conspect_subconspect_typeahead" class="col-sm-10">
+        <input class="typeahead form-control" type="text" id="conspect_subconspect" placeholder="Konspekt a subkonspekt - psaním vyberete." />
+        <i class="dropdown_hint glyphicon glyphicon-menu-down form-control-feedback"></i>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="lang" class="control-label col-sm-2">
+        <span class="required_item">Jazyk</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#jazyk" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div id="lang_typeahead" class="col-sm-10">
+        <input class="typeahead form-control" type="text" id="lang" placeholder="Kód jazyka." required />
+        <i class="dropdown_hint glyphicon glyphicon-menu-down form-control-feedback"></i>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="annotation" class="control-label col-sm-2">
+        <span class="required_item">Anotace</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#anotace" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div class="col-sm-10">
+        <textarea class="form-control" rows="3" id="annotation" placeholder="Krátký popis zdroje. Řádky začínající na -- jsou ignorovány." required></textarea>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="periode" class="control-label col-sm-2">
+        <span class="required_item">Periodicita</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#periodicita" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div id="periode_typeahead" class="col-sm-10">
+        <input class="typeahead form-control" type="text" id="periode" placeholder="Periodicita dílů." required />
+        <i class="dropdown_hint glyphicon glyphicon-menu-down form-control-feedback"></i>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="freq" class="control-label col-sm-2">
+        <span class="required_item">Frekvence sklízení</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#frekvence-sklizeni" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+      <div class="col-sm-10">
+        <select class="form-control" id="freq">
+          <option value="365">Denně</option>
+          <option value="52">Týdně</option>
+          <option value="12">Každý měsíc</option>
+          <option value="6">Každé dva měsíce</option>
+          <option value="4">Čtvrtletně</option>
+          <option value="2">Půlročně</option>
+          <option value="1">Ročně</option>
+          <option value="0">Pouze jednou</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="rules" class="control-label col-sm-2">
+        <span class="required_item">Pravidla</span>
+        <a href="http://wa-kat.readthedocs.org/en/latest/manual.html#pravidla" class="glyphicon glyphicon-question-sign"></a>
+      </label>
+
+      <span class="col-sm-2">
+        <h4>Hloubka (budget)</h4>
+        <div class="radio">
+          <label>
+            <input type="radio" name="budget_radio" value="15000" checked>
+            Default (15 000)
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="budget_radio" value="60000">
+            Vyšší (60 000)
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="budget_radio" value="5600">
+            Nižší (5 600)
+          </label>
+        </div>
+      </span>
+
+      <span class="col-sm-2">
+        <h4>Jemnost sklízení</h4>
+        <div class="radio">
+          <label>
+            <input type="radio" name="gentle_fetch_radio" value="default" checked>
+            Default
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="gentle_fetch_radio" value="low">
+            Jemný
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="gentle_fetch_radio" value="very_low">
+            Velmi jemný
+          </label>
+        </div>
+      </span>
+
+      <span class="col-sm-2">
+        <h4>Local Traps</h4>
+        <div class="radio">
+          <label>
+            <input type="radio" name="local_traps_radio" value="true">
+            Ano
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="local_traps_radio" value="false" checked>
+            Ne
+          </label>
+        </div>
+      </span>
+
+      <span class="col-sm-2">
+        <h4>Kalendáře</h4>
+        <div class="radio">
+          <label>
+            <input type="radio" name="calendars_radio" value="true">
+            Ano
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="calendars_radio" value="false" checked>
+            Ne
+          </label>
+        </div>
+      </span>
+
+      <span class="col-sm-2">
+        <h4>Youtube videa</h4>
+        <div class="radio">
+          <label>
+            <input type="radio" name="youtube_radio" value="true">
+            Ano
+          </label>
+        </div>
+        <div class="radio">
+          <label>
+            <input type="radio" name="youtube_radio" value="false" checked>
+            Ne
+          </label>
+        </div>
+      </span>
+    </div>
+
+    <div class="form-group">
+        <span class="col-sm-2"></span>
+
+        <span class="col-sm-2">
+          <h4>Global reject</h4>
+          <div class="radio">
+            <label>
+              <input type="radio" name="global_reject_radio" value="true" checked>
+              Ano
+            </label>
+          </div>
+          <div class="radio">
+            <label>
+              <input type="radio" name="global_reject_radio" value="false">
+              Ne
+            </label>
+          </div>
+        </span>
+
+        <span class="col-sm-3">
+          <h4>Javascript interpreter</h4>
+          <div class="radio">
+            <label>
+              <input type="radio" name="javascript_radio" value="true">
+              Ano
+            </label>
+          </div>
+          <div class="radio">
+            <label>
+              <input type="radio" name="javascript_radio" value="false" checked>
+              Ne
+            </label>
+          </div>
+        </span>
+    </div>
+
+    <div class="form-group">
+      <span class="col-sm-2"></span>
+      <div class="col-sm-10"><hr /></div>
+    </div>
+  </form>
+
+  <div class="form-group">
+    <label class="control-label col-sm-2"></label>
+    <span class="col-sm-2"></span>
+    <span class="col-sm-4">
+      <button id="reset_button" type="submit" class="btn btn-default">Vyčistit</button>
+    </span>
+    <span class="col-sm-4">
+      <button id="marc_button" type="submit" class="btn btn-primary">Generovat MARC</button>
+    </span>
+  </div>
+
+  <div class="form-group"></div>
+  </div>
+</div>
+
+<%
+import time
+year = time.strftime("%Y")
+%>
+
+<footer class="footer text-center">
+  <div class="container">
+    <p class="text-muted"><div id="show_log" class="reversed">©</div> 2015 - {{year}} <a href="https://github.com/WebArchivCZ/WA-KAT">WA KAT</a></p>
+  </div>
+</footer>
+
+<!--
+  This provides transparent dark cover for all active elements, to focus
+  attention to active element at the front.
+-->
+<div id="black_overlay"></div>
+
+<!-- This provides place where the log is displayed. -->
+<pre id="log_placeholder"></pre>
+
+<!-- This is the parent element for dynamic help iframe. -->
+<div id="help_overlay"></div>
+
+<!-- GUI for picking the author from Authority base in aleph -->
+<div id="author_picker">
+  <h2 style="text-align: center; padding-bottom: 1em">Výběr autora</h2>
+
+  <form id="application_form" class="form-horizontal" role="form">
+    <div class="form-group">
+      <label for="periode" class="control-label col-sm-2">Jméno autora</label>
+      <div class="col-sm-10">
+        <div class="input-group">
+          <input class="form-control" type="text" id="author_input" placeholder="Jméno autora v autoritní bázi." autocomplete="off" value="" />
+          <span class="input-group-btn">
+            <button type="button" class="btn btn-default" id="search_author">Vyhledat</button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group" id="whole_author_progressbar" style="display: none;">
+      <div class="col-sm-2"></div>
+      <div class="col-sm-10">
+        <div class="progress">
+          <div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%" id="author_progressbar">
+            Čekejte prosím, vyhledávám..
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="author_select" class="control-label col-sm-2">Možní autoři</label>
+      <div class="col-sm-10">
+        <select class="form-control" size="20" id="author_select" disabled>
+        </select>
+      </div>
+    </div>
+  </form>
+
+  <div class="form-group">
+    <label class="control-label col-sm-2"></label>
+    <span class="col-sm-2"></span>
+    <span class="col-sm-4">
+      <button id="storno_author" type="submit" class="btn btn-default">Storno</button>
+    </span>
+    <span class="col-sm-4">
+      <button id="pick_author" type="submit" class="btn btn-primary">Vybrat autora</button>
+    </span>
+  </div>
+</div>
+
+<!--
+  This is used as output display for various export formats - MRC, MARC XML,
+  Dublin core and so on.
+-->
+<div id="output_picker">
+  <form id="application_form" class="form-horizontal form-group output_group" role="form" name="MRC" method="POST" style="padding-top: 2em;">
+    <div class="form-group">
+      <label for="mrc_output" class="control-label col-sm-2">MRC šablona</label>
+      <div class="col-sm-10">
+        <textarea class="form-control" disabled=1 rows="10" id="mrc_output" placeholder="Výstup z doplněné MRC šablony."></textarea>
+      </div>
+    </div>
+
+    <input type="hidden" name="data" />
+
+    <div class="form-group">
+      <span class="col-sm-11"></span>
+      <span class="col-sm-1">
+        <button type="submit" class="btn btn-primary output_download_button">Stáhnout</button>
+      </span>
+    </div>
+  </form>
+
+  <form id="application_form" class="form-horizontal form-group output_group" role="form" name="marc_oai.xml" method="POST">
+    <div class="form-group">
+      <label for="marc_oai_output" class="control-label col-sm-2">MARC OAI</label>
+      <div class="col-sm-10">
+        <textarea class="form-control" disabled=1 rows="10" id="marc_oai_output" placeholder="Výstup z konverze do OAI."></textarea>
+      </div>
+    </div>
+
+    <input type="hidden" name="data" />
+
+    <div class="form-group">
+      <span class="col-sm-11"></span>
+      <span class="col-sm-1">
+        <button type="submit" class="btn btn-primary output_download_button">Stáhnout</button>
+      </span>
+    </div>
+  </form>
+
+  <form id="application_form" class="form-horizontal form-group output_group" role="form" name="dublin_core.xml" method="POST">
+    <div class="form-group">
+      <label for="dublin_core_output" class="control-label col-sm-2">Dublin Core</label>
+      <div class="col-sm-10">
+        <textarea class="form-control" disabled=1 rows="10" id="dublin_core_output" placeholder="Výstup z konverze do Dublin Core."></textarea>
+      </div>
+    </div>
+
+    <input type="hidden" name="data" />
+
+    <div class="form-group">
+      <span class="col-sm-11"></span>
+      <span class="col-sm-1">
+        <button type="submit" class="btn btn-primary output_download_button">Stáhnout</button>
+      </span>
+    </div>
+  </form>
+</div>
+
+<!-- Data containers -->
+<span style="display: none" id="seeder_data" is_set="{{bool(seeder_data) or ''}}">
+{{seeder_data}}
+</span>
+
+<script src="/static/js/jquery.min.js"></script>
+<script src="/static/js/bootstrap.min.js"></script>
+<script src="/static/js/typeahead.bundle.js"></script>
+<script src="/static/js/typeahead_custom.js"></script>
+<script type="text/python" src="/static/js/Lib/site-packages/wa_kat_main.py"></script>
+
+  </body>
+</html>
