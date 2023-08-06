@@ -1,0 +1,580 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Implementation details &mdash; Maloja 0.7.0 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Maloja 0.7.0 documentation" href="index.html"/>
+        <link rel="next" title="Notes for developers" href="contribute.html"/>
+        <link rel="prev" title="Plugins" href="plugins.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Maloja
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.7.0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">Commands</a></li>
+<li class="toctree-l1"><a class="reference internal" href="model.html">Data model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="designfile.html">Design file</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plugins.html">Plugins</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Implementation details</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#architecture">Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#common-types">Common types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#common-utilities">Common utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#broker-module">Broker module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#messages">Messages</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#surveyor-module">Surveyor module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-maloja.planner">Planner module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#builder-module">Builder module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#inspector-module">Inspector module</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="contribute.html">Notes for developers</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="index.html">Maloja</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+ 
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="index.html">Docs</a> &raquo;</li>
+      
+    <li>Implementation details</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+            <a href="_sources/api.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="implementation-details">
+<h1>Implementation details<a class="headerlink" href="#implementation-details" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="architecture">
+<h2>Architecture<a class="headerlink" href="#architecture" title="Permalink to this headline">¶</a></h2>
+<p>The Architecture of Maloja tries to ensure:</p>
+<blockquote>
+<div><ul class="simple">
+<li>Each distinct Use Case has a command to achieve it</li>
+<li>Commands are invoked from the CLI, the Console or both
+as fits the Use Case</li>
+<li>Each command is implemented in a separate module</li>
+<li>Common operations against the API are the
+responsibility of a <a class="reference internal" href="#broker-module">Broker module</a></li>
+</ul>
+</div></blockquote>
+<div class="figure" id="id1">
+<img alt="_images/architecture.png" src="_images/architecture.png" />
+<p class="caption"><span class="caption-text">Components of the Maloja toolkit</span></p>
+</div>
+</div>
+<div class="section" id="common-types">
+<h2>Common types<a class="headerlink" href="#common-types" title="Permalink to this headline">¶</a></h2>
+<p>Maloja defines lightweight types for many things, including
+API tokens:</p>
+<blockquote>
+<div><dl class="class">
+<dt id="maloja.types.Token">
+<em class="property">class </em><code class="descclassname">maloja.types.</code><code class="descname">Token</code><span class="sig-paren">(</span><em>t</em>, <em>url</em>, <em>key</em>, <em>value</em><span class="sig-paren">)</span><a class="headerlink" href="#maloja.types.Token" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div></blockquote>
+<p>Status messages:</p>
+<blockquote>
+<div><dl class="class">
+<dt id="maloja.types.Status">
+<em class="property">class </em><code class="descclassname">maloja.types.</code><code class="descname">Status</code><span class="sig-paren">(</span><em>id</em>, <em>job</em>, <em>path</em><span class="sig-paren">)</span><a class="headerlink" href="#maloja.types.Status" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div></blockquote>
+<p>As well as other message types which we&#8217;ll see later on.
+There&#8217;s also a class to represent user plugins.</p>
+<dl class="class">
+<dt id="maloja.types.Plugin">
+<em class="property">class </em><code class="descclassname">maloja.types.</code><code class="descname">Plugin</code><span class="sig-paren">(</span><em>name</em>, <em>description</em>, <em>selector</em>, <em>workflow</em><span class="sig-paren">)</span><a class="headerlink" href="#maloja.types.Plugin" title="Permalink to this definition">¶</a></dt>
+<dd><p>This data structure describes a Maloja plugin. It is the type
+expected by the <cite>maloja.plugin</cite> interface.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="common-utilities">
+<h2>Common utilities<a class="headerlink" href="#common-utilities" title="Permalink to this headline">¶</a></h2>
+<p>A small number of functions are used frequently for parsing, sorting
+and storing data.</p>
+<dl class="function">
+<dt id="maloja.workflow.utils.find_xpath">
+<code class="descclassname">maloja.workflow.utils.</code><code class="descname">find_xpath</code><span class="sig-paren">(</span><em>xpath</em>, <em>tree</em>, <em>namespaces={}</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/workflow/utils.html#find_xpath"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.workflow.utils.find_xpath" title="Permalink to this definition">¶</a></dt>
+<dd><p>Find elements within an XML tree whose attributes match certain
+values.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>xpath</strong> &#8211; an xpath query string.</li>
+<li><strong>tree</strong> &#8211; <cite>xml.etree.ElementTree</cite> object.</li>
+<li><strong>namespaces</strong> &#8211; a dictionary of namespace prefixes.</li>
+<li><strong>kwargs</strong> &#8211; specifies attribute values to filter by.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">An iterator over valid elements.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="maloja.workflow.path.find_ypath">
+<code class="descclassname">maloja.workflow.path.</code><code class="descname">find_ypath</code><span class="sig-paren">(</span><em>path: maloja.workflow.path.Path</em>, <em>query</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/workflow/path.html#find_ypath"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.workflow.path.find_ypath" title="Permalink to this definition">¶</a></dt>
+<dd><p>Find objects within the Maloja cache tree whose attributes match certain
+values.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>path</strong> &#8211; search location in cache.</li>
+<li><strong>query</strong> &#8211; an archetype of the object to look for.</li>
+<li><strong>kwargs</strong> &#8211; specifies attribute values to filter by.
+If no keyword arguments are supplied, then attributes
+on the query object serve as criteria to be matched.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">An iterator over matching (path, object) tuples.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="maloja.workflow.utils.group_by_type">
+<code class="descclassname">maloja.workflow.utils.</code><code class="descname">group_by_type</code><span class="sig-paren">(</span><em>items</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/workflow/utils.html#group_by_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.workflow.utils.group_by_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Group a sequence of items by the type of item.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">A dictionary of lists. Keys in the dictionary are types.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="broker-module">
+<h2>Broker module<a class="headerlink" href="#broker-module" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="maloja.broker.Broker">
+<em class="property">class </em><code class="descclassname">maloja.broker.</code><code class="descname">Broker</code><span class="sig-paren">(</span><em>operations</em>, <em>results</em>, <em>*args</em>, <em>*</em>, <em>executor=None</em>, <em>loop=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/broker.html#Broker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.broker.Broker" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Broker manages all Maloja&#8217;s interactions with the VMware API.
+It is responsible for taking messages from an <em>operations</em> queue
+and initiating an action for each one.</p>
+<p>The Broker caches your API authorization token. It also maintains
+a <em>requests</em> session with the API.</p>
+<p>The best way to create a Broker object is with the
+<a class="reference internal" href="#maloja.broker.create_broker" title="maloja.broker.create_broker"><code class="xref py py-func docutils literal"><span class="pre">maloja.broker.create_broker()</span></code></a> function.</p>
+<dl class="attribute">
+<dt id="maloja.broker.Broker.tasks">
+<code class="descname">tasks</code><em class="property"> = {'operation_task': None}</em><a class="headerlink" href="#maloja.broker.Broker.tasks" title="Permalink to this definition">¶</a></dt>
+<dd><p>A Broker is an active object. The tasks it runs in the background
+of your program are stored in this dictionary.</p>
+<p>To wait for a Broker to finish takes code like this:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">tasks</span> <span class="o">=</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">broker</span><span class="o">.</span><span class="n">tasks</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="maloja.broker.create_broker">
+<code class="descclassname">maloja.broker.</code><code class="descname">create_broker</code><span class="sig-paren">(</span><em>operations</em>, <em>results</em>, <em>max_workers=None</em>, <em>loop=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/broker.html#create_broker"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.broker.create_broker" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>operations</strong> &#8211; a queue object. Push operations to this queue.</li>
+<li><strong>results</strong> &#8211; a queue object. Get results from this queue.</li>
+<li><strong>max_workers</strong> &#8211; the number of threads to use in the executor
+pool. Leave this as <cite>None</cite> to get a sensible default value.</li>
+<li><strong>loop</strong> &#8211; an asyncio loop object. <em>Not implemented</em>.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">A new Broker object</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<div class="section" id="messages">
+<h3>Messages<a class="headerlink" href="#messages" title="Permalink to this headline">¶</a></h3>
+<p>A broker object dispatches messages it finds in its <cite>operations</cite> queue.
+Examples of these are:</p>
+<blockquote>
+<div><ul class="simple">
+<li><code class="xref py py-class docutils literal"><span class="pre">maloja.types.Survey</span></code></li>
+<li><code class="xref py py-class docutils literal"><span class="pre">maloja.types.Design</span></code></li>
+<li><code class="xref py py-class docutils literal"><span class="pre">maloja.types.Inspection</span></code></li>
+<li><code class="xref py py-class docutils literal"><span class="pre">maloja.types.Stop</span></code></li>
+</ul>
+</div></blockquote>
+<dl class="function">
+<dt id="maloja.broker.handler">
+<code class="descclassname">maloja.broker.</code><code class="descname">handler</code><span class="sig-paren">(</span><em>msg</em>, <em>session</em>, <em>token</em>, <em>results=None</em>, <em>status=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/broker.html#handler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.broker.handler" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Broker provides this handler to dispatch messages it
+receives to functions which know how to execute them.</p>
+<p>This design allows new modules to be implemented and to register
+functions for receipt of specific message types.</p>
+<p>Every handler function receives these positional arguments:</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>msg</strong> &#8211; the message object.</li>
+<li><strong>session</strong> &#8211; a <em>requests.futures</em> session object.</li>
+<li><strong>token</strong> &#8211; an authorization Token for the VMware API.</li>
+<li><strong>results</strong> &#8211; a queue object so your handler can send back
+status messages.</li>
+<li><strong>status</strong> &#8211; the current status at the point your handler
+is invoked.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+</div>
+<div class="section" id="surveyor-module">
+<h2>Surveyor module<a class="headerlink" href="#surveyor-module" title="Permalink to this headline">¶</a></h2>
+<p>The Surveyor is registered to run whenever a
+<code class="xref py py-class docutils literal"><span class="pre">maloja.types.Survey</span></code> message is received by the Broker.</p>
+<dl class="class">
+<dt id="maloja.surveyor.Surveyor">
+<em class="property">class </em><code class="descclassname">maloja.surveyor.</code><code class="descname">Surveyor</code><a class="reference internal" href="_modules/maloja/surveyor.html#Surveyor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.surveyor.Surveyor" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Surveyor is responsible for exploring a virtual infrastructure.
+It starts at Org level and finds networks and Edge Gateways. It
+descends down through vDCs, via catalogs and vApps to Vms.</p>
+<p>The Surveyor is a singleton; only one survey may run at a time.
+It is stateless; all necessary data is passed on from
+one task to the next, or else saved into YAML files.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-maloja.planner">
+<span id="planner-module"></span><h2>Planner module<a class="headerlink" href="#module-maloja.planner" title="Permalink to this headline">¶</a></h2>
+<p>The planner module allows offline inspection of a design file.</p>
+<p>A design file conforms to YAML syntax. It is made up of items
+from a survey (also YAML) assembled in a hierarchical structure.</p>
+<p>You can test the module using one of the example files which come with
+your Maloja installation.</p>
+<p>On Ubuntu 14.04:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>$ ~/py3.4/bin/maloja @options.private plan --input=maloja/test/use_case01.yaml
+</pre></div>
+</div>
+<p>On Windows 8.1:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&gt;</span> <span class="o">%</span><span class="n">USERPROFILE</span><span class="o">%</span>\<span class="n">py3</span><span class="o">.</span><span class="mi">5</span>\<span class="n">Scripts</span>\<span class="n">maloja</span> <span class="nd">@options</span><span class="o">.</span><span class="n">private</span> <span class="n">plan</span> <span class="o">--</span><span class="nb">input</span><span class="o">=</span><span class="n">maloja</span><span class="o">/</span><span class="n">test</span><span class="o">/</span><span class="n">use_case01</span><span class="o">.</span><span class="n">yaml</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="builder-module">
+<h2>Builder module<a class="headerlink" href="#builder-module" title="Permalink to this headline">¶</a></h2>
+<p>The Builder is registered to run whenever a
+<code class="xref py py-class docutils literal"><span class="pre">maloja.types.Design</span></code> message is received by the Broker.</p>
+<dl class="class">
+<dt id="maloja.broker.Builder">
+<em class="property">class </em><code class="descclassname">maloja.broker.</code><code class="descname">Builder</code><span class="sig-paren">(</span><em>objs</em>, <em>results</em>, <em>executor=None</em>, <em>loop=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/builder.html#Builder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.broker.Builder" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Builder accepts a sequence of objects from the
+<a class="reference internal" href="model.html#data-model"><span class="std std-ref">data model</span></a> and uses them to construct
+new virtual infrastructure.</p>
+<dl class="method">
+<dt id="maloja.broker.Builder.monitor">
+<code class="descname">monitor</code><span class="sig-paren">(</span><em>task</em>, <em>session</em>, <em>status=None</em>, <em>backoff=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/builder.html#Builder.monitor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.broker.Builder.monitor" title="Permalink to this definition">¶</a></dt>
+<dd><p>The builder launches this method whenever a VMware task is
+initiated. The method tracks the progress of the task.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="maloja.broker.Builder.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>objs</em>, <em>results</em>, <em>executor=None</em>, <em>loop=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/builder.html#Builder.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.broker.Builder.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>objs</strong> &#8211; a sequence of Maloja objects</li>
+<li><strong>results</strong> &#8211; a queue to which status reports will be pushed</li>
+<li><strong>executor</strong> &#8211; a <cite>concurrent.futures.Executor</cite> object</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="maloja.broker.Builder.__call__">
+<code class="descname">__call__</code><span class="sig-paren">(</span><em>session</em>, <em>token</em>, <em>callback=None</em>, <em>status=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/builder.html#Builder.__call__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.broker.Builder.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>A Builder is a callable object which runs in its own thread.</p>
+<p>It gets started up like this:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">builder</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="n">token</span><span class="p">,</span> <span class="n">callback</span><span class="p">,</span> <span class="n">status</span><span class="p">)</span>
+</pre></div>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>session</strong> &#8211; a <em>requests.futures</em> session object.</li>
+<li><strong>token</strong> &#8211; an authorization Token for the VMware API.</li>
+<li><strong>callback</strong> &#8211; a function to be called when
+the builder is done.</li>
+<li><strong>status</strong> &#8211; the current status at the point the builder
+is invoked.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="inspector-module">
+<h2>Inspector module<a class="headerlink" href="#inspector-module" title="Permalink to this headline">¶</a></h2>
+<p>The Inspector is registered to run whenever a
+<code class="xref py py-class docutils literal"><span class="pre">maloja.types.Inspection</span></code> message is received by the Broker.</p>
+<dl class="class">
+<dt id="maloja.inspector.Inspector">
+<em class="property">class </em><code class="descclassname">maloja.inspector.</code><code class="descname">Inspector</code><span class="sig-paren">(</span><em>objs</em>, <em>results</em>, <em>executor=None</em>, <em>loop=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/inspector.html#Inspector"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.inspector.Inspector" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Inspector accepts a sequence of objects from the
+<a class="reference internal" href="model.html#data-model"><span class="std std-ref">data model</span></a> and uses them to check
+existing virtual infrastructure.</p>
+<dl class="method">
+<dt id="maloja.inspector.Inspector.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>objs</em>, <em>results</em>, <em>executor=None</em>, <em>loop=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/inspector.html#Inspector.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.inspector.Inspector.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>objs</strong> &#8211; a sequence of Maloja objects</li>
+<li><strong>results</strong> &#8211; a queue to which status reports will be pushed</li>
+<li><strong>executor</strong> &#8211; a <cite>concurrent.futures.Executor</cite> object</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="maloja.inspector.Inspector.__call__">
+<code class="descname">__call__</code><span class="sig-paren">(</span><em>session</em>, <em>token</em>, <em>callback=None</em>, <em>status=None</em>, <em>name=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/maloja/inspector.html#Inspector.__call__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#maloja.inspector.Inspector.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>An Inspector is a callable object which runs in its own thread.</p>
+<p>It gets started up like this:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">executor</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">inspector</span><span class="p">,</span> <span class="n">session</span><span class="p">,</span> <span class="n">token</span><span class="p">,</span> <span class="n">callback</span><span class="p">,</span> <span class="n">status</span><span class="p">)</span>
+</pre></div>
+</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>session</strong> &#8211; a <em>requests.futures</em> session object.</li>
+<li><strong>token</strong> &#8211; an authorization Token for the VMware API.</li>
+<li><strong>callback</strong> &#8211; a function to be called when
+the inspector is done.</li>
+<li><strong>status</strong> &#8211; the current status at the point the inspector
+is invoked.</li>
+<li><strong>name</strong> &#8211; the name of the entity to be checked.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="contribute.html" class="btn btn-neutral float-right" title="Notes for developers" accesskey="n">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="plugins.html" class="btn btn-neutral" title="Plugins" accesskey="p"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2015 Skyscape Cloud Services.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'0.7.0',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
