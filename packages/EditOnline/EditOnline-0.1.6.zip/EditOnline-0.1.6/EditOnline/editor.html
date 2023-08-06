@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <title>{{realm}}: {{path}}</title>
+  <style type="text/css" media="screen">
+    body {
+      overflow: hidden;
+    }
+    #editor {
+      margin: 0;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+    }
+
+    #doing {
+      margin: 0;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: white;
+      opacity: 0.9;
+      display: none;
+    }
+    #help {
+      margin: 0;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 2000;
+      background: white;
+      /*opacity: 0.9;*/
+      display: none;
+    }
+    .doingtext{
+      margin: 100px auto; text-align: center;
+      width: 400px;
+      padding: 5px;
+      line-height: 40px;
+      vertical-align: middle;
+      border-radius: 20px;
+      font-size: 20px;
+      background:#00FF85;
+    }
+  </style>
+</head>
+<body>
+  <pre id="editor"></pre>
+  <div id="doing">
+    <div class="doingtext">
+
+    </div>
+  </div>
+
+  <div id="help">
+    <div class="doingtext">
+      EditOnline {{version}}
+      <br/>
+      <strong>Ctrl+S</strong> : Save File
+      <br/>
+      <strong>Ctrl+Shif+N</strong> : New File
+      <br/>
+      <strong>Ctrl+H</strong> : Show Help Info
+      <br/>
+      <div style="text-align:right; padding-right:20px;">
+        <a href="javascrpt:void();" onclick="$('#help').hide();">Close</a>
+      </div>
+    </div>
+  </div>
+  <script src="/eo.static/jquery-v1.11.1.min.js" type="text/javascript" charset="utf-8"></script>
+  <script src="/eo.static/ace.js" type="text/javascript" charset="utf-8"></script>
+
+  <!-- user cdnjs -->
+<!--   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0-beta1/jquery.min.js" type="text/javascript" charset="utf-8"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.3/ace.js" type="text/javascript" charset="utf-8"></script> -->
+
+<script type="text/javascript">
+  var mimemap = {
+    js:'javascript',
+    py:'python',
+    el:'erlang',
+    pl:'perl',
+    m:'objectivec',
+    cs:'csharp',
+    rb:'ruby',
+    go:'golang',
+    h:'c_cpp',
+    c:'c_cpp',
+    cpp:'c__cpp',
+    bat:'batchfile'
+  };
+  var exists = {{exists}};
+  var editor = ace.edit("editor");
+  var suf = "";
+  editor.setTheme("ace/theme/twilight");
+  $(function(){
+    var mode = "ace/mode/text";
+    var pathname = window.location.pathname.replace('~editor','')
+    var ix = pathname.lastIndexOf('.');
+    if(ix>0){
+      suf = pathname.substr(ix+1);
+      if(mimemap[suf]){
+        mode = "ace/mode/"+mimemap[suf];
+      }
+      else{
+        mode = "ace/mode/"+suf;
+      }
+    }
+
+    editor.session.setMode(mode);
+    if(exists){
+      doing("loading...");
+      $.ajax({
+        url:window.location.href.replace('~editor',''),
+        dataType:'text',
+        cache: false,
+        success:function(data){
+          // done();
+          editor.setValue(data, 1);
+          toast("load success!");
+        },
+        error:function(e) {
+          toast("load failed!", 3000);
+        }
+      });
+    }
+    else{
+      $('#help').show();
+    }
+  });
+
+  $(document).keydown(function(e){
+    // console.log(e);
+    if( e.ctrlKey  == true && e.keyCode == 83 ){
+      // Ctrl+S
+      save();
+      return false;
+    }
+    else if( e.ctrlKey  == true && e.keyCode == 72 ){
+      // Ctrl+H
+      $('#help').toggle();
+      return false;
+    }
+    else if( e.ctrlKey  && e.shiftKey && e.keyCode == 78){
+      // Ctrl+Shif+N
+      newfile();
+      return false;
+    }
+  });
+
+  function doing(t){
+    $("#doing .doingtext").text(t);
+    $("#doing").show();
+  }
+
+  function done(){
+    $("#doing").hide();
+  }
+
+  function toast(t,tm) {
+    doing(t);
+    setTimeout(done, tm?tm:1000);
+  }
+
+  function save(){
+    doing('saving...');
+     $.ajax({
+      url:window.location.href.replace('~editor',''),
+      type: "POST",
+      data: editor.getValue(),
+      contentType: "string",
+      success: function (data) {
+        toast('save success!');
+      },
+      error:function(r){
+        toast("save failed!",3000);
+      }
+    })
+  }
+
+  function newfile(){
+    var path = window.location.pathname.replace("~editor","")
+    var name = path.substr(path.lastIndexOf('/')+1);
+    var dirpath = path.substr(0,path.lastIndexOf('/')+1);
+    name = prompt("New File", name);
+    if(name){
+      var npath = dirpath+name+"~editor";
+      window.open(npath);
+    }
+  }
+</script>
+
+</body>
+</html>
