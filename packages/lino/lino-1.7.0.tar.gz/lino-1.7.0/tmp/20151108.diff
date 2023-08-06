@@ -1,0 +1,61 @@
+diff --git a/lino/modlib/cal/fixtures/std.py b/lino/modlib/cal/fixtures/std.py
+index af4fde6..0099110 100644
+--- a/lino/modlib/cal/fixtures/std.py
++++ b/lino/modlib/cal/fixtures/std.py
+@@ -39,6 +39,7 @@ def objects():
+                                     # de="Allgemein",
+                                     # fr="Général",
+     yield general
++    assert general.id is not None
+     settings.SITE.site_config.site_calendar = general
+     yield settings.SITE.site_config
+ 
+diff --git a/lino/modlib/lino_startup/__init__.py b/lino/modlib/lino_startup/__init__.py
+index f15da3f..c7beb12 100644
+--- a/lino/modlib/lino_startup/__init__.py
++++ b/lino/modlib/lino_startup/__init__.py
+@@ -20,7 +20,7 @@
+ 
+ #     # media_name = 'lino'
+ 
+-from lino import AFTER17, startup
++from lino import AFTER17, site_startup
+ 
+ if AFTER17:
+ 
+@@ -38,7 +38,7 @@ if AFTER17:
+             # raise Exception("20150820")
+             # print "20151010 LinoConfig.ready() gonna call Site.startup"
+             try:
+-                startup()
++                site_startup()
+             except Exception as e:
+                 print e
+                 raise
+diff --git a/lino/utils/dpy.py b/lino/utils/dpy.py
+index 5be8121..1b0334e 100644
+--- a/lino/utils/dpy.py
++++ b/lino/utils/dpy.py
+@@ -36,6 +36,8 @@ from django.utils import translation
+ from lino.utils.mldbc.fields import BabelCharField, BabelTextField
+ from lino.core.utils import obj2str, sorted_models_list, full_model_name
+ 
++from lino import AFTER17
++
+ SUFFIX = '.py'
+ 
+ 
+@@ -649,7 +651,12 @@ class DpyDeserializer(LoaderBase):
+                     empty_fixture = False
+                     yield o
+ 
+-        if empty_fixture:
++        # Since Django 1.7 no longer considers empty fixtures as an
++        # error, we don't need to use our trick of yielding the
++        # SiteConfig instance. That trick sometimes could casue side
++        # effects.
++
++        if empty_fixture and not AFTER17:
+             if SUPPORT_EMPTY_FIXTURES:
+                 # avoid Django interpreting empty fixtures as an error
+                 yield DummyDeserializedObject()

@@ -1,0 +1,94 @@
+diff --git a/docs/tutorials/gfktest/index.rst b/docs/tutorials/gfktest/index.rst
+index a52cccc..4add68a 100644
+--- a/docs/tutorials/gfktest/index.rst
++++ b/docs/tutorials/gfktest/index.rst
+@@ -93,7 +93,10 @@ method in order produce broken GFKs:
+ 
+ >>> from django.db.models.signals import pre_delete
+ >>> from lino.core.model import pre_delete_handler
+->>> pre_delete.disconnect(pre_delete_handler)
++>>> pre_delete.disconnect(pre_delete_handler) in (None, True)
++True
++
++(Above syntax is because Django 1.6 returns None while 1.7+ returns True)
+ 
+ Now deleting the member will not fail
+ 
+diff --git a/docs/tutorials/gfktest/test.py b/docs/tutorials/gfktest/test.py
+index 88ccf77..f8ce0b4 100644
+--- a/docs/tutorials/gfktest/test.py
++++ b/docs/tutorials/gfktest/test.py
+@@ -16,6 +16,8 @@ from lino.utils.djangotest import TestCase
+ 
+ class TestCase(TestCase):
+ 
++    maxDiff = None
++
+     def test01(self):
+         """We create a member, and three GFK-related objects whose `owner`
+         fields point to that member. And then we try to delete that
+@@ -46,7 +48,7 @@ class TestCase(TestCase):
+             (Memo, 'owner_id', 'owner_type')])
+ 
+         def create_objects():
+-            mbr = Member(name="John")
++            mbr = Member(name="John", id=1)
+             mbr.save()
+ 
+             self.assertEqual(mbr.name, "John")
+diff --git a/docs/tutorials/lets/index.rst b/docs/tutorials/lets/index.rst
+index 2f4e6da..63bfd36 100644
+--- a/docs/tutorials/lets/index.rst
++++ b/docs/tutorials/lets/index.rst
+@@ -260,11 +260,7 @@ Since doctests run on a temporary database, we need to load our
+ fixture each time this document is being tested.
+ 
+ >>> from django.core.management import call_command
+->>> call_command('initdb', 'demo', interactive=False)
+-Creating tables ...
+-Installing custom SQL ...
+-Installing indexes ...
+-Installed 26 object(s) from 1 fixture(s)
++>>> call_command('initdb', 'demo', interactive=False, verbosity=0)
+ 
+     
+ Show the list of members:    
+diff --git a/lino/modlib/extjs/elems.py b/lino/modlib/extjs/elems.py
+index f165bee..14ef0ef 100644
+--- a/lino/modlib/extjs/elems.py
++++ b/lino/modlib/extjs/elems.py
+@@ -23,6 +23,7 @@ from django.conf import settings
+ from django.db.models.fields.related import SingleRelatedObjectDescriptor
+ from django.db.models.fields.related import ForeignRelatedObjectsDescriptor
+ from django.db.models.fields.related import ManyRelatedObjectsDescriptor
++from django.db.models.fields.related import ManyToManyRel
+ from lino import AFTER17
+ if AFTER17:
+     from django.contrib.contenttypes.fields import GenericForeignKey
+@@ -2110,6 +2111,11 @@ def create_layout_element(lh, name, **kw):
+         lh.add_store_field(e.field)
+         return e
+ 
++    if isinstance(de, ManyToManyRel):
++        e = ManyRelatedObjectElement(lh, de, **kw)
++        lh.add_store_field(e.field)
++        return e
++
+     if isinstance(de, models.ManyToManyField):
+         e = ManyToManyElement(lh, de.related, **kw)
+         lh.add_store_field(e.field)
+diff --git a/lino/setup_info.py b/lino/setup_info.py
+index 8155aaa..f0ba295 100644
+--- a/lino/setup_info.py
++++ b/lino/setup_info.py
+@@ -17,8 +17,8 @@ SETUP_INFO = dict(
+     name='lino',
+     version='1.6.19',  # released 20150901
+     install_requires=[
+-        'django<1.7',
+-        # 'django',
++        # 'django<1.7',
++        'django',
+         'Sphinx',
+         'atelier', 'unipath', 'python_dateutil',
+         'Babel', 'odfpy',

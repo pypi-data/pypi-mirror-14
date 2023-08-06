@@ -1,0 +1,287 @@
+diff --git a/.travis.yml b/.travis.yml
+index 78451ae..0a7bcd2 100644
+--- a/.travis.yml
++++ b/.travis.yml
+@@ -1,7 +1,6 @@
+ language: python
+ python:
+   - "2.7"
+-  - "2.6"
+ # command to install dependencies, e.g. pip install -r requirements.txt --use-mirrors
+ install: pip install .
+ # command to run tests, e.g. python setup.py test
+diff --git a/docs/dev/install.rst b/docs/dev/install.rst
+index 55ce2e1..f006d2b 100644
+--- a/docs/dev/install.rst
++++ b/docs/dev/install.rst
+@@ -29,8 +29,9 @@ System requirements
+     time to make it work with newer versions. Any contribution is
+     welcome.
+ 
+-#.  Lino requires **Python 2**.  Also here: we just did not yet take the
+-    time to make it work with Python 3. Any contribution is welcome.
++#.  Lino requires **Python 2.7**.  Also here: we just did not yet take
++    the time to make it work with Python 3. Any contribution is
++    welcome.
+ 
+ #.  We assume you have pip_ installed. `pip` is not automatically
+     bundled with Python 2, but it has become the de-facto standard.
+diff --git a/lino/modlib/appypod/appy_renderer.py b/lino/modlib/appypod/appy_renderer.py
+index 43e97b1..28561a1 100644
+--- a/lino/modlib/appypod/appy_renderer.py
++++ b/lino/modlib/appypod/appy_renderer.py
+@@ -34,6 +34,7 @@ from odf.style import ListLevelProperties
+ from odf.style import (TableColumnProperties, TableRowProperties,
+                        TableCellProperties)
+ from odf import text
++from odf import office
+ from odf.table import (Table, TableColumns, TableColumn,
+                        TableHeaderRows, TableRows, TableRow, TableCell)
+ 
+@@ -172,9 +173,9 @@ class AppyRenderer(OriginalAppyRenderer):
+         #~ if not self.stylesManager.styles.getStyle('UL'):
+             #~ self.insert_chunk(fn,'content.xml',OAS,UL_LIST_STYLE)
+         self.insert_chunk(fn, 'content.xml', OAS, ''.join(
+-            [toxml(e).decode('utf-8') for e in self.my_automaticstyles]))
++            [toxml(n).decode('utf-8') for n in self.my_automaticstyles]))
+         self.insert_chunk(fn, 'styles.xml', OFFICE_STYLES, ''.join(
+-            [toxml(e).decode('utf-8') for e in self.my_styles]))
++            [toxml(n).decode('utf-8') for n in self.my_styles]))
+ 
+     def insert_chunk(self, root, leaf, insert_marker, chunk):
+         """
+diff --git a/lino/utils/html2odf.py b/lino/utils/html2odf.py
+index fcad47a..a052e21 100644
+--- a/lino/utils/html2odf.py
++++ b/lino/utils/html2odf.py
+@@ -6,6 +6,14 @@
+ converts an ElementTree object generated using
+ :mod:`lino.utils.xmlgen.html` to a fragment of ODF.
+ 
++This is part of the Lino test suite. To test it individually, run::
++
++    $ python lino/utils/html2odf.py
++
++This is used in order to generate .odt documents which contain (among
++other) chunks of html that have been entered using TinyMCE and stored
++in database fields.
++
+ >>> from lino.utils.xmlgen.html import E
+ >>> def test(e):
+ ...     print E.tostring(e)
+@@ -41,27 +49,32 @@ is another test.</text:p>
+ <text:p xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><text:span
+ text:style-name="Strong Emphasis">This</text:span> is another test.</text:p>
+ 
+->>> test(E.ul(E.li("First item"),E.li("Second item"))) #doctest: +NORMALIZE_WHITESPACE
++>>> test(E.ul(E.li("First item"),E.li("Second item")))
++... #doctest: +NORMALIZE_WHITESPACE
+ <ul><li>First item</li><li>Second item</li></ul>
+-<text:list xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" 
+-text:style-name="podBulletedList"><text:list-item><text:p 
+-text:style-name="podBulletItem">First item</text:p></text:list-item><text:list-item><text:p 
+-text:style-name="podBulletItem">Second item</text:p></text:list-item></text:list>
+-
+-N.B.: the above chunk is obviously not correct since Writer doesn't display it.
+-(How can I debug a generated odt file? 
+-I mean if my content.xml is syntactically valid but Writer ...)
+-Idea: validate it against the ODF specification using lxml
+-
+-
+-
+-:func:`html2odf` converts bold text to a span with a 
+-style named "Strong Emphasis". That's currently a hard-coded name, and the 
+-caller must make sure that a style of that name is defined in the 
+-document.
++<text:list xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
++text:style-name="podBulletedList"><text:list-item><text:p
++text:style-name="podBulletItem">First item</text:p>\
++</text:list-item><text:list-item><text:p
++text:style-name="podBulletItem">Second item</text:p>\
++</text:list-item></text:list>
++
++N.B.: the above chunk is obviously not correct since Writer doesn't
++display it.  (How can I debug a generated odt file?  I mean if my
++content.xml is syntactically valid but Writer ...)  Idea: validate it
++against the ODF specification using lxml...
++
++:func:`html2odf` converts bold text to a span with a style named
++"Strong Emphasis". That's currently a hard-coded name, and the caller
++must make sure that a style of that name is defined in the document.
+ 
+ The text formats `<i>` and `<em>` are converted to a style "Emphasis".
+ 
++If a sequence of paragraph-level items are grouped using a div:
++
++>>> test(E.div(E.p("Two numbered items:"),
++...    E.ol(E.li("first"), E.li("second"))))
++... #doctest: +NORMALIZE_WHITESPACE
+ 
+ Edge case:
+ 
+@@ -72,6 +85,7 @@ Edge case:
+ ... #doctest: +NORMALIZE_WHITESPACE
+ <text:p xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">Ein
+ schÃ¶ner Text</text:p>
++
+ """
+ 
+ import logging
+@@ -81,15 +95,13 @@ from StringIO import StringIO
+ 
+ 
+ def toxml(node):
++    """Convert an ODF node to a string with its XML representation."""
+     buf = StringIO()
+     node.toXml(0, buf)
+     return buf.getvalue()
+ 
+-
+ from odf import text
+ 
+-
+-#~ PTAGS = ('p','td','li')
+ PTAGS = ('p', 'td', 'div', 'table', 'tr')
+ 
+ 
+@@ -98,32 +110,34 @@ def html2odf(e, ct=None, **ctargs):
+     Convert a :mod:`lino.utils.xmlgen.html` element to an ODF text element.
+     Most formats are not implemented.
+     There's probably a better way to do this...
++
++    :ct: the root element ("container"). If not specified, we create one.
++
+     """
++
+     sections_counter = 1
+     #~ print "20120613 html2odf()", e.tag, e.text
+-    if ct is None:
+-        ct = text.P(**ctargs)
+-        #~ if e.tag in PTAGS:
+-            #~ oe = text.P(**ctargs)
+-        #~ else:
+-            #~ oe = text.P(**ctargs)
+-            #~ logger.info("20130201 %s",E.tostring(e))
+-            #~ raise NotImplementedError("<%s> without container" % e.tag)
+     if isinstance(e, basestring):
++        if ct is None:
++            ct = text.P(**ctargs)
+         ct.addText(e)
+         #~ oe = text.Span()
+         #~ oe.addText(e)
+         #~ yield oe
+         return ct
+ 
++    # oe : "ODF element"
++    text_container = oe = None
++    children_container = None
++
+     if e.tag == 'ul':
++        assert ct is None
+         ct = text.List(stylename='podBulletedList')
+         ctargs = dict(stylename='podBulletItem')
+-        #~ ctargs = dict()
+-
+-    text_container = None
+-
+-    if e.tag == 'b':
++    elif e.tag == 'ol':
++        ct = text.List(stylename='podNumberedList')
++        ctargs = dict(stylename='podNumberItem')
++    elif e.tag == 'b':
+         #~ oe = text.Span(stylename='Bold Text')
+         oe = text.Span(stylename='Strong Emphasis')
+     elif e.tag == 'a':
+@@ -135,23 +149,27 @@ def html2odf(e, ct=None, **ctargs):
+         oe = text.Span()
+     elif e.tag == 'br':
+         oe = text.LineBreak()
+-
+     elif e.tag == 'h1':
+-        """
+-        <text:h text:style-name="Heading_20_1" text:outline-level="1">
+-        """
+-        oe = ct = text.H(stylename="Heading 1", outlinelevel=1)
++        # <text:h text:style-name="Heading_20_1" text:outline-level="1">
++        oe = text.H(stylename="Heading 1", outlinelevel=1)
++        if ct is None: ct = oe
+     elif e.tag == 'h2':
+-        oe = ct = text.H(stylename="Heading 2", outlinelevel=2)
++        oe = text.H(stylename="Heading 2", outlinelevel=2)
++        if ct is None: ct = oe
+     elif e.tag == 'h3':
+-        oe = ct = text.H(stylename="Heading 3", outlinelevel=3)
++        oe = text.H(stylename="Heading 3", outlinelevel=3)
++        if ct is None: ct = oe
+     elif e.tag == 'div':
+-        oe = ct = text.Section(name="S" + str(sections_counter))
++        oe = text.Section(name="S" + str(sections_counter))
++        if ct is None: ct = oe
++        # text_container = text.P(**ctargs)
++        # oe.appendChild(text_container)
+ 
+     elif e.tag == 'img':
+         return  # ignore images
+-    elif e.tag == 'ul':
+-        oe = ct
++    # elif e.tag in ('ul', 'ol'):
++    #     assert ct is not None
++    #     oe = ct
+     #~ elif e.tag in ('ul','ol'):
+         #~ oe = text.List(stylename=e.tag.upper())
+         #~ ctargs = dict(stylename=e.tag.upper()+"_P")
+@@ -160,8 +178,11 @@ def html2odf(e, ct=None, **ctargs):
+         oe = text.ListItem()
+         text_container = text.P(**ctargs)
+         oe.appendChild(text_container)
++        ct.appendChild(oe)
+ 
+     elif e.tag in PTAGS:
++        if ct is None:
++            ct = text.P(**ctargs)
+         oe = ct
+         #~ if ct.tagName == 'p':
+             #~ oe = ct
+@@ -177,11 +198,7 @@ def html2odf(e, ct=None, **ctargs):
+     if e.text:
+         text_container.addText(e.text)
+     for child in e:
+-        #~ html2odf(child,oe)
+         html2odf(child, text_container, **ctargs)
+-        #~ for oc in html2odf(child,oe):
+-            # ~ # oe.addElement(oc)
+-            #~ oe.appendChild(oc)
+     #~ if not True:
+         #~ if e.tail:
+             #~ oe.addText(e.tail)
+diff --git a/lino/utils/xmlgen/html.py b/lino/utils/xmlgen/html.py
+index a51d09d..e8a85f5 100644
+--- a/lino/utils/xmlgen/html.py
++++ b/lino/utils/xmlgen/html.py
+@@ -62,6 +62,7 @@ from __future__ import unicode_literals
+ 
+ import types
+ from xml.etree import ElementTree as ET
++from lxml.etree import HTML
+ 
+ from lino.utils import join_elems
+ from lino.utils.xmlgen import Namespace
+@@ -120,10 +121,14 @@ class HtmlNamespace(Namespace):
+     def raw(self, raw_html):
+         """Parses the given string into an HTML Element."""
+         # print 20151008, raw_html
+-        try:
+-            return self.fromstring(raw_html, parser=CreateParser())
+-        except ET.ParseError as e:
+-            raise Exception("ParseError {0} in {1}".format(e, raw_html))
++
++        # the lxml parser wraps `<html><body>...</body></html>` around
++        # the snippet, but we don't want it.
++        return HTML(raw_html)[0][0]
++        # try:
++        #     return self.fromstring(raw_html, parser=CreateParser())
++        # except ET.ParseError as e:
++        #     raise Exception("ParseError {0} in {1}".format(e, raw_html))
+ 
+ 
+ E = HtmlNamespace(None, """
