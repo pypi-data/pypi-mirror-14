@@ -1,0 +1,412 @@
+Changes
+=======
+
+0.33.0 (2016-04-01)
+-------------------
+
+I played a lot of One-on-One on the computers of the mid-1980s and dedicate
+this release to the best #33 of all time, Larry Bird.
+
+- Bug fix: YCbCr JPEG-in-TIFF files no longer break rio-info (#617, #618).
+- New feature: the ability to read dataset metadata and imagery from S3 objects
+  is an extra feature that can be installed like this `pip install -U
+  rasterio[s3]`. AWS Credentials are handled by boto3 (and botocore) and so can
+  be provided by environment variables, session arguments, `~/.aws/credentials`
+  file, or EC2 instance metadata. S3 access is enabled in the following CLI
+  commands: rio-clip, rio-info, rio-insp, rio-bounds, rio-shapes, rio-sample
+  and may be expanded in future versions. S3 objects are identified on the
+  command line and in API functions by URIs following the pattern
+  `s3://bucket/object`. Extra thanks to Rob Emanuele and Even Rouault for
+  helping on this one (#551, #610).
+- New feature: new and improved documentation coming soon to a website near
+  you (#588).
+- Refactoring: commands for the rio CLI have been moved to their own
+  modules so that they're easier to find (#594).
+- Refactoring: we've changed our primary pattern for checking errors set by
+  GDAL API functions (#600).
+
+0.32.0.post1 (2016-03-27)
+-------------------------
+- No changes to the library in this post-release version, but there is a
+  significant change to the distributions on PyPI: to help make Rasterio more
+  compatible with Shapely on OS X, the GDAL shared library included in the
+  macosx (only) binary wheels now statically links the GEOS library. See
+  https://github.com/sgillies/frs-wheel-builds/issues/5.
+
+0.32.0 (2016-03-22)
+-------------------
+- Bug fix: geometry factories and warp operations are properly deallocated
+  in normal and error situations (#494, #568).
+- Bug fix: a code block in rio-merge's help has been better formatted (#535).
+- Bug fix: the rasterio.vfs module is imported in __init__.py to assist
+  cx_Freeze (#536).
+- Bug fix: old usage of `read_band()` has been replaced by `read()` throughout
+  the docs (#537).
+- Bug fix: accidental overwriting of existing files is now prevented by the
+  `resolve_inout()` function in `rasterio.rio.helpers`. Commands that take
+  one or more input files plus an output file should use this helper and force
+  overwrite either by using a `--force-overwrite` option or by using the
+  `-o output` option, which implicitly forces overwriting (#539, #540).
+- Bug fix: missing support for NaN nodata value in rio-warp added (#542, #544).
+- Bug fix: missing documentation of `rasterize()`'s `fill` parameter added
+  (#543).
+- Bug fix: raster dataset bounds are densified before transforming so that
+  the projected output of rio-bounds is correct (#556, #557).
+- Bug fix: add 'line' to the `Interleaving` enum (#560).
+- Bug fix: convert `matplotlib` import errors to a `RuntimeWarning` (#562).
+- Bug fix: deallocate CPL strings in error cases (#573).
+- Bug fix: non-invertable affine transforms are prevented using
+  `__future__.division` *#580).
+- Bug fix: rio-warp clips output regions to the limits of the destination
+  CRS unless disabled with `--no-check-invert-proj` (#597).
+- New feature: the functionality previously available only in rio-mask is now
+  available as `rasterio.tools.mask.mask()` (#552).
+- New feature: raster bounds are used to label axes in `rasterio.tool.show()`
+  (#553).
+- New feature: GDAL's suggested warp bounds algorithm is wrapped and exposed
+  for use in `warp()` and rio-warp (#574).
+- Breaking change: align rio-warp's `--bounds` option with rio-merge's: these
+  are in destination CRS units (#541, #545).
+
+0.31.0 (2015-12-18)
+-------------------
+- Warn when rasters have no georeferencing and when the default identity
+  transform will be applied by GDAL (#524, #527).
+- Build OS X wheels using numpy>=1.10.2 (#529).
+- When reading image windows in previous versions, given a window with
+  ((row_start, row_stop), (col_start, col_stop)) if the stop index is greater
+  than the width/height the start index effectively shifts as well. This can
+  manifest itself in pixel misalignment if, e.g. you read block windows with
+  a bit of padding to avoid edge effects. Now the window offsets are determined
+  solely by row_start and col_start.(#532, #533).
+
+0.30.0 (2015-11-16)
+-------------------
+- Added window utilities: get_data_window(), window_union(),
+  window_intersection(), windows_intersect() (#496, #506).
+- Warn when an alpha band that might provide a dataset mask is shadowed by a
+  nodata attribute (#508, #523).
+- IPython is not the default interpreter for rio-insp and the documentation 
+  saying it is has been corrected (#518).
+- Guard against creating datasets with block sizes larger than the dataset
+  width and height. Such datasets are semi-broken and are likely to be 
+  mangled when read (#521).
+- Refactor of the `rasterio.features` tests (#522).
+
+0.29.0 (2015-10-22)
+-------------------
+- Fill masked arrays in rio-calc when using Numpy 1.10.x as well as with 1.8.x
+  (#500).
+- When a raster dataset is not tiled, blockxsize and blockysize items are no
+  longer included in its `profile` property. This prevents meaningless block
+  size parameters from stripped, not tiled, datasets from being used when
+  creating new datasets (#503).
+
+0.28.0 (2015-10-06)
+-------------------
+- Ensure that tools module is packaged (#489, #490). The rio-merge command was
+  broken in 0.27.0 and is restored to working order in version 0.28.0.
+- Add `precision` keyword argument to `index()` method (#492).
+
+0.27.0 (2015-09-25)
+-------------------
+- Ensure local uniqueness of the rio-shapes feature ids (#479).
+- Surface compression and interleaving as dataset properties and in rio-info
+  (#481). In the module, these are enums (`enums.Compression` and 
+  `enums.Interleaving`); the values of the enums correspond to GDAL terms
+  (i.e, "DEFLATE") and the names are what surface in the CLI ("deflate").
+- Change get_window() and DatasetReader.window() to return a window guaranteed
+  to cover the input bounding box (#464, #485).
+- Bug fix for improperly computed transforms of output file in tools.merge and
+  rio-merge (#485).
+- More robust determination of dataset nodata values. In particular, the 
+  absence of a nodata value is much more clear: dataset.nodata should never
+  return an out of range value when there is no nodata value, it should always
+  return `None` (#485).
+
+0.26.0 (2015-08-11)
+-------------------
+- Add dependency on click-plugins, a new project that takes over the plugin
+  duties formerly assigned to cligj (#426).
+- Change rio-stack's --photometric=RGB option to --rgb (#429). Other 
+  photometric interpretations should be assigned using the --co option 
+  added in 0.25.0.
+- Allow for ndarray-like objects (like xray arrays), not just numpy arrays,
+  in warp() and elsewhere (#436).
+- Add --rgb flag to rio-convert (#439).
+- Fixed resampling algorithm enumeration bug (#441).
+- Colormap handling was made too strict in 0.24.1 and has been made more
+  forgiving. Callers are now warned when alpha values will be ignored instead
+  of receiving exceptions (#444).
+- Add a .gitignore (#445). Better late than never!
+- Add a checksum() method to base dataset class and checksums to output of
+  rio-info (#449).
+
+0.25.0 (2015-07-17)
+-------------------
+- New rio-warp command (#264, #404).
+- Add driver-specific creation options (`--co`) to many commands (#379, #403).
+- Add support for arbitrary CRS output to rio-bounds (#385, #392).
+- Add support for getting values from template files in rio-edit-info with a
+  `--like` option (#387, #399).
+- New rio-overview command (#388, #408).
+- Fix rounding error in extracting shapes from decimated data (#391).
+- Remove creation options from meta property and move them to new profile
+  property (#405, #406).
+- Fix for bug in passing affine keyword argument to open() in 'w' mode (#411).
+- New rio-convert command (#414, #417), a replacement for gdal_translate 
+  with more features to come by 1.0.
+- Improved error messages when seeking a driver when none are registered 
+  (#415).
+- Replace read_band() with read() in the rio-insp banner (#418).
+- Fix an indexing error that prevented window() and window_bounds() from 
+  round-tripping properly (#419).
+
+0.24.1 (2015-06-30)
+-------------------
+- Improve safety of the sample() generator (#378).
+- Provide array masking features missing from Numpy<1.9 (#380, #389).
+- Guard against attempts to write RGBA colormap entries to TIFFs, which the
+  format can not support (#394, #395).
+
+0.24.0 (2015-05-27)
+-------------------#408).
+- New rio-edit-info command (#358).
+- Add option to package GDAL data in distributions (#362).
+- Remove check that the path given to `rasterio.open()` in read mode is an
+  existing file, turning on some non-file formats (#364).
+- Addition of a `window_bounds()` method to dataset objects (#366).
+- Delegation of command exiting to Click (#367).
+
+0.23.0 (2015-05-08)
+-------------------
+- Redesign CLI as dynamically loaded entry points (#346).
+
+0.22.0 (2015-05-01)
+-------------------
+- Return masked arrays in the boundless read case (#338).
+- Add -o/--output option to rio-calc,merge,stack,mask,shapes,rasterize (#333).
+
+0.21.0 (2015-04-22)
+-------------------
+- New rio-mask command (#323).
+- Masking bug fix for rio-shapes (#335).
+- Addition of single valued nodata property to be used instead of nodatavals
+  (#329).
+
+0.20.0 (2015-04-08)
+-------------------
+- Switch read() default to masked=False (#300, #317).
+- Fix documentation of masking throughout module (#305).
+- Remove option for in place nodata filling (#309).
+- Enhancements for valid data footprint extraction in rio-shapes (#316, #318).
+
+0.19.1 (2015-03-30)
+-------------------
+- Add missing blockxsize, blockysize, tiled keywords (#301).
+
+0.19.0 (2015-03-25)
+-------------------
+- New rio-calc command (#175).
+- Added a file band shortcut to fillnodata() (#271).
+- Added fillnodata() to rio-calc functions (#277).
+- New approach to masking arrays on read that conforms more closely to GDAL's
+  RFC 15 (#282, #284, #285).
+- New read_masks() method (#284).
+- Deprecation of read_mask() and read_band (#284).
+- New affine transform factory functions from_origin(), from_bounds() (#287).
+- Improve correctness of indexing and rio-merge logic (#288, #290).
+
+0.18.0 (2015-02-10)
+-------------------
+- New rio-rasterize command (#187).
+- New window_transform method (#215).
+- New sample method and rio-sample command (#251, #275).
+- New fillnodata function based on GDAL's rasterfill.cpp (#253).
+- Speedups for _features and _warp modules (#259).
+- Enhancements for rio-info: 'res', 'lnglat', and 'stats' (#269, #270).
+
+0.17.1 (2015-01-20)
+-------------------
+- Properly handle metadata tags with values that contain "=" (#254).
+
+0.17.0 (2015-01-15)
+-------------------
+- Enhancements to rio-merge: relaxation of same-extent and same-resolution
+  constraints, addition of --bounds and --res options (#242, 247).
+- Data files in support of binary wheels (#239).
+- Fix for reading bands with undefined nodata (#237, #240).
+
+0.16.0 (2014-12-16)
+-------------------
+- More graceful, slice-like handling of windows (#191).
+- Addition of optional z coordinate to warp.transform() (#199).
+- Relax excessively strict transform guard, allowing translation of rasters
+  with no georeferencing (#210).
+- Removal of setuptools from the package's install_requires (#222).
+
+0.15.1 (2014-11-03)
+-------------------
+- Fix incorrect use of output.dtype (#196).
+
+0.15 (2014-10-11)
+-----------------
+- Support for more data types in seive() (#159).
+- Handle unexpected PROJ.4 values like "+no_defs=True" (#173).
+- Support for writing PNG, JPEG, etc using GDALCreateCopy (#177).
+- New rio-stack command (#180).
+- Moved rio CLI main entry point to rasterio/rio/main:cli.
+- Add rio-env command and --version option to rio.
+- Make -f and --format aliases for --driver in CLI options (#183).
+- Remove older rio_* scripts (#184).
+- `out` keyword arg supercedes `output` in rasterio.features (#179).
+
+0.14.1 (2014-10-02)
+-------------------
+- Allow update of nodata values in r+ mode (#167).
+
+0.14 (2014-10-01)
+-----------------
+- Fixed tag update crasher (#145).
+- Add --mask and --bidx options to rio shapes (#150).
+- Faster geometry transforms and antimeridian cutting (#163).
+- Support for more data types in shapes() and rasterize() (#155, #158).
+- Switch to Cython 0.20+ for development (#151).
+
+0.13.2 (2014-09-23)
+-------------------
+- Add enum34 to requirements (#149).
+- Make rasterize() more robust (#146).
+- Pin Cython>=0.20 and Numpy>=1.8 (#151).
+
+0.13.1 (2014-09-13)
+-------------------
+- Read unprojected images with less flailing (#117).
+
+0.13 (2014-09-09)
+-----------------
+- Add single value options to rio info command (#139, #143).
+- Switch to console scripts entry points for rio, &c (#137).
+- Avoid unnecessary imports of Numpy in info command, elsewhere (#140).
+
+0.12.1 (2014-09-02)
+-------------------
+- Add missing rasterio.rio package (#135).
+
+0.12 (2014-09-02)
+-----------------
+- Add --mercator option for rio bounds (#126).
+- Add option for RS as a JSON text sequence separator (#127).
+- Add rio merge command (#131).
+- Change layout of tests (#134).
+
+0.11.1 (2014-08-19)
+-------------------
+- Add --bbox option for rio bounds (#124).
+
+0.11 (2014-08-06)
+-----------------
+- Add rio shapes command (#115).
+- Accept CRS strings like 'EPSG:3857' (#116).
+- Write multiple bands at a time (#95).
+
+0.10.1 (2014-07-21)
+-------------------
+- Numpy.require C-contiguous data when writing bands (#108).
+
+0.10 (2014-07-18)
+-----------------
+- Add rio bounds command (#111).
+- Add rio transform command (#112).
+
+0.9 (2014-07-16)
+----------------
+- Add meta and tag dumping options to rio_insp.
+- Leave GDAL finalization to the DLL's destructor (#91).
+- Add pad() function (#84).
+- New read() method, returns 3D arrays (#83).
+- New affine attribute and AffineMatrix object (#80, #86).
+- Removal of rasterio.insp script (#51).
+- Read_band() is now a special case of read() (#96).
+- Add support for multi-band reprojection (#98).
+- Support for GDAL CInt16 datasets (#97).
+- Fix loss of projection information (#102).
+- Fix for loss of nodata values (#109).
+- Permit other than C-contiguous arrays (#108).
+
+0.8 (2014-03-31)
+----------------
+- Add rasterize(), the inverse of shapes() (#45, #62).
+- Change the sense of mask for shapes(). Masks are always positive in
+  rasterio, so we extract shapes only where mask is True.
+
+0.7.3 (2014-03-22)
+------------------
+- Fix sieve() bug (#57).
+
+0.7.2 (2014-03-20)
+------------------
+- Add rio_insp, deprecation warning in rasterio.insp (#50, #52).
+- Fix transform bug in shapes() (#54).
+
+0.7.1 (2014-03-15)
+------------------
+- Source distribution bug fix (#48).
+
+0.7 (2014-03-14)
+----------------
+- Add a Band object, providing a shortcut for shapes() and sieve() functions
+  (#34).
+- Reprojection of rasters (#12).
+- Enhancements to the rasterio.insp console: module aliases, shortcut for
+  show().
+- Add index() method.
+- Reading and writing of GDAL mask bands (#41).
+- Add rio_cp program.
+- Enable r+ mode for GeoTIFFs (#46).
+
+0.6 (2014-02-10)
+----------------
+- Add support for dataset and band tags (#32).
+- Add testing dependence on pytest (#33).
+- Add support for simple RGBA colormaps (#34).
+- Fix for a crasher that occurs when a file is sent through a write-read
+  revolving door.
+- New docs for tags and colormaps.
+
+0.5.1 (2014-02-02)
+------------------
+- Add mask option to shapes() function (#26).
+- Add rasterio.insp interactive interpreter.
+
+0.5 (2014-01-22)
+----------------
+- Access to shapes of raster features via GDALPolygonize (#20).
+- Raster feature sieving (#21).
+- Registration and de-registration of drivers via context managers (#22).
+
+0.4 (2013-12-19)
+----------------
+- Add nodatavals property (#13).
+- Allow nodata to be set when opening file to write (#17).
+
+0.3 (2013-12-15)
+----------------
+- Drop six dependency (#9)
+- Add crs_wkt attribute (#10).
+- Add bounds attribute and ul() method (#11).
+- Add block_windows property (#7).
+- Enable windowed reads and writes (#6).
+- Use row,column ordering in window tuples as in Numpy (#13).
+- Add documentation on windowed reading and writing.
+
+0.2 (2013-11-24)
+----------------
+- Band indexes start at 1 (#2).
+- Decimation or replication of pixels on read and write (#3).
+- Add rasterio.copy() (#5).
+
+0.1 (2013-11-07)
+----------------
+- Reading and writing of GeoTIFFs, with examples.
+
