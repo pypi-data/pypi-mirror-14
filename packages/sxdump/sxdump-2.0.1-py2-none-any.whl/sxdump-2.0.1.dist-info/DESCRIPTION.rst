@@ -1,0 +1,50 @@
+sxdump - backup and restore SX Cluster data
+===========================================
+
+Introduction
+------------
+
+sxdump analyses SX Cluster's structure and generates two shell scripts in the
+current directory: ``sx-backup.sh`` and ``sx-restore.sh``. The first script
+will backup all data from the cluster, and the other contains information on
+how to recreate the structure, including all volumes, users and ACLs.
+**WARNING:** Encrypted volumes are not supported and will be ignored by sxdump.
+
+sxdump uses sxclient library (https://pypi.python.org/pypi/sxclient) and
+requires Python 2.7.
+
+
+Installation
+------------
+
+Since sxdump is available on PyPI (https://pypi.python.org/pypi/sxdump), it can
+be installed with pip.
+
+::
+
+    pip install sxdump
+
+If you don't want to use pip, download sxdump tarball from its PyPI site,
+unpack the archive, go to the unpacked directory and run
+
+::
+
+    python setup.py install
+
+Note that the latter installation method requires Python setuptools module,
+which can be installed either from the system package repository or by
+following the `installation instructions
+<https://pypi.python.org/pypi/setuptools#installation-instructions>`_ on
+`setuptools PyPI site <https://pypi.python.org/pypi/setuptools>`_.
+
+
+Usage
+-----
+
+::
+
+    sxdump --backup-dir DIR sx://[profile@]cluster
+
+where ``DIR`` is a path to a directory which will store the cluster backup.
+
+
