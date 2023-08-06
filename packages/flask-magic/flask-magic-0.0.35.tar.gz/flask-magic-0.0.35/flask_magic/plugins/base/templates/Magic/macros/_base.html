@@ -1,0 +1,275 @@
+{#
+  Base macros
+
+ #}
+
+{% import "Magic/macros/meta.html" as meta with context %}
+
+{#: SITE_HEADER() ----------------------------------------------------------- #}
+{%- macro site_header(title="%s",
+        favicon="favicon.ico",
+        charset="utf-8",
+        add_social_graph=true,
+        add_google_analytics=true,
+        fontawesome_version="4.4.0") -%}
+
+    <meta charset="{{ charset | safe }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title | replace("%s", __.__META__["title"]) | safe }}</title>
+    {{ meta.meta("description", __.__META__["description"]) }}
+    {{ set_favicon(favicon) }}
+
+    {% if add_social_graph == true %}
+        {{ social_graph() }}
+    {% endif %}
+
+    {{ css_assets('magic-all.css') }}
+    {{ js_assets('jquery.js') }}
+    {{ js_assets('magic-all.js') }}
+
+    {% if add_google_analytics == true %}
+        {{ google_analytics() }}
+    {% endif %}
+
+    {{ fontawesome(fontawesome_version) }}
+
+{%- endmacro -%}
+
+{#: CSS_ASSETS() ------------------------------------------------------------- #}
+{%- macro css_assets(file) %}
+    {%- assets file %}
+    <link rel="stylesheet" href="{{ ASSET_URL }}" type="text/css" >
+    {% endassets -%}
+{% endmacro -%}
+
+
+{#: JS_ASSETS()--------------------------------------------------------------- #}
+{%- macro js_assets(file) %}
+    {%- assets file %}
+    <script type="text/javascript" src="{{ ASSET_URL }}"></script>
+    {% endassets -%}
+{% endmacro -%}
+
+
+{#: FLASHED_MESSAGES()------------------------------------------------------- #}
+{# Automatic display of flash message from flash() #}
+{% macro flashed_messages(dismissible=True) %}
+    {% for category, message in get_flashed_messages(with_categories=True) %}
+        {{ flash_message(message=message, category=category, dismissible=dismissible) }}
+    {%endfor%}
+{% endmacro %}
+
+
+{#: FLASH_MESSAGE ----------------------------------------------------------- #}
+{# Manual display of flash message #}
+{% macro flash_message(message, category="info", dismissible=True) %}
+    <div class="alert
+        alert-{{ category|replace('error', 'danger') }}
+        {% if dismissible %}alert-dismissible{%endif%}
+        " role="alert">
+        {% if dismissible %}
+         <button type="button" class="close" data-dismiss="alert">
+             <span aria-hidden="true">&times;</span>
+             <span class="sr-only">Close</span>
+         </button>
+        {% endif %}
+        {{ message }}
+    </div>
+{% endmacro %}
+
+{#: PAGINATION -------------------------------------------------------------- #}
+{#
+    :paginator: iterator
+     :endpoint:
+     :prev: Text for previous button
+     :next: Text for Next button
+     :class_: A class name for pagination if customed. If you are extending the class
+             best to add the original class and your custom class
+             ie: 'pagination my_custom_pagination' or 'pager my_custom_page'
+     :pager: If true it will show a pager instead of numbered pagination
+
+#}
+{% macro pagination(paginator, endpoint=None, prev="", next="", class_=None, pager=False) %}
+    {% if not endpoint %}
+        {% set endpoint = request.endpoint %}
+    {% endif %}
+    {% if "page" in kwargs %}
+        {% set _ = kwargs.pop("page") %}
+    {% endif %}
+
+    {%  if not class_ %}
+        {% set class_ = "pagination" %}
+        {% if pager %}
+            {% set class_ = "pager" %}
+        {% endif %}
+    {% endif %}
+
+    {% set _prev_btn = "<span aria-hidden='true'>&larr;</span> %s" % prev %}
+    {% set _next_btn = "%s <span aria-hidden='true'>&rarr;</span>" % next %}
+
+    <nav>
+      <ul class="{{ class_ }}">
+
+          {%- if paginator.has_prev %}
+            <li class="previous">
+                <a href="{{ url_for(endpoint, page=paginator.prev_page_number, **kwargs) }}">
+                     {{ _prev_btn | safe }}</a>
+            </li>
+          {% else %}
+            <li class="disabled previous">
+                <a href="#">{{ _prev_btn | safe }}</a>
+            </li>
+          {%- endif %}
+
+
+            {% if not pager %}
+
+                  {%- for page in paginator.iter_pages() %}
+                    {% if page %}
+                      {% if page != paginator.page %}
+                        <li><a href="{{ url_for(endpoint, page=page, **kwargs) }}"
+                         rel="me">{{ page }}</a></li>
+                      {% else %}
+                        <li class="active"><span>{{ page }}</span></li>
+                      {% endif %}
+                    {% else %}
+                      <li><span class=ellipsis>…</span></li>
+                    {% endif %}
+                  {%- endfor %}
+
+            {% endif %}
+
+
+          {%- if paginator.has_next %}
+            <li class="next">
+                <a href="{{ url_for(endpoint, page=paginator.next_page_number, **kwargs) }}">
+                    {{ _next_btn | safe }}</a>
+            </li>
+          {% else %}
+            <li class="disabled next">
+                <a href="#">{{ _next_btn | safe }}</a>
+            </li>
+          {%- endif %}
+      </ul>
+    </nav>
+
+{% endmacro %}
+
+
+
+
+
+{#: GOOGLE_ANALYTICS() ------------------------------------------------------ #}
+{% macro google_analytics(code=None) %}
+    {% if not code %}
+        {% set code = __.APPLICATION_GOOGLE_ANALYTICS_ID %}
+    {% endif %}
+    {% if code %}
+        <script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+          ga('create', '{{ code }}', 'auto');
+          ga('send', 'pageview');
+        </script>
+    {% endif %}
+{% endmacro %}
+
+
+{#:: static_file(url) ::#}
+{#:: Include static assets ::#}
+{%- macro static_file(url) -%}
+    {%- if not url.startswith('http') and not url.startswith('//')  -%}
+        {%- set url = url_for('static', filename=url) -%}
+    {%- endif -%}
+    {{ url | safe }}
+{%- endmacro -%}
+
+
+{#
+ To create an image
+ Has the option of making that image easyload
+
+ params:
+    - file: The image name
+    - lazy: (bool) if True, it will be lazy loaded
+    - static: (bool) it will be treated as static files if true
+    - responsive: (bool)
+#}
+{% macro img_src(file, lazy=true, responsive=true, static=false) %}
+    {% set _class = kwargs.pop('class', '') %}
+    {% set _responsive = "responsive" if responsive else "" %}
+
+    {% set blank_image_1x1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=" %}
+    {% set image_file = static_file(file) if static else file%}
+    {% set lazy_class = "lazy" %}
+
+    {% if lazy %}
+        {% set img_src = blank_image_1x1 %}
+        {% set data_src = image_file %}
+    {% else %}
+        {% set img_src = image_file %}
+        {% set data_src = "" %}
+        {% set lazy_class = "" %}
+    {% endif %}
+
+
+    <img src="{{ img_src }}"
+         data-src="{{ data_src }}"
+         class="{{ lazy_class }} {{ _responsive }} {{ _class }}"
+         {% for key in kwargs %}{{key | safe}}="{{kwargs[key]|safe}}"{% endfor %}
+    >
+{% endmacro %}
+
+
+{#: OEMBED ------------------------------------------------------------------ #}
+{#
+To
+#}
+{%  macro oembed(url) %}
+    <a href="{{ url }}" class="oembed"></a>
+{%  endmacro %}
+
+#-------------------------------------------------------------------------------
+
+{% macro share_buttons(text=None, url=None, show_count=False, show_label=True, buttons=["facebook", "twitter", "googleplus"]) %}
+
+    <div class="WP-share-buttons"
+         data-buttons='{{ buttons | tojson }}'
+         {% if url %}data-url="{{ url }}"{% endif %}
+         {% if text %}data-text="{{ text }}"{% endif %}
+         data-show-count="{{ show_count }}"
+         data-show-label="{{ show_label }}"
+    ></div>
+
+{% endmacro %}
+
+{%- macro fontawesome(version="4.3.0") -%}
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/{{ version }}/css/font-awesome.min.css">
+{%- endmacro -%}
+
+
+
+
+{% macro oauth_providers(text="Signin with #provider", size="lg", btn_block=true) %}
+
+
+<script>
+    $(function(){
+        var redirect = "{{ login_url_next | default(login_url_default) }}"
+        Magic.setup_authomatic(redirect)
+    })
+</script>
+{% endmacro %}
+
+#-------------------------------------------------------------------------------
+
+
+{#: Favicon :#}
+{% macro set_favicon(path) %}
+    <link rel="shortcut icon" href="{{- static_file(path) -}}">
+{% endmacro %}
+
+
