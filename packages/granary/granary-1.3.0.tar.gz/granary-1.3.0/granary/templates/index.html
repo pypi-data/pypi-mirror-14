@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <meta http-equiv="X-XRDS-Location"
+        content="//{{ host }}/.well-known/host-meta.xrds" />
+  <script type="text/javascript" src="/static/demo.js?version=20151105"></script>
+  <title>Granary</title>
+  <meta name="viewport" content="width=device-width">
+
+  <link rel="stylesheet" type="text/css" href="/oauth_dropins/static/bootstrap.min.css" />
+  <link rel="stylesheet" type="text/css" href="/oauth_dropins/static/bootstrap-theme.min.css" />
+  <link rel="stylesheet" type="text/css" href="/oauth_dropins/static/style.css" />
+  <link rel="stylesheet" type="text/css" href="/static/style.css" />
+</head>
+
+
+<body>
+
+<!-- highlight fragments -->
+<style type="text/css">
+#contact, #privacy {
+  transition: background-color 2s;
+}
+</style>
+<script type="text/javascript">
+function onHashChange() {
+  var id = location.href.match(/#(.+)$/);
+  if (id) {
+    var elem = document.getElementById(id[1]);
+    if (elem) {
+      elem.style.backgroundColor = "#FFFFAA";
+    }
+  }
+}
+window.addEventListener('hashchange', onHashChange);
+document.addEventListener('DOMContentLoaded', onHashChange);
+window.onload = update_search();
+</script>
+
+<!--
+  -- github ribbon: https://github.com/blog/273-github-ribbons
+  -->
+<a href="https://github.com/snarfed/granary">
+  <img style="position: absolute; top: 0; right: 0; border: 0;"
+       src="//s3.amazonaws.com/github/ribbons/forkme_right_orange_ff7600.png"
+       alt="Fork me on GitHub" />
+</a>
+
+<main class="tp-main">
+<div class="container">
+
+
+<h1>
+<img id="logo" src="/static/granary_logo_128.png" />
+granary
+</h1>
+
+<p class="lead">
+A library and REST API
+that <a href="https://en.wikipedia.org/wiki/Threshing">frees</a> you
+from <a href="https://indiewebcamp.com/silo">social network</a>
+API <a href="https://en.wikipedia.org/wiki/Chaff">chaff</a> and and exposes the
+sweet social data foodstuff inside as HTML and JSON
+with <a href="http://microformats.org/wiki/microformats2">microformats2</a>,
+<a href="http://activitystrea.ms/">ActivityStreams</a>,
+<a href="http://atomenabled.org/">Atom</a>, XML, and more!
+</p>
+
+<p class="lead">
+Details in the <a href="https://github.com/snarfed/granary">GitHub repo</a>.
+Click on a site to try the demo!
+</p>
+
+<!--
+  -- oauth login buttons
+  -->
+<br />
+<div class="row login">
+
+<div class="col-lg-offset-2 col-lg-2 col-md-3 col-sm-4 col-xs-6">
+<form method="post" action="/twitter/start_auth">
+  <input type="image" class="shadow" alt="Twitter"
+         src="/oauth_dropins/static/twitter.png" />
+</form></div>
+
+<div class="col-lg-2 col-md-3 col-sm-4 col-xs-6">
+<form method="post" action="/facebook/start_auth">
+  <input type="image" class="shadow" alt="Facebook"
+         src="/oauth_dropins/static/facebook.png" />
+  <!-- https://developers.facebook.com/docs/reference/login/ -->
+  <input name="scope" type="hidden"
+         value="user_status,user_posts,user_photos,user_events,read_stream">
+</form></div>
+
+<div class="col-lg-2 col-md-3 col-sm-4 col-xs-6">
+<form method="post" action="/google+/start_auth">
+  <input type="image" class="shadow" alt="Google+"
+         src="/oauth_dropins/static/google_plus.png" />
+</form></div>
+
+<div class="col-lg-2 col-md-3 col-sm-4 col-xs-6">
+<a href="/?site=instagram">
+  <input type="image" class="shadow" alt="Instagram"
+         src="/oauth_dropins/static/instagram.png" />
+</a>
+</div>
+
+<div class="col-lg-offset-3 col-md-offset-2 col-lg-2 col-md-3 col-sm-4 col-xs-6">
+<form method="post" action="/flickr/start_auth">
+  <input type="image" class="shadow" alt="Flickr"
+         src="/oauth_dropins/static/flickr.png" />
+</form></div>
+
+<div class="col-lg-2 col-md-3 col-sm-4 col-xs-6">
+<form method="get">
+  <input type="image" class="shadow" alt="Microformats2"
+         src="/static/microformats_button.png" />
+  <input name="input" type="hidden" value="html" />
+</form></div>
+
+<div class="col-sm-offset-4 col-md-offset-0 col-lg-2 col-md-3 col-sm-4 col-xs-6">
+<form method="get">
+  <input type="image" class="shadow" alt="ActivityStreams"
+         src="/static/activitystreams_button_small.png" />
+  <input name="input" type="hidden" value="activitystreams" />
+</form></div>
+
+</div>
+
+<!--
+  -- interactive form
+  -->
+{% if access_token or access_token_key or access_token_secret or input or site %}
+
+<div class="row">
+<p class="lead"><em>
+{% if declined or error %}
+<span style="color: red">Please accept the prompt to try the demo.</span>
+{% endif %}
+{% if entity %}
+<span style="color: green">
+ Authenticated as {{ entity.user_display_name }} on {{ entity.site_name }}.</span>
+{% endif %}
+</em></p>
+</div>
+
+
+{% if entity or site %}
+<form id="demo-form" action="/demo" method="get" target="results">
+<input type="hidden" id="site" name="site" value="{{ site }}" />
+<p><code>
+<label>/ {{ site }} / </label>
+{% if site == 'instagram' %}
+<input id="user_id" name="user_id" type="text" class="form-control"
+       placeholder="username" size="12" required />
+<input type="hidden" id="group_id" name="group_id" value="@self" />
+<label>/ @self / @app </label>
+{% else %}
+<label> me / </label>
+<select id="group_id" name="group_id" onchange="update_search()">
+  <option value="@all">@all</option>
+  <option value="@self">@self</option>
+  <option value="@friends">@friends</option>
+  {% if site == 'twitter' %}
+    <option value="@search">@search</option>
+  {% endif %}
+</select>
+<label>/ @app </label>
+<span id="activity_id_span">
+  <label for="activity_id"> / </label>
+  <input id="activity_id" name="activity_id" type="text" class="form-control"
+         placeholder="activity id (optional)" size="12" />
+</span>
+{% endif %}
+?
+<span id="search_query_span">
+  <label for="search_query">search_query =</label>
+  <input id="search_query" name="search_query" type="text" class="form-control"
+         placeholder="search query" size="12" />
+  &
+</span>
+<label for="format">format =</label>
+<select id="format" name="format">
+  <option value="json">json</option>
+  <option value="atom">atom</option>
+  <option value="xml">xml</option>
+  <option value="html">html</option>
+  <option value="json-mf2">json-mf2</option>
+</select>
+{% if site == 'google+' %}
+  <label for="auth_entity">&amp; auth_entity =</label>
+  <input id="auth_entity" name="auth_entity" type="text" size="10"
+         class="form-control" value="{{ auth_entity }}" />
+{% endif %}
+{% if access_token and site != 'google+' %}
+  <label for="access_token">&amp; access_token =</label>
+  <input id="access_token" name="access_token" type="text" size="10"
+         class="form-control" value="{{ access_token }}" />
+{% endif %}
+{% if access_token_key and access_token_secret %}
+  <label for="access_token_key">&amp; access_token_key =</label>
+  <input id="access_token_key" name="access_token_key" type="text" size="10"
+         class="form-control" value="{{ access_token_key }}" />
+  <label for="access_token_secret">&amp; access_token_secret =</label>
+  <input id="access_token_secret" name="access_token_secret" type="text" size="10"
+         class="form-control" value="{{ access_token_secret }}" />
+{% endif %}
+</code>
+
+<button type="submit" class="btn btn-default"
+        onclick="render_demo_request()">GET</button>
+</p>
+</form>
+{% endif %}
+
+{% if input %}
+<form id="url-form" action="/url" method="get" target="results">
+<p><code>
+<label>/ url ? input = </label>
+<select id="input" name="input">
+  <option {% if input == "activitystreams" %} selected {% endif %}
+          value="activitystreams">activitystreams</option>
+  <option {% if input == "html" %} selected {% endif %}
+          value="html">html</option>
+  <option {% if input == "json-mf2" %} selected {% endif %}
+          value="json-mf2">json-mf2</option>
+</select>
+<label>& output = </label>
+<select id="output" name="output">
+  <option value="activitystreams">activitystreams</option>
+  <option value="atom">atom</option>
+  <option value="xml">xml</option>
+  <option value="html">html</option>
+  <option value="json-mf2">json-mf2</option>
+</select>
+<label>& url = </label>
+<input id="url" name="url" type="url" required class="form-control"
+       placeholder="http://example.com/post.html" size="30" />
+
+<input type="hidden" name="plaintext" value="true" />
+<button type="submit" class="btn btn-default"
+        onclick="render_url_request()">GET</button>
+</code></p>
+</form>
+{% endif %}
+
+
+<div id="results">
+<p><code id="request"></code></p>
+<iframe name="results">
+</iframe>
+</div>
+
+{% endif %}
+
+<div class="row">
+<p id="privacy" class="lead">This app does not store or use any data, yours or
+anyone else's. It only reformats data and passes it through in response to your
+own HTTP requests.
+<a id="contact" href="https://github.com/snarfed/granary/issues">Questions?</a></p>
+</div>
+</div>
+
+</main>
+</body>
+</html>
