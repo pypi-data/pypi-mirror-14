@@ -1,0 +1,146 @@
+{% extends 'production_report/reports/base.html' %}
+
+{% block title %}
+  Production Order
+{% endblock %}
+
+{% block report_header scoped %}
+  {% set production = record %}
+    <span class="h3 pull-right">Production Order #{{production.code}}</span>
+  <table class="table no-border">
+    <tr>
+      <td align="right"><b>Production #</b></td>
+      <td class="barcode">{{ production.code or 'N/A' }}</td>
+    </tr>
+    <tr>
+      <td align="right"><b>Production State:</b></td>
+      <td>{{ production.state }}</td>
+    </tr>
+    <tr>
+      <td align="right"><b>Planned Date:</b></td>
+      <td>{{ production.planned_date and production.planned_date|dateformat }}</td>
+    </tr>
+    {% if production.effective_date %}
+    <tr>
+      <td align="right"><b>Effective Date:</b></td>
+      <td>{{ production.effective_date|dateformat }}</td>
+    </tr>
+    {% endif %}
+  </table>
+{% endblock report_header %}
+
+{% block report_body scoped %}
+{% set production = record %}
+<table class="table">
+  <thead>
+    {% if production.reference %}
+      <th class="text-center">Reference</th>
+    {% endif %}
+    <th class="text-center">Warehouse</th>
+    <th class="text-center">Product</th>
+    <th class="text-center">Quantity</th>
+    <th class="text-center">Cost</th>
+    <th class="text-center">BOM</th>
+  </thead>
+  <tbody>
+    <tr>
+      {% if production.reference %}
+        <th class="text-center">{{ production.reference }}</th>
+      {% endif %}
+      <td class="text-center">{{ production.warehouse and production.warehouse.rec_name}}</td>
+      <td class="text-center">{{ production.product and production.product.rec_name or 'N/A' }}</td>
+      <td class="text-center">
+        {% if production.quantity %}
+          {{ formatLang(production.quantity, production.company.party.lang, digits=production.unit_digits) }} {% if production.uom.symbol != 'u' %}{{ production.uom.symbol }}{% endif %}
+        {% else %}
+          'N/A'
+        {% endif %}
+      </td>
+      <td class="text-center">{{ production.cost|currencyformat(production.company.currency.code) }}</td>
+      <td class="text-center" nowrap>{{ production.bom and production.bom.rec_name or 'N/A' }}</td>
+    </tr>
+  </tbody>
+</table>
+<span class="h2">Inputs</span>
+<table class="table">
+  <tbody>
+    <tr>
+      <th>#</th>
+      <th class="text-center">Item</th>
+      <th>Description</th>
+      <th class="text-right">Quantity</th>
+      <th class="text-center">From Location</th>
+      <th class="text-center">Planned Date</th>
+      <th class="text-center">Effective Date</th>
+      <th class="text-right">State</th>
+    </tr>
+    {% for move in production.inputs %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td class="text-center">
+          {% if move.product %}
+            <strong>{{ move.product.code }}</strong>
+          {% else %}
+            -
+          {% endif %}
+      </td>
+      <td>
+          {% if move.product %}
+            {{ move.product.name }}
+          {% else %}
+            {{ move.description }}
+          {% endif %}
+      </td>
+      <td class="text-right">
+        <strong>{{ formatLang(move.quantity, production.company.party.lang, digits=move.unit_digits) }} {% if move.uom.symbol != 'u' %}{{ move.uom.symbol }}{% endif %}</strong>
+      </td>
+      <td class="text-center"><strong>{{ move.from_location.rec_name }}</strong></td>
+      <td class="text-center">{{ move.planned_date and move.planned_date|dateformat or '-' }}</td>
+      <td class="text-center">{{ move.effective_date and move.effective_date|dateformat or '-' }}</td>
+      <td class="text-capitalize text-right">{{ move.state }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<span class="h2">Outputs</span>
+<table class="table">
+  <tbody>
+    <tr>
+      <th>#</th>
+      <th class="text-center">Item</th>
+      <th>Description</th>
+      <th class="text-right">Quantity</th>
+      <th class="text-center">To Location</th>
+      <th class="text-center">Planned Date</th>
+      <th class="text-center">Effective Date</th>
+      <th class="text-right">State</th>
+    </tr>
+    {% for move in production.outputs %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td class="text-center">
+          {% if move.product %}
+            <strong>{{ move.product.code }}</strong>
+          {% else %}
+            -
+          {% endif %}
+      </td>
+      <td>
+          {% if move.product %}
+            {{ move.product.name }}
+          {% else %}
+            {{ move.description }}
+          {% endif %}
+      </td>
+      <td class="text-right">
+        <strong>{{ formatLang(move.quantity, production.company.party.lang, digits=move.unit_digits) }} {% if move.uom.symbol != 'u' %}{{ move.uom.symbol }}{% endif %}</strong>
+      </td>
+      <td class="text-center"><strong>{{ move.to_location.rec_name }}</strong></td>
+      <td class="text-center">{{ move.planned_date and move.planned_date|dateformat or '-' }}</td>
+      <td class="text-center">{{ move.effective_date and move.effective_date|dateformat or '-' }}</td>
+      <td class="text-capitalize text-right">{{ move.state }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock report_body %}

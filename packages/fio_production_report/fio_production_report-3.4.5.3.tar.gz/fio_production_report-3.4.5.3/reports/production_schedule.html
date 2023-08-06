@@ -1,0 +1,73 @@
+{% extends 'production_report/reports/base.html' %}
+
+{% block title %}
+  Production Schedule
+{% endblock %}
+
+{% block report_header scoped %}
+  <span class="h3 pull-right">Production Schedule</span>
+{% endblock report_header %}
+
+{% block report_body %}
+{% for date, productions in productions_by_date %}
+<table class="table table-bordered">
+  <tbody>
+    <tr>
+      <th colspan="7">{{ date|dateformat('full') }}</th>
+    </tr>
+    <tr>
+      <th class="text-center">Code</th>
+      <th class="text-center">Zone</th>
+      <th class="text-center">Product</th>
+      <th class="text-center">Quantity Planned</th>
+      <th class="text-center">Quantity Done</th>
+      <th class="text-center">Operator</th>
+      <th class="text-center">State</th>
+    </tr>
+    {% for production in productions|sort(attribute='location') %}
+      <tr class="{% if production.state == 'done' %}success{% elif production.state == 'running' %}warning{% endif %}">
+      <td class="text-center">
+        {% if production.code %}
+          <a href="{{ production.__url__ }}">{{ production.code }}<a>
+        {% else %}
+          N/A
+        {% endif %}
+        {% if production.plan %}
+          <br/>
+          <a href="{{ production.plan.__url__ }}">({{ production.plan.code }})<a>
+        {% endif %}
+      </td>
+      <td>
+        {{ production.location.rec_name }}
+      </td>
+      <td class="text-center">
+        {% if production.product %}
+          {{production.product.rec_name }}
+          {% if production.product.rec_name and production.product.code %}-{% endif %}
+          {{production.product.code}}
+        {% else %}
+           N/A
+        {% endif %}
+      </td>
+      <td class="text-right">
+        {% if production.quantity %}
+          {{ formatLang(production.quantity, production.company.party.lang, digits=production.unit_digits) }} {% if production.uom.symbol != 'u' %}{{ production.uom.symbol }}{% endif %}
+        {% else %}
+          N/A
+        {% endif %}
+      </td>
+      <td class="text-right">
+        {{ formatLang(production.quantity_done, production.company.party.lang, digits=production.unit_digits) }} {% if production.uom.symbol != 'u' %}{{ production.uom.symbol }}{% endif %}
+      </td>      
+      <td class="text-center">
+        {{ production.operator and production.operator.rec_name or 'N/A' }}
+      </td>
+      <td class="text-center">
+        {{ production.state.upper() }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% endblock report_body %}
