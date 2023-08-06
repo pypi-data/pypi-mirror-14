@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+
+# http://inamidst.com/saxo/
+# Created by Sean B. Palmer
+
+import re
+import saxo
+
+def optflag(arg):
+    flag = None
+    if arg.startswith(":"):
+        if " " in arg:
+            flag, arg = arg.split(" ", 1)
+        else:
+            flag, arg = arg, ""
+        flag = flag[1:]
+    return flag, arg
+
+@saxo.command()
+def tr(arg):
+    if not arg:
+        return "Translate text from one language to another"
+
+    source, arg = optflag(arg)
+    target, phrase = optflag(arg)
+
+    source = source or "auto"
+    target = target or "en"
+
+    page = saxo.request("https://translate.google.co.uk/", method="POST",
+        data={"sl": source, "tl": target, "js": "n", "prev": "_t", "hl": "en",
+              "ie": "UTF-8", "text": phrase, "file": "", "edit-text": ""})
+    text = page["text"]
+
+    result = re.compile(r"id=result_box(.*?)</div>")
+    match = result.search(text)
+    if not match:
+        return "Sorry, no translation found"
+    tag = re.compile("<[^>]+>")
+    translation = tag.sub("", "<" + match.group(1))
+    msg = "%s (%s » %s). translate.google.co.uk"
+    return msg % (translation, source, target)

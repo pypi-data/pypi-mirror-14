@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+
+# http://inamidst.com/saxo/
+# Created by Sean B. Palmer
+
+import saxo
+
+def optflag(arg, flag=None):
+    if arg.startswith(":"):
+        if " " in arg:
+            flag, arg = arg.split(" ", 1)
+        else:
+            flag, arg = arg, ""
+        flag = flag[1:]
+    return arg, flag
+
+@saxo.pipe
+def head(arg):
+    # TODO: This doesn't work
+    arg, flag = optflag(arg, "")
+    follow = (flag != "nofollow")
+
+    if " " in arg:
+        arg, header = arg.split(" ", 1)
+    else:
+        header = None
+
+    arg = arg if arg else saxo.env("url")
+    if not arg:
+        return "Please supply a URL"
+
+    page = saxo.request(arg, follow=follow)
+
+    if header == "*":
+        result = ", ".join([key for key in page["info"]])
+        if len(result) > 256:
+            result = result[:256] + "..."
+        return result
+
+    if header is not None:
+        value = page["headers"].get(header.lower())
+        if value is not None:
+            return header + ": " + value
+        return "No such header"
+
+    values = [str(page["status"])]
+
+    if "mime" in page:
+        values.append(page["mime"])
+
+    if "encoding" in page:
+        if "encoding-source" in page:
+            values.append(page["encoding"] + " (%s)" % page["encoding-source"])
+        else:
+            values.append(page["encoding"])
+
+    if "last-modified" in page["headers"]:
+        values.append("modified " + page["headers"]["last-modified"])
+
+    if "content-length" in page["headers"]:
+        values.append(page["headers"]["content-length"] + " bytes")
+
+    return ", ".join(values)
