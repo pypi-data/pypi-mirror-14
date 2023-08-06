@@ -1,0 +1,172 @@
+{% extends 'aristotle_mdr/base.html' %}
+{% load humanize i18n %}
+{% load static compile_static %}
+{% load aristotle_tags %}
+
+{% block extra_head_scripts %}
+    {% if item|can_edit:request.user %}
+        <link rel="stylesheet" href="{{ STATIC_URL }}{% compile 'aristotle_mdr/aristotle.autocomplete.less' %}" />
+    {% endif %}
+    <link rel="stylesheet" href="{{ STATIC_URL }}{% compile 'aristotle_mdr/aristotle.visuals.less' %}" />
+{% endblock %}
+
+{% block title %}
+    {{ item.name }}
+    {% if item.version %}
+        - v{{ item.version }}
+    {% endif %}
+    ({{ item.get_verbose_name }})
+{% endblock %}
+{% block content %}
+<header class="row">
+    <h1 id="objectTitle"  class="pull-left">
+        <a href="#">{{ item.name }}</a>
+        {% if item.version %}
+        <em class="version" title="{% trans 'Version'%} {{ item.version }}">
+            {{ item.version }}
+        </em>
+        {% endif %}
+        <small>({{ item.get_verbose_name }})</small>
+
+        {# Screen reader quick links #}
+        {% if item|can_edit:request.user and request.user.is_staff %}
+            <a class="sr-only" accesskey="p" href="{% adminEdit item %}">{% trans 'Edit in admin'%}</a>
+        {% elif item|can_edit:request.user %}
+            <a class="sr-only" accesskey="e" href="{% url 'aristotle:edit_item' item.id %}">{% trans 'Open item editor'%}</a>
+        {% endif %}
+    </h1>
+    <div class="btn-group pull-right">
+        {% if user.is_authenticated %}
+            {% include "aristotle_mdr/helpers/favourite_concept.html" %}
+        {% endif %}
+        {% if item|can_edit:request.user %}
+            {% if request.user.is_staff %}
+                <div class="btn-group">
+                  <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                    <i class="fa fa-pencil-square-o"></i> {% trans 'Edit'%} <span class="caret"></span>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-right" role="menu">
+                    <li><a class="" href="{% url 'aristotle:edit_item' item.id %}"
+                                    data-toggle="modal" data-target="#infobox_adv_edit">
+                        <i class="fa fa-pencil-square-o"></i> {% trans 'Open item editor'%}
+                    </a></li>
+                    <li><a class="staff_action" href="{% adminEdit item %}">
+                        <i class="fa fa-pencil-square"></i> {% trans 'Edit in admin'%}
+                    </a></li>
+                    {# % endif % #}
+                    <li class="divider"></li>
+                    <li><a class="" href="{% url 'aristotle:clone_item' item.id %}">
+                        <i class="fa fa-code-fork"></i> {% trans 'Clone this item'%}
+                    </a></li>
+                    {% if request.user.is_staff %}
+                    <li><a class="staff_action" href="{% clone item %}">
+                        <i class="fa fa-code-fork"></i> {% trans 'Clone this item via admin'%}
+                    </a></li>
+                    {% endif %}
+                  </ul>
+                </div>
+            {% else %}
+                <button class="btn btn-default" href="{% url 'aristotle:edit_item' item.id %}"
+                        accesskey='e'
+                        data-toggle="modal" data-target="#infobox_adv_edit">
+                    <i class="fa fa-pencil-square"></i> {% trans 'Edit'%}
+                </button>
+            {% endif %}
+            {% bootstrap_modal "infobox_adv_edit" size='lg' %}
+        {% endif %}
+        <div class="btn-group">
+            <button accesskey="d" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+            <i class="fa fa-download"></i> {% trans 'Download'%} <span class="caret"></span>
+            </button>
+            {% downloadMenu item %}
+        </div>
+    </div>
+</header>
+<section class="managed row">
+    {% include "aristotle_mdr/concepts/infobox.html" %}
+    {% include "aristotle_mdr/concepts/visibilityInfoBar.html" %}
+
+    <h2 title="{% doc item 'definition' %}">{% trans 'Definition'%}</h2>
+    <div id="definition" class="definition">
+        {{ item.definition | safe}}
+    </div>
+    {% if item.short_name or item.synonyms %}
+    <h3>Alternate names:</h3>
+    <dl id="alternate_names">
+        {% if item.short_name %}
+        <dt>{% trans 'Short name'%}</dt><dd>{{ item.short_name }}</dd>
+        {% endif %}
+        {% if item.synonyms %}
+        <dt>{% trans 'Synonyms'%}</dt><dd>{{ item.synonyms }}</dd>
+        {% endif %}
+    </dl>
+    {% endif %}
+
+    {% block objSpecific %}{% endblock %}
+
+    {% if item.comments %}
+        <h2>Comments</h2>
+        {{ item.comments | safe }}
+    {% endif %}
+
+    {% if item.references %}
+    <div>
+    <h2>References</h2>
+        <p>{{ item.references | safe }}</p>
+        {% if item.submitting_organisation %}
+        <h3>Submitting Organisation</h3>
+            <p>{{ item.submitting_organisation }}</p>
+        {% endif %}
+        {% if item.responsible_organisation %}
+        <h3>Responsible Organisation</h3>
+            <p>{{ item.responsible_organisation }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% if item.slots.exists %}
+    <div>
+    <h2>Additional Attributes</h2>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>
+                    {% trans 'Slot name' %}
+                </th>
+                <th>
+                    {% trans 'Details' %}
+                </th>
+                <th>
+                    {% trans 'Cardinality' %}
+                </th>
+                <th>
+                    {% trans 'Value' %}
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for slot in item.slots.all %}
+            <tr>
+                <td>
+                    {{ slot.type.slot_name }}
+                </td>
+                <td>{{slot.type.help_text}}</td>
+                <td>{{slot.type.get_cardinality_display}}</td>
+                <td>
+                    {{ slot.value }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% endif %}
+    <h2>Related content</h2>
+        {% block relationships %}{% endblock %}
+        {% for extension in config.CONTENT_EXTENSIONS %}
+            {% extra_content extension item request.user %}
+        {% endfor %}
+    </div>
+</div>
+
+</section>
+{% endblock %}
