@@ -1,0 +1,64 @@
+{% extends "forum/_base.html" %}
+
+{%- from "macros/user.html" import m_user_link, m_user_photo %}
+
+{% from "macros/box.html" import m_box_menu, m_box_content %}
+
+
+{% block content %}
+  {% call m_box_content(_("Recent conversations")) %}
+    {% if threads %}
+      <ul class="threads">
+        {% for thread in threads %}
+          {{ m_thread(thread) }}
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>{{ _("No message has been posted to this community yet") }}</p>
+    {% endif %}
+
+    {% if has_more or True %}
+      <hr>
+      <p><a href="{{ url_for('.archives', community_id=g.community.slug) }}">{{ _("All conversations") }}</a></p>
+    {% endif %}
+  {% endcall %}
+{% endblock %}
+
+
+{% macro m_thread(thread) %}
+  {%- set thread_href = url_for(thread) %}
+  {%- set thread_length = thread.posts|length %}
+
+  <li>
+    {% call m_user_link(thread.creator) %}
+      {{ m_user_photo(thread.creator, size=45) }}
+      {%- endcall %}
+
+    <div class="entry">
+      <h4><a href="{{ thread_href }}">{{ thread.title }}</a></h4>
+
+      <div class="details">
+        {{ _("by %(creator)s", creator=m_user_link(thread.creator)) }}
+        –
+        <span class="datetime">
+          {{ thread.created_at | age(date_threshold='day') }}
+        </span>
+        {%- if thread.closed %} <i class="fa fa-lock fa-big"></i>{%- endif %}
+      </div>
+
+      <div class="comments">
+        <a href="{{ thread_href }}">
+          <span class="glyphicon glyphicon-comment"></span>
+          {{ thread_length-1 }} commentaires
+        </a>
+
+        {%- if thread_length > 1 %}
+        {% set last_post_creator = thread.posts[-1].creator %}
+        <span class="hidden-xs">
+          {{ _("Last comment by %(creator)s", creator=m_user_link(last_post_creator)) }}
+        </span>
+        {%- endif %}
+      </div>
+    </div>
+  </li>
+{% endmacro %}
